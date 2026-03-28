@@ -28,6 +28,70 @@
             height: 100%;
         }
     </style>
+    <script>
+        // Track WASM download progress before the Trunk-generated loader initializes the app.
+        (function () {
+            const origFetch = window.fetch.bind(window);
+
+            function setLoadingText(text) {
+                const el = document.getElementById("loading_text");
+                if (el) el.textContent = text;
+            }
+
+            function isWasmRequest(input) {
+                const url = typeof input === "string" ? input : (input && input.url) || "";
+                return /_bg\.wasm(\?|$)/.test(url);
+            }
+
+            window.fetch = async function (input, init) {
+                const resp = await origFetch(input, init);
+                if (!isWasmRequest(input) || !resp.body) {
+                    return resp;
+                }
+
+                const total = Number(resp.headers.get("content-length") || 0);
+                const reader = resp.body.getReader();
+                let loaded = 0;
+
+                if (total > 0) {
+                    setLoadingText("Loading wasm... 0%");
+                } else {
+                    setLoadingText("Loading wasm...");
+                }
+
+                const stream = new ReadableStream({
+                    async pull(controller) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            setLoadingText("Initializing...");
+                            controller.close();
+                            return;
+                        }
+
+                        loaded += value.byteLength;
+                        if (total > 0) {
+                            const pct = Math.min(100, Math.floor((loaded / total) * 100));
+                            setLoadingText(`Loading wasm... ${pct}%`);
+                        } else {
+                            const mb = (loaded / (1024 * 1024)).toFixed(1);
+                            setLoadingText(`Loading wasm... ${mb} MB`);
+                        }
+
+                        controller.enqueue(value);
+                    },
+                    cancel(reason) {
+                        reader.cancel(reason);
+                    },
+                });
+
+                return new Response(stream, {
+                    status: resp.status,
+                    statusText: resp.statusText,
+                    headers: resp.headers,
+                });
+            };
+        })();
+    </script>
     <link data-trunk rel="rust" data-wasm-opt="2" />
 </head>
 <body>

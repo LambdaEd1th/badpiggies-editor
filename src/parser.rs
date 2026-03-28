@@ -473,6 +473,7 @@ fn write_prefab_overrides(writer: &mut BinaryWriter, data: &PrefabOverrideData) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f32::consts::PI;
 
     #[test]
     fn test_7bit_roundtrip() {
@@ -491,7 +492,7 @@ mod tests {
         w.write_int16(-1234);
         w.write_int32(0x12345678);
         w.write_uint32(0xDEADBEEF);
-        w.write_single(3.14);
+        w.write_single(PI);
         w.write_boolean(true);
         w.write_boolean(false);
         let bytes = w.into_bytes();
@@ -500,7 +501,7 @@ mod tests {
         assert_eq!(r.read_int16().unwrap(), -1234);
         assert_eq!(r.read_int32().unwrap(), 0x12345678);
         assert_eq!(r.read_uint32().unwrap(), 0xDEADBEEF);
-        assert!((r.read_single().unwrap() - 3.14).abs() < 0.001);
+        assert!((r.read_single().unwrap() - PI).abs() < 0.001);
         assert!(r.read_boolean().unwrap());
         assert!(!r.read_boolean().unwrap());
     }

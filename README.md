@@ -142,6 +142,10 @@ The `.bytes` format is a custom binary format used by the Unity game:
 | Drag (empty area) | Pan view |
 | Click object | Select object |
 
+## Acknowledgements
+
+- [BP-Innovation/Bad-Piggies-Original](https://github.com/BP-Innovation/Bad-Piggies-Original) — Decompiled game source and asset references that made reverse-engineering the level format and rendering pipeline possible.
+
 ## License
 
 This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](../LICENSE) file for details.

@@ -114,7 +114,9 @@ jobs:
         run: cargo install trunk --locked
 
       - name: Build WASM site
-        run: trunk build --release --public-url ./
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          trunk build --release --public-url "/${REPO_NAME}/"
 
       - name: Package web artifact
         run: zip -r badpiggies-editor-web-${{ github.ref_name }}.zip dist

@@ -81,7 +81,8 @@ static SPRITE_DB: OnceLock<HashMap<String, SpriteInfo>> = OnceLock::new();
 
 fn build_db() -> HashMap<String, SpriteInfo> {
     let json_str = include_str!("../assets/sprite-data.json");
-    let data: SpriteDataJson = serde_json::from_str(json_str).expect("sprite-data.json parse error");
+    let data: SpriteDataJson =
+        serde_json::from_str(json_str).expect("sprite-data.json parse error");
 
     let mut map = HashMap::with_capacity(data.runtime.len() + data.unmanaged.len());
 
@@ -140,16 +141,19 @@ pub fn get_sprite_info(name: &str) -> Option<&'static SpriteInfo> {
     // Strip " (N)" duplicates: "Bottle (2)" → "Bottle"
     if let Some(base) = name.split(" (").next()
         && base != name
-            && let Some(s) = db.get(base) {
-                return Some(s);
-            }
+        && let Some(s) = db.get(base)
+    {
+        return Some(s);
+    }
 
     // Strip trailing digits: "StarBox01" → "StarBox"
     let trimmed = name.trim_end_matches(|c: char| c.is_ascii_digit());
-    if trimmed != name && !trimmed.is_empty()
-        && let Some(s) = db.get(trimmed) {
-            return Some(s);
-        }
+    if trimmed != name
+        && !trimmed.is_empty()
+        && let Some(s) = db.get(trimmed)
+    {
+        return Some(s);
+    }
 
     // Strip "_001" style suffixes
     if let Some(pos) = name.rfind('_') {

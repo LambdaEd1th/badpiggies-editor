@@ -14,7 +14,7 @@ use crate::assets;
 use crate::bg_data::{self, BgSprite};
 use crate::types::Vec2;
 
-use super::{bg_shader, Camera, DrawCtx};
+use super::{Camera, DrawCtx, bg_shader};
 
 /// Pre-computed tile/singleton data for background sprites. Built once per level
 /// load to avoid recomputing 12 HashMaps + 4 sorts every frame.
@@ -70,7 +70,10 @@ pub fn build_bg_layer_cache(
         let atlas_key = sprite.atlas.as_deref().unwrap_or("").to_string();
         let y_key = sprite.world_y.round() as i32;
         let layer_key = sprite.layer.order();
-        groups.entry((atlas_key, y_key, layer_key)).or_default().push(i);
+        groups
+            .entry((atlas_key, y_key, layer_key))
+            .or_default()
+            .push(i);
     }
 
     let mut singleton_set: HashSet<usize> = HashSet::new();
@@ -91,7 +94,10 @@ pub fn build_bg_layer_cache(
         }
         let mut sorted: Vec<usize> = indices.clone();
         sorted.sort_by(|a, b| {
-            sprites[*a].world_x.partial_cmp(&sprites[*b].world_x).unwrap()
+            sprites[*a]
+                .world_x
+                .partial_cmp(&sprites[*b].world_x)
+                .unwrap()
         });
         let min_x = sprites[sorted[0]].world_x;
         let max_x = sprites[*sorted.last().unwrap()].world_x;
@@ -235,11 +241,19 @@ pub fn draw_bg_layers(
 /// Hermite spline evaluation (Unity AnimationCurve equivalent).
 pub(super) fn hermite(keys: &[(f32, f32, f32, f32)], time: f32) -> f32 {
     let n = keys.len();
-    if n == 0 { return 0.0; }
-    if time <= keys[0].0 { return keys[0].1; }
-    if time >= keys[n - 1].0 { return keys[n - 1].1; }
+    if n == 0 {
+        return 0.0;
+    }
+    if time <= keys[0].0 {
+        return keys[0].1;
+    }
+    if time >= keys[n - 1].0 {
+        return keys[n - 1].1;
+    }
     let mut i = 0;
-    while i < n - 2 && keys[i + 1].0 < time { i += 1; }
+    while i < n - 2 && keys[i + 1].0 < time {
+        i += 1;
+    }
     let (t0, v0, _, out_s) = keys[i];
     let (t1, v1, in_s, _) = keys[i + 1];
     let dt = t1 - t0;
@@ -256,10 +270,10 @@ pub(super) fn hermite(keys: &[(f32, f32, f32, f32)], time: f32) -> f32 {
 fn wave_offset(time: f64) -> f32 {
     // (t, value, inSlope, outSlope)
     const KEYS: &[(f32, f32, f32, f32)] = &[
-        (0.0,      0.0,       -0.006681, -0.006681),
-        (2.366667, 1.0,        0.001194,  0.001194),
-        (3.7,      0.6954712, -0.383697, -0.383697),
-        (6.0,      0.0,        0.0,       0.0),
+        (0.0, 0.0, -0.006681, -0.006681),
+        (2.366667, 1.0, 0.001194, 0.001194),
+        (3.7, 0.6954712, -0.383697, -0.383697),
+        (6.0, 0.0, 0.0, 0.0),
     ];
     let t = (time % 6.0) as f32;
     hermite(KEYS, t)
@@ -268,12 +282,12 @@ fn wave_offset(time: f64) -> f32 {
 /// Foam Y offset (6-second hermite loop, rest at 0.774923).
 fn foam_offset(time: f64) -> f32 {
     const KEYS: &[(f32, f32, f32, f32)] = &[
-        (0.0,      0.774923,  0.0,       0.0),
-        (0.016667, 0.774923,  0.0,       0.0),
-        (2.466667, 1.796472,  0.332467,  0.332467),
-        (3.0,      1.893086,  0.006075,  0.002644),
-        (3.7,      1.739951, -0.399446, -0.399446),
-        (6.0,      0.774923,  0.0,       0.0),
+        (0.0, 0.774923, 0.0, 0.0),
+        (0.016667, 0.774923, 0.0, 0.0),
+        (2.466667, 1.796472, 0.332467, 0.332467),
+        (3.0, 1.893086, 0.006075, 0.002644),
+        (3.7, 1.739951, -0.399446, -0.399446),
+        (6.0, 0.774923, 0.0, 0.0),
     ];
     const REST: f32 = 0.774923;
     let t = (time % 6.0) as f32;
@@ -347,7 +361,10 @@ fn draw_bg_sprite_offset(
     };
 
     let center = camera.world_to_screen(
-        Vec2 { x: world_x, y: world_y },
+        Vec2 {
+            x: world_x,
+            y: world_y,
+        },
         canvas_center,
     );
 
@@ -362,10 +379,8 @@ fn draw_bg_sprite_offset(
         return;
     }
 
-    let screen_rect = egui::Rect::from_center_size(
-        center,
-        egui::vec2(hw_screen * 2.0, hh_screen * 2.0),
-    );
+    let screen_rect =
+        egui::Rect::from_center_size(center, egui::vec2(hw_screen * 2.0, hh_screen * 2.0));
 
     // Fill color sprites (solid rectangles) — no shader needed
     if let Some(rgb) = sprite.fill_color {
@@ -382,70 +397,93 @@ fn draw_bg_sprite_offset(
 
     // ── GPU path: use WGSL background shader ──
     if let Some(g) = gpu
-        && *g.slot_counter < bg_shader::max_draw_slots() {
-            // Sky texture
-            if let Some(ref sky_name) = sprite.sky_texture
-                && let Some(atlas) = g.atlas_cache.get_or_load(g.device, g.queue, &g.resources, sky_name) {
-                    let uniforms = bg_shader::BgUniforms {
-                        screen_size: [rect.width(), rect.height()],
-                        camera_center: [camera.center.x, camera.center.y],
-                        zoom: camera.zoom,
-                        cutoff: 0.004,
-                        world_center: [world_x, world_y],
-                        world_size: [display_w, display_h],
-                        uv_min: [0.0, 0.0],
-                        uv_max: [1.0, 1.0],
-                        content_ratio_x,
-                        _pad: 0.0,
-                        tint_color: [1.0, 1.0, 1.0, 1.0],
-                    };
-                    let slot = *g.slot_counter;
-                    *g.slot_counter += 1;
-                    painter.add(bg_shader::make_bg_callback(
-                        rect, g.resources.clone(), atlas, slot, uniforms,
-                    ));
-                    return;
-                }
-
-            // Atlas sprite
-            if let Some(ref atlas_name) = sprite.atlas
-                && let Some(atlas) = g.atlas_cache.get_or_load(g.device, g.queue, &g.resources, atlas_name) {
-                    let cell = 1.0 / sprite.subdiv;
-                    let padding = 1.0 / 2048.0;
-                    let border_off = sprite.border / 1024.0;
-                    let u0 = sprite.uv_x * cell + padding + border_off;
-                    let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding - border_off;
-                    let v0_unity = sprite.uv_y * cell + padding + border_off;
-                    let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding - border_off;
-                    // UV Y flip: Unity V=0 at bottom, wgpu V=0 at top
-                    let v0 = 1.0 - v1_unity;
-                    let v1 = 1.0 - v0_unity;
-
-                    // Handle flipping via UV swap
-                    let (u0, u1) = if sprite.scale_x < 0.0 { (u1, u0) } else { (u0, u1) };
-                    let (v0, v1) = if sprite.scale_y < 0.0 { (v1, v0) } else { (v0, v1) };
-
-                    let uniforms = bg_shader::BgUniforms {
-                        screen_size: [rect.width(), rect.height()],
-                        camera_center: [camera.center.x, camera.center.y],
-                        zoom: camera.zoom,
-                        cutoff,
-                        world_center: [world_x, world_y],
-                        world_size: [display_w, display_h],
-                        uv_min: [u0, v0],
-                        uv_max: [u1, v1],
-                        content_ratio_x,
-                        _pad: 0.0,
-                        tint_color: [1.0, 1.0, 1.0, 1.0],
-                    };
-                    let slot = *g.slot_counter;
-                    *g.slot_counter += 1;
-                    painter.add(bg_shader::make_bg_callback(
-                        rect, g.resources.clone(), atlas, slot, uniforms,
-                    ));
-                    return;
-                }
+        && *g.slot_counter < bg_shader::max_draw_slots()
+    {
+        // Sky texture
+        if let Some(ref sky_name) = sprite.sky_texture
+            && let Some(atlas) =
+                g.atlas_cache
+                    .get_or_load(g.device, g.queue, &g.resources, sky_name)
+        {
+            let uniforms = bg_shader::BgUniforms {
+                screen_size: [rect.width(), rect.height()],
+                camera_center: [camera.center.x, camera.center.y],
+                zoom: camera.zoom,
+                cutoff: 0.004,
+                world_center: [world_x, world_y],
+                world_size: [display_w, display_h],
+                uv_min: [0.0, 0.0],
+                uv_max: [1.0, 1.0],
+                content_ratio_x,
+                _pad: 0.0,
+                tint_color: [1.0, 1.0, 1.0, 1.0],
+            };
+            let slot = *g.slot_counter;
+            *g.slot_counter += 1;
+            painter.add(bg_shader::make_bg_callback(
+                rect,
+                g.resources.clone(),
+                atlas,
+                slot,
+                uniforms,
+            ));
+            return;
         }
+
+        // Atlas sprite
+        if let Some(ref atlas_name) = sprite.atlas
+            && let Some(atlas) =
+                g.atlas_cache
+                    .get_or_load(g.device, g.queue, &g.resources, atlas_name)
+        {
+            let cell = 1.0 / sprite.subdiv;
+            let padding = 1.0 / 2048.0;
+            let border_off = sprite.border / 1024.0;
+            let u0 = sprite.uv_x * cell + padding + border_off;
+            let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding - border_off;
+            let v0_unity = sprite.uv_y * cell + padding + border_off;
+            let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding - border_off;
+            // UV Y flip: Unity V=0 at bottom, wgpu V=0 at top
+            let v0 = 1.0 - v1_unity;
+            let v1 = 1.0 - v0_unity;
+
+            // Handle flipping via UV swap
+            let (u0, u1) = if sprite.scale_x < 0.0 {
+                (u1, u0)
+            } else {
+                (u0, u1)
+            };
+            let (v0, v1) = if sprite.scale_y < 0.0 {
+                (v1, v0)
+            } else {
+                (v0, v1)
+            };
+
+            let uniforms = bg_shader::BgUniforms {
+                screen_size: [rect.width(), rect.height()],
+                camera_center: [camera.center.x, camera.center.y],
+                zoom: camera.zoom,
+                cutoff,
+                world_center: [world_x, world_y],
+                world_size: [display_w, display_h],
+                uv_min: [u0, v0],
+                uv_max: [u1, v1],
+                content_ratio_x,
+                _pad: 0.0,
+                tint_color: [1.0, 1.0, 1.0, 1.0],
+            };
+            let slot = *g.slot_counter;
+            *g.slot_counter += 1;
+            painter.add(bg_shader::make_bg_callback(
+                rect,
+                g.resources.clone(),
+                atlas,
+                slot,
+                uniforms,
+            ));
+            return;
+        }
+    }
 
     // ── CPU fallback: egui mesh ──
 
@@ -482,17 +520,23 @@ fn draw_bg_sprite_offset(
         let v1 = 1.0 - v0_unity;
 
         // Handle flipping via UV swap
-        let (u0, u1) = if sprite.scale_x < 0.0 { (u1, u0) } else { (u0, u1) };
-        let (v0, v1) = if sprite.scale_y < 0.0 { (v1, v0) } else { (v0, v1) };
+        let (u0, u1) = if sprite.scale_x < 0.0 {
+            (u1, u0)
+        } else {
+            (u0, u1)
+        };
+        let (v0, v1) = if sprite.scale_y < 0.0 {
+            (v1, v0)
+        } else {
+            (v0, v1)
+        };
 
         let uv_rect = egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1));
         // CPU fallback: use original (non-extended) width to avoid UV stretching.
         // GPU path handles extension via content_ratio_x UV clamping in shader.
         let cpu_hw = orig_display_w * 0.5 * camera.zoom;
-        let cpu_rect = egui::Rect::from_center_size(
-            center,
-            egui::vec2(cpu_hw * 2.0, hh_screen * 2.0),
-        );
+        let cpu_rect =
+            egui::Rect::from_center_size(center, egui::vec2(cpu_hw * 2.0, hh_screen * 2.0));
         let mut mesh = egui::Mesh::with_texture(tex_id);
         mesh.add_rect_with_uv(cpu_rect, uv_rect, egui::Color32::WHITE);
         painter.add(egui::Shape::mesh(mesh));

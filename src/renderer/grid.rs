@@ -30,15 +30,20 @@ pub struct ConstructionGrid {
 /// Looks for LevelManager override data and LevelStart position.
 pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     let mut lm_override: Option<&str> = None;
-    let mut level_start_pos = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    let mut level_start_pos = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 
     for obj in &level.objects {
         match obj {
             LevelObject::Prefab(p) => {
                 if p.name == "LevelManager"
-                    && let Some(ref od) = p.override_data {
-                        lm_override = Some(&od.raw_text);
-                    }
+                    && let Some(ref od) = p.override_data
+                {
+                    lm_override = Some(&od.raw_text);
+                }
                 if p.name == "LevelStart" {
                     level_start_pos = p.position;
                 }
@@ -130,8 +135,7 @@ pub fn draw_construction_grid(
 ) {
     // Look up GridCellLight sprite from sprite database
     let sprite = sprite_db::get_sprite_info("GridCellLight");
-    let tex_id = sprite
-        .and_then(|s| tex_cache.get(&s.atlas));
+    let tex_id = sprite.and_then(|s| tex_cache.get(&s.atlas));
 
     // Cell half-extents: GridCell prefab scale = 0.3
     // pixelW(103) × 0.3 × 10/768, pixelH(104) × 0.3 × 10/768
@@ -166,10 +170,7 @@ pub fn draw_construction_grid(
             let wx = grid.base_x + (grid.x_min + col) as f32;
             let wy = grid.base_y + row as f32;
 
-            let center = camera.world_to_screen(
-                crate::types::Vec2 { x: wx, y: wy },
-                canvas_center,
-            );
+            let center = camera.world_to_screen(crate::types::Vec2 { x: wx, y: wy }, canvas_center);
 
             let hw = half_w * camera.zoom;
             let hh = half_h * camera.zoom;

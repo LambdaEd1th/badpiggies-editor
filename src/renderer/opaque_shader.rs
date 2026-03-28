@@ -236,10 +236,7 @@ pub struct OpaqueAtlas {
 }
 
 /// Load and upload the Props_Generic_Sheet_01 atlas as a raw wgpu texture.
-pub fn load_props_atlas(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> Option<OpaqueAtlas> {
+pub fn load_props_atlas(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<OpaqueAtlas> {
     let data = crate::assets::read_asset("sprites/Props_Generic_Sheet_01.png")
         .or_else(|| crate::assets::read_asset("props/Props_Generic_Sheet_01.png"))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
@@ -312,8 +309,21 @@ pub struct QuadGeometry {
     pub scale_y: f32,
 }
 
-pub fn build_quad(geom: QuadGeometry, uv: &UvRect, atlas_w: f32, atlas_h: f32) -> [OpaqueVertex; 4] {
-    let QuadGeometry { cx, cy, half_w, half_h, rotation, scale_x, scale_y } = geom;
+pub fn build_quad(
+    geom: QuadGeometry,
+    uv: &UvRect,
+    atlas_w: f32,
+    atlas_h: f32,
+) -> [OpaqueVertex; 4] {
+    let QuadGeometry {
+        cx,
+        cy,
+        half_w,
+        half_h,
+        rotation,
+        scale_x,
+        scale_y,
+    } = geom;
     // UV Y-flip: Unity V=0 at bottom, wgpu V=0 at top
     let uv_min_u = uv.x;
     let uv_max_u = uv.x + uv.w;
@@ -354,32 +364,52 @@ pub fn build_quad(geom: QuadGeometry, uv: &UvRect, atlas_w: f32, atlas_h: f32) -
         let sin_r = rotation.sin();
         [
             OpaqueVertex {
-                pos: [cx + corners[0].0 * cos_r - corners[0].1 * sin_r,
-                      cy + corners[0].0 * sin_r + corners[0].1 * cos_r],
+                pos: [
+                    cx + corners[0].0 * cos_r - corners[0].1 * sin_r,
+                    cy + corners[0].0 * sin_r + corners[0].1 * cos_r,
+                ],
                 uv: [uvs[0].0, uvs[0].1],
             },
             OpaqueVertex {
-                pos: [cx + corners[1].0 * cos_r - corners[1].1 * sin_r,
-                      cy + corners[1].0 * sin_r + corners[1].1 * cos_r],
+                pos: [
+                    cx + corners[1].0 * cos_r - corners[1].1 * sin_r,
+                    cy + corners[1].0 * sin_r + corners[1].1 * cos_r,
+                ],
                 uv: [uvs[1].0, uvs[1].1],
             },
             OpaqueVertex {
-                pos: [cx + corners[2].0 * cos_r - corners[2].1 * sin_r,
-                      cy + corners[2].0 * sin_r + corners[2].1 * cos_r],
+                pos: [
+                    cx + corners[2].0 * cos_r - corners[2].1 * sin_r,
+                    cy + corners[2].0 * sin_r + corners[2].1 * cos_r,
+                ],
                 uv: [uvs[2].0, uvs[2].1],
             },
             OpaqueVertex {
-                pos: [cx + corners[3].0 * cos_r - corners[3].1 * sin_r,
-                      cy + corners[3].0 * sin_r + corners[3].1 * cos_r],
+                pos: [
+                    cx + corners[3].0 * cos_r - corners[3].1 * sin_r,
+                    cy + corners[3].0 * sin_r + corners[3].1 * cos_r,
+                ],
                 uv: [uvs[3].0, uvs[3].1],
             },
         ]
     } else {
         [
-            OpaqueVertex { pos: [cx - half_w, cy + half_h], uv: [u0, v0] },
-            OpaqueVertex { pos: [cx + half_w, cy + half_h], uv: [u1, v0] },
-            OpaqueVertex { pos: [cx + half_w, cy - half_h], uv: [u1, v1] },
-            OpaqueVertex { pos: [cx - half_w, cy - half_h], uv: [u0, v1] },
+            OpaqueVertex {
+                pos: [cx - half_w, cy + half_h],
+                uv: [u0, v0],
+            },
+            OpaqueVertex {
+                pos: [cx + half_w, cy + half_h],
+                uv: [u1, v0],
+            },
+            OpaqueVertex {
+                pos: [cx + half_w, cy - half_h],
+                uv: [u1, v1],
+            },
+            OpaqueVertex {
+                pos: [cx - half_w, cy - half_h],
+                uv: [u0, v1],
+            },
         ]
     }
 }

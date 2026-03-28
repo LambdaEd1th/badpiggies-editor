@@ -33,11 +33,10 @@ fn get_screen_size_80pct() -> (f32, f32) {
                     // "UI Looks like: 1920 x 1080 @ 60Hz" — logical resolution
                     let parts: Vec<&str> = after.split_whitespace().collect();
                     if parts.len() >= 3
-                        && let (Ok(lw), Ok(lh)) =
-                            (parts[0].parse::<f32>(), parts[2].parse::<f32>())
-                        {
-                            return (lw * 0.5, lh * 0.5);
-                        }
+                        && let (Ok(lw), Ok(lh)) = (parts[0].parse::<f32>(), parts[2].parse::<f32>())
+                    {
+                        return (lw * 0.5, lh * 0.5);
+                    }
                 }
             }
             for line in text.lines() {
@@ -45,13 +44,12 @@ fn get_screen_size_80pct() -> (f32, f32) {
                 if trimmed.starts_with("Resolution:") {
                     let parts: Vec<&str> = trimmed.split_whitespace().collect();
                     if parts.len() >= 4
-                        && let (Ok(pw), Ok(ph)) =
-                            (parts[1].parse::<f32>(), parts[3].parse::<f32>())
-                        {
-                            let is_retina = trimmed.contains("Retina");
-                            let scale = if is_retina { 2.0 } else { 1.0 };
-                            return (pw / scale * 0.5, ph / scale * 0.5);
-                        }
+                        && let (Ok(pw), Ok(ph)) = (parts[1].parse::<f32>(), parts[3].parse::<f32>())
+                    {
+                        let is_retina = trimmed.contains("Retina");
+                        let scale = if is_retina { 2.0 } else { 1.0 };
+                        return (pw / scale * 0.5, ph / scale * 0.5);
+                    }
                 }
             }
         }
@@ -119,9 +117,7 @@ fn main() {
 
         if let Err(e) = start_result {
             if let Some(body) = document.body() {
-                body.set_inner_html(&format!(
-                    "<p style='color:red'>应用启动失败: {e:?}</p>"
-                ));
+                body.set_inner_html(&format!("<p style='color:red'>应用启动失败: {e:?}</p>"));
             }
         }
     });

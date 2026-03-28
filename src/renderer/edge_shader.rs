@@ -323,10 +323,18 @@ pub fn upload_edge_mesh(
     mesh: &EdgeMeshInput<'_>,
 ) -> EdgeGpuMesh {
     let EdgeMeshInput {
-        vertices, indices, control_pixels, control_node_count,
-        splat0_pixels, splat0_w, splat0_h,
-        splat1_pixels, splat1_w, splat1_h,
-        splat_params_x, decorative,
+        vertices,
+        indices,
+        control_pixels,
+        control_node_count,
+        splat0_pixels,
+        splat0_w,
+        splat0_h,
+        splat1_pixels,
+        splat1_w,
+        splat1_h,
+        splat_params_x,
+        decorative,
     } = *mesh;
     use wgpu::util::DeviceExt;
 
@@ -367,7 +375,8 @@ pub fn upload_edge_mesh(
     let copy_len = control_pixels.len().min(padded_ctrl.len());
     padded_ctrl[..copy_len].copy_from_slice(&control_pixels[..copy_len]);
 
-    let control_view = create_rgba_texture(device, queue, &padded_ctrl, ctrl_size, 1, "edge_control");
+    let control_view =
+        create_rgba_texture(device, queue, &padded_ctrl, ctrl_size, 1, "edge_control");
 
     // Splat textures (1×1 white fallback if missing)
     let has_splat0 = splat0_pixels.is_some();
@@ -507,9 +516,15 @@ impl egui_wgpu::CallbackTrait for EdgePaintCallback {
                 continue;
             }
             if let Some(want) = self.decorative_filter
-                && mesh.decorative != want { continue; }
+                && mesh.decorative != want
+            {
+                continue;
+            }
             if let Some(target) = self.target_mesh_index
-                && i != target { continue; }
+                && i != target
+            {
+                continue;
+            }
             let uniforms = Uniforms {
                 screen_size: [self.screen_w, self.screen_h],
                 camera_center: [self.camera_x, self.camera_y],
@@ -536,9 +551,15 @@ impl egui_wgpu::CallbackTrait for EdgePaintCallback {
                 continue;
             }
             if let Some(want) = self.decorative_filter
-                && mesh.decorative != want { continue; }
+                && mesh.decorative != want
+            {
+                continue;
+            }
             if let Some(target) = self.target_mesh_index
-                && i != target { continue; }
+                && i != target
+            {
+                continue;
+            }
             render_pass.set_bind_group(0, &mesh.bind_group, &[]);
             render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
             render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);

@@ -22,10 +22,8 @@ unsafe impl Sync for I18n {}
 
 impl I18n {
     fn new(source: &'static str, lang_tag: &'static str) -> Self {
-        let res = FluentResource::try_new(source.to_owned())
-            .expect("FTL parse error");
-        let lid: unic_langid::LanguageIdentifier =
-            lang_tag.parse().expect("invalid lang tag");
+        let res = FluentResource::try_new(source.to_owned()).expect("FTL parse error");
+        let lid: unic_langid::LanguageIdentifier = lang_tag.parse().expect("invalid lang tag");
         let mut bundle = FluentBundle::new(vec![lid]);
         bundle.add_resource(res).expect("FTL add_resource error");
         I18n { bundle }

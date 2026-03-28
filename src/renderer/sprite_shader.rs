@@ -368,9 +368,7 @@ pub fn upload_sprite_atlas(
                 resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: &resources.uniform_buffer,
                     offset: 0,
-                    size: std::num::NonZeroU64::new(
-                        std::mem::size_of::<SpriteUniforms>() as u64,
-                    ),
+                    size: std::num::NonZeroU64::new(std::mem::size_of::<SpriteUniforms>() as u64),
                 }),
             },
             wgpu::BindGroupEntry {
@@ -441,7 +439,13 @@ fn load_sprite_atlas(
 // ── Uniform builder helper ──
 
 /// Compute UV coordinates for a sprite, handling Y-flip and half-texel inset.
-pub fn compute_uvs(uv: &UvRect, atlas_w: f32, atlas_h: f32, flip_x: bool, flip_y: bool) -> ([f32; 2], [f32; 2]) {
+pub fn compute_uvs(
+    uv: &UvRect,
+    atlas_w: f32,
+    atlas_h: f32,
+    flip_x: bool,
+    flip_y: bool,
+) -> ([f32; 2], [f32; 2]) {
     // UV Y-flip: Unity V=0 at bottom, wgpu V=0 at top
     let uv_min_u = uv.x;
     let uv_max_u = uv.x + uv.w;
@@ -521,10 +525,7 @@ impl egui_wgpu::CallbackTrait for SpriteBatchPaintCallback {
         }
         render_pass.set_pipeline(&self.resources.pipeline);
         render_pass.set_vertex_buffer(0, self.resources.quad_vbo.slice(..));
-        render_pass.set_index_buffer(
-            self.resources.quad_ibo.slice(..),
-            wgpu::IndexFormat::Uint16,
-        );
+        render_pass.set_index_buffer(self.resources.quad_ibo.slice(..), wgpu::IndexFormat::Uint16);
         for draw in &self.draws {
             let offset = draw.slot as u64 * self.resources.slot_stride;
             render_pass.set_bind_group(0, &draw.atlas.bind_group, &[offset as u32]);

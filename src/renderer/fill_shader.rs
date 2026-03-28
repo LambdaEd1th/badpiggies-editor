@@ -87,8 +87,8 @@ pub struct FillUniforms {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct FillVertex {
-    pub pos: [f32; 2],  // world-space
-    pub uv: [f32; 2],   // tiled UV
+    pub pos: [f32; 2], // world-space
+    pub uv: [f32; 2],  // tiled UV
 }
 
 // ── Shared pipeline resources ──
@@ -107,7 +107,6 @@ pub fn init_fill_resources(
     device: &wgpu::Device,
     target_format: wgpu::TextureFormat,
 ) -> FillResources {
-
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("fill_shader"),
         source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
@@ -240,7 +239,11 @@ fn upload_fill_texture(
     width: u32,
     height: u32,
 ) -> FillTextureGpu {
-    let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
+    let size = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("fill_tex"),
         size,
@@ -300,7 +303,9 @@ pub struct FillTextureCache {
 
 impl FillTextureCache {
     pub fn new() -> Self {
-        Self { textures: HashMap::new() }
+        Self {
+            textures: HashMap::new(),
+        }
     }
 
     pub fn get_or_load(

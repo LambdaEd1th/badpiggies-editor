@@ -60,7 +60,9 @@ impl EditorApp {
             file_name: None,
             selected: None,
             renderer,
-            status: crate::locale::Language::default().i18n().get("status_welcome"),
+            status: crate::locale::Language::default()
+                .i18n()
+                .get("status_welcome"),
             show_add_dialog: false,
             add_obj_is_parent: false,
             add_obj_name: String::new(),
@@ -146,14 +148,18 @@ impl eframe::App for EditorApp {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         std::fs::read(path).ok().map(|data| {
-                            let name = path.file_name()
+                            let name = path
+                                .file_name()
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| file.name.clone());
                             (name, data)
                         })
                     }
                     #[cfg(target_arch = "wasm32")]
-                    { let _ = path; None }
+                    {
+                        let _ = path;
+                        None
+                    }
                 } else {
                     None
                 };
@@ -190,11 +196,13 @@ impl eframe::App for EditorApp {
                 && ctx.input(|i| {
                     i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
                 });
-            if delete_pressed && self.pending_delete.is_none()
-                && let Some(ref level) = self.level {
-                    let name = level.objects[sel].name().to_string();
-                    self.pending_delete = Some((sel, name));
-                }
+            if delete_pressed
+                && self.pending_delete.is_none()
+                && let Some(ref level) = self.level
+            {
+                let name = level.objects[sel].name().to_string();
+                self.pending_delete = Some((sel, name));
+            }
         }
 
         // Delete confirmation dialog
@@ -224,7 +232,9 @@ impl eframe::App for EditorApp {
                     }
                     self.pending_delete = None;
                 }
-                2 => { self.pending_delete = None; }
+                2 => {
+                    self.pending_delete = None;
+                }
                 _ => {}
             }
         }
@@ -265,16 +275,16 @@ impl eframe::App for EditorApp {
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("Level files", &["bytes"])
                                     .save_file()
-                                {
-                                    match std::fs::write(&path, data) {
-                                        Ok(()) => {
-                                            self.status = t.get("status_exported");
-                                        }
-                                        Err(e) => {
-                                            self.status = t.fmt1("status_export_error", &e.to_string());
-                                        }
+                            {
+                                match std::fs::write(&path, data) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
+                            }
                         }
                     }
                 });
@@ -295,7 +305,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         self.renderer.fit_to_level();
                     }
-                    let bg_label = if self.renderer.show_bg { t.get("menu_hide_bg") } else { t.get("menu_show_bg") };
+                    let bg_label = if self.renderer.show_bg {
+                        t.get("menu_hide_bg")
+                    } else {
+                        t.get("menu_show_bg")
+                    };
                     if ui.button(bg_label).clicked() {
                         ui.close();
                         self.renderer.show_bg = !self.renderer.show_bg;
@@ -326,7 +340,10 @@ impl eframe::App for EditorApp {
                     ui.separator();
                     ui.menu_button(t.get("menu_language"), |ui| {
                         for &lang in Language::ALL {
-                            if ui.selectable_label(self.lang == lang, lang.display_name()).clicked() {
+                            if ui
+                                .selectable_label(self.lang == lang, lang.display_name())
+                                .clicked()
+                            {
                                 self.lang = lang;
                                 ui.close();
                             }
@@ -355,13 +372,25 @@ impl eframe::App for EditorApp {
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .open(&mut self.show_shortcuts)
                 .show(&ctx, |ui| {
-                    egui::Grid::new("shortcuts_grid").striped(true).show(ui, |ui| {
-                        ui.strong(t.get("shortcuts_key")); ui.strong(t.get("shortcuts_action")); ui.end_row();
-                        ui.label(t.get("shortcuts_scroll")); ui.label(t.get("shortcuts_zoom")); ui.end_row();
-                        ui.label(t.get("shortcuts_drag")); ui.label(t.get("shortcuts_pan")); ui.end_row();
-                        ui.label(t.get("shortcuts_click")); ui.label(t.get("shortcuts_select")); ui.end_row();
-                        ui.label(t.get("shortcuts_b_key")); ui.label(t.get("shortcuts_toggle_bg")); ui.end_row();
-                    });
+                    egui::Grid::new("shortcuts_grid")
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.strong(t.get("shortcuts_key"));
+                            ui.strong(t.get("shortcuts_action"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_scroll"));
+                            ui.label(t.get("shortcuts_zoom"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_drag"));
+                            ui.label(t.get("shortcuts_pan"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_click"));
+                            ui.label(t.get("shortcuts_select"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_b_key"));
+                            ui.label(t.get("shortcuts_toggle_bg"));
+                            ui.end_row();
+                        });
                 });
         }
 
@@ -375,7 +404,11 @@ impl eframe::App for EditorApp {
                 .show(&ctx, |ui| {
                     ui.vertical_centered(|ui| {
                         ui.heading("Bad Piggies Editor");
-                        ui.label(format!("{}{}", t.get("about_version_prefix"), env!("CARGO_PKG_VERSION")));
+                        ui.label(format!(
+                            "{}{}",
+                            t.get("about_version_prefix"),
+                            env!("CARGO_PKG_VERSION")
+                        ));
                         ui.separator();
                         ui.label(t.get("about_built_with"));
                         ui.label(t.get("about_license"));
@@ -420,17 +453,33 @@ impl eframe::App for EditorApp {
                                 if self.add_obj_is_parent {
                                     level.objects.push(LevelObject::Parent(ParentObject {
                                         name: name.clone(),
-                                        position: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                                        position: Vec3 {
+                                            x: 0.0,
+                                            y: 0.0,
+                                            z: 0.0,
+                                        },
                                         children: Vec::new(),
                                         parent: None,
                                     }));
                                 } else {
                                     level.objects.push(LevelObject::Prefab(PrefabInstance {
                                         name: name.clone(),
-                                        position: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                                        position: Vec3 {
+                                            x: 0.0,
+                                            y: 0.0,
+                                            z: 0.0,
+                                        },
                                         prefab_index: self.add_obj_prefab_index,
-                                        rotation: Vec3 { x: 0.0, y: 0.0, z: 0.0 },
-                                        scale: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+                                        rotation: Vec3 {
+                                            x: 0.0,
+                                            y: 0.0,
+                                            z: 0.0,
+                                        },
+                                        scale: Vec3 {
+                                            x: 1.0,
+                                            y: 1.0,
+                                            z: 1.0,
+                                        },
                                         data_type: DataType::None,
                                         terrain_data: None,
                                         override_data: None,
@@ -473,50 +522,50 @@ impl eframe::App for EditorApp {
 
         // ── Left panel: Object tree ──
         if self.show_object_tree {
-        egui::Panel::left("object_tree")
-            .default_size(240.0)
-            .show_inside(ui, |ui| {
-            ui.heading(t.get("panel_object_list"));
-                ui.separator();
+            egui::Panel::left("object_tree")
+                .default_size(240.0)
+                .show_inside(ui, |ui| {
+                    ui.heading(t.get("panel_object_list"));
+                    ui.separator();
 
-                if let Some(ref level) = self.level {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        let mut new_selection = self.selected;
-                        for &root_idx in &level.roots {
-                            show_object_tree(ui, level, root_idx, &mut new_selection, 0);
-                        }
-                        self.selected = new_selection;
-                    });
-                }
-            });
+                    if let Some(ref level) = self.level {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            let mut new_selection = self.selected;
+                            for &root_idx in &level.roots {
+                                show_object_tree(ui, level, root_idx, &mut new_selection, 0);
+                            }
+                            self.selected = new_selection;
+                        });
+                    }
+                });
         }
 
         // ── Right panel: Properties ──
         if self.show_properties {
-        egui::Panel::right("properties")
-            .default_size(280.0)
-            .size_range(120.0..=500.0)
-            .resizable(true)
-            .show_inside(ui, |ui| {
-                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-                // TextEdits fill available width without forcing the panel
-                // wider — width_range caps the panel size.
-                ui.spacing_mut().text_edit_width = f32::INFINITY;
-                ui.heading(t.get("panel_properties"));
-                ui.separator();
+            egui::Panel::right("properties")
+                .default_size(280.0)
+                .size_range(120.0..=500.0)
+                .resizable(true)
+                .show_inside(ui, |ui| {
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+                    // TextEdits fill available width without forcing the panel
+                    // wider — width_range caps the panel size.
+                    ui.spacing_mut().text_edit_width = f32::INFINITY;
+                    ui.heading(t.get("panel_properties"));
+                    ui.separator();
 
-                if let (Some(level), Some(sel)) = (&mut self.level, self.selected) {
-                    if sel < level.objects.len() {
-                        let changed = show_properties_editable(ui, &mut level.objects[sel], t);
-                        if changed {
-                            // Rebuild renderer when properties change
-                            self.renderer.set_level(level);
+                    if let (Some(level), Some(sel)) = (&mut self.level, self.selected) {
+                        if sel < level.objects.len() {
+                            let changed = show_properties_editable(ui, &mut level.objects[sel], t);
+                            if changed {
+                                // Rebuild renderer when properties change
+                                self.renderer.set_level(level);
+                            }
                         }
+                    } else {
+                        ui.label(t.get("panel_select_hint"));
                     }
-                } else {
-                    ui.label(t.get("panel_select_hint"));
-                }
-            });
+                });
         }
 
         // ── Central panel: Canvas ──
@@ -530,35 +579,49 @@ impl eframe::App for EditorApp {
                 // Pick up drag result — update object position
                 if let Some((idx, delta)) = self.renderer.drag_result.take()
                     && let Some(ref mut level) = self.level
-                        && idx < level.objects.len() {
-                            match &mut level.objects[idx] {
-                                LevelObject::Prefab(p) => {
-                                    p.position.x += delta.x;
-                                    p.position.y += delta.y;
-                                }
-                                LevelObject::Parent(p) => {
-                                    p.position.x += delta.x;
-                                    p.position.y += delta.y;
-                                }
-                            }
-                            // Rebuild draw data but preserve camera position/zoom
-                            let cam = self.renderer.camera.clone();
-                            self.renderer.set_level(level);
-                            self.renderer.camera = cam;
+                    && idx < level.objects.len()
+                {
+                    match &mut level.objects[idx] {
+                        LevelObject::Prefab(p) => {
+                            p.position.x += delta.x;
+                            p.position.y += delta.y;
                         }
+                        LevelObject::Parent(p) => {
+                            p.position.x += delta.x;
+                            p.position.y += delta.y;
+                        }
+                    }
+                    // Rebuild draw data but preserve camera position/zoom
+                    let cam = self.renderer.camera.clone();
+                    self.renderer.set_level(level);
+                    self.renderer.camera = cam;
+                }
             } else {
                 let rect = ui.available_rect_before_wrap();
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-                    ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
-                        ui.vertical_centered(|ui| {
-                            let center_y = rect.center().y - 40.0;
-                            ui.add_space((center_y - rect.top()).max(0.0));
-                            ui.label(egui::RichText::new("⬇").size(32.0).color(egui::Color32::from_gray(160)));
-                            ui.add_space(4.0);
-                            ui.label(egui::RichText::new(t.get("panel_drop_hint")).color(egui::Color32::from_gray(180)));
-                            ui.label(egui::RichText::new(t.get("panel_open_hint")).color(egui::Color32::from_gray(140)));
-                        });
-                    });
+                    ui.with_layout(
+                        egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                        |ui| {
+                            ui.vertical_centered(|ui| {
+                                let center_y = rect.center().y - 40.0;
+                                ui.add_space((center_y - rect.top()).max(0.0));
+                                ui.label(
+                                    egui::RichText::new("⬇")
+                                        .size(32.0)
+                                        .color(egui::Color32::from_gray(160)),
+                                );
+                                ui.add_space(4.0);
+                                ui.label(
+                                    egui::RichText::new(t.get("panel_drop_hint"))
+                                        .color(egui::Color32::from_gray(180)),
+                                );
+                                ui.label(
+                                    egui::RichText::new(t.get("panel_open_hint"))
+                                        .color(egui::Color32::from_gray(140)),
+                                );
+                            });
+                        },
+                    );
                 });
             }
         });
@@ -605,7 +668,11 @@ fn show_object_tree(
 }
 
 /// Show editable properties. Returns true if anything changed.
-fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'static crate::locale::I18n) -> bool {
+fn show_properties_editable(
+    ui: &mut egui::Ui,
+    obj: &mut LevelObject,
+    t: &'static crate::locale::I18n,
+) -> bool {
     let mut changed = false;
     match obj {
         LevelObject::Prefab(p) => {
@@ -632,17 +699,29 @@ fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'stati
             if let Some(ref mut td) = p.terrain_data {
                 ui.separator();
                 ui.label(t.get("prop_terrain"));
-                ui.label(format!("{} {}", t.get("prop_fill_vert_count"), td.fill_mesh.vertices.len()));
-                ui.label(format!("{} {}", t.get("prop_curve_vert_count"), td.curve_mesh.vertices.len()));
+                ui.label(format!(
+                    "{} {}",
+                    t.get("prop_fill_vert_count"),
+                    td.fill_mesh.vertices.len()
+                ));
+                ui.label(format!(
+                    "{} {}",
+                    t.get("prop_curve_vert_count"),
+                    td.curve_mesh.vertices.len()
+                ));
                 ui.label(format!("{} {}", t.get("prop_collider"), td.has_collider));
                 show_color(ui, &t.get("prop_fill_color"), &td.fill_color);
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_fill_offset_x"));
-                    changed |= ui.add(egui::DragValue::new(&mut td.fill_texture_tile_offset_x).speed(0.01)).changed();
+                    changed |= ui
+                        .add(egui::DragValue::new(&mut td.fill_texture_tile_offset_x).speed(0.01))
+                        .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_fill_offset_y"));
-                    changed |= ui.add(egui::DragValue::new(&mut td.fill_texture_tile_offset_y).speed(0.01)).changed();
+                    changed |= ui
+                        .add(egui::DragValue::new(&mut td.fill_texture_tile_offset_y).speed(0.01))
+                        .changed();
                 });
             }
 
@@ -654,7 +733,14 @@ fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'stati
                 let mut show_raw: bool = ui.data(|d| d.get_temp(toggle_id).unwrap_or(false));
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_override"));
-                    if ui.small_button(if show_raw { t.get("btn_visual") } else { t.get("btn_text") }).clicked() {
+                    if ui
+                        .small_button(if show_raw {
+                            t.get("btn_visual")
+                        } else {
+                            t.get("btn_text")
+                        })
+                        .clicked()
+                    {
                         show_raw = !show_raw;
                         ui.data_mut(|d| d.insert_temp(toggle_id, show_raw));
                     }
@@ -694,7 +780,11 @@ fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'stati
                 ui.label(t.get("prop_name"));
                 changed |= ui.text_edit_singleline(&mut p.name).changed();
             });
-            ui.label(format!("{} {}", t.get("prop_child_count"), p.children.len()));
+            ui.label(format!(
+                "{} {}",
+                t.get("prop_child_count"),
+                p.children.len()
+            ));
             ui.separator();
 
             ui.label(t.get("prop_position"));
@@ -710,17 +800,11 @@ fn edit_vec3(ui: &mut egui::Ui, id_prefix: &str, v: &mut Vec3) -> bool {
     ui.push_id(id_prefix, |ui| {
         ui.horizontal(|ui| {
             ui.label("  X");
-            changed |= ui
-                .add(egui::DragValue::new(&mut v.x).speed(0.05))
-                .changed();
+            changed |= ui.add(egui::DragValue::new(&mut v.x).speed(0.05)).changed();
             ui.label("Y");
-            changed |= ui
-                .add(egui::DragValue::new(&mut v.y).speed(0.05))
-                .changed();
+            changed |= ui.add(egui::DragValue::new(&mut v.y).speed(0.05)).changed();
             ui.label("Z");
-            changed |= ui
-                .add(egui::DragValue::new(&mut v.z).speed(0.05))
-                .changed();
+            changed |= ui.add(egui::DragValue::new(&mut v.z).speed(0.05)).changed();
         });
     });
     changed
@@ -808,15 +892,26 @@ fn parse_override_text(raw: &str) -> Vec<OverrideNode> {
     parse_override_range(&lines, 0, lines.len(), 0)
 }
 
-fn parse_override_range(lines: &[&str], start: usize, end: usize, base_depth: usize) -> Vec<OverrideNode> {
+fn parse_override_range(
+    lines: &[&str],
+    start: usize,
+    end: usize,
+    base_depth: usize,
+) -> Vec<OverrideNode> {
     let mut result = Vec::new();
     let mut i = start;
     while i < end {
         let line = lines[i].trim_end_matches('\r');
         let depth = line.len() - line.trim_start_matches('\t').len();
         let trimmed = line.trim();
-        if trimmed.is_empty() || depth < base_depth { i += 1; continue; }
-        if depth > base_depth { i += 1; continue; } // skip orphan deeper lines
+        if trimmed.is_empty() || depth < base_depth {
+            i += 1;
+            continue;
+        }
+        if depth > base_depth {
+            i += 1;
+            continue;
+        } // skip orphan deeper lines
 
         let (node_type, name, value) = parse_override_line(trimmed);
 
@@ -826,8 +921,13 @@ fn parse_override_range(lines: &[&str], start: usize, end: usize, base_depth: us
         while child_end < end {
             let cl = lines[child_end].trim_end_matches('\r');
             let cd = cl.len() - cl.trim_start_matches('\t').len();
-            if cl.trim().is_empty() { child_end += 1; continue; }
-            if cd <= depth { break; }
+            if cl.trim().is_empty() {
+                child_end += 1;
+                continue;
+            }
+            if cd <= depth {
+                break;
+            }
             child_end += 1;
         }
 
@@ -837,7 +937,12 @@ fn parse_override_range(lines: &[&str], start: usize, end: usize, base_depth: us
             Vec::new()
         };
 
-        result.push(OverrideNode { node_type, name, value, children });
+        result.push(OverrideNode {
+            node_type,
+            name,
+            value,
+            children,
+        });
         i = child_end;
     }
     result
@@ -846,7 +951,11 @@ fn parse_override_range(lines: &[&str], start: usize, end: usize, base_depth: us
 fn parse_override_line(trimmed: &str) -> (String, String, Option<String>) {
     // Check for " = " (value present) or trailing " =" (empty value)
     if let Some(eq_pos) = trimmed.find(" = ").or_else(|| {
-        if trimmed.ends_with(" =") { Some(trimmed.len() - 2) } else { None }
+        if trimmed.ends_with(" =") {
+            Some(trimmed.len() - 2)
+        } else {
+            None
+        }
     }) {
         let before = &trimmed[..eq_pos];
         let after = if eq_pos + 3 <= trimmed.len() {
@@ -856,7 +965,11 @@ fn parse_override_line(trimmed: &str) -> (String, String, Option<String>) {
         };
         let parts: Vec<&str> = before.splitn(2, ' ').collect();
         if parts.len() >= 2 {
-            (parts[0].to_string(), parts[1].to_string(), Some(after.to_string()))
+            (
+                parts[0].to_string(),
+                parts[1].to_string(),
+                Some(after.to_string()),
+            )
         } else {
             (parts[0].to_string(), String::new(), Some(after.to_string()))
         }
@@ -902,37 +1015,50 @@ fn override_type_color(t: &str) -> egui::Color32 {
 }
 
 /// Show the override tree editor. Returns true if any value changed.
-fn show_override_tree(ui: &mut egui::Ui, nodes: &mut Vec<OverrideNode>, depth: usize, t: &'static crate::locale::I18n) -> bool {
+fn show_override_tree(
+    ui: &mut egui::Ui,
+    nodes: &mut Vec<OverrideNode>,
+    depth: usize,
+    t: &'static crate::locale::I18n,
+) -> bool {
     let mut changed = false;
     let mut to_delete: Option<usize> = None;
 
     for (i, node) in nodes.iter_mut().enumerate() {
         let has_children = !node.children.is_empty();
-        let is_container = matches!(node.node_type.as_str(),
-            "GameObject" | "Component" | "Array" | "AnimationCurve" | "Generic")
-            || has_children;
+        let is_container = matches!(
+            node.node_type.as_str(),
+            "GameObject" | "Component" | "Array" | "AnimationCurve" | "Generic"
+        ) || has_children;
 
         let id = ui.make_persistent_id(format!("ovr_{}_{}", depth, i));
 
         if is_container {
             // Collapsible section
             let header = egui::collapsing_header::CollapsingState::load_with_default_open(
-                ui.ctx(), id, depth < 2,
+                ui.ctx(),
+                id,
+                depth < 2,
             );
-            header.show_header(ui, |ui| {
-                let color = override_type_color(&node.node_type);
-                ui.colored_label(color, &node.node_type);
-                // Place delete button first (right-to-left) so it's never clipped
-                if ui.small_button(t.get("btn_delete")).clicked() {
-                    to_delete = Some(i);
-                }
-                let w = ui.available_width().max(30.0);
-                if ui.add(egui::TextEdit::singleline(&mut node.name).desired_width(w)).changed() {
-                    changed = true;
-                }
-            }).body(|ui| {
-                changed |= show_override_tree(ui, &mut node.children, depth + 1, t);
-            });
+            header
+                .show_header(ui, |ui| {
+                    let color = override_type_color(&node.node_type);
+                    ui.colored_label(color, &node.node_type);
+                    // Place delete button first (right-to-left) so it's never clipped
+                    if ui.small_button(t.get("btn_delete")).clicked() {
+                        to_delete = Some(i);
+                    }
+                    let w = ui.available_width().max(30.0);
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut node.name).desired_width(w))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                })
+                .body(|ui| {
+                    changed |= show_override_tree(ui, &mut node.children, depth + 1, t);
+                });
         } else if node.value.is_some() {
             // Leaf value — editable inline
             ui.horizontal(|ui| {
@@ -945,12 +1071,18 @@ fn show_override_tree(ui: &mut egui::Ui, nodes: &mut Vec<OverrideNode>, depth: u
                 let avail = ui.available_width();
                 let name_w = (avail * 0.4).max(20.0);
                 let val_w = (avail - name_w - 12.0).max(20.0); // 12px for "="
-                if ui.add(egui::TextEdit::singleline(&mut node.name).desired_width(name_w)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(&mut node.name).desired_width(name_w))
+                    .changed()
+                {
                     changed = true;
                 }
                 ui.label("=");
                 let val = node.value.as_mut().unwrap();
-                if ui.add(egui::TextEdit::singleline(val).desired_width(val_w)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(val).desired_width(val_w))
+                    .changed()
+                {
                     changed = true;
                 }
             });
@@ -964,7 +1096,10 @@ fn show_override_tree(ui: &mut egui::Ui, nodes: &mut Vec<OverrideNode>, depth: u
                     to_delete = Some(i);
                 }
                 let w = ui.available_width().max(30.0);
-                if ui.add(egui::TextEdit::singleline(&mut node.name).desired_width(w)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(&mut node.name).desired_width(w))
+                    .changed()
+                {
                     changed = true;
                 }
             });
@@ -996,12 +1131,25 @@ fn show_override_tree(ui: &mut egui::Ui, nodes: &mut Vec<OverrideNode>, depth: u
 
 /// All supported override node types.
 const OVERRIDE_ALL_TYPES: &[&str] = &[
-    "GameObject", "Component",
-    "Float", "Integer", "Boolean", "String", "Enum",
-    "Vector2", "Vector3", "Quaternion", "Color",
-    "Array", "Generic", "Element",
-    "AnimationCurve", "Keyframe",
-    "Rect", "Bounds", "ObjectReference",
+    "GameObject",
+    "Component",
+    "Float",
+    "Integer",
+    "Boolean",
+    "String",
+    "Enum",
+    "Vector2",
+    "Vector3",
+    "Quaternion",
+    "Color",
+    "Array",
+    "Generic",
+    "Element",
+    "AnimationCurve",
+    "Keyframe",
+    "Rect",
+    "Bounds",
+    "ObjectReference",
 ];
 
 /// Default value for a leaf override type.
@@ -1024,24 +1172,60 @@ fn override_default_children(t: &str) -> Vec<OverrideNode> {
             value: Some("0".to_string()),
             children: Vec::new(),
         }],
-        "Vector2" => ["x", "y"].iter().map(|n| OverrideNode {
-            node_type: "Float".to_string(), name: n.to_string(), value: Some("0".to_string()), children: Vec::new(),
-        }).collect(),
-        "Vector3" => ["x", "y", "z"].iter().map(|n| OverrideNode {
-            node_type: "Float".to_string(), name: n.to_string(), value: Some("0".to_string()), children: Vec::new(),
-        }).collect(),
-        "Quaternion" => ["x", "y", "z", "w"].iter().map(|n| OverrideNode {
-            node_type: "Float".to_string(), name: n.to_string(), value: Some("0".to_string()), children: Vec::new(),
-        }).collect(),
-        "Color" => ["r", "g", "b", "a"].iter().map(|n| OverrideNode {
-            node_type: "Float".to_string(), name: n.to_string(), value: Some("0".to_string()), children: Vec::new(),
-        }).collect(),
-        "Rect" => ["x", "y", "width", "height"].iter().map(|n| OverrideNode {
-            node_type: "Float".to_string(), name: n.to_string(), value: Some("0".to_string()), children: Vec::new(),
-        }).collect(),
-        "Keyframe" => ["time", "value", "inTangent", "outTangent"].iter().map(|n| OverrideNode {
-            node_type: "Float".to_string(), name: n.to_string(), value: Some("0".to_string()), children: Vec::new(),
-        }).collect(),
+        "Vector2" => ["x", "y"]
+            .iter()
+            .map(|n| OverrideNode {
+                node_type: "Float".to_string(),
+                name: n.to_string(),
+                value: Some("0".to_string()),
+                children: Vec::new(),
+            })
+            .collect(),
+        "Vector3" => ["x", "y", "z"]
+            .iter()
+            .map(|n| OverrideNode {
+                node_type: "Float".to_string(),
+                name: n.to_string(),
+                value: Some("0".to_string()),
+                children: Vec::new(),
+            })
+            .collect(),
+        "Quaternion" => ["x", "y", "z", "w"]
+            .iter()
+            .map(|n| OverrideNode {
+                node_type: "Float".to_string(),
+                name: n.to_string(),
+                value: Some("0".to_string()),
+                children: Vec::new(),
+            })
+            .collect(),
+        "Color" => ["r", "g", "b", "a"]
+            .iter()
+            .map(|n| OverrideNode {
+                node_type: "Float".to_string(),
+                name: n.to_string(),
+                value: Some("0".to_string()),
+                children: Vec::new(),
+            })
+            .collect(),
+        "Rect" => ["x", "y", "width", "height"]
+            .iter()
+            .map(|n| OverrideNode {
+                node_type: "Float".to_string(),
+                name: n.to_string(),
+                value: Some("0".to_string()),
+                children: Vec::new(),
+            })
+            .collect(),
+        "Keyframe" => ["time", "value", "inTangent", "outTangent"]
+            .iter()
+            .map(|n| OverrideNode {
+                node_type: "Float".to_string(),
+                name: n.to_string(),
+                value: Some("0".to_string()),
+                children: Vec::new(),
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -1071,12 +1255,22 @@ fn show_add_node_form(
             });
         ui.data_mut(|d| d.insert_temp(type_id, selected_idx));
 
-        let resp = ui.add(egui::TextEdit::singleline(&mut name_buf).desired_width(60.0).hint_text(t.get("override_name_hint")));
+        let resp = ui.add(
+            egui::TextEdit::singleline(&mut name_buf)
+                .desired_width(60.0)
+                .hint_text(t.get("override_name_hint")),
+        );
         ui.data_mut(|d| d.insert_temp(name_id, name_buf.clone()));
 
-        if ui.small_button(t.get("btn_confirm")).clicked() || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+        if ui.small_button(t.get("btn_confirm")).clicked()
+            || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+        {
             let ty = OVERRIDE_ALL_TYPES[selected_idx];
-            let name = if name_buf.trim().is_empty() { "unnamed".to_string() } else { name_buf.trim().to_string() };
+            let name = if name_buf.trim().is_empty() {
+                "unnamed".to_string()
+            } else {
+                name_buf.trim().to_string()
+            };
             nodes.push(OverrideNode {
                 node_type: ty.to_string(),
                 name,

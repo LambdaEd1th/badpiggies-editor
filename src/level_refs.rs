@@ -30,8 +30,8 @@ fn data() -> &'static LevelRefsData {
     static INSTANCE: OnceLock<LevelRefsData> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         let json_str = include_str!("../assets/level-refs.json");
-        let raw: LevelRefsJson = serde_json::from_str(json_str)
-            .expect("Failed to parse level-refs.json");
+        let raw: LevelRefsJson =
+            serde_json::from_str(json_str).expect("Failed to parse level-refs.json");
 
         let refs: RefsMap = raw
             .refs
@@ -39,9 +39,7 @@ fn data() -> &'static LevelRefsData {
             .map(|(k, v)| {
                 let inner: HashMap<i32, String> = v
                     .into_iter()
-                    .filter_map(|(idx_str, val)| {
-                        idx_str.parse::<i32>().ok().map(|i| (i, val))
-                    })
+                    .filter_map(|(idx_str, val)| idx_str.parse::<i32>().ok().map(|i| (i, val)))
                     .collect();
                 (k, inner)
             })
@@ -53,9 +51,7 @@ fn data() -> &'static LevelRefsData {
             .map(|(k, v)| {
                 let inner: HashMap<i16, String> = v
                     .into_iter()
-                    .filter_map(|(idx_str, val)| {
-                        idx_str.parse::<i16>().ok().map(|i| (i, val))
-                    })
+                    .filter_map(|(idx_str, val)| idx_str.parse::<i16>().ok().map(|i| (i, val)))
                     .collect();
                 (k, inner)
             })
@@ -67,7 +63,10 @@ fn data() -> &'static LevelRefsData {
 
 /// Derive the level-refs key from a filename (strip `.bytes` extension).
 pub fn level_key_from_filename(filename: &str) -> String {
-    filename.strip_suffix(".bytes").unwrap_or(filename).to_string()
+    filename
+        .strip_suffix(".bytes")
+        .unwrap_or(filename)
+        .to_string()
 }
 
 /// Look up a terrain texture filename by level key and reference index.

@@ -83,7 +83,7 @@ pub fn build_terrain(
                 edge_splat1: None,
                 edge_splat0_mesh: None,
                 edge_splat1_mesh: None,
-            }
+            };
         }
     };
 
@@ -99,9 +99,13 @@ pub fn build_terrain(
 
     // Build shader-ready edge data
     let (edge_vertices, edge_indices) = build_edge_shader_data(td, world_offset);
-    let edge_ctrl_pixels = td.control_texture_data.as_ref().and_then(|d| decode_control_png(d));
+    let edge_ctrl_pixels = td
+        .control_texture_data
+        .as_ref()
+        .and_then(|d| decode_control_png(d));
     let edge_node_count = td.curve_mesh.vertices.len() / 2;
-    let edge_splat_params_x = if !td.curve_textures.is_empty() && td.curve_textures[0].size.x > 0.0 {
+    let edge_splat_params_x = if !td.curve_textures.is_empty() && td.curve_textures[0].size.x > 0.0
+    {
         1.0 / td.curve_textures[0].size.x
     } else {
         10.0
@@ -123,15 +127,21 @@ pub fn build_terrain(
     };
 
     // Extract curve outer vertices for selection outline
-    let curve_world_verts: Vec<(f32, f32)> = td.curve_mesh.vertices.iter()
+    let curve_world_verts: Vec<(f32, f32)> = td
+        .curve_mesh
+        .vertices
+        .iter()
         .step_by(2) // curve mesh has 2 verts per cross-section; take outer only
         .map(|v| (v.x + world_offset.x, v.y + world_offset.y))
         .collect();
 
     // Build CPU-textured edge meshes (fallback for when GLSL is unavailable)
     let (edge_splat0_mesh, edge_splat1_mesh) = build_edge_textured_meshes(
-        &edge_vertices, &edge_indices, edge_ctrl_pixels.as_deref(),
-        edge_node_count, edge_splat_params_x,
+        &edge_vertices,
+        &edge_indices,
+        edge_ctrl_pixels.as_deref(),
+        edge_node_count,
+        edge_splat_params_x,
     );
 
     TerrainDrawData {
@@ -177,10 +187,7 @@ fn build_fill_mesh(td: &TerrainData, offset: Vec3) -> Option<egui::Mesh> {
         let wy = v.y + offset.y;
         mesh.vertices.push(egui::epaint::Vertex {
             pos: egui::pos2(wx, wy),
-            uv: egui::pos2(
-                (wx - tile_off_x) / tile_size,
-                (wy - tile_off_y) / tile_size,
-            ),
+            uv: egui::pos2((wx - tile_off_x) / tile_size, (wy - tile_off_y) / tile_size),
             color,
         });
     }
@@ -336,7 +343,10 @@ fn build_edge_shader_data(td: &TerrainData, offset: Vec3) -> (Vec<EdgeVertex>, V
     }
 
     // Use stored indices from binary (matches Unity runtime)
-    let indices: Vec<u16> = td.curve_mesh.indices.iter()
+    let indices: Vec<u16> = td
+        .curve_mesh
+        .indices
+        .iter()
         .map(|&idx| idx as u16)
         .collect();
 
@@ -400,8 +410,16 @@ fn build_edge_textured_meshes(
     }
 
     (
-        if mesh0.vertices.is_empty() { None } else { Some(mesh0) },
-        if mesh1.vertices.is_empty() { None } else { Some(mesh1) },
+        if mesh0.vertices.is_empty() {
+            None
+        } else {
+            Some(mesh0)
+        },
+        if mesh1.vertices.is_empty() {
+            None
+        } else {
+            Some(mesh1)
+        },
     )
 }
 
@@ -415,10 +433,14 @@ pub fn transform_mesh_to_screen_into(
 ) {
     out.texture_id = mesh.texture_id;
     out.vertices.clear();
-    out.vertices.reserve(mesh.vertices.len().saturating_sub(out.vertices.capacity()));
+    out.vertices
+        .reserve(mesh.vertices.len().saturating_sub(out.vertices.capacity()));
     for v in &mesh.vertices {
         let screen = camera.world_to_screen(
-            crate::types::Vec2 { x: v.pos.x, y: v.pos.y },
+            crate::types::Vec2 {
+                x: v.pos.x,
+                y: v.pos.y,
+            },
             canvas_center,
         );
         out.vertices.push(egui::epaint::Vertex {

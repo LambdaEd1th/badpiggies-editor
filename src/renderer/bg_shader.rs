@@ -105,8 +105,8 @@ pub struct BgUniforms {
     pub world_size: [f32; 2],
     pub uv_min: [f32; 2],
     pub uv_max: [f32; 2],
-    pub content_ratio_x: f32,    // original_w / extended_w (1.0 = no extension)
-    pub _pad: f32,               // align tint_color to offset 64
+    pub content_ratio_x: f32, // original_w / extended_w (1.0 = no extension)
+    pub _pad: f32,            // align tint_color to offset 64
     pub tint_color: [f32; 4], // vec4 needs 16-byte alignment
 }
 
@@ -121,10 +121,22 @@ struct BgVertex {
 
 /// Unit quad: TL, TR, BR, BL
 const UNIT_QUAD: [BgVertex; 4] = [
-    BgVertex { pos: [-0.5,  0.5], uv: [0.0, 0.0] },
-    BgVertex { pos: [ 0.5,  0.5], uv: [1.0, 0.0] },
-    BgVertex { pos: [ 0.5, -0.5], uv: [1.0, 1.0] },
-    BgVertex { pos: [-0.5, -0.5], uv: [0.0, 1.0] },
+    BgVertex {
+        pos: [-0.5, 0.5],
+        uv: [0.0, 0.0],
+    },
+    BgVertex {
+        pos: [0.5, 0.5],
+        uv: [1.0, 0.0],
+    },
+    BgVertex {
+        pos: [0.5, -0.5],
+        uv: [1.0, 1.0],
+    },
+    BgVertex {
+        pos: [-0.5, -0.5],
+        uv: [0.0, 1.0],
+    },
 ];
 
 // ── Shared pipeline resources ──
@@ -141,10 +153,7 @@ pub struct BgResources {
 }
 
 /// Initialize the wgpu render pipeline and shared resources.
-pub fn init_bg_resources(
-    device: &wgpu::Device,
-    target_format: wgpu::TextureFormat,
-) -> BgResources {
+pub fn init_bg_resources(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> BgResources {
     use wgpu::util::DeviceExt;
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -163,7 +172,7 @@ pub fn init_bg_resources(
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: true,
                     min_binding_size: std::num::NonZeroU64::new(
-                        std::mem::size_of::<BgUniforms>() as u64,
+                        std::mem::size_of::<BgUniforms>() as u64
                     ),
                 },
                 count: None,
@@ -344,9 +353,7 @@ pub fn upload_bg_atlas(
                 resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: &resources.uniform_buffer,
                     offset: 0,
-                    size: std::num::NonZeroU64::new(
-                        std::mem::size_of::<BgUniforms>() as u64,
-                    ),
+                    size: std::num::NonZeroU64::new(std::mem::size_of::<BgUniforms>() as u64),
                 }),
             },
             wgpu::BindGroupEntry {
@@ -460,10 +467,7 @@ impl egui_wgpu::CallbackTrait for BgPaintCallback {
         render_pass.set_pipeline(&self.resources.pipeline);
         render_pass.set_bind_group(0, &self.atlas.bind_group, &[offset as u32]);
         render_pass.set_vertex_buffer(0, self.resources.quad_vbo.slice(..));
-        render_pass.set_index_buffer(
-            self.resources.quad_ibo.slice(..),
-            wgpu::IndexFormat::Uint16,
-        );
+        render_pass.set_index_buffer(self.resources.quad_ibo.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.draw_indexed(0..6, 0, 0..1);
     }
 }

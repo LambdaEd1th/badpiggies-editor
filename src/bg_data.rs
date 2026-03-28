@@ -195,17 +195,24 @@ fn build_themes() -> HashMap<String, BgTheme> {
         }
         // Sort by layer order then by Z (farther back first)
         sprites.sort_by(|a, b| {
-            a.layer
-                .order()
-                .cmp(&b.layer.order())
-                .then(b.world_z.partial_cmp(&a.world_z).unwrap_or(std::cmp::Ordering::Equal))
+            a.layer.order().cmp(&b.layer.order()).then(
+                b.world_z
+                    .partial_cmp(&a.world_z)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
         });
         let group_defaults: HashMap<String, [f32; 3]> = theme_json
             .group_defaults
             .iter()
             .map(|(k, v)| (k.clone(), [v[0] as f32, v[1] as f32, v[2] as f32]))
             .collect();
-        themes.insert(name, BgTheme { sprites, group_defaults });
+        themes.insert(
+            name,
+            BgTheme {
+                sprites,
+                group_defaults,
+            },
+        );
     }
     themes
 }
@@ -235,7 +242,9 @@ pub fn parse_bg_overrides(raw: &str) -> BgOverrides {
         let stripped = line.trim_end_matches('\r');
         let depth = stripped.len() - stripped.trim_start_matches('\t').len();
         let content = stripped.trim();
-        if content.is_empty() { continue; }
+        if content.is_empty() {
+            continue;
+        }
 
         if depth == 1 && content.starts_with("GameObject ") {
             current_group = content[11..].trim().to_string();
@@ -249,29 +258,32 @@ pub fn parse_bg_overrides(raw: &str) -> BgOverrides {
         } else if depth == 3 && content == "Component UnityEngine.Transform" {
             parsing_for = "sprite";
         } else if content.starts_with("Float ")
-            && let Some(rest) = content.strip_prefix("Float ") {
-                // Parse "x = 1.23" or "y = -4.56"
-                let parts: Vec<&str> = rest.splitn(2, '=').collect();
-                if parts.len() == 2 {
-                    let axis = parts[0].trim();
-                    if let Ok(val) = parts[1].trim().parse::<f32>() {
-                        let (target_name, target_map) = match parsing_for {
-                            "group" => (&current_group, &mut result.groups),
-                            "sprite" => (&current_sprite, &mut result.sprites),
-                            _ => continue,
-                        };
-                        if !target_name.is_empty() {
-                            let entry = target_map.entry(target_name.clone()).or_insert([None, None, None]);
-                            match axis {
-                                "x" => entry[0] = Some(val),
-                                "y" => entry[1] = Some(val),
-                                "z" => entry[2] = Some(val),
-                                _ => {}
-                            }
+            && let Some(rest) = content.strip_prefix("Float ")
+        {
+            // Parse "x = 1.23" or "y = -4.56"
+            let parts: Vec<&str> = rest.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                let axis = parts[0].trim();
+                if let Ok(val) = parts[1].trim().parse::<f32>() {
+                    let (target_name, target_map) = match parsing_for {
+                        "group" => (&current_group, &mut result.groups),
+                        "sprite" => (&current_sprite, &mut result.sprites),
+                        _ => continue,
+                    };
+                    if !target_name.is_empty() {
+                        let entry = target_map
+                            .entry(target_name.clone())
+                            .or_insert([None, None, None]);
+                        match axis {
+                            "x" => entry[0] = Some(val),
+                            "y" => entry[1] = Some(val),
+                            "z" => entry[2] = Some(val),
+                            _ => {}
                         }
                     }
                 }
             }
+        }
     }
     result
 }
@@ -281,31 +293,35 @@ pub fn apply_bg_overrides(theme: &BgTheme, overrides: &BgOverrides) -> Vec<BgSpr
     if overrides.groups.is_empty() && overrides.sprites.is_empty() {
         return theme.sprites.clone();
     }
-    theme.sprites.iter().map(|s| {
-        let defaults = match theme.group_defaults.get(&s.parent_group) {
-            Some(d) => d,
-            None => return s.clone(),
-        };
-        let group_ovr = overrides.groups.get(&s.parent_group);
-        let sprite_ovr = overrides.sprites.get(&s.name);
-        if group_ovr.is_none() && sprite_ovr.is_none() {
-            return s.clone();
-        }
-        let gx = group_ovr.and_then(|o| o[0]).unwrap_or(defaults[0]);
-        let gy = group_ovr.and_then(|o| o[1]).unwrap_or(defaults[1]);
-        let gz = group_ovr.and_then(|o| o[2]).unwrap_or(defaults[2]);
-        let lx = sprite_ovr.and_then(|o| o[0]).unwrap_or(s.local_x);
-        let ly = sprite_ovr.and_then(|o| o[1]).unwrap_or(s.local_y);
-        let new_x = gx + lx;
-        let new_y = gy + ly;
-        let sprite_local_z = s.world_z - defaults[2];
-        let new_z = gz + sprite_local_z;
-        let mut out = s.clone();
-        out.world_x = new_x;
-        out.world_y = new_y;
-        out.world_z = new_z;
-        out
-    }).collect()
+    theme
+        .sprites
+        .iter()
+        .map(|s| {
+            let defaults = match theme.group_defaults.get(&s.parent_group) {
+                Some(d) => d,
+                None => return s.clone(),
+            };
+            let group_ovr = overrides.groups.get(&s.parent_group);
+            let sprite_ovr = overrides.sprites.get(&s.name);
+            if group_ovr.is_none() && sprite_ovr.is_none() {
+                return s.clone();
+            }
+            let gx = group_ovr.and_then(|o| o[0]).unwrap_or(defaults[0]);
+            let gy = group_ovr.and_then(|o| o[1]).unwrap_or(defaults[1]);
+            let gz = group_ovr.and_then(|o| o[2]).unwrap_or(defaults[2]);
+            let lx = sprite_ovr.and_then(|o| o[0]).unwrap_or(s.local_x);
+            let ly = sprite_ovr.and_then(|o| o[1]).unwrap_or(s.local_y);
+            let new_x = gx + lx;
+            let new_y = gy + ly;
+            let sprite_local_z = s.world_z - defaults[2];
+            let new_z = gz + sprite_local_z;
+            let mut out = s.clone();
+            out.world_x = new_x;
+            out.world_y = new_y;
+            out.world_z = new_z;
+            out
+        })
+        .collect()
 }
 
 /// All known background atlas filenames.

@@ -39,7 +39,12 @@ struct QuadDraw<'a> {
 
 const SLINGSHOT_BACK: SubSprite = SubSprite {
     atlas: "IngameAtlas.png",
-    uv: UvRect { x: 0.0, y: 0.472168, w: 0.05273438, h: 0.2431641 },
+    uv: UvRect {
+        x: 0.0,
+        y: 0.472168,
+        w: 0.05273438,
+        h: 0.2431641,
+    },
     world_w: 108.0 * 0.4 * SCALE,
     world_h: 498.0 * 0.4 * SCALE,
     offset_x: 0.2329,
@@ -50,7 +55,12 @@ const SLINGSHOT_BACK: SubSprite = SubSprite {
 
 const SLINGSHOT_PAD: SubSprite = SubSprite {
     atlas: "IngameAtlas.png",
-    uv: UvRect { x: 0.5292969, y: 0.6572266, w: 0.01904297, h: 0.03027344 },
+    uv: UvRect {
+        x: 0.5292969,
+        y: 0.6572266,
+        w: 0.01904297,
+        h: 0.03027344,
+    },
     world_w: 39.0 * 0.4 * SCALE,
     world_h: 62.0 * 0.4 * SCALE,
     offset_x: -0.0064,
@@ -61,7 +71,12 @@ const SLINGSHOT_PAD: SubSprite = SubSprite {
 
 const SLINGSHOT_FRONT: SubSprite = SubSprite {
     atlas: "IngameAtlas.png",
-    uv: UvRect { x: 0.1416016, y: 0.3066406, w: 0.04638672, h: 0.1445313 },
+    uv: UvRect {
+        x: 0.1416016,
+        y: 0.3066406,
+        w: 0.04638672,
+        h: 0.1445313,
+    },
     world_w: 95.0 * 0.3984375 * SCALE,
     world_h: 296.0 * 0.4 * SCALE,
     offset_x: -0.472,
@@ -74,7 +89,12 @@ const SLINGSHOT_FRONT: SubSprite = SubSprite {
 
 const FAN_PROPELLER: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.8891602, y: 0.4277344, w: 0.1000977, h: 0.02880859 },
+    uv: UvRect {
+        x: 0.8891602,
+        y: 0.4277344,
+        w: 0.1000977,
+        h: 0.02880859,
+    },
     world_w: 205.0 * 0.4 * SCALE,
     world_h: 59.0 * 0.4 * SCALE,
     offset_x: 0.0,
@@ -85,7 +105,12 @@ const FAN_PROPELLER: SubSprite = SubSprite {
 
 const FAN_ENGINE: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.8056641, y: 0.05810547, w: 0.09082031, h: 0.02490234 },
+    uv: UvRect {
+        x: 0.8056641,
+        y: 0.05810547,
+        w: 0.09082031,
+        h: 0.02490234,
+    },
     world_w: 186.0 * 0.4 * SCALE,
     world_h: 51.0 * 0.4 * SCALE,
     offset_x: 0.0,
@@ -96,7 +121,12 @@ const FAN_ENGINE: SubSprite = SubSprite {
 
 const FAN_FRAME: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.6914063, y: 0.08544922, w: 0.1245117, h: 0.06396484 },
+    uv: UvRect {
+        x: 0.6914063,
+        y: 0.08544922,
+        w: 0.1245117,
+        h: 0.06396484,
+    },
     world_w: 255.0 * 0.4 * SCALE,
     world_h: 131.0 * 0.4 * SCALE,
     offset_x: 0.0,
@@ -109,7 +139,12 @@ const FAN_FRAME: SubSprite = SubSprite {
 
 const BUTTON_BASE: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.5307617, y: 0.06542969, w: 0.08837891, h: 0.01513672 },
+    uv: UvRect {
+        x: 0.5307617,
+        y: 0.06542969,
+        w: 0.08837891,
+        h: 0.01513672,
+    },
     world_w: 181.0 * 0.4 * SCALE,
     world_h: 31.0 * 0.4 * SCALE,
     offset_x: 0.0,
@@ -124,10 +159,42 @@ struct ButtonBumpData {
 }
 
 const BUTTON_BUMPS: &[ButtonBumpData] = &[
-    ButtonBumpData { color_suffix: "Blue", uv: UvRect { x: 0.2631836, y: 0.2124023, w: 0.07226563, h: 0.01025391 } },
-    ButtonBumpData { color_suffix: "Red", uv: UvRect { x: 0.4238281, y: 0.2089844, w: 0.07226563, h: 0.01025391 } },
-    ButtonBumpData { color_suffix: "Green", uv: UvRect { x: 0.7216797, y: 0.06494141, w: 0.07226563, h: 0.01025391 } },
-    ButtonBumpData { color_suffix: "Yellow", uv: UvRect { x: 0.3745117, y: 0.34375, w: 0.07226563, h: 0.01025391 } },
+    ButtonBumpData {
+        color_suffix: "Blue",
+        uv: UvRect {
+            x: 0.2631836,
+            y: 0.2124023,
+            w: 0.07226563,
+            h: 0.01025391,
+        },
+    },
+    ButtonBumpData {
+        color_suffix: "Red",
+        uv: UvRect {
+            x: 0.4238281,
+            y: 0.2089844,
+            w: 0.07226563,
+            h: 0.01025391,
+        },
+    },
+    ButtonBumpData {
+        color_suffix: "Green",
+        uv: UvRect {
+            x: 0.7216797,
+            y: 0.06494141,
+            w: 0.07226563,
+            h: 0.01025391,
+        },
+    },
+    ButtonBumpData {
+        color_suffix: "Yellow",
+        uv: UvRect {
+            x: 0.3745117,
+            y: 0.34375,
+            w: 0.07226563,
+            h: 0.01025391,
+        },
+    },
 ];
 
 const BUTTON_BUMP_SIZE_W: f32 = 148.0 * 0.4 * SCALE;
@@ -137,7 +204,12 @@ const BUTTON_BUMP_SIZE_H: f32 = 21.0 * 0.4 * SCALE;
 
 const DOOR_BAR: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.4082031, y: 0.4277344, w: 0.01660156, h: 0.2045898 },
+    uv: UvRect {
+        x: 0.4082031,
+        y: 0.4277344,
+        w: 0.01660156,
+        h: 0.2045898,
+    },
     world_w: 34.0 * 0.4 * SCALE,
     world_h: 419.0 * 0.38 * SCALE,
     offset_x: 0.001,
@@ -149,7 +221,12 @@ const DOOR_BAR: SubSprite = SubSprite {
 // Ice variant bar: 419×35px, scaleX=0.4, scaleY=0.38 — separate horizontal sprite
 const DOOR_BAR_ICE: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.6503906, y: 0.3164063, w: 0.2045898, h: 0.01708984 },
+    uv: UvRect {
+        x: 0.6503906,
+        y: 0.3164063,
+        w: 0.2045898,
+        h: 0.01708984,
+    },
     world_w: 419.0 * 0.4 * SCALE,
     world_h: 35.0 * 0.38 * SCALE,
     offset_x: 0.001,
@@ -160,7 +237,12 @@ const DOOR_BAR_ICE: SubSprite = SubSprite {
 
 const DOOR_HINGE_BOTTOM: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.168457, y: 0.5673828, w: 0.01025391, h: 0.02783203 },
+    uv: UvRect {
+        x: 0.168457,
+        y: 0.5673828,
+        w: 0.01025391,
+        h: 0.02783203,
+    },
     world_w: 21.0 * 0.4 * SCALE,
     world_h: 57.0 * 0.4 * SCALE,
     offset_x: 0.001314,
@@ -181,10 +263,42 @@ struct DoorHingeUpperData {
 }
 
 const DOOR_HINGE_UPPERS: &[DoorHingeUpperData] = &[
-    DoorHingeUpperData { color_suffix: "Blue", uv: UvRect { x: 0.6630859, y: 0.7021484, w: 0.02587891, h: 0.02587891 } },
-    DoorHingeUpperData { color_suffix: "Red", uv: UvRect { x: 0.6630859, y: 0.7578125, w: 0.02587891, h: 0.02587891 } },
-    DoorHingeUpperData { color_suffix: "Green", uv: UvRect { x: 0.6630859, y: 0.7299805, w: 0.02587891, h: 0.02587891 } },
-    DoorHingeUpperData { color_suffix: "Yellow", uv: UvRect { x: 0.6630859, y: 0.7856445, w: 0.02587891, h: 0.02587891 } },
+    DoorHingeUpperData {
+        color_suffix: "Blue",
+        uv: UvRect {
+            x: 0.6630859,
+            y: 0.7021484,
+            w: 0.02587891,
+            h: 0.02587891,
+        },
+    },
+    DoorHingeUpperData {
+        color_suffix: "Red",
+        uv: UvRect {
+            x: 0.6630859,
+            y: 0.7578125,
+            w: 0.02587891,
+            h: 0.02587891,
+        },
+    },
+    DoorHingeUpperData {
+        color_suffix: "Green",
+        uv: UvRect {
+            x: 0.6630859,
+            y: 0.7299805,
+            w: 0.02587891,
+            h: 0.02587891,
+        },
+    },
+    DoorHingeUpperData {
+        color_suffix: "Yellow",
+        uv: UvRect {
+            x: 0.6630859,
+            y: 0.7856445,
+            w: 0.02587891,
+            h: 0.02587891,
+        },
+    },
 ];
 
 const DOOR_HINGE_SIZE: f32 = 53.0 * 0.4 * SCALE;
@@ -208,7 +322,12 @@ const BIRD_FACES: &[BirdFaceData] = &[
     // offset = (-0.06 + 0 - 40/768, -0.15 + 20/768 - 0)
     BirdFaceData {
         name_prefix: "Bird_Red",
-        uv: UvRect { x: 0.7143555, y: 0.6708984, w: 0.03076172, h: 0.02441406 },
+        uv: UvRect {
+            x: 0.7143555,
+            y: 0.6708984,
+            w: 0.03076172,
+            h: 0.02441406,
+        },
         world_w: 25.0 * SCALE,
         world_h: 20.0 * SCALE,
         offset_x: -0.06 - 40.0 / 768.0,
@@ -217,7 +336,12 @@ const BIRD_FACES: &[BirdFaceData] = &[
     // Bird_Blue: face pivot (0, 0), body pivot (0, 0)
     BirdFaceData {
         name_prefix: "Bird_Blue",
-        uv: UvRect { x: 0.8925781, y: 0.5996094, w: 0.01953125, h: 0.01464844 },
+        uv: UvRect {
+            x: 0.8925781,
+            y: 0.5996094,
+            w: 0.01953125,
+            h: 0.01464844,
+        },
         world_w: 16.0 * SCALE,
         world_h: 12.0 * SCALE,
         offset_x: -0.06,
@@ -226,7 +350,12 @@ const BIRD_FACES: &[BirdFaceData] = &[
     // Bird_Yellow: face pivot (0, 40/768), body pivot (0, 0)
     BirdFaceData {
         name_prefix: "Bird_Yellow",
-        uv: UvRect { x: 0.9375, y: 0.7265625, w: 0.03076172, h: 0.01708984 },
+        uv: UvRect {
+            x: 0.9375,
+            y: 0.7265625,
+            w: 0.03076172,
+            h: 0.01708984,
+        },
         world_w: 25.0 * SCALE,
         world_h: 14.0 * SCALE,
         offset_x: -0.06,
@@ -238,7 +367,12 @@ const BIRD_FACES: &[BirdFaceData] = &[
 
 const BRIDGE_STEP: SubSprite = SubSprite {
     atlas: "IngameAtlas2.png",
-    uv: UvRect { x: 0.6679688, y: 0.06494141, w: 0.05175781, h: 0.01464844 },
+    uv: UvRect {
+        x: 0.6679688,
+        y: 0.06494141,
+        w: 0.05175781,
+        h: 0.01464844,
+    },
     world_w: 106.0 * 0.4 * SCALE,
     world_h: 30.0 * 0.4 * SCALE,
     offset_x: 0.0,
@@ -252,7 +386,12 @@ const BRIDGE_STEP: SubSprite = SubSprite {
 // StarBox / DynamicPartBox sprite (same UV)
 const FLOATING_BOX: SubSprite = SubSprite {
     atlas: "IngameAtlas.png",
-    uv: UvRect { x: 0.3325195, y: 0.7480469, w: 0.05126953, h: 0.05175781 },
+    uv: UvRect {
+        x: 0.3325195,
+        y: 0.7480469,
+        w: 0.05126953,
+        h: 0.05175781,
+    },
     world_w: 105.0 * SCALE,
     world_h: 106.0 * SCALE,
     offset_x: 0.0,
@@ -263,7 +402,10 @@ const FLOATING_BOX: SubSprite = SubSprite {
 
 // Balloon sprite (FloatingStarBox / FloatingPartBox share same UV)
 const FLOATING_BALLOON_UV: UvRect = UvRect {
-    x: 0.3945313, y: 0.5200195, w: 0.04492188, h: 0.04882813,
+    x: 0.3945313,
+    y: 0.5200195,
+    w: 0.04492188,
+    h: 0.04882813,
 };
 const FLOATING_BALLOON_W: f32 = 92.0 * 0.875 * SCALE;
 const FLOATING_BALLOON_H: f32 = 100.0 * 0.875 * SCALE;
@@ -301,7 +443,11 @@ pub fn draw_compound(
     override_text: Option<&str>,
 ) -> bool {
     if name == "Slingshot" {
-        draw_sub_sprites_rotated(ctx, &[&SLINGSHOT_BACK, &SLINGSHOT_PAD, &SLINGSHOT_FRONT], xf);
+        draw_sub_sprites_rotated(
+            ctx,
+            &[&SLINGSHOT_BACK, &SLINGSHOT_PAD, &SLINGSHOT_FRONT],
+            xf,
+        );
         return true;
     }
 
@@ -316,15 +462,20 @@ pub fn draw_compound(
         let ly = FAN_PROPELLER.offset_y * xf.scale_y;
         let px = xf.world_x + lx * cos_r - ly * sin_r;
         let py = xf.world_y + lx * sin_r + ly * cos_r;
-        draw_uv_quad_rotated(ctx, QuadDraw {
-            atlas: FAN_PROPELLER.atlas, uv: &FAN_PROPELLER.uv,
-            half_w: FAN_PROPELLER.world_w * xf.scale_x.abs() * foreshorten,
-            half_h: FAN_PROPELLER.world_h * xf.scale_y.abs(),
-            world_x: px, world_y: py,
-            flip_x: FAN_PROPELLER.flip_x != (xf.scale_x < 0.0),
-            flip_y: FAN_PROPELLER.flip_y != (xf.scale_y < 0.0),
-            rotation_z: xf.rotation_z,
-        });
+        draw_uv_quad_rotated(
+            ctx,
+            QuadDraw {
+                atlas: FAN_PROPELLER.atlas,
+                uv: &FAN_PROPELLER.uv,
+                half_w: FAN_PROPELLER.world_w * xf.scale_x.abs() * foreshorten,
+                half_h: FAN_PROPELLER.world_h * xf.scale_y.abs(),
+                world_x: px,
+                world_y: py,
+                flip_x: FAN_PROPELLER.flip_x != (xf.scale_x < 0.0),
+                flip_y: FAN_PROPELLER.flip_y != (xf.scale_y < 0.0),
+                rotation_z: xf.rotation_z,
+            },
+        );
         // Then engine (middle) and frame (front)
         draw_sub_sprites_rotated(ctx, &[&FAN_ENGINE, &FAN_FRAME], xf);
         return true; // skip root sprite (propeller already drawn)
@@ -341,13 +492,20 @@ pub fn draw_compound(
             let ly = -0.012 * xf.scale_y;
             let bx = xf.world_x + lx * cos_r - ly * sin_r;
             let by = xf.world_y + lx * sin_r + ly * cos_r;
-            draw_uv_quad_rotated(ctx, QuadDraw {
-                atlas: "IngameAtlas2.png", uv: &bump.uv,
-                half_w: BUTTON_BUMP_SIZE_W * xf.scale_x.abs(),
-                half_h: BUTTON_BUMP_SIZE_H * xf.scale_y.abs(),
-                world_x: bx, world_y: by,
-                flip_x: false, flip_y: false, rotation_z: xf.rotation_z,
-            });
+            draw_uv_quad_rotated(
+                ctx,
+                QuadDraw {
+                    atlas: "IngameAtlas2.png",
+                    uv: &bump.uv,
+                    half_w: BUTTON_BUMP_SIZE_W * xf.scale_x.abs(),
+                    half_h: BUTTON_BUMP_SIZE_H * xf.scale_y.abs(),
+                    world_x: bx,
+                    world_y: by,
+                    flip_x: false,
+                    flip_y: false,
+                    rotation_z: xf.rotation_z,
+                },
+            );
         }
         return true; // root has no visual — skip it
     }
@@ -371,14 +529,20 @@ pub fn draw_compound(
             let ly = bar.offset_y * xf.scale_y;
             let bx = xf.world_x + lx * cos_r - ly * sin_r;
             let by = xf.world_y + lx * sin_r + ly * cos_r;
-            draw_uv_quad_rotated(ctx, QuadDraw {
-                atlas: bar.atlas, uv: &bar.uv,
-                half_w: bar.world_w * xf.scale_x.abs(), half_h: bar.world_h * xf.scale_y.abs(),
-                world_x: bx, world_y: by,
-                flip_x: bar.flip_x != (xf.scale_x < 0.0),
-                flip_y: bar.flip_y != (xf.scale_y < 0.0),
-                rotation_z: bar_rot,
-            });
+            draw_uv_quad_rotated(
+                ctx,
+                QuadDraw {
+                    atlas: bar.atlas,
+                    uv: &bar.uv,
+                    half_w: bar.world_w * xf.scale_x.abs(),
+                    half_h: bar.world_h * xf.scale_y.abs(),
+                    world_x: bx,
+                    world_y: by,
+                    flip_x: bar.flip_x != (xf.scale_x < 0.0),
+                    flip_y: bar.flip_y != (xf.scale_y < 0.0),
+                    rotation_z: bar_rot,
+                },
+            );
         }
         // Lower hinge: 180° rotation, pivot Y offset shifts sprite upward
         {
@@ -386,15 +550,20 @@ pub fn draw_compound(
             let ly = (DOOR_HINGE_BOTTOM.offset_y + DOOR_HINGE_PIVOT_Y) * xf.scale_y;
             let hx = xf.world_x + lx * cos_r - ly * sin_r;
             let hy = xf.world_y + lx * sin_r + ly * cos_r;
-            draw_uv_quad_rotated(ctx, QuadDraw {
-                atlas: DOOR_HINGE_BOTTOM.atlas, uv: &DOOR_HINGE_BOTTOM.uv,
-                half_w: DOOR_HINGE_BOTTOM.world_w * xf.scale_x.abs(),
-                half_h: DOOR_HINGE_BOTTOM.world_h * xf.scale_y.abs(),
-                world_x: hx, world_y: hy,
-                flip_x: DOOR_HINGE_BOTTOM.flip_x != (xf.scale_x < 0.0),
-                flip_y: DOOR_HINGE_BOTTOM.flip_y != (xf.scale_y < 0.0),
-                rotation_z: xf.rotation_z + std::f32::consts::PI,
-            });
+            draw_uv_quad_rotated(
+                ctx,
+                QuadDraw {
+                    atlas: DOOR_HINGE_BOTTOM.atlas,
+                    uv: &DOOR_HINGE_BOTTOM.uv,
+                    half_w: DOOR_HINGE_BOTTOM.world_w * xf.scale_x.abs(),
+                    half_h: DOOR_HINGE_BOTTOM.world_h * xf.scale_y.abs(),
+                    world_x: hx,
+                    world_y: hy,
+                    flip_x: DOOR_HINGE_BOTTOM.flip_x != (xf.scale_x < 0.0),
+                    flip_y: DOOR_HINGE_BOTTOM.flip_y != (xf.scale_y < 0.0),
+                    rotation_z: xf.rotation_z + std::f32::consts::PI,
+                },
+            );
         }
         // Upper hinge: color-specific, Y-flipped (prefab scaleY=-1), pivot offset
         if let Some(hinge) = DOOR_HINGE_UPPERS.iter().find(|h| h.color_suffix == color) {
@@ -403,12 +572,20 @@ pub fn draw_compound(
             let ux = xf.world_x + lx * cos_r - ly * sin_r;
             let uy = xf.world_y + lx * sin_r + ly * cos_r;
             let flip_y_val = xf.scale_y >= 0.0; // prefab scaleY=-1 baked: flip when parent NOT flipped
-            draw_uv_quad_rotated(ctx, QuadDraw {
-                atlas: "IngameAtlas2.png", uv: &hinge.uv,
-                half_w: DOOR_HINGE_SIZE * xf.scale_x.abs(), half_h: DOOR_HINGE_SIZE * xf.scale_y.abs(),
-                world_x: ux, world_y: uy,
-                flip_x: xf.scale_x < 0.0, flip_y: flip_y_val, rotation_z: xf.rotation_z,
-            });
+            draw_uv_quad_rotated(
+                ctx,
+                QuadDraw {
+                    atlas: "IngameAtlas2.png",
+                    uv: &hinge.uv,
+                    half_w: DOOR_HINGE_SIZE * xf.scale_x.abs(),
+                    half_h: DOOR_HINGE_SIZE * xf.scale_y.abs(),
+                    world_x: ux,
+                    world_y: uy,
+                    flip_x: xf.scale_x < 0.0,
+                    flip_y: flip_y_val,
+                    rotation_z: xf.rotation_z,
+                },
+            );
         }
         return true; // skip root sprite — Unity root has no visual component
     }
@@ -436,14 +613,20 @@ pub fn draw_compound(
             let along = (i as f32 + 0.5) * stride;
             let lx = along * cos_a;
             let ly = along * sin_a;
-            draw_uv_quad_rotated(ctx, QuadDraw {
-                atlas: BRIDGE_STEP.atlas, uv: &BRIDGE_STEP.uv,
-                half_w: BRIDGE_STEP.world_w * xf.scale_x.abs(),
-                half_h: BRIDGE_STEP.world_h * xf.scale_y.abs(),
-                world_x: xf.world_x + lx * xf.scale_x,
-                world_y: xf.world_y + ly * xf.scale_y,
-                flip_x: false, flip_y: false, rotation_z: angle,
-            });
+            draw_uv_quad_rotated(
+                ctx,
+                QuadDraw {
+                    atlas: BRIDGE_STEP.atlas,
+                    uv: &BRIDGE_STEP.uv,
+                    half_w: BRIDGE_STEP.world_w * xf.scale_x.abs(),
+                    half_h: BRIDGE_STEP.world_h * xf.scale_y.abs(),
+                    world_x: xf.world_x + lx * xf.scale_x,
+                    world_y: xf.world_y + ly * xf.scale_y,
+                    flip_x: false,
+                    flip_y: false,
+                    rotation_z: angle,
+                },
+            );
             // Rope between steps
             if i > 0 {
                 let prev_along = (i as f32 - 0.5) * stride;
@@ -454,39 +637,63 @@ pub fn draw_compound(
                     crate::types::Vec2 {
                         x: xf.world_x + rope_start_d * cos_a * xf.scale_x,
                         y: xf.world_y + rope_start_d * sin_a * xf.scale_y,
-                    }, ctx.canvas_center);
+                    },
+                    ctx.canvas_center,
+                );
                 let p1 = ctx.camera.world_to_screen(
                     crate::types::Vec2 {
                         x: xf.world_x + rope_end_d * cos_a * xf.scale_x,
                         y: xf.world_y + rope_end_d * sin_a * xf.scale_y,
-                    }, ctx.canvas_center);
-                ctx.painter.line_segment([p0, p1], egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)));
+                    },
+                    ctx.canvas_center,
+                );
+                ctx.painter.line_segment(
+                    [p0, p1],
+                    egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)),
+                );
             }
         }
         // First rope: origin → first step left edge
         if step_count > 0 {
             let half_step = step_length * 0.5;
             let p0 = ctx.camera.world_to_screen(
-                crate::types::Vec2 { x: xf.world_x, y: xf.world_y }, ctx.canvas_center);
+                crate::types::Vec2 {
+                    x: xf.world_x,
+                    y: xf.world_y,
+                },
+                ctx.canvas_center,
+            );
             let p1 = ctx.camera.world_to_screen(
                 crate::types::Vec2 {
                     x: xf.world_x + (0.5 * stride - half_step) * cos_a * xf.scale_x,
                     y: xf.world_y + (0.5 * stride - half_step) * sin_a * xf.scale_y,
-                }, ctx.canvas_center);
-            ctx.painter.line_segment([p0, p1], egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)));
+                },
+                ctx.canvas_center,
+            );
+            ctx.painter.line_segment(
+                [p0, p1],
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)),
+            );
             // Last rope: last step right edge → endpoint
             let last_right = ((step_count - 1) as f32 + 0.5) * stride + half_step;
             let p0 = ctx.camera.world_to_screen(
                 crate::types::Vec2 {
                     x: xf.world_x + last_right * cos_a * xf.scale_x,
                     y: xf.world_y + last_right * sin_a * xf.scale_y,
-                }, ctx.canvas_center);
+                },
+                ctx.canvas_center,
+            );
             let p1 = ctx.camera.world_to_screen(
                 crate::types::Vec2 {
                     x: xf.world_x + endpoint_x * xf.scale_x,
                     y: xf.world_y + endpoint_y * xf.scale_y,
-                }, ctx.canvas_center);
-            ctx.painter.line_segment([p0, p1], egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)));
+                },
+                ctx.canvas_center,
+            );
+            ctx.painter.line_segment(
+                [p0, p1],
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)),
+            );
         }
         return true;
     }
@@ -504,22 +711,38 @@ pub fn draw_compound(
         let box_y = xf.world_y + box_bob;
 
         // 1. Box sprite at root position (bobs gently)
-        draw_uv_quad_rotated(ctx, QuadDraw {
-            atlas: FLOATING_BOX.atlas, uv: &FLOATING_BOX.uv,
-            half_w: FLOATING_BOX.world_w * sx, half_h: FLOATING_BOX.world_h * sy,
-            world_x: xf.world_x, world_y: box_y,
-            flip_x: false, flip_y: false, rotation_z: xf.rotation_z,
-        });
+        draw_uv_quad_rotated(
+            ctx,
+            QuadDraw {
+                atlas: FLOATING_BOX.atlas,
+                uv: &FLOATING_BOX.uv,
+                half_w: FLOATING_BOX.world_w * sx,
+                half_h: FLOATING_BOX.world_h * sy,
+                world_x: xf.world_x,
+                world_y: box_y,
+                flip_x: false,
+                flip_y: false,
+                rotation_z: xf.rotation_z,
+            },
+        );
 
         // 2. Balloon above at physics equilibrium distance + bobbing
         let balloon_dist = if is_part_box { 3.725 } else { 3.749 } * sx;
         let balloon_y = box_y + balloon_dist + (balloon_bob - box_bob);
-        draw_uv_quad_rotated(ctx, QuadDraw {
-            atlas: "IngameAtlas.png", uv: &FLOATING_BALLOON_UV,
-            half_w: FLOATING_BALLOON_W * sx, half_h: FLOATING_BALLOON_H * sy,
-            world_x: xf.world_x, world_y: balloon_y,
-            flip_x: false, flip_y: false, rotation_z: 0.0,
-        });
+        draw_uv_quad_rotated(
+            ctx,
+            QuadDraw {
+                atlas: "IngameAtlas.png",
+                uv: &FLOATING_BALLOON_UV,
+                half_w: FLOATING_BALLOON_W * sx,
+                half_h: FLOATING_BALLOON_H * sy,
+                world_x: xf.world_x,
+                world_y: balloon_y,
+                flip_x: false,
+                flip_y: false,
+                rotation_z: 0.0,
+            },
+        );
 
         // 3. Rope: black line from rotated box anchor to balloon bottom
         //    Unity LineRenderer width = 0.05 world units
@@ -530,11 +753,17 @@ pub fn draw_compound(
         let rtx = 0.0;
         let rty = balloon_dist + (balloon_bob - box_bob) - 0.875 * sy;
         let rope_bot = ctx.camera.world_to_screen(
-            crate::types::Vec2 { x: xf.world_x + rbx, y: box_y + rby },
+            crate::types::Vec2 {
+                x: xf.world_x + rbx,
+                y: box_y + rby,
+            },
             ctx.canvas_center,
         );
         let rope_top = ctx.camera.world_to_screen(
-            crate::types::Vec2 { x: xf.world_x + rtx, y: box_y + rty },
+            crate::types::Vec2 {
+                x: xf.world_x + rtx,
+                y: box_y + rty,
+            },
             ctx.canvas_center,
         );
         let rope_width = (0.05 * ctx.camera.zoom).max(1.0);
@@ -561,9 +790,16 @@ pub fn draw_bird_face(
 ) {
     // Strip trailing _01 etc to match face lookup
     let base_name = name.trim_end_matches(|c: char| c == '_' || c.is_ascii_digit());
-    let base_name = if base_name.is_empty() { name } else { base_name };
+    let base_name = if base_name.is_empty() {
+        name
+    } else {
+        base_name
+    };
 
-    if let Some(face) = BIRD_FACES.iter().find(|f| base_name.starts_with(f.name_prefix)) {
+    if let Some(face) = BIRD_FACES
+        .iter()
+        .find(|f| base_name.starts_with(f.name_prefix))
+    {
         let cos_r = xf.rotation_z.cos();
         let sin_r = xf.rotation_z.sin();
         // Face offset in visualization-local space (breathing scales the viz group).
@@ -572,14 +808,20 @@ pub fn draw_bird_face(
         let ly = face.offset_y * breath_sy * xf.scale_y;
         let fx = xf.world_x + lx * cos_r - ly * sin_r;
         let fy = xf.world_y + lx * sin_r + ly * cos_r;
-        draw_uv_quad_rotated(ctx, QuadDraw {
-            atlas: "IngameAtlas.png", uv: &face.uv,
-            half_w: face.world_w * xf.scale_x.abs() * breath_sx,
-            half_h: face.world_h * xf.scale_y.abs() * breath_sy,
-            world_x: fx, world_y: fy,
-            flip_x: xf.scale_x < 0.0, flip_y: xf.scale_y < 0.0,
-            rotation_z: xf.rotation_z,
-        });
+        draw_uv_quad_rotated(
+            ctx,
+            QuadDraw {
+                atlas: "IngameAtlas.png",
+                uv: &face.uv,
+                half_w: face.world_w * xf.scale_x.abs() * breath_sx,
+                half_h: face.world_h * xf.scale_y.abs() * breath_sy,
+                world_x: fx,
+                world_y: fy,
+                flip_x: xf.scale_x < 0.0,
+                flip_y: xf.scale_y < 0.0,
+                rotation_z: xf.rotation_z,
+            },
+        );
     }
 }
 
@@ -595,11 +837,20 @@ fn draw_sub_sprites_rotated(ctx: &DrawCtx, sprites: &[&SubSprite], xf: CompoundT
         let sy = xf.world_y + lx * sin_r + ly * cos_r;
         let flip_x = s.flip_x != (xf.scale_x < 0.0);
         let flip_y = s.flip_y != (xf.scale_y < 0.0);
-        draw_uv_quad_rotated(ctx, QuadDraw {
-            atlas: s.atlas, uv: &s.uv,
-            half_w: s.world_w * xf.scale_x.abs(), half_h: s.world_h * xf.scale_y.abs(),
-            world_x: sx, world_y: sy, flip_x, flip_y, rotation_z: xf.rotation_z,
-        });
+        draw_uv_quad_rotated(
+            ctx,
+            QuadDraw {
+                atlas: s.atlas,
+                uv: &s.uv,
+                half_w: s.world_w * xf.scale_x.abs(),
+                half_h: s.world_h * xf.scale_y.abs(),
+                world_x: sx,
+                world_y: sy,
+                flip_x,
+                flip_y,
+                rotation_z: xf.rotation_z,
+            },
+        );
     }
 }
 
@@ -610,7 +861,10 @@ fn draw_uv_quad_rotated(ctx: &DrawCtx, q: QuadDraw<'_>) {
     };
 
     let center = ctx.camera.world_to_screen(
-        crate::types::Vec2 { x: q.world_x, y: q.world_y },
+        crate::types::Vec2 {
+            x: q.world_x,
+            y: q.world_y,
+        },
         ctx.canvas_center,
     );
 
@@ -651,16 +905,33 @@ fn draw_uv_quad_rotated(ctx: &DrawCtx, q: QuadDraw<'_>) {
             )
         };
         let tl = rot(-hw, -hh);
-        let tr = rot( hw, -hh);
-        let br = rot( hw,  hh);
-        let bl = rot(-hw,  hh);
+        let tr = rot(hw, -hh);
+        let br = rot(hw, hh);
+        let bl = rot(-hw, hh);
         let white = egui::Color32::WHITE;
         let i = mesh.vertices.len() as u32;
-        mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(u0, v0), color: white });
-        mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(u1, v0), color: white });
-        mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(u1, v1), color: white });
-        mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(u0, v1), color: white });
-        mesh.indices.extend_from_slice(&[i, i+1, i+2, i, i+2, i+3]);
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: tl,
+            uv: egui::pos2(u0, v0),
+            color: white,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: tr,
+            uv: egui::pos2(u1, v0),
+            color: white,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: br,
+            uv: egui::pos2(u1, v1),
+            color: white,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: bl,
+            uv: egui::pos2(u0, v1),
+            color: white,
+        });
+        mesh.indices
+            .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
     } else {
         let rect = egui::Rect::from_center_size(center, egui::vec2(hw * 2.0, hh * 2.0));
         let uv_rect = egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1));
@@ -700,7 +971,9 @@ fn parse_bridge_overrides(raw_text: Option<&str>) -> BridgeOverrides {
         let stripped = line.trim_start_matches('\t');
         let depth = line.len() - stripped.len();
         let trimmed = stripped.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
         if depth == 0 {
             in_bridge_component = false;
@@ -788,7 +1061,9 @@ fn parse_fan_overrides(raw_text: Option<&str>) -> FanOverrides {
         let stripped = line.trim_start_matches('\t');
         let depth = line.len() - stripped.len();
         let trimmed = stripped.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
         if depth == 0 {
             current_child_go = None;
@@ -830,7 +1105,9 @@ fn parse_fan_overrides(raw_text: Option<&str>) -> FanOverrides {
 fn parse_float_field(trimmed: &str, field: &str) -> Option<f32> {
     // Pattern: "Float fieldName = value" or "Float fieldName=value"
     let prefix = format!("Float {}", field);
-    if !trimmed.starts_with(&prefix) { return None; }
+    if !trimmed.starts_with(&prefix) {
+        return None;
+    }
     let rest = &trimmed[prefix.len()..];
     let rest = rest.trim_start();
     let rest = rest.strip_prefix('=')?;
@@ -840,7 +1117,9 @@ fn parse_float_field(trimmed: &str, field: &str) -> Option<f32> {
 /// Parse "Boolean fieldName = value".
 fn parse_bool_field(trimmed: &str, field: &str) -> Option<bool> {
     let prefix = format!("Boolean {}", field);
-    if !trimmed.starts_with(&prefix) { return None; }
+    if !trimmed.starts_with(&prefix) {
+        return None;
+    }
     let rest = &trimmed[prefix.len()..];
     let rest = rest.trim_start();
     let rest = rest.strip_prefix('=')?;

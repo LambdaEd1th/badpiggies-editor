@@ -14,19 +14,19 @@ use super::{Camera, DrawCtx};
 // ── BirdSleep2.anim hermite keyframes (t, value, inSlope, outSlope) ──
 pub const BIRD_SLEEP_DURATION: f32 = 4.0;
 pub const BIRD_SLEEP_POS_Y: &[(f32, f32, f32, f32)] = &[
-    (0.0,      0.0,    -0.03356487, -0.03356487),
+    (0.0, 0.0, -0.03356487, -0.03356487),
     (1.833333, -0.061, -0.00255944, -0.00255944),
-    (4.0,      0.0,     0.02840104,  0.02840104),
+    (4.0, 0.0, 0.02840104, 0.02840104),
 ];
 pub const BIRD_SLEEP_SCALE_X: &[(f32, f32, f32, f32)] = &[
-    (0.0,      1.0, 0.05454547,  0.05454547),
+    (0.0, 1.0, 0.05454547, 0.05454547),
     (1.833333, 1.1, 0.004195808, 0.004195808),
-    (4.0,      1.0, -0.04615385, -0.04615385),
+    (4.0, 1.0, -0.04615385, -0.04615385),
 ];
 pub const BIRD_SLEEP_SCALE_Y: &[(f32, f32, f32, f32)] = &[
-    (0.0,      1.0, -0.05454547,  -0.05454547),
+    (0.0, 1.0, -0.05454547, -0.05454547),
     (1.833333, 0.9, -0.004195808, -0.004195808),
-    (4.0,      1.0,  0.04615385,   0.04615385),
+    (4.0, 1.0, 0.04615385, 0.04615385),
 ];
 
 /// A prepared sprite for drawing.
@@ -78,13 +78,18 @@ pub fn build_sprite(
     let dessert_resolved;
     let is_dessert_place = sprite_name.contains("DessertPlace") || sprite_name.contains("Desserts");
     let sprite_name = if is_dessert_place {
-        let hash = (index as u32)
-            .wrapping_mul(2654435761);
+        let hash = (index as u32).wrapping_mul(2654435761);
         let is_golden = hash % 100 == 50;
         dessert_resolved = if is_golden {
             "GoldenCake".to_string()
         } else {
-            const REGULAR: &[&str] = &["StrawberryCake", "Cupcake", "VanillaCakeSlice", "CreamyBun", "IcecreamBalls"];
+            const REGULAR: &[&str] = &[
+                "StrawberryCake",
+                "Cupcake",
+                "VanillaCakeSlice",
+                "CreamyBun",
+                "IcecreamBalls",
+            ];
             REGULAR[(hash as usize) % REGULAR.len()].to_string()
         };
         dessert_resolved.as_str()
@@ -114,7 +119,12 @@ pub fn build_sprite(
     let sprite_info = sprite_db::get_sprite_info(sprite_name);
     let (half_w, half_h, atlas, uv) = if let Some(info) = sprite_info {
         // world_w/world_h are half-extents; scale by instance scale
-        (info.world_w * sx, info.world_h * sy, Some(info.atlas.clone()), Some(info.uv))
+        (
+            info.world_w * sx,
+            info.world_h * sy,
+            Some(info.atlas.clone()),
+            Some(info.uv),
+        )
     } else {
         // Fallback: 0.3 world units half-extent
         (0.3 * sx, 0.3 * sy, None, None)
@@ -164,16 +174,19 @@ pub struct SpriteDrawOpts {
 /// `fan_angle` is the propeller rotation angle from the state machine (for Fan only).
 /// `opaque_rendered` — if true, skip texture/rect rendering (already drawn by GPU shader);
 /// still draws selection highlight and label.
-pub fn draw_sprite(
-    ctx: &DrawCtx<'_>,
-    sprite: &SpriteDrawData,
-    opts: SpriteDrawOpts,
-) {
+pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawOpts) {
     let painter = ctx.painter;
     let camera = ctx.camera;
     let canvas_center = ctx.canvas_center;
     let canvas_rect = ctx.canvas_rect;
-    let SpriteDrawOpts { is_selected, time, tex_id, atlas_size, fan_angle, opaque_rendered } = opts;
+    let SpriteDrawOpts {
+        is_selected,
+        time,
+        tex_id,
+        atlas_size,
+        fan_angle,
+        opaque_rendered,
+    } = opts;
     if sprite.is_terrain {
         return; // terrain renders via terrain module
     }
@@ -259,8 +272,16 @@ pub fn draw_sprite(
         let uv_max = egui::pos2(uv_max.x - half_texel_u, uv_max.y - half_texel_v);
 
         // Handle horizontal/vertical flip via UV swap
-        let (u0, u1) = if sprite.scale.0 < 0.0 { (uv_max.x, uv_min.x) } else { (uv_min.x, uv_max.x) };
-        let (v0, v1) = if sprite.scale.1 < 0.0 { (uv_max.y, uv_min.y) } else { (uv_min.y, uv_max.y) };
+        let (u0, u1) = if sprite.scale.0 < 0.0 {
+            (uv_max.x, uv_min.x)
+        } else {
+            (uv_min.x, uv_max.x)
+        };
+        let (v0, v1) = if sprite.scale.1 < 0.0 {
+            (uv_max.y, uv_min.y)
+        } else {
+            (uv_min.y, uv_max.y)
+        };
 
         let mut mesh = egui::Mesh::with_texture(tid);
         if sprite.rotation.abs() > 0.001 {
@@ -275,16 +296,33 @@ pub fn draw_sprite(
                 )
             };
             let tl = rot(-hw, -hh);
-            let tr = rot( hw, -hh);
-            let br = rot( hw,  hh);
-            let bl = rot(-hw,  hh);
+            let tr = rot(hw, -hh);
+            let br = rot(hw, hh);
+            let bl = rot(-hw, hh);
             let white = egui::Color32::WHITE;
             let i = mesh.vertices.len() as u32;
-            mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(u0, v0), color: white });
-            mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(u1, v0), color: white });
-            mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(u1, v1), color: white });
-            mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(u0, v1), color: white });
-            mesh.indices.extend_from_slice(&[i, i+1, i+2, i, i+2, i+3]);
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: tl,
+                uv: egui::pos2(u0, v0),
+                color: white,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: tr,
+                uv: egui::pos2(u1, v0),
+                color: white,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: br,
+                uv: egui::pos2(u1, v1),
+                color: white,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: bl,
+                uv: egui::pos2(u0, v1),
+                color: white,
+            });
+            mesh.indices
+                .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
         } else {
             let uv_rect = egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1));
             mesh.add_rect_with_uv(rect, uv_rect, egui::Color32::WHITE);
@@ -301,7 +339,11 @@ pub fn draw_sprite(
             )
         };
         let points = vec![rot(-hw, -hh), rot(hw, -hh), rot(hw, hh), rot(-hw, hh)];
-        painter.add(egui::Shape::convex_polygon(points, sprite.color, egui::Stroke::NONE));
+        painter.add(egui::Shape::convex_polygon(
+            points,
+            sprite.color,
+            egui::Stroke::NONE,
+        ));
     } else {
         painter.rect_filled(rect, 1.0, sprite.color);
     }
@@ -319,8 +361,17 @@ pub fn draw_sprite(
                     center.y - dx * sin_r + dy * cos_r,
                 )
             };
-            let points = vec![rot(-ehw, -ehh), rot(ehw, -ehh), rot(ehw, ehh), rot(-ehw, ehh), rot(-ehw, -ehh)];
-            painter.add(egui::Shape::line(points, egui::Stroke::new(2.0, egui::Color32::YELLOW)));
+            let points = vec![
+                rot(-ehw, -ehh),
+                rot(ehw, -ehh),
+                rot(ehw, ehh),
+                rot(-ehw, ehh),
+                rot(-ehw, -ehh),
+            ];
+            painter.add(egui::Shape::line(
+                points,
+                egui::Stroke::new(2.0, egui::Color32::YELLOW),
+            ));
         } else {
             painter.rect_stroke(
                 rect.expand(2.0),
@@ -354,19 +405,41 @@ pub fn draw_sprite(
     if name_lower.starts_with("windarea") {
         let zone_hw = 20.0 * sprite.scale.0.abs() * camera.zoom;
         let zone_hh = 7.5 * sprite.scale.1.abs() * camera.zoom;
-        let zone_rect = egui::Rect::from_center_size(center, egui::vec2(zone_hw * 2.0, zone_hh * 2.0));
-        painter.rect_filled(zone_rect, 0.0, egui::Color32::from_rgba_unmultiplied(100, 200, 255, 20));
-        painter.rect_stroke(zone_rect, 0.0, egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(100, 200, 255, 60)), egui::StrokeKind::Outside);
+        let zone_rect =
+            egui::Rect::from_center_size(center, egui::vec2(zone_hw * 2.0, zone_hh * 2.0));
+        painter.rect_filled(
+            zone_rect,
+            0.0,
+            egui::Color32::from_rgba_unmultiplied(100, 200, 255, 20),
+        );
+        painter.rect_stroke(
+            zone_rect,
+            0.0,
+            egui::Stroke::new(
+                1.0,
+                egui::Color32::from_rgba_unmultiplied(100, 200, 255, 60),
+            ),
+            egui::StrokeKind::Outside,
+        );
         // Wind direction arrow (pointing right, wind blows in +X direction)
         let arrow_y = center.y;
         let arrow_len = zone_hw.min(40.0);
         let arrow_start = egui::pos2(center.x - arrow_len * 0.5, arrow_y);
         let arrow_end = egui::pos2(center.x + arrow_len * 0.5, arrow_y);
         let arrow_color = egui::Color32::from_rgba_unmultiplied(100, 200, 255, 100);
-        painter.line_segment([arrow_start, arrow_end], egui::Stroke::new(2.0, arrow_color));
+        painter.line_segment(
+            [arrow_start, arrow_end],
+            egui::Stroke::new(2.0, arrow_color),
+        );
         // Arrowhead
-        painter.line_segment([arrow_end, egui::pos2(arrow_end.x - 6.0, arrow_y - 4.0)], egui::Stroke::new(2.0, arrow_color));
-        painter.line_segment([arrow_end, egui::pos2(arrow_end.x - 6.0, arrow_y + 4.0)], egui::Stroke::new(2.0, arrow_color));
+        painter.line_segment(
+            [arrow_end, egui::pos2(arrow_end.x - 6.0, arrow_y - 4.0)],
+            egui::Stroke::new(2.0, arrow_color),
+        );
+        painter.line_segment(
+            [arrow_end, egui::pos2(arrow_end.x - 6.0, arrow_y + 4.0)],
+            egui::Stroke::new(2.0, arrow_color),
+        );
     }
 }
 
@@ -494,7 +567,13 @@ pub fn draw_goal_flag(
     let base_y = sprite.world_pos.y;
 
     // Quick frustum cull (flag is ~1.3 x 2.65 world units)
-    let center_screen = camera.world_to_screen(Vec2 { x: base_x, y: base_y }, canvas_center);
+    let center_screen = camera.world_to_screen(
+        Vec2 {
+            x: base_x,
+            y: base_y,
+        },
+        canvas_center,
+    );
     let margin = 1.4 * camera.zoom;
     if center_screen.x + margin < canvas_rect.left()
         || center_screen.x - margin > canvas_rect.right()
@@ -613,10 +692,26 @@ pub fn draw_glow(
     let br = rot(glow_hw, glow_hh);
     let bl = rot(-glow_hw, glow_hh);
     let white = egui::Color32::WHITE;
-    mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(u0, v0), color: white });
-    mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(u1, v0), color: white });
-    mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(u1, v1), color: white });
-    mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(u0, v1), color: white });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: tl,
+        uv: egui::pos2(u0, v0),
+        color: white,
+    });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: tr,
+        uv: egui::pos2(u1, v0),
+        color: white,
+    });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: br,
+        uv: egui::pos2(u1, v1),
+        color: white,
+    });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: bl,
+        uv: egui::pos2(u0, v1),
+        color: white,
+    });
     mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
     painter.add(egui::Shape::mesh(mesh));
 }

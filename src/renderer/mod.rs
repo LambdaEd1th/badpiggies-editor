@@ -233,44 +233,139 @@ struct CloudSpriteInfo {
 }
 
 const CLOUD_CONFIGS: &[(&str, CloudConfig)] = &[
-    ("CloudPlateauSet", CloudConfig {
-        max_clouds: 8, velocity: 0.2, limits: 93.24, height: 5.0,
-        sprites: &[
-            CloudSpriteInfo { name: "Background_Cloud_01_SET_0", atlas: "Background_Plateaus_Sheet_01.png", scale_x: 3.0, scale_y: 3.0 },
-            CloudSpriteInfo { name: "Background_Cloud_02_SET_0", atlas: "Background_Plateaus_Sheet_01.png", scale_x: 3.0, scale_y: 3.0 },
-            CloudSpriteInfo { name: "Background_Cloud_03_SET_0", atlas: "Background_Plateaus_Sheet_01.png", scale_x: 3.0, scale_y: 3.0 },
-        ],
-    }),
-    ("CloudJungleSet", CloudConfig {
-        max_clouds: 8, velocity: 0.2, limits: 93.24, height: 10.0,
-        sprites: &[
-            CloudSpriteInfo { name: "Background_Cloud_01_SET", atlas: "Background_Jungle_Sheet_01.png", scale_x: 0.87, scale_y: 0.6525 },
-            CloudSpriteInfo { name: "Background_Cloud_02_SET", atlas: "Background_Jungle_Sheet_01.png", scale_x: 1.0875, scale_y: 0.87 },
-            CloudSpriteInfo { name: "Background_Cloud_03_SET", atlas: "Background_Jungle_Sheet_01.png", scale_x: 1.0, scale_y: 0.8 },
-        ],
-    }),
-    ("CloudNightSet", CloudConfig {
-        max_clouds: 5, velocity: 0.2, limits: 40.0, height: 2.5,
-        sprites: &[
-            CloudSpriteInfo { name: "Background_Cloud_01_SET_1", atlas: "Background_Night_Sheet_01.png", scale_x: 2.0, scale_y: 2.0 },
-            CloudSpriteInfo { name: "Background_Cloud_02_SET_1", atlas: "Background_Night_Sheet_01.png", scale_x: 2.0, scale_y: 2.0 },
-            CloudSpriteInfo { name: "Background_Cloud_03_SET_1", atlas: "Background_Night_Sheet_01.png", scale_x: 2.0, scale_y: 2.0 },
-        ],
-    }),
-    ("CloudHalloweenSet", CloudConfig {
-        max_clouds: 5, velocity: 0.5, limits: 93.0, height: 4.0,
-        sprites: &[
-            CloudSpriteInfo { name: "Background_Cloud_01_SET_2", atlas: "Background_Halloween_Sheet_01.png", scale_x: 1.5, scale_y: 1.5 },
-            CloudSpriteInfo { name: "Background_Cloud_02_SET_2", atlas: "Background_Halloween_Sheet_01.png", scale_x: 1.2, scale_y: 1.2 },
-        ],
-    }),
-    ("CloudLPASet", CloudConfig {
-        max_clouds: 10, velocity: 0.1, limits: 250.0, height: 0.84,
-        sprites: &[
-            CloudSpriteInfo { name: "Background_Cloud_02_SET_3", atlas: "Background_Maya_Sheet_02.png", scale_x: 1.0, scale_y: 1.0 },
-            CloudSpriteInfo { name: "Background_Cloud_03_SET_2", atlas: "Background_Maya_Sheet_02.png", scale_x: 1.0, scale_y: 1.0 },
-        ],
-    }),
+    (
+        "CloudPlateauSet",
+        CloudConfig {
+            max_clouds: 8,
+            velocity: 0.2,
+            limits: 93.24,
+            height: 5.0,
+            sprites: &[
+                CloudSpriteInfo {
+                    name: "Background_Cloud_01_SET_0",
+                    atlas: "Background_Plateaus_Sheet_01.png",
+                    scale_x: 3.0,
+                    scale_y: 3.0,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_02_SET_0",
+                    atlas: "Background_Plateaus_Sheet_01.png",
+                    scale_x: 3.0,
+                    scale_y: 3.0,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_03_SET_0",
+                    atlas: "Background_Plateaus_Sheet_01.png",
+                    scale_x: 3.0,
+                    scale_y: 3.0,
+                },
+            ],
+        },
+    ),
+    (
+        "CloudJungleSet",
+        CloudConfig {
+            max_clouds: 8,
+            velocity: 0.2,
+            limits: 93.24,
+            height: 10.0,
+            sprites: &[
+                CloudSpriteInfo {
+                    name: "Background_Cloud_01_SET",
+                    atlas: "Background_Jungle_Sheet_01.png",
+                    scale_x: 0.87,
+                    scale_y: 0.6525,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_02_SET",
+                    atlas: "Background_Jungle_Sheet_01.png",
+                    scale_x: 1.0875,
+                    scale_y: 0.87,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_03_SET",
+                    atlas: "Background_Jungle_Sheet_01.png",
+                    scale_x: 1.0,
+                    scale_y: 0.8,
+                },
+            ],
+        },
+    ),
+    (
+        "CloudNightSet",
+        CloudConfig {
+            max_clouds: 5,
+            velocity: 0.2,
+            limits: 40.0,
+            height: 2.5,
+            sprites: &[
+                CloudSpriteInfo {
+                    name: "Background_Cloud_01_SET_1",
+                    atlas: "Background_Night_Sheet_01.png",
+                    scale_x: 2.0,
+                    scale_y: 2.0,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_02_SET_1",
+                    atlas: "Background_Night_Sheet_01.png",
+                    scale_x: 2.0,
+                    scale_y: 2.0,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_03_SET_1",
+                    atlas: "Background_Night_Sheet_01.png",
+                    scale_x: 2.0,
+                    scale_y: 2.0,
+                },
+            ],
+        },
+    ),
+    (
+        "CloudHalloweenSet",
+        CloudConfig {
+            max_clouds: 5,
+            velocity: 0.5,
+            limits: 93.0,
+            height: 4.0,
+            sprites: &[
+                CloudSpriteInfo {
+                    name: "Background_Cloud_01_SET_2",
+                    atlas: "Background_Halloween_Sheet_01.png",
+                    scale_x: 1.5,
+                    scale_y: 1.5,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_02_SET_2",
+                    atlas: "Background_Halloween_Sheet_01.png",
+                    scale_x: 1.2,
+                    scale_y: 1.2,
+                },
+            ],
+        },
+    ),
+    (
+        "CloudLPASet",
+        CloudConfig {
+            max_clouds: 10,
+            velocity: 0.1,
+            limits: 250.0,
+            height: 0.84,
+            sprites: &[
+                CloudSpriteInfo {
+                    name: "Background_Cloud_02_SET_3",
+                    atlas: "Background_Maya_Sheet_02.png",
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                },
+                CloudSpriteInfo {
+                    name: "Background_Cloud_03_SET_2",
+                    atlas: "Background_Maya_Sheet_02.png",
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                },
+            ],
+        },
+    ),
 ];
 
 /// A single Zzz particle.
@@ -374,7 +469,10 @@ impl LevelRenderer {
         // Initialize wgpu edge shader pipeline if render state available
         let (wgpu_device, wgpu_queue, edge_resources) = match render_state {
             Some(rs) => {
-                log::info!("wgpu render state available, target_format={:?}", rs.target_format);
+                log::info!(
+                    "wgpu render state available, target_format={:?}",
+                    rs.target_format
+                );
                 let resources = edge_shader::init_edge_resources(&rs.device, rs.target_format);
                 (
                     Some(rs.device.clone()),
@@ -387,10 +485,26 @@ impl LevelRenderer {
                 (None, None, None)
             }
         };
-        let opaque_resources = render_state.map(|rs| Arc::new(opaque_shader::init_opaque_resources(&rs.device, rs.target_format)));
-        let bg_resources = render_state.map(|rs| Arc::new(bg_shader::init_bg_resources(&rs.device, rs.target_format)));
-        let sprite_resources = render_state.map(|rs| Arc::new(sprite_shader::init_sprite_resources(&rs.device, rs.target_format)));
-        let fill_resources = render_state.map(|rs| Arc::new(fill_shader::init_fill_resources(&rs.device, rs.target_format)));
+        let opaque_resources = render_state.map(|rs| {
+            Arc::new(opaque_shader::init_opaque_resources(
+                &rs.device,
+                rs.target_format,
+            ))
+        });
+        let bg_resources = render_state
+            .map(|rs| Arc::new(bg_shader::init_bg_resources(&rs.device, rs.target_format)));
+        let sprite_resources = render_state.map(|rs| {
+            Arc::new(sprite_shader::init_sprite_resources(
+                &rs.device,
+                rs.target_format,
+            ))
+        });
+        let fill_resources = render_state.map(|rs| {
+            Arc::new(fill_shader::init_fill_resources(
+                &rs.device,
+                rs.target_format,
+            ))
+        });
         Self {
             camera: Camera::default(),
             world_positions: Vec::new(),
@@ -498,8 +612,12 @@ impl LevelRenderer {
             match obj {
                 LevelObject::Prefab(prefab) => {
                     if prefab.terrain_data.is_some() {
-                        self.terrain_data
-                            .push(terrain::build_terrain(prefab, world_pos, &self.level_key, idx));
+                        self.terrain_data.push(terrain::build_terrain(
+                            prefab,
+                            world_pos,
+                            &self.level_key,
+                            idx,
+                        ));
                     }
                     // Resolve correct sprite name via level-refs override
                     let resolved_name = crate::level_refs::get_prefab_override(
@@ -507,7 +625,10 @@ impl LevelRenderer {
                         prefab.prefab_index,
                     );
                     self.sprite_data.push(sprites::build_sprite(
-                        prefab, world_pos, idx, resolved_name,
+                        prefab,
+                        world_pos,
+                        idx,
+                        resolved_name,
                     ));
                 }
                 LevelObject::Parent(_) => {}
@@ -518,14 +639,19 @@ impl LevelRenderer {
         // This mirrors Unity's orthographic Z-depth: decorative terrain (Z≈5) draws
         // behind ground background (Z≈2) and collider terrain (Z≈0) automatically.
         self.terrain_data.sort_by(|a, b| {
-            b.world_z.partial_cmp(&a.world_z).unwrap_or(std::cmp::Ordering::Equal)
+            b.world_z
+                .partial_cmp(&a.world_z)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Sort sprites back-to-front by Z position (higher Z = farther = rendered first).
         // In the game, smaller Z = closer to camera = renders on top. egui has no depth
         // buffer, so painter's order determines layering.
         self.sprite_data.sort_by(|a, b| {
-            b.world_pos.z.partial_cmp(&a.world_pos.z).unwrap_or(std::cmp::Ordering::Equal)
+            b.world_pos
+                .z
+                .partial_cmp(&a.world_pos.z)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Upload terrain edge meshes to GPU (wgpu path)
@@ -541,15 +667,19 @@ impl LevelRenderer {
                 }
                 let ctrl = td.edge_ctrl_pixels.as_ref().unwrap();
                 // Load splat textures from embedded assets
-                let splat0 = td.edge_splat0.as_ref().and_then(|name| {
-                    load_raw_rgba(&format!("ground/{}", name))
-                });
-                let splat1 = td.edge_splat1.as_ref().and_then(|name| {
-                    load_raw_rgba(&format!("ground/{}", name))
-                });
+                let splat0 = td
+                    .edge_splat0
+                    .as_ref()
+                    .and_then(|name| load_raw_rgba(&format!("ground/{}", name)));
+                let splat1 = td
+                    .edge_splat1
+                    .as_ref()
+                    .and_then(|name| load_raw_rgba(&format!("ground/{}", name)));
                 log::info!(
                     "terrain[{}] edge: verts={} indices={} ctrl={}B splat0={} splat1={} splatParamsX={:.4}",
-                    ti, td.edge_vertices.len(), td.edge_indices.len(),
+                    ti,
+                    td.edge_vertices.len(),
+                    td.edge_indices.len(),
                     ctrl.len(),
                     td.edge_splat0.as_deref().unwrap_or("NONE"),
                     td.edge_splat1.as_deref().unwrap_or("NONE"),
@@ -590,12 +720,14 @@ impl LevelRenderer {
         if let Some(ref device) = self.wgpu_device {
             for td in &self.terrain_data {
                 if let Some(ref fill) = td.fill_mesh {
-                    let vertices: Vec<fill_shader::FillVertex> = fill.vertices.iter().map(|v| {
-                        fill_shader::FillVertex {
+                    let vertices: Vec<fill_shader::FillVertex> = fill
+                        .vertices
+                        .iter()
+                        .map(|v| fill_shader::FillVertex {
                             pos: [v.pos.x, v.pos.y],
                             uv: [v.uv.x, v.uv.y],
-                        }
-                    }).collect();
+                        })
+                        .collect();
                     let gpu = fill_shader::build_fill_gpu_mesh(device, &vertices, &fill.indices);
                     self.fill_gpu_meshes.push(Some(Arc::new(gpu)));
                 } else {
@@ -612,10 +744,11 @@ impl LevelRenderer {
         {
             // Lazy-load Props atlas texture as wgpu resource
             if self.opaque_atlas.is_none()
-                && let Some(atlas) = opaque_shader::load_props_atlas(device, queue) {
-                    log::info!("Opaque atlas loaded: {}×{}", atlas.width, atlas.height);
-                    self.opaque_atlas = Some(Arc::new(atlas));
-                }
+                && let Some(atlas) = opaque_shader::load_props_atlas(device, queue)
+            {
+                log::info!("Opaque atlas loaded: {}×{}", atlas.width, atlas.height);
+                self.opaque_atlas = Some(Arc::new(atlas));
+            }
             if let Some(ref atlas) = self.opaque_atlas {
                 let mut vertices = Vec::new();
                 for (i, sprite) in self.sprite_data.iter().enumerate() {
@@ -644,9 +777,9 @@ impl LevelRenderer {
                 }
                 if !vertices.is_empty() {
                     log::info!("Built opaque sprite batch: {} quads", vertices.len() / 4);
-                    self.opaque_batch = Some(Arc::new(
-                        opaque_shader::build_opaque_sprites(device, resources, atlas, &vertices),
-                    ));
+                    self.opaque_batch = Some(Arc::new(opaque_shader::build_opaque_sprites(
+                        device, resources, atlas, &vertices,
+                    )));
                 }
             }
         }
@@ -705,7 +838,9 @@ impl LevelRenderer {
         self.wind_spawn_accum = vec![0.0; self.wind_areas.len()];
         // Pre-spawn some wind particles
         for area_idx in 0..self.wind_areas.len() {
-            let count = ((self.wind_areas[area_idx].half_w * self.wind_areas[area_idx].half_h * 2.0 / 300.0) as usize).max(3);
+            let count = ((self.wind_areas[area_idx].half_w * self.wind_areas[area_idx].half_h * 2.0
+                / 300.0) as usize)
+                .max(3);
             for _ in 0..count {
                 spawn_wind_particle(&self.wind_areas[area_idx], &mut self.wind_particles);
                 if let Some(p) = self.wind_particles.last_mut() {
@@ -726,7 +861,9 @@ impl LevelRenderer {
                 LevelObject::Parent(p) => &p.name,
             };
             for &(config_name, ref config) in CLOUD_CONFIGS {
-                if obj_name != config_name { continue; }
+                if obj_name != config_name {
+                    continue;
+                }
                 let pos = compute_world_position(level, idx);
                 let cx = pos.x;
                 let cy = pos.y;
@@ -741,7 +878,8 @@ impl LevelRenderer {
                     seed = seed.wrapping_mul(17) ^ (i as u32 + 2);
                     let opacity = 0.8 + (seed % 200) as f32 / 1000.0;
                     self.cloud_instances.push(CloudInstance {
-                        x, y,
+                        x,
+                        y,
                         center_x: cx,
                         limits: config.limits,
                         velocity: config.velocity,
@@ -805,25 +943,26 @@ impl LevelRenderer {
         let mut drew_textured = false;
         if let Some(ref sm) = td.edge_splat0_mesh
             && let Some(ref name) = td.edge_splat0
-                && let Some(tex_id) = tex_cache.get(name) {
-                    terrain::transform_mesh_to_screen_into(sm, camera, canvas_center, scratch);
-                    scratch.texture_id = tex_id;
-                    painter.add(egui::Shape::mesh(std::mem::take(scratch)));
-                    drew_textured = true;
-                }
+            && let Some(tex_id) = tex_cache.get(name)
+        {
+            terrain::transform_mesh_to_screen_into(sm, camera, canvas_center, scratch);
+            scratch.texture_id = tex_id;
+            painter.add(egui::Shape::mesh(std::mem::take(scratch)));
+            drew_textured = true;
+        }
         if let Some(ref sm) = td.edge_splat1_mesh
             && let Some(ref name) = td.edge_splat1
-                && let Some(tex_id) = tex_cache.get(name) {
-                    terrain::transform_mesh_to_screen_into(sm, camera, canvas_center, scratch);
-                    scratch.texture_id = tex_id;
-                    painter.add(egui::Shape::mesh(std::mem::take(scratch)));
-                    drew_textured = true;
-                }
-        if !drew_textured
-            && let Some(ref edge) = td.edge_mesh {
-                terrain::transform_mesh_to_screen_into(edge, camera, canvas_center, scratch);
-                painter.add(egui::Shape::mesh(std::mem::take(scratch)));
-            }
+            && let Some(tex_id) = tex_cache.get(name)
+        {
+            terrain::transform_mesh_to_screen_into(sm, camera, canvas_center, scratch);
+            scratch.texture_id = tex_id;
+            painter.add(egui::Shape::mesh(std::mem::take(scratch)));
+            drew_textured = true;
+        }
+        if !drew_textured && let Some(ref edge) = td.edge_mesh {
+            terrain::transform_mesh_to_screen_into(edge, camera, canvas_center, scratch);
+            painter.add(egui::Shape::mesh(std::mem::take(scratch)));
+        }
     }
 
     fn hit_test(&self, pos: Vec2, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
@@ -851,10 +990,14 @@ impl LevelRenderer {
     }
 
     /// Show the level canvas. Returns the index of a newly-clicked object, if any.
-    pub fn show(&mut self, ui: &mut egui::Ui, selected: Option<ObjectIndex>, tr: &'static crate::locale::I18n) {
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        selected: Option<ObjectIndex>,
+        tr: &'static crate::locale::I18n,
+    ) {
         let available = ui.available_size();
-        let (response, painter) =
-            ui.allocate_painter(available, egui::Sense::click_and_drag());
+        let (response, painter) = ui.allocate_painter(available, egui::Sense::click_and_drag());
         let rect = response.rect;
         let canvas_center = rect.center().to_vec2();
 
@@ -862,19 +1005,13 @@ impl LevelRenderer {
         self.time += ui.input(|i| i.stable_dt as f64);
 
         // Track mouse world position
-        self.mouse_world = response.hover_pos().map(|p| {
-            self.camera.screen_to_world(p, canvas_center)
-        });
+        self.mouse_world = response
+            .hover_pos()
+            .map(|p| self.camera.screen_to_world(p, canvas_center));
 
         // Background (sky + ground fill)
         if self.show_bg {
-            background::draw_background(
-                &painter,
-                rect,
-                &self.camera,
-                canvas_center,
-                self.bg_theme,
-            );
+            background::draw_background(&painter, rect, &self.camera, canvas_center, self.bg_theme);
 
             // Reset per-frame bg shader slot counter
             self.bg_slot_counter = 0;
@@ -896,7 +1033,13 @@ impl LevelRenderer {
                     _ => None,
                 };
                 background::draw_bg_layers(
-                    &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
+                    &DrawCtx {
+                        painter: &painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
                     theme_name,
                     self.time,
                     Some((0, 0)), // sky only
@@ -920,7 +1063,10 @@ impl LevelRenderer {
                     let hw = info.world_w * cloud.scale_x;
                     let hh = info.world_h * cloud.scale_y;
                     let center = self.camera.world_to_screen(
-                        Vec2 { x: cloud.x + self.camera.center.x, y: cloud.y },
+                        Vec2 {
+                            x: cloud.x + self.camera.center.x,
+                            y: cloud.y,
+                        },
                         canvas_center,
                     );
                     let sw = hw * 2.0 * self.camera.zoom;
@@ -929,7 +1075,9 @@ impl LevelRenderer {
                         || center.x - sw > rect.right() + 50.0
                         || center.y + sh < rect.top() - 50.0
                         || center.y - sh > rect.bottom() + 50.0
-                    { continue; }
+                    {
+                        continue;
+                    }
                     let draw_rect = egui::Rect::from_center_size(center, egui::vec2(sw, sh));
                     if let Some(tex_id) = self.tex_cache.get(&cloud.atlas) {
                         // UV Y flip: Unity V=0 at bottom, egui V=0 at top
@@ -959,7 +1107,13 @@ impl LevelRenderer {
                     _ => None,
                 };
                 background::draw_bg_layers(
-                    &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
+                    &DrawCtx {
+                        painter: &painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
                     theme_name,
                     self.time,
                     Some((1, 4)), // camera..near
@@ -976,7 +1130,9 @@ impl LevelRenderer {
         // Decorative terrain: interleave fill + edge per terrain (back-to-front)
         // so that front terrain's fill covers back terrain's edge properly.
         for (ti, td) in self.terrain_data.iter().enumerate() {
-            if !td.decorative { continue; }
+            if !td.decorative {
+                continue;
+            }
 
             // ── Fill ──
             if let Some(ref fill_data) = td.fill_mesh {
@@ -984,33 +1140,54 @@ impl LevelRenderer {
                 if let (Some(resources), Some(device), Some(queue)) =
                     (&self.fill_resources, &self.wgpu_device, &self.wgpu_queue)
                     && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(ti)
-                        && let Some(tex_name) = &td.fill_texture
-                            && let Some(tex_gpu) = self.fill_texture_cache.get_or_load(device, queue, resources, tex_name)
-                                && self.fill_slot_counter < fill_shader::max_draw_slots() {
-                                    let slot = self.fill_slot_counter;
-                                    self.fill_slot_counter += 1;
-                                    let fc = &fill_data.vertices[0].color;
-                                    let [r, g, b, a] = [fc.r() as f32 / 255.0, fc.g() as f32 / 255.0, fc.b() as f32 / 255.0, fc.a() as f32 / 255.0];
-                                    let uniforms = fill_shader::FillUniforms {
-                                        screen_size: [rect.width(), rect.height()],
-                                        camera_center: [self.camera.center.x, self.camera.center.y],
-                                        zoom: self.camera.zoom,
-                                        _pad0: 0.0,
-                                        _pad1: [0.0; 2],
-                                        tint_color: [r, g, b, a],
-                                    };
-                                    painter.add(fill_shader::make_fill_callback(
-                                        rect, resources.clone(), tex_gpu, gpu_mesh.clone(), slot, uniforms,
-                                    ));
-                                    gpu_done = true;
-                                }
+                    && let Some(tex_name) = &td.fill_texture
+                    && let Some(tex_gpu) = self
+                        .fill_texture_cache
+                        .get_or_load(device, queue, resources, tex_name)
+                    && self.fill_slot_counter < fill_shader::max_draw_slots()
+                {
+                    let slot = self.fill_slot_counter;
+                    self.fill_slot_counter += 1;
+                    let fc = &fill_data.vertices[0].color;
+                    let [r, g, b, a] = [
+                        fc.r() as f32 / 255.0,
+                        fc.g() as f32 / 255.0,
+                        fc.b() as f32 / 255.0,
+                        fc.a() as f32 / 255.0,
+                    ];
+                    let uniforms = fill_shader::FillUniforms {
+                        screen_size: [rect.width(), rect.height()],
+                        camera_center: [self.camera.center.x, self.camera.center.y],
+                        zoom: self.camera.zoom,
+                        _pad0: 0.0,
+                        _pad1: [0.0; 2],
+                        tint_color: [r, g, b, a],
+                    };
+                    painter.add(fill_shader::make_fill_callback(
+                        rect,
+                        resources.clone(),
+                        tex_gpu,
+                        gpu_mesh.clone(),
+                        slot,
+                        uniforms,
+                    ));
+                    gpu_done = true;
+                }
                 if !gpu_done {
-                    terrain::transform_mesh_to_screen_into(fill_data, &self.camera, canvas_center, &mut self.terrain_scratch_mesh);
+                    terrain::transform_mesh_to_screen_into(
+                        fill_data,
+                        &self.camera,
+                        canvas_center,
+                        &mut self.terrain_scratch_mesh,
+                    );
                     if let Some(ref tex_name) = td.fill_texture
-                        && let Some(tex_id) = self.tex_cache.get(tex_name) {
-                            self.terrain_scratch_mesh.texture_id = tex_id;
-                        }
-                    painter.add(egui::Shape::mesh(std::mem::take(&mut self.terrain_scratch_mesh)));
+                        && let Some(tex_id) = self.tex_cache.get(tex_name)
+                    {
+                        self.terrain_scratch_mesh.texture_id = tex_id;
+                    }
+                    painter.add(egui::Shape::mesh(std::mem::take(
+                        &mut self.terrain_scratch_mesh,
+                    )));
                 }
             }
 
@@ -1032,40 +1209,62 @@ impl LevelRenderer {
                     ));
                 }
             } else {
-                Self::draw_terrain_edge_cpu(&painter, td, &self.camera, canvas_center, &self.tex_cache, &mut self.terrain_scratch_mesh);
+                Self::draw_terrain_edge_cpu(
+                    &painter,
+                    td,
+                    &self.camera,
+                    canvas_center,
+                    &self.tex_cache,
+                    &mut self.terrain_scratch_mesh,
+                );
             }
         }
 
         // ── Ground background layer (order 5) ──
         if self.show_bg
-            && let Some(theme_name) = self.bg_theme {
-                let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
-                    (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
-                        resources: r.clone(),
-                        atlas_cache: &mut self.bg_atlas_cache,
-                        device: d,
-                        queue: q,
-                        slot_counter: &mut self.bg_slot_counter,
-                    }),
-                    _ => None,
-                };
-                if let Some(ref cache) = self.bg_layer_cache {
-                    background::draw_bg_layers(
-                        &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
-                        theme_name,
-                        self.time,
-                        Some((5, 5)), // ground only (foreground drawn after sprites)
-                        cache,
-                        gpu.as_mut(),
-                    );
-                }
+            && let Some(theme_name) = self.bg_theme
+        {
+            let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                    resources: r.clone(),
+                    atlas_cache: &mut self.bg_atlas_cache,
+                    device: d,
+                    queue: q,
+                    slot_counter: &mut self.bg_slot_counter,
+                }),
+                _ => None,
+            };
+            if let Some(ref cache) = self.bg_layer_cache {
+                background::draw_bg_layers(
+                    &DrawCtx {
+                        painter: &painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
+                    theme_name,
+                    self.time,
+                    Some((5, 5)), // ground only (foreground drawn after sprites)
+                    cache,
+                    gpu.as_mut(),
+                );
             }
+        }
 
         // Construction grid overlay (renderOrder=9, between ground and collider terrain)
         if self.show_grid_overlay
-            && let Some(ref cg) = self.construction_grid {
-                grid::draw_construction_grid(&painter, cg, &self.camera, canvas_center, rect, &self.tex_cache);
-            }
+            && let Some(ref cg) = self.construction_grid
+        {
+            grid::draw_construction_grid(
+                &painter,
+                cg,
+                &self.camera,
+                canvas_center,
+                rect,
+                &self.tex_cache,
+            );
+        }
 
         // ── Interaction: drag, pan, click ──
         let is_shift = ui.input(|i| i.modifiers.shift);
@@ -1074,22 +1273,27 @@ impl LevelRenderer {
         self.drag_result = None;
 
         // Start object drag on primary press (without shift/alt)
-        if response.drag_started_by(egui::PointerButton::Primary) && !is_shift && !is_alt
-            && let Some(pointer) = response.interact_pointer_pos() {
-                let world = self.camera.screen_to_world(pointer, canvas_center);
-                if let Some(idx) = self.hit_test(world, selected) {
-                    let orig = self.sprite_data.iter()
-                        .find(|s| s.index == idx)
-                        .map(|s| s.world_pos)
-                        .unwrap_or_default();
-                    self.dragging = Some(DragState {
-                        index: idx,
-                        start_mouse: world,
-                        original_pos: orig,
-                    });
-                    self.clicked_object = Some(idx);
-                }
+        if response.drag_started_by(egui::PointerButton::Primary)
+            && !is_shift
+            && !is_alt
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let world = self.camera.screen_to_world(pointer, canvas_center);
+            if let Some(idx) = self.hit_test(world, selected) {
+                let orig = self
+                    .sprite_data
+                    .iter()
+                    .find(|s| s.index == idx)
+                    .map(|s| s.world_pos)
+                    .unwrap_or_default();
+                self.dragging = Some(DragState {
+                    index: idx,
+                    start_mouse: world,
+                    original_pos: orig,
+                });
+                self.clicked_object = Some(idx);
             }
+        }
 
         // Handle pan (middle mouse / shift+drag / alt+drag / primary on empty space)
         if response.dragged_by(egui::PointerButton::Middle)
@@ -1110,44 +1314,48 @@ impl LevelRenderer {
 
         // Update sprite position during object drag
         if let Some(ref drag) = self.dragging
-            && let Some(pointer) = response.interact_pointer_pos() {
-                let current = self.camera.screen_to_world(pointer, canvas_center);
-                let dx = current.x - drag.start_mouse.x;
-                let dy = current.y - drag.start_mouse.y;
-                let tidx = drag.index;
-                let orig = drag.original_pos;
-                for sprite in &mut self.sprite_data {
-                    if sprite.index == tidx {
-                        sprite.world_pos.x = orig.x + dx;
-                        sprite.world_pos.y = orig.y + dy;
-                        break;
-                    }
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let current = self.camera.screen_to_world(pointer, canvas_center);
+            let dx = current.x - drag.start_mouse.x;
+            let dy = current.y - drag.start_mouse.y;
+            let tidx = drag.index;
+            let orig = drag.original_pos;
+            for sprite in &mut self.sprite_data {
+                if sprite.index == tidx {
+                    sprite.world_pos.x = orig.x + dx;
+                    sprite.world_pos.y = orig.y + dy;
+                    break;
                 }
             }
+        }
 
         // End object drag
         if response.drag_stopped_by(egui::PointerButton::Primary)
-            && let Some(drag) = self.dragging.take() {
-                for sprite in &self.sprite_data {
-                    if sprite.index == drag.index {
-                        let dx = sprite.world_pos.x - drag.original_pos.x;
-                        let dy = sprite.world_pos.y - drag.original_pos.y;
-                        if dx.abs() > 0.001 || dy.abs() > 0.001 {
-                            self.drag_result = Some((drag.index, Vec2 { x: dx, y: dy }));
-                            // Keep camera offset active until batch is rebuilt
-                            self.pending_drag_offset = Some((drag.index, dx, dy));
-                        }
-                        break;
+            && let Some(drag) = self.dragging.take()
+        {
+            for sprite in &self.sprite_data {
+                if sprite.index == drag.index {
+                    let dx = sprite.world_pos.x - drag.original_pos.x;
+                    let dy = sprite.world_pos.y - drag.original_pos.y;
+                    if dx.abs() > 0.001 || dy.abs() > 0.001 {
+                        self.drag_result = Some((drag.index, Vec2 { x: dx, y: dy }));
+                        // Keep camera offset active until batch is rebuilt
+                        self.pending_drag_offset = Some((drag.index, dx, dy));
                     }
+                    break;
                 }
             }
+        }
 
         // Click-to-select (tap without drag)
-        if response.clicked() && !self.panning
-            && let Some(click_pos) = response.interact_pointer_pos() {
-                let click_world = self.camera.screen_to_world(click_pos, canvas_center);
-                self.clicked_object = self.hit_test(click_world, selected);
-            }
+        if response.clicked()
+            && !self.panning
+            && let Some(click_pos) = response.interact_pointer_pos()
+        {
+            let click_world = self.camera.screen_to_world(click_pos, canvas_center);
+            self.clicked_object = self.hit_test(click_world, selected);
+        }
 
         // Handle zoom (scroll wheel, center-preserving)
         if response.hovered() {
@@ -1180,7 +1388,9 @@ impl LevelRenderer {
         // Glow starbursts behind collider terrain
         if let Some(glow_id) = self.tex_cache.get(GLOW_ATLAS) {
             for sprite in &self.sprite_data {
-                if !sprites::has_glow(&sprite.name) { continue; }
+                if !sprites::has_glow(&sprite.name) {
+                    continue;
+                }
                 // Early world-space frustum cull for glow (large radius ~1.5 world units)
                 let glow_margin = 2.0;
                 if sprite.world_pos.x + glow_margin < visible_min_x
@@ -1190,14 +1400,24 @@ impl LevelRenderer {
                 {
                     continue;
                 }
-                sprites::draw_glow(&painter, sprite, &self.camera, canvas_center, rect, self.time, glow_id);
+                sprites::draw_glow(
+                    &painter,
+                    sprite,
+                    &self.camera,
+                    canvas_center,
+                    rect,
+                    self.time,
+                    glow_id,
+                );
             }
         }
 
         // Collider terrain: interleave fill + edge per terrain (back-to-front)
         // so that front terrain's fill covers back terrain's edge properly.
         for (ti, td) in self.terrain_data.iter().enumerate() {
-            if td.decorative { continue; }
+            if td.decorative {
+                continue;
+            }
 
             // ── Fill ──
             if let Some(ref fill_data) = td.fill_mesh {
@@ -1205,33 +1425,54 @@ impl LevelRenderer {
                 if let (Some(resources), Some(device), Some(queue)) =
                     (&self.fill_resources, &self.wgpu_device, &self.wgpu_queue)
                     && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(ti)
-                        && let Some(tex_name) = &td.fill_texture
-                            && let Some(tex_gpu) = self.fill_texture_cache.get_or_load(device, queue, resources, tex_name)
-                                && self.fill_slot_counter < fill_shader::max_draw_slots() {
-                                    let slot = self.fill_slot_counter;
-                                    self.fill_slot_counter += 1;
-                                    let fc = &fill_data.vertices[0].color;
-                                    let [r, g, b, a] = [fc.r() as f32 / 255.0, fc.g() as f32 / 255.0, fc.b() as f32 / 255.0, fc.a() as f32 / 255.0];
-                                    let uniforms = fill_shader::FillUniforms {
-                                        screen_size: [rect.width(), rect.height()],
-                                        camera_center: [self.camera.center.x, self.camera.center.y],
-                                        zoom: self.camera.zoom,
-                                        _pad0: 0.0,
-                                        _pad1: [0.0; 2],
-                                        tint_color: [r, g, b, a],
-                                    };
-                                    painter.add(fill_shader::make_fill_callback(
-                                        rect, resources.clone(), tex_gpu, gpu_mesh.clone(), slot, uniforms,
-                                    ));
-                                    gpu_done = true;
-                                }
+                    && let Some(tex_name) = &td.fill_texture
+                    && let Some(tex_gpu) = self
+                        .fill_texture_cache
+                        .get_or_load(device, queue, resources, tex_name)
+                    && self.fill_slot_counter < fill_shader::max_draw_slots()
+                {
+                    let slot = self.fill_slot_counter;
+                    self.fill_slot_counter += 1;
+                    let fc = &fill_data.vertices[0].color;
+                    let [r, g, b, a] = [
+                        fc.r() as f32 / 255.0,
+                        fc.g() as f32 / 255.0,
+                        fc.b() as f32 / 255.0,
+                        fc.a() as f32 / 255.0,
+                    ];
+                    let uniforms = fill_shader::FillUniforms {
+                        screen_size: [rect.width(), rect.height()],
+                        camera_center: [self.camera.center.x, self.camera.center.y],
+                        zoom: self.camera.zoom,
+                        _pad0: 0.0,
+                        _pad1: [0.0; 2],
+                        tint_color: [r, g, b, a],
+                    };
+                    painter.add(fill_shader::make_fill_callback(
+                        rect,
+                        resources.clone(),
+                        tex_gpu,
+                        gpu_mesh.clone(),
+                        slot,
+                        uniforms,
+                    ));
+                    gpu_done = true;
+                }
                 if !gpu_done {
-                    terrain::transform_mesh_to_screen_into(fill_data, &self.camera, canvas_center, &mut self.terrain_scratch_mesh);
+                    terrain::transform_mesh_to_screen_into(
+                        fill_data,
+                        &self.camera,
+                        canvas_center,
+                        &mut self.terrain_scratch_mesh,
+                    );
                     if let Some(ref tex_name) = td.fill_texture
-                        && let Some(tex_id) = self.tex_cache.get(tex_name) {
-                            self.terrain_scratch_mesh.texture_id = tex_id;
-                        }
-                    painter.add(egui::Shape::mesh(std::mem::take(&mut self.terrain_scratch_mesh)));
+                        && let Some(tex_id) = self.tex_cache.get(tex_name)
+                    {
+                        self.terrain_scratch_mesh.texture_id = tex_id;
+                    }
+                    painter.add(egui::Shape::mesh(std::mem::take(
+                        &mut self.terrain_scratch_mesh,
+                    )));
                 }
             }
 
@@ -1253,15 +1494,27 @@ impl LevelRenderer {
                     ));
                 }
             } else {
-                Self::draw_terrain_edge_cpu(&painter, td, &self.camera, canvas_center, &self.tex_cache, &mut self.terrain_scratch_mesh);
+                Self::draw_terrain_edge_cpu(
+                    &painter,
+                    td,
+                    &self.camera,
+                    canvas_center,
+                    &self.tex_cache,
+                    &mut self.terrain_scratch_mesh,
+                );
             }
         }
 
         // Selection outlines for all terrain
         for td in self.terrain_data.iter() {
             if selected == Some(td.object_index) && td.curve_world_verts.len() >= 2 {
-                let screen_pts: Vec<egui::Pos2> = td.curve_world_verts.iter()
-                    .map(|&(wx, wy)| self.camera.world_to_screen(Vec2 { x: wx, y: wy }, canvas_center))
+                let screen_pts: Vec<egui::Pos2> = td
+                    .curve_world_verts
+                    .iter()
+                    .map(|&(wx, wy)| {
+                        self.camera
+                            .world_to_screen(Vec2 { x: wx, y: wy }, canvas_center)
+                    })
                     .collect();
                 let stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
                 for pair in screen_pts.windows(2) {
@@ -1340,13 +1593,17 @@ impl LevelRenderer {
                 self.fan_emitters[ei].burst_time -= 1.0;
             }
             let new_t = self.fan_emitters[ei].burst_time;
-            if !self.fan_emitters[ei].emitting { continue; }
+            if !self.fan_emitters[ei].emitting {
+                continue;
+            }
             for &bt in &BURST_TIMES {
                 let fired = (prev_t <= bt && new_t > bt)
                     || (prev_t > new_t && (prev_t <= bt || new_t > bt));
                 if fired && self.fan_particles.len() < FAN_PARTICLE_MAX {
                     let e = &self.fan_emitters[ei];
-                    let seed = (self.time * 1000.0) as u32 + ei as u32 * 773 + self.fan_particles.len() as u32 * 419;
+                    let seed = (self.time * 1000.0) as u32
+                        + ei as u32 * 773
+                        + self.fan_particles.len() as u32 * 419;
                     let r1 = pseudo_random(seed);
                     let r2 = pseudo_random(seed.wrapping_add(1));
                     let r3 = pseudo_random(seed.wrapping_add(2));
@@ -1362,13 +1619,16 @@ impl LevelRenderer {
                     let vx = local_vx * cos_r - local_vy * sin_r;
                     let vy = local_vx * sin_r + local_vy * cos_r;
                     self.fan_particles.push(FanParticle {
-                        x: px, y: py,
-                        vx, vy,
+                        x: px,
+                        y: py,
+                        vx,
+                        vy,
                         age: 0.0,
                         lifetime: 0.7 + r4 * 0.8,
                         start_size: 1.2,
                         rot: pseudo_random(seed.wrapping_add(4)) * std::f32::consts::PI,
-                        rot_speed: std::f32::consts::FRAC_PI_4 + pseudo_random(seed.wrapping_add(5)) * std::f32::consts::PI * 0.75,
+                        rot_speed: std::f32::consts::FRAC_PI_4
+                            + pseudo_random(seed.wrapping_add(5)) * std::f32::consts::PI * 0.75,
                     });
                 }
             }
@@ -1395,8 +1655,12 @@ impl LevelRenderer {
         // Spawn new particles
         for a in 0..self.wind_areas.len() {
             self.wind_spawn_accum[a] += dt;
-            let area_count = self.wind_particles.iter()
-                .filter(|p| (p.x - self.wind_areas[a].center_x).abs() < self.wind_areas[a].half_w * 1.5)
+            let area_count = self
+                .wind_particles
+                .iter()
+                .filter(|p| {
+                    (p.x - self.wind_areas[a].center_x).abs() < self.wind_areas[a].half_w * 1.5
+                })
                 .count();
             if self.wind_spawn_accum[a] >= 1.0 && area_count < 20 {
                 self.wind_spawn_accum[a] -= 1.0;
@@ -1439,7 +1703,9 @@ impl LevelRenderer {
                     self.zzz_emit_accum[bi] -= 1.0 / ZZZ_EMIT_RATE;
                     let bx = self.bird_positions[bi].x;
                     let by = self.bird_positions[bi].y;
-                    let seed = (self.time * 1000.0) as u32 + bi as u32 * 997 + self.zzz_particles.len() as u32 * 337;
+                    let seed = (self.time * 1000.0) as u32
+                        + bi as u32 * 997
+                        + self.zzz_particles.len() as u32 * 337;
                     let r1 = pseudo_random(seed);
                     let r2 = pseudo_random(seed.wrapping_add(1));
                     let r3 = pseudo_random(seed.wrapping_add(2));
@@ -1470,7 +1736,8 @@ impl LevelRenderer {
                 continue;
             }
             // X wobble: velocity curve from VelocityModule, scalar=2, amplitude ~0.7
-            let wobble_vx = (p.wobble_phase + p.age * p.wobble_freq * std::f32::consts::TAU).sin() * 1.4;
+            let wobble_vx =
+                (p.wobble_phase + p.age * p.wobble_freq * std::f32::consts::TAU).sin() * 1.4;
             p.x += wobble_vx * dt;
             p.y += p.vy * dt;
             p.rot += p.rot_speed * dt;
@@ -1490,13 +1757,19 @@ impl LevelRenderer {
                 1.0 - s * s * (3.0 - 2.0 * s) // smoothstep shrink
             };
             let sz = p.start_size * size_scale * self.camera.zoom;
-            if sz < 0.5 { continue; }
-            let center = self.camera.world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
-            if !rect.expand(20.0).contains(center) { continue; }
+            if sz < 0.5 {
+                continue;
+            }
+            let center = self
+                .camera
+                .world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
+            if !rect.expand(20.0).contains(center) {
+                continue;
+            }
             let alpha = 255u8;
             if let Some(tex_id) = zzz_tex {
-                const ZZZ_U0: f32 = 6.0 / 8.0;      // 0.75
-                const ZZZ_U1: f32 = 7.0 / 8.0;      // 0.875
+                const ZZZ_U0: f32 = 6.0 / 8.0; // 0.75
+                const ZZZ_U1: f32 = 7.0 / 8.0; // 0.875
                 const ZZZ_V0: f32 = 1.0 - 6.0 / 8.0; // 0.25
                 const ZZZ_V1: f32 = 1.0 - 5.0 / 8.0; // 0.375
                 let hw = sz;
@@ -1512,15 +1785,32 @@ impl LevelRenderer {
                     )
                 };
                 let tl = rot(-hw, -hh);
-                let tr = rot( hw, -hh);
-                let br = rot( hw,  hh);
-                let bl = rot(-hw,  hh);
+                let tr = rot(hw, -hh);
+                let br = rot(hw, hh);
+                let bl = rot(-hw, hh);
                 let i = mesh.vertices.len() as u32;
-                mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(ZZZ_U0, ZZZ_V0), color: tint });
-                mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(ZZZ_U1, ZZZ_V0), color: tint });
-                mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(ZZZ_U1, ZZZ_V1), color: tint });
-                mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(ZZZ_U0, ZZZ_V1), color: tint });
-                mesh.indices.extend_from_slice(&[i, i+1, i+2, i, i+2, i+3]);
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: tl,
+                    uv: egui::pos2(ZZZ_U0, ZZZ_V0),
+                    color: tint,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: tr,
+                    uv: egui::pos2(ZZZ_U1, ZZZ_V0),
+                    color: tint,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: br,
+                    uv: egui::pos2(ZZZ_U1, ZZZ_V1),
+                    color: tint,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: bl,
+                    uv: egui::pos2(ZZZ_U0, ZZZ_V1),
+                    color: tint,
+                });
+                mesh.indices
+                    .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
                 painter.add(egui::Shape::mesh(mesh));
             }
         }
@@ -1541,7 +1831,16 @@ impl LevelRenderer {
         let mut sprite_batch_draws: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
         // Deferred bird face draws: must render AFTER the GPU batch callbacks so
         // faces appear on top of GPU-rendered bird bodies.
-        struct DeferredBird { name: String, wx: f32, wy: f32, sx: f32, sy: f32, rot: f32, bsx: f32, bsy: f32 }
+        struct DeferredBird {
+            name: String,
+            wx: f32,
+            wy: f32,
+            sx: f32,
+            sy: f32,
+            rot: f32,
+            bsx: f32,
+            bsy: f32,
+        }
         let mut deferred_birds: Vec<DeferredBird> = Vec::new();
         for (si, sprite) in self.sprite_data.iter().enumerate() {
             let is_sel = selected == Some(sprite.index)
@@ -1553,8 +1852,10 @@ impl LevelRenderer {
                 let margin = sprite.half_size.0.max(sprite.half_size.1) + 2.0;
                 let sx = sprite.world_pos.x;
                 let sy = sprite.world_pos.y;
-                if sx + margin < visible_min_x || sx - margin > visible_max_x
-                    || sy + margin < visible_min_y || sy - margin > visible_max_y
+                if sx + margin < visible_min_x
+                    || sx - margin > visible_max_x
+                    || sy + margin < visible_min_y
+                    || sy - margin > visible_max_y
                 {
                     continue;
                 }
@@ -1562,20 +1863,39 @@ impl LevelRenderer {
 
             let fan_angle = fan_angle_map[si];
             let skip_root = compounds::draw_compound(
-                &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
+                &DrawCtx {
+                    painter: &painter,
+                    camera: &self.camera,
+                    canvas_center,
+                    canvas_rect: rect,
+                    tex_cache: &self.tex_cache,
+                },
                 &sprite.name,
-                CompoundTransform { world_x: sprite.world_pos.x, world_y: sprite.world_pos.y, scale_x: sprite.scale.0, scale_y: sprite.scale.1, rotation_z: sprite.rotation },
+                CompoundTransform {
+                    world_x: sprite.world_pos.x,
+                    world_y: sprite.world_pos.y,
+                    scale_x: sprite.scale.0,
+                    scale_y: sprite.scale.1,
+                    rotation_z: sprite.rotation,
+                },
                 t,
                 sprite.override_text.as_deref(),
             );
 
             // Draw goal flag mesh BEHIND the GoalArea icon sprite (flag is at Z=0, icon at Z=-0.5)
             if sprite.name_lower.starts_with("goalarea")
-                && let Some(flag_tex) = self.tex_cache.get(GOAL_FLAG_TEXTURE) {
-                    sprites::draw_goal_flag(
-                        &painter, sprite, &self.camera, canvas_center, rect, t, flag_tex,
-                    );
-                }
+                && let Some(flag_tex) = self.tex_cache.get(GOAL_FLAG_TEXTURE)
+            {
+                sprites::draw_goal_flag(
+                    &painter,
+                    sprite,
+                    &self.camera,
+                    canvas_center,
+                    rect,
+                    t,
+                    flag_tex,
+                );
+            }
 
             let mut is_gpu_rendered = false;
 
@@ -1585,125 +1905,159 @@ impl LevelRenderer {
                 if let Some(oidx) = opaque_idx
                     && let (Some(_resources), Some(_batch)) =
                         (&self.opaque_resources, &self.opaque_batch)
+                {
+                    // Compute per-sprite y_offset (goal/dessert bobbing, bird sleep bob)
+                    let y_off = if sprite.name_lower.contains("goal")
+                        || sprite.name_lower.contains("dessert")
                     {
-                        // Compute per-sprite y_offset (goal/dessert bobbing, bird sleep bob)
-                        let y_off = if sprite.name_lower.contains("goal") || sprite.name_lower.contains("dessert") {
-                            (t * 3.0).sin() as f32 * 0.25
-                        } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-                            let bt = ((t as f32 + sprite.bird_phase) % sprites::BIRD_SLEEP_DURATION).max(0.0);
-                            background::hermite(sprites::BIRD_SLEEP_POS_Y, bt)
-                        } else {
-                            0.0
-                        };
-                        // During drag, the sprite's world_pos is updated but the
-                        // GPU vertex buffer still has the baked (original) position.
-                        // Offset the camera center to compensate, which shifts the
-                        // quad on screen without rebuilding the vertex buffer.
-                        // pending_drag_offset keeps this active until the batch is rebuilt.
-                        let (cam_x, cam_y) = if let Some(ref drag) = self.dragging {
-                            if drag.index == sprite.index {
-                                let dx = sprite.world_pos.x - drag.original_pos.x;
-                                let dy = sprite.world_pos.y - drag.original_pos.y;
-                                (self.camera.center.x - dx, self.camera.center.y - dy)
-                            } else {
-                                (self.camera.center.x, self.camera.center.y)
-                            }
-                        } else if let Some((idx, dx, dy)) = self.pending_drag_offset {
-                            if idx == sprite.index {
-                                (self.camera.center.x - dx, self.camera.center.y - dy)
-                            } else {
-                                (self.camera.center.x, self.camera.center.y)
-                            }
+                        (t * 3.0).sin() as f32 * 0.25
+                    } else if sprite.name.starts_with("Bird_")
+                        && !sprite.name.starts_with("BirdCompass")
+                    {
+                        let bt = ((t as f32 + sprite.bird_phase) % sprites::BIRD_SLEEP_DURATION)
+                            .max(0.0);
+                        background::hermite(sprites::BIRD_SLEEP_POS_Y, bt)
+                    } else {
+                        0.0
+                    };
+                    // During drag, the sprite's world_pos is updated but the
+                    // GPU vertex buffer still has the baked (original) position.
+                    // Offset the camera center to compensate, which shifts the
+                    // quad on screen without rebuilding the vertex buffer.
+                    // pending_drag_offset keeps this active until the batch is rebuilt.
+                    let (cam_x, cam_y) = if let Some(ref drag) = self.dragging {
+                        if drag.index == sprite.index {
+                            let dx = sprite.world_pos.x - drag.original_pos.x;
+                            let dy = sprite.world_pos.y - drag.original_pos.y;
+                            (self.camera.center.x - dx, self.camera.center.y - dy)
                         } else {
                             (self.camera.center.x, self.camera.center.y)
-                        };
-                        opaque_batch_draws.push(opaque_shader::OpaqueBatchDraw {
-                            sprite_index: oidx,
-                            cam_x,
-                            cam_y,
-                            y_offset: y_off,
-                        });
-                        is_gpu_rendered = true;
-                    }
+                        }
+                    } else if let Some((idx, dx, dy)) = self.pending_drag_offset {
+                        if idx == sprite.index {
+                            (self.camera.center.x - dx, self.camera.center.y - dy)
+                        } else {
+                            (self.camera.center.x, self.camera.center.y)
+                        }
+                    } else {
+                        (self.camera.center.x, self.camera.center.y)
+                    };
+                    opaque_batch_draws.push(opaque_shader::OpaqueBatchDraw {
+                        sprite_index: oidx,
+                        cam_x,
+                        cam_y,
+                        y_offset: y_off,
+                    });
+                    is_gpu_rendered = true;
+                }
                 // Non-Props sprites: render via GPU transparent sprite shader
                 let mut _sprite_gpu_rendered = false;
-                if (is_sel || !sprite.is_hidden) && opaque_idx.is_none()
+                if (is_sel || !sprite.is_hidden)
+                    && opaque_idx.is_none()
                     && let (Some(atlas_name), Some(uv)) = (&sprite.atlas, &sprite.uv)
-                        && atlas_name != "Props_Generic_Sheet_01.png"
-                            && let (Some(resources), Some(device), Some(queue)) =
-                                (&self.sprite_resources, &self.wgpu_device, &self.wgpu_queue)
-                                && let Some(atlas) = self.sprite_atlas_cache.get_or_load(
-                                    device, queue, resources, atlas_name,
-                                )
-                                    && self.sprite_slot_counter < sprite_shader::max_draw_slots() {
-                                        let slot = self.sprite_slot_counter;
-                                        self.sprite_slot_counter += 1;
+                    && atlas_name != "Props_Generic_Sheet_01.png"
+                    && let (Some(resources), Some(device), Some(queue)) =
+                        (&self.sprite_resources, &self.wgpu_device, &self.wgpu_queue)
+                    && let Some(atlas) = self
+                        .sprite_atlas_cache
+                        .get_or_load(device, queue, resources, atlas_name)
+                    && self.sprite_slot_counter < sprite_shader::max_draw_slots()
+                {
+                    let slot = self.sprite_slot_counter;
+                    self.sprite_slot_counter += 1;
 
-                                        // Compute animation offsets
-                                        let y_off = if sprite.name_lower.contains("goal") || sprite.name_lower.contains("dessert") {
-                                            (t * 3.0).sin() as f32 * 0.25
-                                        } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-                                            let bt = ((t as f32 + sprite.bird_phase) % sprites::BIRD_SLEEP_DURATION).max(0.0);
-                                            background::hermite(sprites::BIRD_SLEEP_POS_Y, bt)
-                                        } else {
-                                            0.0
-                                        };
+                    // Compute animation offsets
+                    let y_off = if sprite.name_lower.contains("goal")
+                        || sprite.name_lower.contains("dessert")
+                    {
+                        (t * 3.0).sin() as f32 * 0.25
+                    } else if sprite.name.starts_with("Bird_")
+                        && !sprite.name.starts_with("BirdCompass")
+                    {
+                        let bt = ((t as f32 + sprite.bird_phase) % sprites::BIRD_SLEEP_DURATION)
+                            .max(0.0);
+                        background::hermite(sprites::BIRD_SLEEP_POS_Y, bt)
+                    } else {
+                        0.0
+                    };
 
-                                        // Animated half-size (Fan foreshorten, Bird scale)
-                                        let (hw, hh) = if sprite.name == "Fan" {
-                                            let angle = fan_angle.unwrap_or((t * 10.472) as f32);
-                                            let foreshorten = angle.cos().abs().max(0.05);
-                                            (sprite.half_size.0 * foreshorten, sprite.half_size.1)
-                                        } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-                                            let bt = ((t as f32 + sprite.bird_phase) % 4.0).max(0.0);
-                                            let sx = background::hermite(sprites::BIRD_SLEEP_SCALE_X, bt);
-                                            let sy = background::hermite(sprites::BIRD_SLEEP_SCALE_Y, bt);
-                                            (sprite.half_size.0 * sx, sprite.half_size.1 * sy)
-                                        } else {
-                                            sprite.half_size
-                                        };
+                    // Animated half-size (Fan foreshorten, Bird scale)
+                    let (hw, hh) = if sprite.name == "Fan" {
+                        let angle = fan_angle.unwrap_or((t * 10.472) as f32);
+                        let foreshorten = angle.cos().abs().max(0.05);
+                        (sprite.half_size.0 * foreshorten, sprite.half_size.1)
+                    } else if sprite.name.starts_with("Bird_")
+                        && !sprite.name.starts_with("BirdCompass")
+                    {
+                        let bt = ((t as f32 + sprite.bird_phase) % 4.0).max(0.0);
+                        let sx = background::hermite(sprites::BIRD_SLEEP_SCALE_X, bt);
+                        let sy = background::hermite(sprites::BIRD_SLEEP_SCALE_Y, bt);
+                        (sprite.half_size.0 * sx, sprite.half_size.1 * sy)
+                    } else {
+                        sprite.half_size
+                    };
 
-                                        let (uv_min, uv_max) = sprite_shader::compute_uvs(
-                                            uv,
-                                            atlas.width as f32,
-                                            atlas.height as f32,
-                                            sprite.scale.0 < 0.0,
-                                            sprite.scale.1 < 0.0,
-                                        );
+                    let (uv_min, uv_max) = sprite_shader::compute_uvs(
+                        uv,
+                        atlas.width as f32,
+                        atlas.height as f32,
+                        sprite.scale.0 < 0.0,
+                        sprite.scale.1 < 0.0,
+                    );
 
-                                        let uniforms = sprite_shader::SpriteUniforms {
-                                            screen_size: [rect.width(), rect.height()],
-                                            camera_center: [self.camera.center.x, self.camera.center.y],
-                                            zoom: self.camera.zoom,
-                                            rotation: sprite.rotation,
-                                            world_center: [sprite.world_pos.x, sprite.world_pos.y + y_off],
-                                            half_size: [hw, hh],
-                                            uv_min,
-                                            uv_max,
-                                            mode: 0.0,
-                                            shine_center: 0.0,
-                                            tint_color: [1.0, 1.0, 1.0, 1.0],
-                                        };
+                    let uniforms = sprite_shader::SpriteUniforms {
+                        screen_size: [rect.width(), rect.height()],
+                        camera_center: [self.camera.center.x, self.camera.center.y],
+                        zoom: self.camera.zoom,
+                        rotation: sprite.rotation,
+                        world_center: [sprite.world_pos.x, sprite.world_pos.y + y_off],
+                        half_size: [hw, hh],
+                        uv_min,
+                        uv_max,
+                        mode: 0.0,
+                        shine_center: 0.0,
+                        tint_color: [1.0, 1.0, 1.0, 1.0],
+                    };
 
-                                        sprite_batch_draws.push(sprite_shader::SpriteBatchDraw {
-                                            atlas,
-                                            slot,
-                                            uniforms,
-                                        });
-                                        _sprite_gpu_rendered = true;
-                                        is_gpu_rendered = true;
-                                    }
+                    sprite_batch_draws.push(sprite_shader::SpriteBatchDraw {
+                        atlas,
+                        slot,
+                        uniforms,
+                    });
+                    _sprite_gpu_rendered = true;
+                    is_gpu_rendered = true;
+                }
                 let gpu_rendered = is_gpu_rendered;
-                let tex_id = if gpu_rendered { None } else {
+                let tex_id = if gpu_rendered {
+                    None
+                } else {
                     sprite.atlas.as_ref().and_then(|a| self.tex_cache.get(a))
                 };
-                let atlas_size = if gpu_rendered { None } else {
-                    sprite.atlas.as_ref().and_then(|a| self.tex_cache.texture_size(a))
+                let atlas_size = if gpu_rendered {
+                    None
+                } else {
+                    sprite
+                        .atlas
+                        .as_ref()
+                        .and_then(|a| self.tex_cache.texture_size(a))
                 };
                 sprites::draw_sprite(
-                    &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
+                    &DrawCtx {
+                        painter: &painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
                     sprite,
-                    sprites::SpriteDrawOpts { is_selected: is_sel, time: t, tex_id, atlas_size, fan_angle, opaque_rendered: gpu_rendered },
+                    sprites::SpriteDrawOpts {
+                        is_selected: is_sel,
+                        time: t,
+                        tex_id,
+                        atlas_size,
+                        fan_angle,
+                        opaque_rendered: gpu_rendered,
+                    },
                 );
             }
 
@@ -1726,9 +2080,21 @@ impl LevelRenderer {
                     });
                 } else {
                     compounds::draw_bird_face(
-                        &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
+                        &DrawCtx {
+                            painter: &painter,
+                            camera: &self.camera,
+                            canvas_center,
+                            canvas_rect: rect,
+                            tex_cache: &self.tex_cache,
+                        },
                         &sprite.name,
-                        CompoundTransform { world_x: sprite.world_pos.x, world_y: sprite.world_pos.y + breath_y, scale_x: sprite.scale.0, scale_y: sprite.scale.1, rotation_z: sprite.rotation },
+                        CompoundTransform {
+                            world_x: sprite.world_pos.x,
+                            world_y: sprite.world_pos.y + breath_y,
+                            scale_x: sprite.scale.0,
+                            scale_y: sprite.scale.1,
+                            rotation_z: sprite.rotation,
+                        },
                         breath_sx,
                         breath_sy,
                     );
@@ -1737,12 +2103,18 @@ impl LevelRenderer {
 
             if skip_root && is_sel {
                 let center = self.camera.world_to_screen(
-                    Vec2 { x: sprite.world_pos.x, y: sprite.world_pos.y },
+                    Vec2 {
+                        x: sprite.world_pos.x,
+                        y: sprite.world_pos.y,
+                    },
                     canvas_center,
                 );
                 let hw = sprite.half_size.0 * self.camera.zoom;
                 let hh = sprite.half_size.1 * self.camera.zoom;
-                let sel_rect = egui::Rect::from_center_size(center, egui::vec2(hw.max(4.0) * 2.0, hh.max(4.0) * 2.0));
+                let sel_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(hw.max(4.0) * 2.0, hh.max(4.0) * 2.0),
+                );
                 painter.rect_stroke(
                     sel_rect.expand(2.0),
                     2.0,
@@ -1755,34 +2127,46 @@ impl LevelRenderer {
         // Emit batched GPU sprite callbacks (one callback per shader instead of
         // one per sprite — eliminates 100+ egui render state resets per frame).
         if !opaque_batch_draws.is_empty()
-            && let (Some(resources), Some(batch)) =
-                (&self.opaque_resources, &self.opaque_batch)
-            {
-                painter.add(opaque_shader::make_opaque_batch_callback(
-                    rect,
-                    resources.clone(),
-                    batch.clone(),
-                    rect.width(),
-                    rect.height(),
-                    self.camera.zoom,
-                    opaque_batch_draws,
-                ));
-            }
+            && let (Some(resources), Some(batch)) = (&self.opaque_resources, &self.opaque_batch)
+        {
+            painter.add(opaque_shader::make_opaque_batch_callback(
+                rect,
+                resources.clone(),
+                batch.clone(),
+                rect.width(),
+                rect.height(),
+                self.camera.zoom,
+                opaque_batch_draws,
+            ));
+        }
         if !sprite_batch_draws.is_empty()
-            && let Some(resources) = &self.sprite_resources {
-                painter.add(sprite_shader::make_sprite_batch_callback(
-                    rect,
-                    resources.clone(),
-                    sprite_batch_draws,
-                ));
-            }
+            && let Some(resources) = &self.sprite_resources
+        {
+            painter.add(sprite_shader::make_sprite_batch_callback(
+                rect,
+                resources.clone(),
+                sprite_batch_draws,
+            ));
+        }
 
         // Deferred bird faces: draw after GPU batch so faces appear on top of bodies
         for bird in &deferred_birds {
             compounds::draw_bird_face(
-                &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
+                &DrawCtx {
+                    painter: &painter,
+                    camera: &self.camera,
+                    canvas_center,
+                    canvas_rect: rect,
+                    tex_cache: &self.tex_cache,
+                },
                 &bird.name,
-                CompoundTransform { world_x: bird.wx, world_y: bird.wy, scale_x: bird.sx, scale_y: bird.sy, rotation_z: bird.rot },
+                CompoundTransform {
+                    world_x: bird.wx,
+                    world_y: bird.wy,
+                    scale_x: bird.sx,
+                    scale_y: bird.sy,
+                    rotation_z: bird.rot,
+                },
                 bird.bsx,
                 bird.bsy,
             );
@@ -1804,10 +2188,18 @@ impl LevelRenderer {
                 0.70 * (1.0 - (t_frac - 0.913) / (1.0 - 0.913))
             } * 0.2; // SizeModule scalar
             let sz = p.start_size * size_scale;
-            let center = self.camera.world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
-            if !rect.expand(30.0).contains(center) { continue; }
+            let center = self
+                .camera
+                .world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
+            if !rect.expand(30.0).contains(center) {
+                continue;
+            }
             // Alpha: full opacity, then fade to 0 in the last 15%
-            let alpha = if t_frac > 0.85 { ((1.0 - t_frac) / 0.15 * 255.0) as u8 } else { 255 };
+            let alpha = if t_frac > 0.85 {
+                ((1.0 - t_frac) / 0.15 * 255.0) as u8
+            } else {
+                255
+            };
             let hw = sz * self.camera.zoom;
             let hh = hw;
             if let Some(tex_id) = fan_tex {
@@ -1826,49 +2218,74 @@ impl LevelRenderer {
                     )
                 };
                 let tl = rot(-hw, -hh);
-                let tr = rot( hw, -hh);
-                let br = rot( hw,  hh);
-                let bl = rot(-hw,  hh);
+                let tr = rot(hw, -hh);
+                let br = rot(hw, hh);
+                let bl = rot(-hw, hh);
                 let mut mesh = egui::Mesh::with_texture(tex_id);
                 let i = mesh.vertices.len() as u32;
-                mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(u0, v0), color });
-                mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(u1, v0), color });
-                mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(u1, v1), color });
-                mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(u0, v1), color });
-                mesh.indices.extend_from_slice(&[i, i+1, i+2, i, i+2, i+3]);
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: tl,
+                    uv: egui::pos2(u0, v0),
+                    color,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: tr,
+                    uv: egui::pos2(u1, v0),
+                    color,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: br,
+                    uv: egui::pos2(u1, v1),
+                    color,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: bl,
+                    uv: egui::pos2(u0, v1),
+                    color,
+                });
+                mesh.indices
+                    .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
                 painter.add(egui::Shape::mesh(mesh));
             } else {
                 // Fallback: colored circle
                 let puff_color = egui::Color32::from_rgba_unmultiplied(220, 230, 245, alpha);
-                let puff_rect = egui::Rect::from_center_size(center, egui::vec2(hw * 2.0, hh * 2.0));
+                let puff_rect =
+                    egui::Rect::from_center_size(center, egui::vec2(hw * 2.0, hh * 2.0));
                 painter.rect_filled(puff_rect, hw, puff_color);
             }
         }
 
         // ── Foreground background layer (renderOrder=20, after sprites) ──
         if self.show_bg
-            && let Some(theme_name) = self.bg_theme {
-                let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
-                    (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
-                        resources: r.clone(),
-                        atlas_cache: &mut self.bg_atlas_cache,
-                        device: d,
-                        queue: q,
-                        slot_counter: &mut self.bg_slot_counter,
-                    }),
-                    _ => None,
-                };
-                if let Some(ref cache) = self.bg_layer_cache {
-                    background::draw_bg_layers(
-                        &DrawCtx { painter: &painter, camera: &self.camera, canvas_center, canvas_rect: rect, tex_cache: &self.tex_cache },
-                        theme_name,
-                        self.time,
-                        Some((6, 100)), // foreground only
-                        cache,
-                        gpu.as_mut(),
-                    );
-                }
+            && let Some(theme_name) = self.bg_theme
+        {
+            let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                    resources: r.clone(),
+                    atlas_cache: &mut self.bg_atlas_cache,
+                    device: d,
+                    queue: q,
+                    slot_counter: &mut self.bg_slot_counter,
+                }),
+                _ => None,
+            };
+            if let Some(ref cache) = self.bg_layer_cache {
+                background::draw_bg_layers(
+                    &DrawCtx {
+                        painter: &painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
+                    theme_name,
+                    self.time,
+                    Some((6, 100)), // foreground only
+                    cache,
+                    gpu.as_mut(),
+                );
             }
+        }
 
         // Draw wind leaf particles (renderOrder=25, on top of foreground)
         if let Some(leaf_tex) = self.tex_cache.get(GLOW_ATLAS) {
@@ -1882,9 +2299,15 @@ impl LevelRenderer {
                     1.0
                 };
                 let sz = p.size * self.camera.zoom;
-                if sz < 0.5 { continue; }
-                let center = self.camera.world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
-                if !rect.expand(20.0).contains(center) { continue; }
+                if sz < 0.5 {
+                    continue;
+                }
+                let center = self
+                    .camera
+                    .world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
+                if !rect.expand(20.0).contains(center) {
+                    continue;
+                }
 
                 // Leaf UV from 16×16 grid: column = LEAF_COLS[leaf_col], row UV = LEAF_ROW_UV
                 let col = LEAF_COLS[p.leaf_col as usize] as f32;
@@ -1910,10 +2333,26 @@ impl LevelRenderer {
                 let color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, a);
 
                 let mut mesh = egui::Mesh::with_texture(leaf_tex);
-                mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt(-hw, -hh), uv: egui::pos2(u0, v0), color });
-                mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt( hw, -hh), uv: egui::pos2(u1, v0), color });
-                mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt( hw,  hh), uv: egui::pos2(u1, v1), color });
-                mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt(-hw,  hh), uv: egui::pos2(u0, v1), color });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: rot_pt(-hw, -hh),
+                    uv: egui::pos2(u0, v0),
+                    color,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: rot_pt(hw, -hh),
+                    uv: egui::pos2(u1, v0),
+                    color,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: rot_pt(hw, hh),
+                    uv: egui::pos2(u1, v1),
+                    color,
+                });
+                mesh.vertices.push(egui::epaint::Vertex {
+                    pos: rot_pt(-hw, hh),
+                    uv: egui::pos2(u0, v1),
+                    color,
+                });
                 mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
                 painter.add(egui::Shape::mesh(mesh));
             }
@@ -1923,9 +2362,9 @@ impl LevelRenderer {
         self.draw_grid(&painter, rect, canvas_center);
 
         // Origin axes
-        let origin =
-            self.camera
-                .world_to_screen(Vec2 { x: 0.0, y: 0.0 }, canvas_center);
+        let origin = self
+            .camera
+            .world_to_screen(Vec2 { x: 0.0, y: 0.0 }, canvas_center);
         if rect.contains(origin) {
             let axis_len = 30.0;
             painter.line_segment(
@@ -1941,8 +2380,20 @@ impl LevelRenderer {
         // Physics ground line
         if self.show_ground {
             const PHYSICS_GROUND_Y: f32 = -6.599;
-            let ground_left = self.camera.world_to_screen(Vec2 { x: -1000.0, y: PHYSICS_GROUND_Y }, canvas_center);
-            let ground_right = self.camera.world_to_screen(Vec2 { x: 1000.0, y: PHYSICS_GROUND_Y }, canvas_center);
+            let ground_left = self.camera.world_to_screen(
+                Vec2 {
+                    x: -1000.0,
+                    y: PHYSICS_GROUND_Y,
+                },
+                canvas_center,
+            );
+            let ground_right = self.camera.world_to_screen(
+                Vec2 {
+                    x: 1000.0,
+                    y: PHYSICS_GROUND_Y,
+                },
+                canvas_center,
+            );
             let left_x = ground_left.x.max(rect.left());
             let right_x = ground_right.x.min(rect.right());
             if left_x < right_x {
@@ -1969,13 +2420,20 @@ impl LevelRenderer {
         }
 
         // Zoom + theme info
-        let theme_label = self.bg_theme
+        let theme_label = self
+            .bg_theme
             .map(|s| s.to_owned())
             .unwrap_or_else(|| tr.get("hud_unknown_theme"));
         painter.text(
             rect.left_top() + egui::vec2(8.0, 8.0),
             egui::Align2::LEFT_TOP,
-            format!("{}: {:.1}x  {}: {}", tr.get("hud_zoom"), self.camera.zoom, tr.get("hud_theme"), theme_label),
+            format!(
+                "{}: {:.1}x  {}: {}",
+                tr.get("hud_zoom"),
+                self.camera.zoom,
+                tr.get("hud_theme"),
+                theme_label
+            ),
             egui::FontId::proportional(12.0),
             egui::Color32::from_rgb(150, 150, 150),
         );
@@ -1994,7 +2452,11 @@ impl LevelRenderer {
                     // so skip egui texture loading for it entirely.
                     if atlas == &"Props_Generic_Sheet_01.png" {
                         continue;
-                    } else if self.tex_cache.load_texture(ui.ctx(), &sprite_key, atlas).is_none() {
+                    } else if self
+                        .tex_cache
+                        .load_texture(ui.ctx(), &sprite_key, atlas)
+                        .is_none()
+                    {
                         self.tex_cache.load_texture(ui.ctx(), &props_key, atlas);
                     }
                 }
@@ -2002,38 +2464,63 @@ impl LevelRenderer {
             // Background atlases (bg/ subdir)
             for atlas in crate::bg_data::bg_atlas_files() {
                 if self.tex_cache.get(atlas).is_none() {
-                    self.tex_cache.load_texture(ui.ctx(), &format!("bg/{}", atlas), atlas);
+                    self.tex_cache
+                        .load_texture(ui.ctx(), &format!("bg/{}", atlas), atlas);
                 }
             }
             // Sky textures (sky/ subdir)
             for sky in crate::bg_data::sky_texture_files() {
                 if self.tex_cache.get(sky).is_none() {
-                    self.tex_cache.load_texture(ui.ctx(), &format!("sky/{}", sky), sky);
+                    self.tex_cache
+                        .load_texture(ui.ctx(), &format!("sky/{}", sky), sky);
                 }
             }
             // Ground fill textures (ground/ subdir) — loaded with repeat wrap
             for td in &self.terrain_data {
                 if let Some(ref tex_name) = td.fill_texture
-                    && self.tex_cache.get(tex_name).is_none() {
-                        self.tex_cache.load_texture_repeat(ui.ctx(), &format!("ground/{}", tex_name), tex_name);
-                    }
+                    && self.tex_cache.get(tex_name).is_none()
+                {
+                    self.tex_cache.load_texture_repeat(
+                        ui.ctx(),
+                        &format!("ground/{}", tex_name),
+                        tex_name,
+                    );
+                }
                 // Splat textures for CPU-textured edge fallback
                 if let Some(ref tex_name) = td.edge_splat0
-                    && self.tex_cache.get(tex_name).is_none() {
-                        self.tex_cache.load_texture_repeat(ui.ctx(), &format!("ground/{}", tex_name), tex_name);
-                    }
+                    && self.tex_cache.get(tex_name).is_none()
+                {
+                    self.tex_cache.load_texture_repeat(
+                        ui.ctx(),
+                        &format!("ground/{}", tex_name),
+                        tex_name,
+                    );
+                }
                 if let Some(ref tex_name) = td.edge_splat1
-                    && self.tex_cache.get(tex_name).is_none() {
-                        self.tex_cache.load_texture_repeat(ui.ctx(), &format!("ground/{}", tex_name), tex_name);
-                    }
+                    && self.tex_cache.get(tex_name).is_none()
+                {
+                    self.tex_cache.load_texture_repeat(
+                        ui.ctx(),
+                        &format!("ground/{}", tex_name),
+                        tex_name,
+                    );
+                }
             }
             // Goal flag texture (props/ subdir) — repeat wrap + flip V for UV scroll
             if self.tex_cache.get(GOAL_FLAG_TEXTURE).is_none() {
-                self.tex_cache.load_texture_repeat_flipv(ui.ctx(), &format!("props/{}", GOAL_FLAG_TEXTURE), GOAL_FLAG_TEXTURE);
+                self.tex_cache.load_texture_repeat_flipv(
+                    ui.ctx(),
+                    &format!("props/{}", GOAL_FLAG_TEXTURE),
+                    GOAL_FLAG_TEXTURE,
+                );
             }
             // Glow/starburst particle atlas
             if self.tex_cache.get(GLOW_ATLAS).is_none() {
-                self.tex_cache.load_texture(ui.ctx(), &format!("particles/{}", GLOW_ATLAS), GLOW_ATLAS);
+                self.tex_cache.load_texture(
+                    ui.ctx(),
+                    &format!("particles/{}", GLOW_ATLAS),
+                    GLOW_ATLAS,
+                );
             }
         }
     }
@@ -2043,8 +2530,12 @@ impl LevelRenderer {
         let target_px = 60.0;
         let base = target_px / self.camera.zoom;
         // Snap to nice values: 0.5, 1, 2, 5, 10, 20, 50, 100...
-        let nice = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0];
-        let grid_step = nice.iter().copied()
+        let nice = [
+            0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0,
+        ];
+        let grid_step = nice
+            .iter()
+            .copied()
             .min_by(|a, b| (a - base).abs().partial_cmp(&(b - base).abs()).unwrap())
             .unwrap_or(5.0);
         let color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 1);
@@ -2063,12 +2554,12 @@ impl LevelRenderer {
         let end_x = (max_x / grid_step).ceil() as i32;
         for ix in start_x..=end_x {
             let wx = ix as f32 * grid_step;
-            let top =
-                self.camera
-                    .world_to_screen(Vec2 { x: wx, y: max_y }, canvas_center);
-            let bot =
-                self.camera
-                    .world_to_screen(Vec2 { x: wx, y: min_y }, canvas_center);
+            let top = self
+                .camera
+                .world_to_screen(Vec2 { x: wx, y: max_y }, canvas_center);
+            let bot = self
+                .camera
+                .world_to_screen(Vec2 { x: wx, y: min_y }, canvas_center);
             painter.line_segment([top, bot], egui::Stroke::new(0.5, color));
         }
 
@@ -2076,12 +2567,12 @@ impl LevelRenderer {
         let end_y = (max_y / grid_step).ceil() as i32;
         for iy in start_y..=end_y {
             let wy = iy as f32 * grid_step;
-            let left =
-                self.camera
-                    .world_to_screen(Vec2 { x: min_x, y: wy }, canvas_center);
-            let right =
-                self.camera
-                    .world_to_screen(Vec2 { x: max_x, y: wy }, canvas_center);
+            let left = self
+                .camera
+                .world_to_screen(Vec2 { x: min_x, y: wy }, canvas_center);
+            let right = self
+                .camera
+                .world_to_screen(Vec2 { x: max_x, y: wy }, canvas_center);
             painter.line_segment([left, right], egui::Stroke::new(0.5, color));
         }
     }
@@ -2097,13 +2588,15 @@ fn pseudo_random(seed: u32) -> f32 {
 fn spawn_wind_particle(area: &WindAreaDef, particles: &mut Vec<WindParticle>) {
     let seed = particles.len() as u32;
     let x = area.center_x - area.half_w + pseudo_random(seed.wrapping_mul(3)) * area.half_w * 0.3;
-    let y = area.center_y - area.half_h + pseudo_random(seed.wrapping_mul(7).wrapping_add(1)) * area.half_h * 2.0;
+    let y = area.center_y - area.half_h
+        + pseudo_random(seed.wrapping_mul(7).wrapping_add(1)) * area.half_h * 2.0;
     let size = 0.4 + pseudo_random(seed.wrapping_mul(11).wrapping_add(5)) * 0.3;
     let speed = 6.0 + pseudo_random(seed.wrapping_mul(13).wrapping_add(9)) * 3.0;
     let angle = -0.15 + pseudo_random(seed.wrapping_mul(17).wrapping_add(3)) * 0.3;
     let leaf_col = (pseudo_random(seed.wrapping_mul(31).wrapping_add(13)) * 3.0) as u8;
     particles.push(WindParticle {
-        x, y,
+        x,
+        y,
         vx: speed * angle.cos(),
         vy: speed * angle.sin() * 0.3,
         age: 0.0,
@@ -2141,10 +2634,11 @@ fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
     for obj in objects {
         if let LevelObject::Prefab(inst) = obj
             && inst.name.contains("Background")
-                && let Some(ref od) = inst.override_data
-                    && od.raw_text.contains("Component UnityEngine.Transform") {
-                        return Some(od.raw_text.clone());
-                    }
+            && let Some(ref od) = inst.override_data
+            && od.raw_text.contains("Component UnityEngine.Transform")
+        {
+            return Some(od.raw_text.clone());
+        }
     }
     None
 }

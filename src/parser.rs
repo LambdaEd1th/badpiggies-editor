@@ -397,9 +397,10 @@ fn write_prefab_instance(writer: &mut BinaryWriter, level: &LevelData, idx: Obje
             write_terrain(writer, td);
         }
     } else if obj.data_type == DataType::PrefabOverrides
-        && let Some(ref od) = obj.override_data {
-            write_prefab_overrides(writer, od);
-        }
+        && let Some(ref od) = obj.override_data
+    {
+        write_prefab_overrides(writer, od);
+    }
 }
 
 fn write_parent_object(writer: &mut BinaryWriter, level: &LevelData, idx: ObjectIndex) {
@@ -457,10 +458,11 @@ fn write_terrain(writer: &mut BinaryWriter, t: &TerrainData) {
 
     writer.write_int32(t.control_texture_count);
     if t.control_texture_count > 0
-        && let Some(ref data) = t.control_texture_data {
-            writer.write_int32(data.len() as i32);
-            writer.write_bytes(data);
-        }
+        && let Some(ref data) = t.control_texture_data
+    {
+        writer.write_int32(data.len() as i32);
+        writer.write_bytes(data);
+    }
 
     writer.write_boolean(t.has_collider);
 }

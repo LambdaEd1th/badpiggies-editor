@@ -58,7 +58,10 @@ fn terrain_fill_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_morning", "Ground_Rocks_Texture.png"),
             ("e2dTerrainBase_MM_rock", "Ground_Temple_Rock_Texture.png"),
             ("e2dTerrainBase_MM_sand", "Ground_Temple_Tile_Texture.png"),
-            ("e2dTerrainBase_MM_TempleDarkRock", "Ground_Temple_Dark_Texture.png"),
+            (
+                "e2dTerrainBase_MM_TempleDarkRock",
+                "Ground_Temple_Dark_Texture.png",
+            ),
             ("e2dTerrainBase_MM_caveSand", "Ground_Maya_cave_texture.png"),
         ])
     })
@@ -73,16 +76,28 @@ fn terrain_splat0_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_02", "Ground_Grass_Texture.png"),
             ("e2dTerrainBase_04", "Ground_Cave_Texture.png"),
             ("e2dTerrainBase_05_night", "Ground_Grass_Texture_02.png"),
-            ("e2dTerrainBase_Halloween", "Ground_Halloween_Cream_Texture.png"),
+            (
+                "e2dTerrainBase_Halloween",
+                "Ground_Halloween_Cream_Texture.png",
+            ),
             ("e2dTerrainBase_MM_Ice", "Ground_Snow_Texture.png"),
             ("e2dTerrainBase_morning", "Ground_Grass_Texture_3.png"),
             ("e2dTerrainBase_MM_rock", "Ground_Grass_Maya_Texture.png"),
             ("e2dTerrainBase_MM_sand", "Ground_Grass_Maya_Texture.png"),
-            ("e2dTerrainBase_MM_TempleDarkRock", "Ground_Grass_Maya_Texture.png"),
-            ("e2dTerrainBase_MM_caveSand", "Ground_Grass_Maya_Texture.png"),
+            (
+                "e2dTerrainBase_MM_TempleDarkRock",
+                "Ground_Grass_Maya_Texture.png",
+            ),
+            (
+                "e2dTerrainBase_MM_caveSand",
+                "Ground_Grass_Maya_Texture.png",
+            ),
             // Dark variants with different Splat0 than their base
             ("e2dTerrainDark_MM_CaveSand", "Ground_Grass_Texture.png"),
-            ("e2dTerrainDark_MM_rock", "Ground_Rocks_Outline_Texture_06.png"),
+            (
+                "e2dTerrainDark_MM_rock",
+                "Ground_Rocks_Outline_Texture_06.png",
+            ),
         ])
     })
 }
@@ -95,21 +110,51 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase", "Ground_Rocks_Outline_Texture.png"),
             ("e2dTerrainBase_02", "Ground_Rocks_Outline_Texture_02.png"),
             ("e2dTerrainBase_04", "Ground_Rocks_Outline_Texture_04.png"),
-            ("e2dTerrainBase_05_night", "Ground_Rocks_Outline_Texture_05.png"),
-            ("e2dTerrainBase_Halloween", "Ground_Halloween_Outline_Texture.png"),
+            (
+                "e2dTerrainBase_05_night",
+                "Ground_Rocks_Outline_Texture_05.png",
+            ),
+            (
+                "e2dTerrainBase_Halloween",
+                "Ground_Halloween_Outline_Texture.png",
+            ),
             ("e2dTerrainBase_MM_Ice", "Ground_Ice_Outline.png"),
-            ("e2dTerrainBase_morning", "Ground_Rocks_Outline_Texture_morning.png"),
-            ("e2dTerrainBase_MM_rock", "Ground_Rocks_Outline_Texture_03.png"),
-            ("e2dTerrainBase_MM_sand", "Ground_Rocks_Outline_Texture_03.png"),
-            ("e2dTerrainBase_MM_TempleDarkRock", "Ground_Rocks_Outline_Texture_06.png"),
-            ("e2dTerrainBase_MM_caveSand", "Ground_Rocks_Outline_Texture_06.png"),
+            (
+                "e2dTerrainBase_morning",
+                "Ground_Rocks_Outline_Texture_morning.png",
+            ),
+            (
+                "e2dTerrainBase_MM_rock",
+                "Ground_Rocks_Outline_Texture_03.png",
+            ),
+            (
+                "e2dTerrainBase_MM_sand",
+                "Ground_Rocks_Outline_Texture_03.png",
+            ),
+            (
+                "e2dTerrainBase_MM_TempleDarkRock",
+                "Ground_Rocks_Outline_Texture_06.png",
+            ),
+            (
+                "e2dTerrainBase_MM_caveSand",
+                "Ground_Rocks_Outline_Texture_06.png",
+            ),
             // Dark variants with different Splat1 than their base
             ("e2dTerrainDark_02", "Ground_Rocks_Outline_Texture.png"),
             ("e2dTerrainDark_03", "Ground_Rocks_Outline_Texture_05.png"),
-            ("e2dTerrainDark_05_night(150)", "Ground_Rocks_Outline_Texture_04.png"),
+            (
+                "e2dTerrainDark_05_night(150)",
+                "Ground_Rocks_Outline_Texture_04.png",
+            ),
             ("e2dTerrainDark_MM", "Ground_Rocks_Outline_Texture_06.png"),
-            ("e2dTerrainDark_MM_CaveSand", "Ground_Rocks_Outline_Texture_06.png"),
-            ("e2dTerrainDark_MM_rock", "Ground_Rocks_Outline_Texture_03.png"),
+            (
+                "e2dTerrainDark_MM_CaveSand",
+                "Ground_Rocks_Outline_Texture_06.png",
+            ),
+            (
+                "e2dTerrainDark_MM_rock",
+                "Ground_Rocks_Outline_Texture_03.png",
+            ),
         ])
     })
 }
@@ -125,7 +170,10 @@ fn dark_terrain_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainDark_05_night(150)", "e2dTerrainBase_05_night"),
             ("e2dTerrainDark_MM", "e2dTerrainBase"),
             ("e2dTerrainDark_MM_CaveSand", "e2dTerrainBase_MM_caveSand"),
-            ("e2dTerrainDark_MM_TempleDarkRock", "e2dTerrainBase_MM_TempleDarkRock"),
+            (
+                "e2dTerrainDark_MM_TempleDarkRock",
+                "e2dTerrainBase_MM_TempleDarkRock",
+            ),
             ("e2dTerrainDark_MM_rock", "e2dTerrainBase_MM_rock"),
             ("e2dTerrainDark Halloween", "e2dTerrainBase_Halloween"),
             ("e2dTerrainDark morning", "e2dTerrainBase_morning"),
@@ -191,22 +239,20 @@ pub fn get_terrain_fill_texture(terrain_name: &str) -> Option<&'static str> {
 pub fn get_terrain_splat0(terrain_name: &str) -> Option<&'static str> {
     let key = normalize_terrain(terrain_name);
     // Check direct entry first (dark variants may have their own texture)
-    terrain_splat0_map().get(key.as_str()).copied()
-        .or_else(|| {
-            let base = resolve_terrain_base(terrain_name);
-            terrain_splat0_map().get(base.as_str()).copied()
-        })
+    terrain_splat0_map().get(key.as_str()).copied().or_else(|| {
+        let base = resolve_terrain_base(terrain_name);
+        terrain_splat0_map().get(base.as_str()).copied()
+    })
 }
 
 /// Get Splat1 (outline) texture filename.
 pub fn get_terrain_splat1(terrain_name: &str) -> Option<&'static str> {
     let key = normalize_terrain(terrain_name);
     // Check direct entry first (dark variants may have their own texture)
-    terrain_splat1_map().get(key.as_str()).copied()
-        .or_else(|| {
-            let base = resolve_terrain_base(terrain_name);
-            terrain_splat1_map().get(base.as_str()).copied()
-        })
+    terrain_splat1_map().get(key.as_str()).copied().or_else(|| {
+        let base = resolve_terrain_base(terrain_name);
+        terrain_splat1_map().get(base.as_str()).copied()
+    })
 }
 
 /// Whether this is a "dark" terrain (underground fill).
@@ -283,12 +329,24 @@ pub fn ground_color(theme: &str) -> egui::Color32 {
 
 /// Named prefab colors for known types.
 pub fn get_object_color(name: &str, prefab_index: i16) -> egui::Color32 {
-    if name.contains("Background") { return egui::Color32::from_rgb(0x2a, 0x4a, 0x2e); }
-    if name.contains("Goal") { return egui::Color32::from_rgb(0xff, 0xd7, 0x00); }
-    if name.contains("StarBox") { return egui::Color32::from_rgb(0xff, 0xeb, 0x3b); }
-    if name.contains("DessertPlace") { return egui::Color32::from_rgb(0xff, 0x98, 0x00); }
-    if name.contains("TNT") { return egui::Color32::from_rgb(0xf4, 0x43, 0x36); }
-    if name.contains("Pig") { return egui::Color32::from_rgb(0xff, 0x69, 0xb4); }
+    if name.contains("Background") {
+        return egui::Color32::from_rgb(0x2a, 0x4a, 0x2e);
+    }
+    if name.contains("Goal") {
+        return egui::Color32::from_rgb(0xff, 0xd7, 0x00);
+    }
+    if name.contains("StarBox") {
+        return egui::Color32::from_rgb(0xff, 0xeb, 0x3b);
+    }
+    if name.contains("DessertPlace") {
+        return egui::Color32::from_rgb(0xff, 0x98, 0x00);
+    }
+    if name.contains("TNT") {
+        return egui::Color32::from_rgb(0xf4, 0x43, 0x36);
+    }
+    if name.contains("Pig") {
+        return egui::Color32::from_rgb(0xff, 0x69, 0xb4);
+    }
 
     // HSL-based color from prefab index
     let hue = ((prefab_index as i32 * 47) % 360 + 360) % 360;
@@ -310,12 +368,30 @@ fn hsl_to_rgb(h: f32, s: f32, l: f32) -> egui::Color32 {
 
 /// Whether this object should be skipped during rendering.
 pub fn should_skip_render(name: &str) -> bool {
-    if name.starts_with("Cloud") && name.ends_with("Set") { return true; }
-    const SKIP_EXACT: &[&str] = &["Props", "Prop", "Challenges", "DessertPlaces", "LitArea", "reference"];
-    if SKIP_EXACT.contains(&name) { return true; }
+    if name.starts_with("Cloud") && name.ends_with("Set") {
+        return true;
+    }
+    const SKIP_EXACT: &[&str] = &[
+        "Props",
+        "Prop",
+        "Challenges",
+        "DessertPlaces",
+        "LitArea",
+        "reference",
+    ];
+    if SKIP_EXACT.contains(&name) {
+        return true;
+    }
     const SKIP_CONTAINS: &[&str] = &[
-        "CameraSystem", "LevelManager", "LevelStart", "Background",
-        "Decoration ", "DontUsePart", "Challenge", "Tutorial", "Achievement",
+        "CameraSystem",
+        "LevelManager",
+        "LevelStart",
+        "Background",
+        "Decoration ",
+        "DontUsePart",
+        "Challenge",
+        "Tutorial",
+        "Achievement",
     ];
     SKIP_CONTAINS.iter().any(|s| name.contains(s))
 }

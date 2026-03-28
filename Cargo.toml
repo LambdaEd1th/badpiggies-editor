@@ -28,18 +28,29 @@ env_logger = "0.11"
 rfd = "0.17"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-winit = { version = "0.30.13", default-features = false, features = ["x11", "wayland"] }
+winit = { version = "0.30.13", default-features = false, features = [
+    "x11",
+    "wayland",
+] }
 
 # WASM dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
-    "Document", "Element", "HtmlElement", "Window",
-    "HtmlCanvasElement", "HtmlInputElement",
-    "File", "FileList", "FileReader",
-    "Blob", "Url",
-    "DragEvent", "DataTransfer",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Window",
+    "HtmlCanvasElement",
+    "HtmlInputElement",
+    "File",
+    "FileList",
+    "FileReader",
+    "Blob",
+    "Url",
+    "DragEvent",
+    "DataTransfer",
     "console",
 ] }
 js-sys = "0.3"

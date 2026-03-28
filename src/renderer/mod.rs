@@ -120,6 +120,7 @@ pub struct LevelRenderer {
     /// Atlas texture cache.
     tex_cache: assets::TextureCache,
     /// Asset base directory (for loading textures).
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub asset_base: Option<String>,
     /// Is panning active?
     panning: bool,

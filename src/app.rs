@@ -52,7 +52,10 @@ pub struct EditorApp {
 impl EditorApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         configure_cjk_fonts(&cc.egui_ctx);
+        #[cfg(not(target_arch = "wasm32"))]
         let mut renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
+        #[cfg(target_arch = "wasm32")]
+        let renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
 
         // Auto-detect asset base directory relative to the executable
         #[cfg(not(target_arch = "wasm32"))]
@@ -685,7 +688,7 @@ impl eframe::App for EditorApp {
 
 #[cfg(target_arch = "wasm32")]
 fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> Result<(), String> {
-    let mut arr = js_sys::Array::new();
+    let arr = js_sys::Array::new();
     let u8arr = js_sys::Uint8Array::from(bytes.as_slice());
     arr.push(&u8arr.buffer());
     let blob = web_sys::Blob::new_with_u8_array_sequence(&arr).map_err(|e| format!("{:?}", e))?;

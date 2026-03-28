@@ -115,10 +115,10 @@ fn main() {
             loading.remove();
         }
 
-        if let Err(e) = start_result {
-            if let Some(body) = document.body() {
-                body.set_inner_html(&format!("<p style='color:red'>应用启动失败: {e:?}</p>"));
-            }
+        if let Err(e) = start_result
+            && let Some(body) = document.body()
+        {
+            body.set_inner_html(&format!("<p style='color:red'>应用启动失败: {e:?}</p>"));
         }
     });
 }

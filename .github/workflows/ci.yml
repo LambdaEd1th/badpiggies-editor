@@ -56,15 +56,16 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
   wasm:
-    name: WASM build
+    name: WASM check & clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Rust stable + wasm32 target
+      - name: Install Rust stable + wasm32 target + clippy
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+          components: clippy
 
       - name: Cache cargo registry
         uses: actions/cache@v5
@@ -78,3 +79,6 @@ jobs:
 
       - name: cargo check (wasm32)
         run: cargo check --target wasm32-unknown-unknown
+
+      - name: cargo clippy (wasm32)
+        run: cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings

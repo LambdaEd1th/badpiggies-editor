@@ -351,7 +351,7 @@ impl eframe::App for EditorApp {
                     });
                 });
                 ui.menu_button(t.get("menu_help"), |ui| {
-                    ui.set_min_width(120.0);
+                    ui.set_min_width(80.0);
                     if ui.button(t.get("menu_shortcuts")).clicked() {
                         ui.close();
                         self.show_shortcuts = true;
@@ -764,7 +764,8 @@ fn show_properties_editable(
                     egui::ScrollArea::vertical()
                         .max_height(300.0)
                         .show(ui, |ui| {
-                            tree_changed = show_override_tree(ui, &mut tree, 0, t);
+                            let ovr_root_id = ui.make_persistent_id("ovr_root");
+                            tree_changed = show_override_tree(ui, &mut tree, 0, ovr_root_id, t);
                         });
                     if tree_changed {
                         let new_text = serialize_override_tree(&tree, 0);
@@ -1020,10 +1021,12 @@ fn show_override_tree(
     ui: &mut egui::Ui,
     nodes: &mut Vec<OverrideNode>,
     depth: usize,
+    ctx_id: egui::Id,
     t: &'static crate::locale::I18n,
 ) -> bool {
     let mut changed = false;
     let mut to_delete: Option<usize> = None;
+    let add_id = ctx_id.with("add");
 
     for (i, node) in nodes.iter_mut().enumerate() {
         let has_children = !node.children.is_empty();
@@ -1031,10 +1034,13 @@ fn show_override_tree(
             node.node_type.as_str(),
             "GameObject" | "Component" | "Array" | "AnimationCurve" | "Generic"
         ) || has_children;
+        let allow_add_sibling = node.node_type != "ArraySize";
 
-        let id = ui.make_persistent_id(format!("ovr_{}_{}", depth, i));
+        let id = ctx_id.with(i);
 
         if is_container {
+            let child_add_id = id.with("add");
+            let mut adding_child: bool = ui.data(|d| d.get_temp(child_add_id).unwrap_or(false));
             // Collapsible section
             let header = egui::collapsing_header::CollapsingState::load_with_default_open(
                 ui.ctx(),
@@ -1043,12 +1049,17 @@ fn show_override_tree(
             );
             header
                 .show_header(ui, |ui| {
+                    if ui.small_button("+").on_hover_text(t.get("btn_add")).clicked() {
+                        adding_child = true;
+                    }
+
                     let color = override_type_color(&node.node_type);
                     ui.colored_label(color, &node.node_type);
-                    // Place delete button first (right-to-left) so it's never clipped
+
                     if ui.small_button(t.get("btn_delete")).clicked() {
                         to_delete = Some(i);
                     }
+
                     let w = ui.available_width().max(30.0);
                     if ui
                         .add(egui::TextEdit::singleline(&mut node.name).desired_width(w))
@@ -1058,20 +1069,36 @@ fn show_override_tree(
                     }
                 })
                 .body(|ui| {
-                    changed |= show_override_tree(ui, &mut node.children, depth + 1, t);
+                    changed |= show_override_tree(ui, &mut node.children, depth + 1, ctx_id.with(i), t);
                 });
+
+            if adding_child {
+                ui.horizontal(|ui| {
+                    ui.add_space((depth as f32 + 1.0) * 12.0);
+                    changed |= show_add_node_form(ui, &mut node.children, child_add_id, &mut adding_child, depth + 1, t);
+                });
+            }
+            ui.data_mut(|d| d.insert_temp(child_add_id, adding_child));
         } else if node.value.is_some() {
             // Leaf value — editable inline
             ui.horizontal(|ui| {
                 ui.add_space(depth as f32 * 12.0);
+                if allow_add_sibling
+                    && ui.small_button("+").on_hover_text(t.get("btn_add")).clicked()
+                {
+                    ui.data_mut(|d| d.insert_temp(add_id, true));
+                }
+
                 let color = override_type_color(&node.node_type);
                 ui.colored_label(color, &node.node_type);
                 if ui.small_button(t.get("btn_delete")).clicked() {
                     to_delete = Some(i);
                 }
+
                 let avail = ui.available_width();
                 let name_w = (avail * 0.4).max(20.0);
                 let val_w = (avail - name_w - 12.0).max(20.0); // 12px for "="
+
                 if ui
                     .add(egui::TextEdit::singleline(&mut node.name).desired_width(name_w))
                     .changed()
@@ -1091,11 +1118,17 @@ fn show_override_tree(
             // Non-container without value
             ui.horizontal(|ui| {
                 ui.add_space(depth as f32 * 12.0);
+                if allow_add_sibling
+                    && ui.small_button("+").on_hover_text(t.get("btn_add")).clicked()
+                {
+                    ui.data_mut(|d| d.insert_temp(add_id, true));
+                }
                 let color = override_type_color(&node.node_type);
                 ui.colored_label(color, &node.node_type);
                 if ui.small_button(t.get("btn_delete")).clicked() {
                     to_delete = Some(i);
                 }
+
                 let w = ui.available_width().max(30.0);
                 if ui
                     .add(egui::TextEdit::singleline(&mut node.name).desired_width(w))
@@ -1112,8 +1145,7 @@ fn show_override_tree(
         changed = true;
     }
 
-    // Add-node button
-    let add_id = ui.make_persistent_id(format!("ovr_add_{}", depth));
+    // Add-node button (add sibling at this level)
     let mut adding: bool = ui.data(|d| d.get_temp(add_id).unwrap_or(false));
     if adding {
         changed |= show_add_node_form(ui, nodes, add_id, &mut adding, depth, t);
@@ -1240,15 +1272,15 @@ fn show_add_node_form(
     depth: usize,
     t: &'static crate::locale::I18n,
 ) -> bool {
-    let type_id = ui.make_persistent_id(format!("{:?}_type", add_id));
-    let name_id = ui.make_persistent_id(format!("{:?}_name", add_id));
+    let type_id = add_id.with("type");
+    let name_id = add_id.with("name");
     let mut selected_idx: usize = ui.data(|d| d.get_temp(type_id).unwrap_or(0));
     let mut name_buf: String = ui.data(|d| d.get_temp::<String>(name_id).unwrap_or_default());
     let mut changed = false;
 
     ui.horizontal(|ui| {
         ui.add_space(depth as f32 * 12.0);
-        egui::ComboBox::from_id_salt(format!("{:?}_combo", add_id))
+        egui::ComboBox::from_id_salt(add_id.with("combo"))
             .width(90.0)
             .selected_text(OVERRIDE_ALL_TYPES[selected_idx])
             .show_index(ui, &mut selected_idx, OVERRIDE_ALL_TYPES.len(), |i| {
@@ -1279,8 +1311,11 @@ fn show_add_node_form(
                 children: override_default_children(ty),
             });
             *adding = false;
-            ui.data_mut(|d| d.insert_temp(add_id, false));
-            ui.data_mut(|d| d.remove_by_type::<usize>());
+            ui.data_mut(|d| {
+                d.insert_temp(add_id, false);
+                d.remove::<usize>(type_id);
+                d.remove::<String>(name_id);
+            });
             changed = true;
         }
         if ui.small_button(t.get("btn_cancel")).clicked() {

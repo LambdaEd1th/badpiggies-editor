@@ -410,6 +410,7 @@ impl eframe::App for EditorApp {
                             env!("CARGO_PKG_VERSION")
                         ));
                         ui.separator();
+                        ui.label(env!("CARGO_PKG_AUTHORS"));
                         ui.label(t.get("about_built_with"));
                         ui.label(t.get("about_license"));
                     });

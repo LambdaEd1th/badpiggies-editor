@@ -2,7 +2,7 @@
 name = "badpiggies-editor"
 version = "0.1.0"
 edition = "2024"
-authors = ["Bad Piggies Reverse-Engineering Toolkit"]
+authors = ["LambdaEd1th"]
 description = "Editor for Bad Piggies (Unity engine)"
 
 [dependencies]

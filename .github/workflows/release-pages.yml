@@ -1,0 +1,69 @@
+name: Release And Pages
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_release:
+    name: Build WASM + Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable + wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: wasm-release-${{ runner.os }}-cargo-
+
+      - name: Install Trunk
+        run: cargo install trunk --locked
+
+      - name: Build WASM site
+        run: trunk build --release --public-url ./
+
+      - name: Package web artifact
+        run: zip -r badpiggies-editor-web-${{ github.ref_name }}.zip dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: badpiggies-editor-web-${{ github.ref_name }}.zip
+          generate_release_notes: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy_pages:
+    name: Deploy To GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build_release
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

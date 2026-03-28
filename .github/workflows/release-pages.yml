@@ -26,8 +26,11 @@ jobs:
           - os: ubuntu-latest
             artifact: badpiggies-editor-linux-x86_64
             binary: badpiggies-editor
+          - os: ubuntu-latest-arm64
+            artifact: badpiggies-editor-linux-aarch64
+            binary: badpiggies-editor
           - os: macos-latest
-            artifact: badpiggies-editor-macos-x86_64
+            artifact: badpiggies-editor-macos-aarch64
             binary: badpiggies-editor
           - os: windows-latest
             artifact: badpiggies-editor-windows-x86_64
@@ -35,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -55,7 +58,7 @@ jobs:
             libwayland-dev
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -93,7 +96,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust stable + wasm32 target
         uses: dtolnay/rust-toolchain@stable
@@ -101,7 +104,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -122,7 +125,7 @@ jobs:
         run: zip -r badpiggies-editor-web-${{ github.ref_name }}.zip dist
 
       - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: badpiggies-editor-web
           path: badpiggies-editor-web-${{ github.ref_name }}.zip
@@ -140,7 +143,7 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -160,4 +163,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

@@ -1,9 +1,9 @@
 [package]
 name = "badpiggies-editor"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["LambdaEd1th"]
-description = "Editor for Bad Piggies (Unity engine)"
+description = "Editor for Bad Piggies"
 
 [dependencies]
 eframe = { version = "0.34", default-features = false, features = [

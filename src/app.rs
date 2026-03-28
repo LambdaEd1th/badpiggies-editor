@@ -425,8 +425,8 @@ impl eframe::App for EditorApp {
         if self.show_shortcuts {
             egui::Window::new(t.get("win_shortcuts"))
                 .collapsible(false)
+                .movable(true)
                 .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .open(&mut self.show_shortcuts)
                 .show(&ctx, |ui| {
                     egui::Grid::new("shortcuts_grid")
@@ -455,8 +455,8 @@ impl eframe::App for EditorApp {
         if self.show_about {
             egui::Window::new(t.get("win_about"))
                 .collapsible(false)
+                .movable(true)
                 .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .open(&mut self.show_about)
                 .show(&ctx, |ui| {
                     ui.vertical_centered(|ui| {

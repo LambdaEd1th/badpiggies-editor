@@ -2,10 +2,18 @@
 
 use eframe::egui;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
+
 use crate::locale::{I18n, Language};
 use crate::parser;
 use crate::renderer::LevelRenderer;
 use crate::types::*;
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static WASM_OPEN_RESULT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
+}
 
 /// Main application state.
 pub struct EditorApp {
@@ -138,6 +146,17 @@ impl eframe::App for EditorApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let t = self.t();
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some((name, data)) = WASM_OPEN_RESULT.with(|q| q.borrow_mut().take()) {
+                self.pending_file = Some((name, data));
+            }
+            if let Some((name, data)) = self.pending_file.take() {
+                self.load_level(name, data);
+            }
+        }
+
         // Handle dropped files
         ctx.input(|i| {
             for file in &i.raw.dropped_files {
@@ -265,6 +284,24 @@ impl eframe::App for EditorApp {
                                 }
                             }
                         }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            let repaint_ctx = ctx.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                if let Some(file) = rfd::AsyncFileDialog::new()
+                                    .add_filter("Level files", &["bytes"])
+                                    .pick_file()
+                                    .await
+                                {
+                                    let name = file.file_name();
+                                    let data = file.read().await;
+                                    WASM_OPEN_RESULT.with(|q| {
+                                        q.borrow_mut().replace((name, data));
+                                    });
+                                    repaint_ctx.request_repaint();
+                                }
+                            });
+                        }
                     }
                     ui.separator();
                     if ui.button(t.get("menu_export_level")).clicked() {
@@ -282,6 +319,23 @@ impl eframe::App for EditorApp {
                                     }
                                     Err(e) => {
                                         self.status = t.fmt1("status_export_error", &e.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            if let Some(data) = self.export_level() {
+                                let file_name = self
+                                    .file_name
+                                    .clone()
+                                    .unwrap_or_else(|| "level.bytes".to_string());
+                                match export_bytes_wasm(&file_name, data) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -629,6 +683,45 @@ impl eframe::App for EditorApp {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> Result<(), String> {
+    let mut arr = js_sys::Array::new();
+    let u8arr = js_sys::Uint8Array::from(bytes.as_slice());
+    arr.push(&u8arr.buffer());
+    let blob = web_sys::Blob::new_with_u8_array_sequence(&arr).map_err(|e| format!("{:?}", e))?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|e| format!("{:?}", e))?;
+
+    let window = web_sys::window().ok_or_else(|| "window 不可用".to_string())?;
+    let document = window
+        .document()
+        .ok_or_else(|| "document 不可用".to_string())?;
+    let body = document
+        .body()
+        .ok_or_else(|| "document.body 不可用".to_string())?;
+
+    let anchor = document
+        .create_element("a")
+        .map_err(|e| format!("{:?}", e))?
+        .dyn_into::<web_sys::HtmlElement>()
+        .map_err(|_| "无法创建下载链接".to_string())?;
+
+    anchor
+        .set_attribute("href", &url)
+        .map_err(|e| format!("{:?}", e))?;
+    anchor
+        .set_attribute("download", file_name)
+        .map_err(|e| format!("{:?}", e))?;
+    anchor
+        .set_attribute("style", "display:none")
+        .map_err(|e| format!("{:?}", e))?;
+
+    body.append_child(&anchor).map_err(|e| format!("{:?}", e))?;
+    anchor.click();
+    let _ = body.remove_child(&anchor);
+    let _ = web_sys::Url::revoke_object_url(&url);
+    Ok(())
+}
+
 /// Recursively render the object tree.
 fn show_object_tree(
     ui: &mut egui::Ui,
@@ -869,13 +962,15 @@ fn load_system_cjk_font() -> Option<Vec<u8>> {
             return Some(data);
         }
     }
-    None
+
+    // Fallback to bundled font so native builds still render Chinese on minimal systems.
+    Some(include_bytes!("../assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
 }
 
 #[cfg(target_arch = "wasm32")]
 fn load_system_cjk_font() -> Option<Vec<u8>> {
-    // TODO: bundle or fetch a CJK font for WASM builds
-    None
+    // WASM cannot read host system fonts directly; use bundled CJK fallback.
+    Some(include_bytes!("../assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
 }
 
 // ── Override tree data structures and editor ──

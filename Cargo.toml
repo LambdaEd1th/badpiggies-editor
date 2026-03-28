@@ -1,0 +1,47 @@
+[package]
+name = "badpiggies-editor"
+version = "0.1.0"
+edition = "2024"
+authors = ["Bad Piggies Reverse-Engineering Toolkit"]
+description = "Editor for Bad Piggies (Unity engine)"
+
+[dependencies]
+eframe = { version = "0.34", default-features = false, features = [
+    "default_fonts",
+    "wgpu",
+] }
+egui = "0.34"
+egui-wgpu = "0.34"
+egui_extras = { version = "0.34", features = ["image"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bytemuck = { version = "1", features = ["derive"] }
+fluent-bundle = "0.15"
+unic-langid = { version = "0.9", features = ["macros"] }
+rust-embed = { version = "8", features = ["debug-embed"] }
+
+# Native dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11"
+rfd = "0.17"
+
+# WASM dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Document", "Element", "HtmlElement", "Window",
+    "HtmlCanvasElement", "HtmlInputElement",
+    "File", "FileList", "FileReader",
+    "Blob", "Url",
+    "DragEvent", "DataTransfer",
+    "console",
+] }
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+console_log = "1"
+
+[profile.release]
+opt-level = 2

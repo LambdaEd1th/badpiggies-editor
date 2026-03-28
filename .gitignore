@@ -1,0 +1,15 @@
+/target
+Cargo.lock
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Rust build artifacts
+**/*.rs.bk
+*.pdb

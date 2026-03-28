@@ -159,9 +159,6 @@ jobs:
     name: Deploy To GitHub Pages
     runs-on: ubuntu-latest
     needs: build_wasm
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Deploy

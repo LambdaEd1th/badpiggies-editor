@@ -6,6 +6,7 @@ mod assets;
 mod bg_data;
 mod level_refs;
 mod locale;
+mod log_buffer;
 mod parser;
 mod renderer;
 mod sprite_db;
@@ -60,7 +61,10 @@ fn get_screen_size_80pct() -> (f32, f32) {
 // ── Native entry point ───────────────────────────────
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
-    env_logger::init();
+    let inner = env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
+        .build();
+    log_buffer::init(Box::new(inner), log::LevelFilter::Debug);
 
     // Query primary monitor size via macOS Core Graphics and use 80% for the initial window.
     // Falls back to 1600×1000 on other platforms or errors.
@@ -87,7 +91,7 @@ fn main() {
     use wasm_bindgen::JsCast;
 
     console_error_panic_hook::set_once();
-    let _ = console_log::init_with_level(log::Level::Debug);
+    log_buffer::init_wasm(log::LevelFilter::Debug);
 
     let web_options = eframe::WebOptions::default();
 

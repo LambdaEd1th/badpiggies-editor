@@ -10,11 +10,13 @@ menu_hide_bg = Hide Background (B)
 menu_show_bg = Show Background (B)
 menu_object_list = Object List
 menu_properties = Properties
+menu_grid = Grid
 menu_physics_ground = Physics Ground
 menu_language = Language
 menu_help = Help
 menu_shortcuts = Shortcuts
 menu_about = About
+menu_export_log = Export Log
 
 # Window titles
 win_confirm_delete = Confirm Delete

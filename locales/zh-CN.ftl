@@ -10,11 +10,13 @@ menu_hide_bg = 隐藏背景 (B)
 menu_show_bg = 显示背景 (B)
 menu_object_list = 对象列表
 menu_properties = 属性面板
+menu_grid = 网格
 menu_physics_ground = 物理地面
 menu_language = 语言
 menu_help = 帮助
 menu_shortcuts = 说明
 menu_about = 关于
+menu_export_log = 导出日志
 
 # 窗口标题
 win_confirm_delete = 确认删除

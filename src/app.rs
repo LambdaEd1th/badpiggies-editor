@@ -51,7 +51,15 @@ pub struct EditorApp {
 
 impl EditorApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         configure_cjk_fonts(&cc.egui_ctx);
+
+        // Disable debug visualisations that cause red-frame flicker in dev builds
+        cc.egui_ctx.global_style_mut(|s| {
+            s.debug.show_unaligned = false;
+            s.debug.warn_if_rect_changes_id = false;
+        });
+
         #[cfg(not(target_arch = "wasm32"))]
         let mut renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
         #[cfg(target_arch = "wasm32")]
@@ -71,7 +79,7 @@ impl EditorApp {
             file_name: None,
             selected: None,
             renderer,
-            status: crate::locale::Language::default()
+            status: crate::locale::Language::from_system()
                 .i18n()
                 .get("status_welcome"),
             show_add_dialog: false,
@@ -85,7 +93,7 @@ impl EditorApp {
             show_properties: true,
             show_shortcuts: false,
             show_about: false,
-            lang: Language::default(),
+            lang: Language::from_system(),
         }
     }
 
@@ -388,6 +396,13 @@ impl eframe::App for EditorApp {
                     }
                     ui.separator();
                     {
+                        let mut v = self.renderer.show_grid;
+                        if ui.checkbox(&mut v, t.get("menu_grid")).clicked() {
+                            ui.close();
+                            self.renderer.show_grid = v;
+                        }
+                    }
+                    {
                         let mut v = self.renderer.show_ground;
                         if ui.checkbox(&mut v, t.get("menu_physics_ground")).clicked() {
                             ui.close();
@@ -409,6 +424,31 @@ impl eframe::App for EditorApp {
                 });
                 ui.menu_button(t.get("menu_help"), |ui| {
                     ui.set_min_width(80.0);
+                    if ui.button(t.get("menu_export_log")).clicked() {
+                        ui.close();
+                        let lines = crate::log_buffer::drain();
+                        let content = lines.join("\n");
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_file_name("editor.log")
+                                .save_file()
+                            {
+                                if let Err(e) = std::fs::write(&path, &content) {
+                                    self.status = format!("Log export error: {e}");
+                                } else {
+                                    self.status = format!("Log exported: {}", path.display());
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            if let Err(e) = export_bytes_wasm("editor.log", content.into_bytes()) {
+                                self.status = format!("Log export error: {e}");
+                            }
+                        }
+                    }
+                    ui.separator();
                     if ui.button(t.get("menu_shortcuts")).clicked() {
                         ui.close();
                         self.show_shortcuts = true;
@@ -656,6 +696,22 @@ impl eframe::App for EditorApp {
                 }
             } else {
                 let rect = ui.available_rect_before_wrap();
+                let is_dark = ui.visuals().dark_mode;
+                let icon_tint = if is_dark {
+                    egui::Color32::from_gray(160)
+                } else {
+                    egui::Color32::from_gray(80)
+                };
+                let hint_color = if is_dark {
+                    egui::Color32::from_gray(180)
+                } else {
+                    egui::Color32::from_gray(100)
+                };
+                let sub_color = if is_dark {
+                    egui::Color32::from_gray(140)
+                } else {
+                    egui::Color32::from_gray(120)
+                };
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                     ui.with_layout(
                         egui::Layout::centered_and_justified(egui::Direction::TopDown),
@@ -663,19 +719,24 @@ impl eframe::App for EditorApp {
                             ui.vertical_centered(|ui| {
                                 let center_y = rect.center().y - 40.0;
                                 ui.add_space((center_y - rect.top()).max(0.0));
-                                ui.label(
-                                    egui::RichText::new("⬇")
-                                        .size(32.0)
-                                        .color(egui::Color32::from_gray(160)),
+
+                                ui.add(
+                                    egui::Image::from_bytes(
+                                        "bytes://drop-icon.svg",
+                                        include_bytes!("../assets/drop-icon.svg"),
+                                    )
+                                    .fit_to_exact_size(egui::Vec2::splat(48.0))
+                                    .tint(icon_tint),
                                 );
+
                                 ui.add_space(4.0);
                                 ui.label(
                                     egui::RichText::new(t.get("panel_drop_hint"))
-                                        .color(egui::Color32::from_gray(180)),
+                                        .color(hint_color),
                                 );
                                 ui.label(
                                     egui::RichText::new(t.get("panel_open_hint"))
-                                        .color(egui::Color32::from_gray(140)),
+                                        .color(sub_color),
                                 );
                             });
                         },

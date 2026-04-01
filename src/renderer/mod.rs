@@ -141,6 +141,8 @@ pub struct LevelRenderer {
     pub show_bg: bool,
     /// Whether to show the physics ground line.
     pub show_ground: bool,
+    /// Whether to show the world grid overlay.
+    pub show_grid: bool,
     /// Fan state machines for propeller animation.
     fan_emitters: Vec<FanEmitter>,
     /// Fan wind particles.
@@ -528,6 +530,7 @@ impl LevelRenderer {
             pending_drag_offset: None,
             show_bg: true,
             show_ground: false,
+            show_grid: true,
             fan_emitters: Vec::new(),
             fan_particles: Vec::new(),
             wind_areas: Vec::new(),
@@ -1825,11 +1828,16 @@ impl LevelRenderer {
                 fan_angle_map[e.sprite_index] = Some(e.angle);
             }
         }
-        // Collect GPU sprite draws into batch Vecs instead of emitting individual
-        // PaintCallbacks. Each callback forces an egui render state reset; batching
-        // all draws into one callback per shader eliminates 100+ state resets/frame.
-        let mut opaque_batch_draws: Vec<opaque_shader::OpaqueBatchDraw> = Vec::new();
-        let mut sprite_batch_draws: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
+        // Collect GPU sprite draws into a single Z-ordered Vec (instead of two
+        // separate type-specific Vecs). Consecutive same-type draws are batched
+        // into one PaintCallback when emitted, minimising render state resets
+        // while preserving correct Z interleaving between opaque (Props) and
+        // transparent (non-Props) sprites.
+        enum GpuDraw {
+            Opaque(opaque_shader::OpaqueBatchDraw),
+            Transparent(sprite_shader::SpriteBatchDraw),
+        }
+        let mut gpu_draws: Vec<GpuDraw> = Vec::new();
         // Deferred bird face draws: must render AFTER the GPU batch callbacks so
         // faces appear on top of GPU-rendered bird bodies.
         struct DeferredBird {
@@ -1943,12 +1951,12 @@ impl LevelRenderer {
                     } else {
                         (self.camera.center.x, self.camera.center.y)
                     };
-                    opaque_batch_draws.push(opaque_shader::OpaqueBatchDraw {
+                    gpu_draws.push(GpuDraw::Opaque(opaque_shader::OpaqueBatchDraw {
                         sprite_index: oidx,
                         cam_x,
                         cam_y,
                         y_offset: y_off,
-                    });
+                    }));
                     is_gpu_rendered = true;
                 }
                 // Non-Props sprites: render via GPU transparent sprite shader
@@ -2020,11 +2028,11 @@ impl LevelRenderer {
                         tint_color: [1.0, 1.0, 1.0, 1.0],
                     };
 
-                    sprite_batch_draws.push(sprite_shader::SpriteBatchDraw {
+                    gpu_draws.push(GpuDraw::Transparent(sprite_shader::SpriteBatchDraw {
                         atlas,
                         slot,
                         uniforms,
-                    });
+                    }));
                     _sprite_gpu_rendered = true;
                     is_gpu_rendered = true;
                 }
@@ -2125,29 +2133,75 @@ impl LevelRenderer {
             }
         }
 
-        // Emit batched GPU sprite callbacks (one callback per shader instead of
-        // one per sprite — eliminates 100+ egui render state resets per frame).
-        if !opaque_batch_draws.is_empty()
-            && let (Some(resources), Some(batch)) = (&self.opaque_resources, &self.opaque_batch)
+        // Emit GPU sprite callbacks in Z order, batching consecutive same-type
+        // draws into one callback to minimise render state resets while keeping
+        // correct Z interleaving between opaque (Props) and transparent sprites.
         {
-            painter.add(opaque_shader::make_opaque_batch_callback(
-                rect,
-                resources.clone(),
-                batch.clone(),
-                rect.width(),
-                rect.height(),
-                self.camera.zoom,
-                opaque_batch_draws,
-            ));
-        }
-        if !sprite_batch_draws.is_empty()
-            && let Some(resources) = &self.sprite_resources
-        {
-            painter.add(sprite_shader::make_sprite_batch_callback(
-                rect,
-                resources.clone(),
-                sprite_batch_draws,
-            ));
+            let mut pending_opaque: Vec<opaque_shader::OpaqueBatchDraw> = Vec::new();
+            let mut pending_transparent: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
+
+            for draw in gpu_draws {
+                match draw {
+                    GpuDraw::Opaque(d) => {
+                        // Flush pending transparent batch before starting an opaque run
+                        if !pending_transparent.is_empty() {
+                            if let Some(resources) = &self.sprite_resources {
+                                painter.add(sprite_shader::make_sprite_batch_callback(
+                                    rect,
+                                    resources.clone(),
+                                    std::mem::take(&mut pending_transparent),
+                                ));
+                            }
+                        }
+                        pending_opaque.push(d);
+                    }
+                    GpuDraw::Transparent(d) => {
+                        // Flush pending opaque batch before starting a transparent run
+                        if !pending_opaque.is_empty() {
+                            if let (Some(resources), Some(batch)) =
+                                (&self.opaque_resources, &self.opaque_batch)
+                            {
+                                painter.add(opaque_shader::make_opaque_batch_callback(
+                                    rect,
+                                    resources.clone(),
+                                    batch.clone(),
+                                    rect.width(),
+                                    rect.height(),
+                                    self.camera.zoom,
+                                    std::mem::take(&mut pending_opaque),
+                                ));
+                            }
+                        }
+                        pending_transparent.push(d);
+                    }
+                }
+            }
+
+            // Flush remaining draws
+            if !pending_opaque.is_empty() {
+                if let (Some(resources), Some(batch)) =
+                    (&self.opaque_resources, &self.opaque_batch)
+                {
+                    painter.add(opaque_shader::make_opaque_batch_callback(
+                        rect,
+                        resources.clone(),
+                        batch.clone(),
+                        rect.width(),
+                        rect.height(),
+                        self.camera.zoom,
+                        pending_opaque,
+                    ));
+                }
+            }
+            if !pending_transparent.is_empty() {
+                if let Some(resources) = &self.sprite_resources {
+                    painter.add(sprite_shader::make_sprite_batch_callback(
+                        rect,
+                        resources.clone(),
+                        pending_transparent,
+                    ));
+                }
+            }
         }
 
         // Deferred bird faces: draw after GPU batch so faces appear on top of bodies
@@ -2360,7 +2414,9 @@ impl LevelRenderer {
         }
 
         // Grid (drawn on top of all scene content)
-        self.draw_grid(&painter, rect, canvas_center);
+        if self.show_grid {
+            self.draw_grid(&painter, rect, canvas_center);
+        }
 
         // Origin axes
         let origin = self
@@ -2539,7 +2595,7 @@ impl LevelRenderer {
             .copied()
             .min_by(|a, b| (a - base).abs().partial_cmp(&(b - base).abs()).unwrap())
             .unwrap_or(5.0);
-        let color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 1);
+        let color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 25);
 
         let tl = self.camera.screen_to_world(rect.left_top(), canvas_center);
         let br = self

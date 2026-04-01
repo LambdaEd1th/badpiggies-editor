@@ -5,8 +5,8 @@ use fluent_bundle::{FluentBundle, FluentResource};
 /// Supported UI languages.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum Language {
-    #[default]
     Zh,
+    #[default]
     En,
 }
 
@@ -98,4 +98,14 @@ impl Language {
 
     /// All available languages, in menu order.
     pub const ALL: &'static [Language] = &[Language::Zh, Language::En];
+
+    /// Detect language from the OS locale, falling back to English.
+    pub fn from_system() -> Self {
+        let tag = sys_locale::get_locale().unwrap_or_default();
+        if tag.starts_with("zh") {
+            Language::Zh
+        } else {
+            Language::En
+        }
+    }
 }

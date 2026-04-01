@@ -15,6 +15,10 @@ A native desktop (and WASM) level editor for the **Bad Piggies** mobile game, bu
 - **Compound objects** — Multi-part objects (fans, motors, hinges, boxes, …) with sub-sprite composition
 - **Performance** — Frustum culling + GPU draw call batching (one render pass per shader type per frame)
 - **Properties panel** — Editable object properties with override tree
+- **Undo / Redo** — Full snapshot-based undo/redo history (⌘Z / Ctrl+Z, ⇧⌘Z / Ctrl+Y)
+- **Multi-format I/O** — Import/export levels as binary `.bytes`, YAML, or TOML
+- **CLI** — Command-line format conversion between `.bytes` / `.yaml` / `.toml`
+- **i18n** — Chinese and English UI, auto-detected from system locale
 - **Cross-platform** — Native desktop (macOS / Windows / Linux) + WASM browser build
 
 ## Requirements
@@ -49,14 +53,39 @@ Then open `http://localhost:8080` in your browser.
 
 ## Usage
 
-1. **Open a level** — `File → Open Level File…` or drag-and-drop a `.bytes` file onto the canvas
+### GUI
+
+1. **Open a level** — `File → Open Level File…` or drag-and-drop a `.bytes` / `.yaml` / `.toml` file onto the canvas
 2. **Navigate** — Scroll wheel to zoom, drag on empty canvas to pan
 3. **Select objects** — Click on any sprite or terrain in the canvas
 4. **Edit properties** — Use the right-side properties panel to modify object fields and overrides
-5. **Toggle panels** — `View → Object List / Properties / Physics Ground`
-6. **Toggle background** — Press `B` or `View → Hide/Show Background`
-7. **Export level** — `File → Export Level`
-8. **Switch language** — `View → Switch to 中文 / English`
+5. **Undo / Redo** — `Edit → Undo / Redo` or keyboard shortcuts
+6. **Toggle panels** — `View → Object List / Properties / Physics Ground`
+7. **Toggle background** — Press `B` or `View → Hide/Show Background`
+8. **Export level** — `File → Export Level / Export as YAML / Export as TOML`
+9. **Import text format** — `File → Import YAML/TOML…`
+10. **Switch language** — `View → Switch to 中文 / English`
+
+### CLI
+
+The executable doubles as a command-line format converter:
+
+```bash
+# Convert binary to YAML
+badpiggies-editor convert level.bytes level.yaml
+
+# Convert YAML to TOML
+badpiggies-editor convert level.yaml level.toml
+
+# Convert TOML back to binary
+badpiggies-editor convert level.toml level.bytes
+
+# Show help
+badpiggies-editor --help
+badpiggies-editor convert --help
+```
+
+CLI messages are localized based on system locale.
 
 ## Project Structure
 
@@ -91,9 +120,9 @@ editor/
 │   ├── sky/             # Sky textures
 │   ├── sprites/         # Sprite atlas textures
 │   ├── particles/       # Particle textures
-│   ├── bg-data.json     # Background theme metadata
-│   ├── sprite-data.json # Sprite atlas UV / sizing data
-│   └── level-refs.json  # Level object reference tables
+│   ├── bg-data.toml     # Background theme metadata
+│   ├── sprite-data.toml # Sprite atlas UV / sizing data
+│   └── level-refs.toml  # Level object reference tables
 ├── locales/             # Fluent translation files (embedded via include_str!)
 │   ├── zh-CN.ftl        # Chinese (Simplified)
 │   └── en-US.ftl        # English
@@ -138,6 +167,8 @@ The `.bytes` format is a custom binary format used by the Unity game:
 | Key | Action |
 |---|---|
 | `B` | Toggle background display |
+| `⌘Z` / `Ctrl+Z` | Undo |
+| `⇧⌘Z` / `Ctrl+Y` | Redo |
 | Scroll wheel | Zoom in / out |
 | Drag (empty area) | Pan view |
 | Click object | Select object |
@@ -148,6 +179,6 @@ The `.bytes` format is a custom binary format used by the Unity game:
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](../LICENSE) file for details.
+This project is licensed under the **GNU Affero General Public License v3.0** — see the [LICENSE](../LICENSE) file for details.
 
 > Game assets (textures, level data) are property of **Rovio Entertainment** and are not covered by this license. This project is for educational and reverse-engineering purposes only.

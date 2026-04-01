@@ -61,6 +61,7 @@ impl I18n {
     }
 
     /// Format a two-argument message with `$path` and `$error`.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn fmt_path_error(&self, key: &str, path: &str, error: &str) -> String {
         use fluent_bundle::FluentArgs;
         let mut args = FluentArgs::new();
@@ -70,6 +71,7 @@ impl I18n {
     }
 
     /// Format the CLI convert success message.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn fmt_convert_ok(
         &self,
         input: &str,

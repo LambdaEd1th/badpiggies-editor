@@ -2,7 +2,12 @@
 menu_file = File
 menu_open_level = Open Level File…
 menu_export_level = Export Level
+menu_import_text = Import YAML/TOML…
+menu_export_yaml = Export as YAML
+menu_export_toml = Export as TOML
 menu_edit = Edit
+menu_undo = Undo
+menu_redo = Redo
 menu_add_object = Add Object…
 menu_view = View
 menu_fit_view = Fit to View
@@ -44,10 +49,14 @@ shortcuts_click = Click Object
 shortcuts_select = Select Object
 shortcuts_b_key = B
 shortcuts_toggle_bg = Toggle Background
+shortcuts_undo = ⌘Z / Ctrl+Z
+shortcuts_undo_action = Undo
+shortcuts_redo = ⇧⌘Z / Ctrl+⇧Z
+shortcuts_redo_action = Redo
 
 # About window
 about_built_with = Built with eframe / egui / wgpu
-about_license = License: GNU GPL v3.0
+about_license = License: GNU AGPL v3.0
 about_version_prefix = Version: 
 
 # Add object dialog
@@ -95,6 +104,17 @@ status_export_error = Export error: { $name }
 
 # Override tree
 override_name_hint = Name
+
+# CLI
+cli_read_error = Failed to read { $path }: { $error }
+cli_parse_error = Failed to parse { $path }: { $error }
+cli_unsupported_input = Unsupported input format: .{ $name }
+cli_serialize_yaml_error = Failed to serialize YAML: { $name }
+cli_serialize_toml_error = Failed to serialize TOML: { $name }
+cli_unsupported_output = Unsupported output format: .{ $name }
+cli_write_error = Failed to write { $path }: { $error }
+cli_convert_ok = { $input } -> { $output } ({ $obj_count } objects, { $root_count } roots)
+cli_error_prefix = Error: { $name }
 
 # HUD overlay
 hud_zoom = Zoom

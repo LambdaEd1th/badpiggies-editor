@@ -1,6 +1,6 @@
 //! Level-refs database — per-level terrain texture mappings and prefab name overrides.
 //!
-//! Embeds `data/level-refs.json` (generated from level-refs.gen.ts).
+//! Embeds `data/level-refs.toml` (generated from level-refs.gen.ts).
 //! Provides two lookups:
 //! - `get_level_refs(level_key, ref_index)` → terrain texture filename
 //! - `resolve_prefab_name(level_key, prefab_index, fallback)` → corrected prefab name
@@ -29,9 +29,8 @@ struct LevelRefsData {
 fn data() -> &'static LevelRefsData {
     static INSTANCE: OnceLock<LevelRefsData> = OnceLock::new();
     INSTANCE.get_or_init(|| {
-        let json_str = include_str!("../assets/level-refs.json");
-        let raw: LevelRefsJson =
-            serde_json::from_str(json_str).expect("Failed to parse level-refs.json");
+        let toml_str = include_str!("../assets/level-refs.toml");
+        let raw: LevelRefsJson = toml::from_str(toml_str).expect("Failed to parse level-refs.toml");
 
         let refs: RefsMap = raw
             .refs

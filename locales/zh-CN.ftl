@@ -2,7 +2,12 @@
 menu_file = 文件
 menu_open_level = 打开关卡文件…
 menu_export_level = 导出关卡
+menu_import_text = 导入 YAML/TOML…
+menu_export_yaml = 导出为 YAML
+menu_export_toml = 导出为 TOML
 menu_edit = 编辑
+menu_undo = 撤销
+menu_redo = 恢复
 menu_add_object = 添加对象…
 menu_view = 视图
 menu_fit_view = 适应视图
@@ -44,10 +49,14 @@ shortcuts_click = 点击对象
 shortcuts_select = 选中对象
 shortcuts_b_key = B
 shortcuts_toggle_bg = 切换背景显示
+shortcuts_undo = ⌘Z / Ctrl+Z
+shortcuts_undo_action = 撤销
+shortcuts_redo = ⇧⌘Z / Ctrl+⇧Z
+shortcuts_redo_action = 恢复
 
 # 关于窗口
 about_built_with = 基于 eframe / egui / wgpu 构建
-about_license = 许可证：GNU GPL v3.0
+about_license = 许可证：GNU AGPL v3.0
 about_version_prefix = 版本：
 
 # 添加对象对话框
@@ -95,6 +104,17 @@ status_export_error = 导出失败: { $name }
 
 # 重写树
 override_name_hint = 名称
+
+# CLI
+cli_read_error = 读取 { $path } 失败: { $error }
+cli_parse_error = 解析 { $path } 失败: { $error }
+cli_unsupported_input = 不支持的输入格式: .{ $name }
+cli_serialize_yaml_error = 序列化 YAML 失败: { $name }
+cli_serialize_toml_error = 序列化 TOML 失败: { $name }
+cli_unsupported_output = 不支持的输出格式: .{ $name }
+cli_write_error = 写入 { $path } 失败: { $error }
+cli_convert_ok = { $input } -> { $output } ({ $obj_count } 个对象, { $root_count } 个根节点)
+cli_error_prefix = 错误: { $name }
 
 # HUD 覆盖层
 hud_zoom = 缩放

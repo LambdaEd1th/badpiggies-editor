@@ -3,7 +3,7 @@
 A native desktop (and WASM) level editor for the **Bad Piggies** mobile game, built with Rust and GPU-accelerated rendering.
 
 [![Rust](https://img.shields.io/badge/Rust-2024-orange)](https://www.rust-lang.org)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](../LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](../LICENSE)
 
 ## Features
 

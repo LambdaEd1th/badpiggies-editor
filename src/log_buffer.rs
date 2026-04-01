@@ -56,7 +56,12 @@ impl Log for WebConsoleLogger {
         true
     }
     fn log(&self, record: &Record) {
-        let msg = format!("[{}] {} — {}", record.level(), record.target(), record.args());
+        let msg = format!(
+            "[{}] {} — {}",
+            record.level(),
+            record.target(),
+            record.args()
+        );
         match record.level() {
             log::Level::Error => web_sys::console::error_1(&msg.into()),
             log::Level::Warn => web_sys::console::warn_1(&msg.into()),

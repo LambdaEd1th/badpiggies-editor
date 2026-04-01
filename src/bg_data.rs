@@ -1,4 +1,4 @@
-//! Background theme data — loads bg sprite data from embedded JSON.
+//! Background theme data — loads bg sprite data from embedded TOML.
 //!
 //! Each theme has multiple sprite entries organized into parallax layers.
 
@@ -157,9 +157,9 @@ fn parse_hex_color(s: &str) -> Option<[u8; 3]> {
 static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
-    let json_str = include_str!("../assets/bg-data.json");
+    let toml_str = include_str!("../assets/bg-data.toml");
     let raw: HashMap<String, ThemeJson> =
-        serde_json::from_str(json_str).expect("bg-data.json parse error");
+        toml::from_str(toml_str).expect("bg-data.toml parse error");
 
     let mut themes = HashMap::with_capacity(raw.len());
     for (name, theme_json) in raw {

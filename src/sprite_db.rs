@@ -1,6 +1,6 @@
-//! Sprite database — loads sprite atlas UV/sizing data from embedded JSON.
+//! Sprite database — loads sprite atlas UV/sizing data from embedded TOML.
 //!
-//! At compile time, includes `sprite-data.json` (generated from extract_sprites.py).
+//! At compile time, includes `sprite-data.toml` (generated from extract_sprites.py).
 //! At runtime, deserializes into lookup tables for resolving prefab names to
 //! atlas + UV rect + world size.
 
@@ -80,9 +80,8 @@ const WORLD_SCALE: f32 = 10.0 / 768.0;
 static SPRITE_DB: OnceLock<HashMap<String, SpriteInfo>> = OnceLock::new();
 
 fn build_db() -> HashMap<String, SpriteInfo> {
-    let json_str = include_str!("../assets/sprite-data.json");
-    let data: SpriteDataJson =
-        serde_json::from_str(json_str).expect("sprite-data.json parse error");
+    let toml_str = include_str!("../assets/sprite-data.toml");
+    let data: SpriteDataJson = toml::from_str(toml_str).expect("sprite-data.toml parse error");
 
     let mut map = HashMap::with_capacity(data.runtime.len() + data.unmanaged.len());
 

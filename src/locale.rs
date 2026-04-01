@@ -60,6 +60,32 @@ impl I18n {
         self.format_with(key, &args)
     }
 
+    /// Format a two-argument message with `$path` and `$error`.
+    pub fn fmt_path_error(&self, key: &str, path: &str, error: &str) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("path", path.to_owned());
+        args.set("error", error.to_owned());
+        self.format_with(key, &args)
+    }
+
+    /// Format the CLI convert success message.
+    pub fn fmt_convert_ok(
+        &self,
+        input: &str,
+        output: &str,
+        obj_count: usize,
+        root_count: usize,
+    ) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("input", input.to_owned());
+        args.set("output", output.to_owned());
+        args.set("obj_count", obj_count as i64);
+        args.set("root_count", root_count as i64);
+        self.format_with("cli_convert_ok", &args)
+    }
+
     fn format_with(&self, key: &str, args: &fluent_bundle::FluentArgs) -> String {
         let Some(msg) = self.bundle.get_message(key) else {
             return format!("[missing: {key}]");

@@ -639,6 +639,48 @@ impl LevelRenderer {
             }
         }
 
+        // Update terrain sprites' half_size from terrain bounding boxes
+        for td in &self.terrain_data {
+            // Collect world-space points from curve or fill mesh
+            let pts: &[(f32, f32)] = if td.curve_world_verts.len() >= 2 {
+                &td.curve_world_verts
+            } else {
+                continue;
+            };
+            let mut min_x = f32::MAX;
+            let mut max_x = f32::MIN;
+            let mut min_y = f32::MAX;
+            let mut max_y = f32::MIN;
+            for &(wx, wy) in pts {
+                min_x = min_x.min(wx);
+                max_x = max_x.max(wx);
+                min_y = min_y.min(wy);
+                max_y = max_y.max(wy);
+            }
+            // Also include fill mesh vertices for a more complete bounding box
+            if let Some(ref fm) = td.fill_mesh {
+                for v in &fm.vertices {
+                    min_x = min_x.min(v.pos.x);
+                    max_x = max_x.max(v.pos.x);
+                    min_y = min_y.min(v.pos.y);
+                    max_y = max_y.max(v.pos.y);
+                }
+            }
+            let cx = (min_x + max_x) * 0.5;
+            let cy = (min_y + max_y) * 0.5;
+            let hw = (max_x - min_x) * 0.5;
+            let hh = (max_y - min_y) * 0.5;
+            if let Some(sprite) = self
+                .sprite_data
+                .iter_mut()
+                .find(|s| s.index == td.object_index)
+            {
+                sprite.world_pos.x = cx;
+                sprite.world_pos.y = cy;
+                sprite.half_size = (hw.max(0.5), hh.max(0.5));
+            }
+        }
+
         // Sort terrain by world Z back-to-front (larger Z = farther = drawn first).
         // This mirrors Unity's orthographic Z-depth: decorative terrain (Z≈5) draws
         // behind ground background (Z≈2) and collider terrain (Z≈0) automatically.
@@ -972,7 +1014,8 @@ impl LevelRenderer {
     fn hit_test(&self, pos: Vec2, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
         let mut best: Option<(ObjectIndex, f32)> = None;
         for sprite in self.sprite_data.iter().rev() {
-            if sprite.is_terrain {
+            // Allow terrain through only if it's the currently selected object
+            if sprite.is_terrain && selected != Some(sprite.index) {
                 continue;
             }
             // Skip objects that are hidden (not rendered) unless selected or parent is selected
@@ -991,6 +1034,25 @@ impl LevelRenderer {
             }
         }
         best.map(|(idx, _)| idx)
+    }
+
+    /// Returns (dx, dy) drag offset for a given object index, or (0, 0) if not being dragged.
+    fn terrain_drag_offset(&self, object_index: ObjectIndex) -> (f32, f32) {
+        if let Some(ref drag) = self.dragging {
+            if drag.index == object_index
+                && let Some(sprite) = self.sprite_data.iter().find(|s| s.index == object_index)
+            {
+                return (
+                    sprite.world_pos.x - drag.original_pos.x,
+                    sprite.world_pos.y - drag.original_pos.y,
+                );
+            }
+        } else if let Some((idx, dx, dy)) = self.pending_drag_offset
+            && idx == object_index
+        {
+            return (dx, dy);
+        }
+        (0.0, 0.0)
     }
 
     /// Show the level canvas. Returns the index of a newly-clicked object, if any.
@@ -1138,6 +1200,10 @@ impl LevelRenderer {
                 continue;
             }
 
+            let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
+            let cam_cx = self.camera.center.x - tdx;
+            let cam_cy = self.camera.center.y - tdy;
+
             // ── Fill ──
             if let Some(ref fill_data) = td.fill_mesh {
                 let mut gpu_done = false;
@@ -1161,7 +1227,7 @@ impl LevelRenderer {
                     ];
                     let uniforms = fill_shader::FillUniforms {
                         screen_size: [rect.width(), rect.height()],
-                        camera_center: [self.camera.center.x, self.camera.center.y],
+                        camera_center: [cam_cx, cam_cy],
                         zoom: self.camera.zoom,
                         _pad0: 0.0,
                         _pad1: [0.0; 2],
@@ -1178,9 +1244,16 @@ impl LevelRenderer {
                     gpu_done = true;
                 }
                 if !gpu_done {
+                    let drag_cam = Camera {
+                        center: Vec2 {
+                            x: cam_cx,
+                            y: cam_cy,
+                        },
+                        ..self.camera.clone()
+                    };
                     terrain::transform_mesh_to_screen_into(
                         fill_data,
-                        &self.camera,
+                        &drag_cam,
                         canvas_center,
                         &mut self.terrain_scratch_mesh,
                     );
@@ -1205,18 +1278,25 @@ impl LevelRenderer {
                         edge_shader::EdgeCameraParams {
                             screen_w: rect.width(),
                             screen_h: rect.height(),
-                            camera_x: self.camera.center.x,
-                            camera_y: self.camera.center.y,
+                            camera_x: cam_cx,
+                            camera_y: cam_cy,
                             zoom: self.camera.zoom,
                         },
                         gpu_idx,
                     ));
                 }
             } else {
+                let drag_cam = Camera {
+                    center: Vec2 {
+                        x: cam_cx,
+                        y: cam_cy,
+                    },
+                    ..self.camera.clone()
+                };
                 Self::draw_terrain_edge_cpu(
                     &painter,
                     td,
-                    &self.camera,
+                    &drag_cam,
                     canvas_center,
                     &self.tex_cache,
                     &mut self.terrain_scratch_mesh,
@@ -1423,6 +1503,10 @@ impl LevelRenderer {
                 continue;
             }
 
+            let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
+            let cam_cx = self.camera.center.x - tdx;
+            let cam_cy = self.camera.center.y - tdy;
+
             // ── Fill ──
             if let Some(ref fill_data) = td.fill_mesh {
                 let mut gpu_done = false;
@@ -1446,7 +1530,7 @@ impl LevelRenderer {
                     ];
                     let uniforms = fill_shader::FillUniforms {
                         screen_size: [rect.width(), rect.height()],
-                        camera_center: [self.camera.center.x, self.camera.center.y],
+                        camera_center: [cam_cx, cam_cy],
                         zoom: self.camera.zoom,
                         _pad0: 0.0,
                         _pad1: [0.0; 2],
@@ -1463,9 +1547,16 @@ impl LevelRenderer {
                     gpu_done = true;
                 }
                 if !gpu_done {
+                    let drag_cam = Camera {
+                        center: Vec2 {
+                            x: cam_cx,
+                            y: cam_cy,
+                        },
+                        ..self.camera.clone()
+                    };
                     terrain::transform_mesh_to_screen_into(
                         fill_data,
-                        &self.camera,
+                        &drag_cam,
                         canvas_center,
                         &mut self.terrain_scratch_mesh,
                     );
@@ -1490,18 +1581,25 @@ impl LevelRenderer {
                         edge_shader::EdgeCameraParams {
                             screen_w: rect.width(),
                             screen_h: rect.height(),
-                            camera_x: self.camera.center.x,
-                            camera_y: self.camera.center.y,
+                            camera_x: cam_cx,
+                            camera_y: cam_cy,
                             zoom: self.camera.zoom,
                         },
                         gpu_idx,
                     ));
                 }
             } else {
+                let drag_cam = Camera {
+                    center: Vec2 {
+                        x: cam_cx,
+                        y: cam_cy,
+                    },
+                    ..self.camera.clone()
+                };
                 Self::draw_terrain_edge_cpu(
                     &painter,
                     td,
-                    &self.camera,
+                    &drag_cam,
                     canvas_center,
                     &self.tex_cache,
                     &mut self.terrain_scratch_mesh,
@@ -1512,12 +1610,18 @@ impl LevelRenderer {
         // Selection outlines for all terrain
         for td in self.terrain_data.iter() {
             if selected == Some(td.object_index) && td.curve_world_verts.len() >= 2 {
+                let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
                 let screen_pts: Vec<egui::Pos2> = td
                     .curve_world_verts
                     .iter()
                     .map(|&(wx, wy)| {
-                        self.camera
-                            .world_to_screen(Vec2 { x: wx, y: wy }, canvas_center)
+                        self.camera.world_to_screen(
+                            Vec2 {
+                                x: wx + tdx,
+                                y: wy + tdy,
+                            },
+                            canvas_center,
+                        )
                     })
                     .collect();
                 let stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
@@ -2144,33 +2248,32 @@ impl LevelRenderer {
                 match draw {
                     GpuDraw::Opaque(d) => {
                         // Flush pending transparent batch before starting an opaque run
-                        if !pending_transparent.is_empty() {
-                            if let Some(resources) = &self.sprite_resources {
-                                painter.add(sprite_shader::make_sprite_batch_callback(
-                                    rect,
-                                    resources.clone(),
-                                    std::mem::take(&mut pending_transparent),
-                                ));
-                            }
+                        if !pending_transparent.is_empty()
+                            && let Some(resources) = &self.sprite_resources
+                        {
+                            painter.add(sprite_shader::make_sprite_batch_callback(
+                                rect,
+                                resources.clone(),
+                                std::mem::take(&mut pending_transparent),
+                            ));
                         }
                         pending_opaque.push(d);
                     }
                     GpuDraw::Transparent(d) => {
                         // Flush pending opaque batch before starting a transparent run
-                        if !pending_opaque.is_empty() {
-                            if let (Some(resources), Some(batch)) =
+                        if !pending_opaque.is_empty()
+                            && let (Some(resources), Some(batch)) =
                                 (&self.opaque_resources, &self.opaque_batch)
-                            {
-                                painter.add(opaque_shader::make_opaque_batch_callback(
-                                    rect,
-                                    resources.clone(),
-                                    batch.clone(),
-                                    rect.width(),
-                                    rect.height(),
-                                    self.camera.zoom,
-                                    std::mem::take(&mut pending_opaque),
-                                ));
-                            }
+                        {
+                            painter.add(opaque_shader::make_opaque_batch_callback(
+                                rect,
+                                resources.clone(),
+                                batch.clone(),
+                                rect.width(),
+                                rect.height(),
+                                self.camera.zoom,
+                                std::mem::take(&mut pending_opaque),
+                            ));
                         }
                         pending_transparent.push(d);
                     }
@@ -2178,29 +2281,27 @@ impl LevelRenderer {
             }
 
             // Flush remaining draws
-            if !pending_opaque.is_empty() {
-                if let (Some(resources), Some(batch)) =
-                    (&self.opaque_resources, &self.opaque_batch)
-                {
-                    painter.add(opaque_shader::make_opaque_batch_callback(
-                        rect,
-                        resources.clone(),
-                        batch.clone(),
-                        rect.width(),
-                        rect.height(),
-                        self.camera.zoom,
-                        pending_opaque,
-                    ));
-                }
+            if !pending_opaque.is_empty()
+                && let (Some(resources), Some(batch)) = (&self.opaque_resources, &self.opaque_batch)
+            {
+                painter.add(opaque_shader::make_opaque_batch_callback(
+                    rect,
+                    resources.clone(),
+                    batch.clone(),
+                    rect.width(),
+                    rect.height(),
+                    self.camera.zoom,
+                    pending_opaque,
+                ));
             }
-            if !pending_transparent.is_empty() {
-                if let Some(resources) = &self.sprite_resources {
-                    painter.add(sprite_shader::make_sprite_batch_callback(
-                        rect,
-                        resources.clone(),
-                        pending_transparent,
-                    ));
-                }
+            if !pending_transparent.is_empty()
+                && let Some(resources) = &self.sprite_resources
+            {
+                painter.add(sprite_shader::make_sprite_batch_callback(
+                    rect,
+                    resources.clone(),
+                    pending_transparent,
+                ));
             }
         }
 

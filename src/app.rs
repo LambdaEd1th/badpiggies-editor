@@ -15,6 +15,21 @@ thread_local! {
     static WASM_OPEN_RESULT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
 }
 
+/// Maximum number of undo snapshots to keep.
+const UNDO_MAX: usize = 100;
+
+/// A snapshot of the editor state for undo/redo.
+struct Snapshot {
+    level: LevelData,
+    selected: Option<ObjectIndex>,
+}
+
+/// Undo/redo history stack.
+struct UndoStack {
+    undo: Vec<Snapshot>,
+    redo: Vec<Snapshot>,
+}
+
 /// Main application state.
 pub struct EditorApp {
     /// Currently loaded level data.
@@ -47,6 +62,10 @@ pub struct EditorApp {
     show_about: bool,
     /// Current UI language.
     lang: Language,
+    /// Undo/redo history.
+    history: UndoStack,
+    /// Whether properties were changed in the previous frame (for undo coalescing).
+    props_changed_prev: bool,
 }
 
 impl EditorApp {
@@ -94,6 +113,11 @@ impl EditorApp {
             show_shortcuts: false,
             show_about: false,
             lang: Language::from_system(),
+            history: UndoStack {
+                undo: Vec::new(),
+                redo: Vec::new(),
+            },
+            props_changed_prev: false,
         }
     }
 
@@ -140,6 +164,8 @@ impl EditorApp {
                 self.level = Some(level);
                 self.file_name = Some(name);
                 self.selected = None;
+                self.history.undo.clear();
+                self.history.redo.clear();
                 self.status = self.lang.i18n().fmt_status_loaded(obj_count, root_count);
             }
             Err(e) => {
@@ -150,6 +176,94 @@ impl EditorApp {
 
     fn export_level(&self) -> Option<Vec<u8>> {
         self.level.as_ref().map(parser::serialize_level)
+    }
+
+    fn export_yaml(&self) -> Option<String> {
+        self.level
+            .as_ref()
+            .and_then(|l| serde_yaml::to_string(l).ok())
+    }
+
+    fn export_toml(&self) -> Option<String> {
+        self.level
+            .as_ref()
+            .and_then(|l| toml::to_string_pretty(l).ok())
+    }
+
+    fn load_level_text(&mut self, name: String, text: &str) {
+        let result: Result<LevelData, String> = if name.ends_with(".yaml") || name.ends_with(".yml")
+        {
+            serde_yaml::from_str(text).map_err(|e| e.to_string())
+        } else if name.ends_with(".toml") {
+            toml::from_str(text).map_err(|e| e.to_string())
+        } else {
+            Err("不支持的文件格式".to_string())
+        };
+        match result {
+            Ok(level) => {
+                let obj_count = level.objects.len();
+                let root_count = level.roots.len();
+                self.renderer.set_level_key(&name);
+                self.renderer.set_level(&level);
+                self.level = Some(level);
+                self.file_name = Some(name);
+                self.selected = None;
+                self.history.undo.clear();
+                self.history.redo.clear();
+                self.status = self.lang.i18n().fmt_status_loaded(obj_count, root_count);
+            }
+            Err(e) => {
+                self.status = format!("解析失败: {}", e);
+            }
+        }
+    }
+
+    /// Snapshot current state onto the undo stack (call before mutation).
+    fn push_undo(&mut self) {
+        if let Some(ref level) = self.level {
+            self.history.undo.push(Snapshot {
+                level: level.clone(),
+                selected: self.selected,
+            });
+            if self.history.undo.len() > UNDO_MAX {
+                self.history.undo.remove(0);
+            }
+            self.history.redo.clear();
+        }
+    }
+
+    /// Undo the last change.
+    fn undo(&mut self) {
+        if let Some(snapshot) = self.history.undo.pop() {
+            if let Some(ref level) = self.level {
+                self.history.redo.push(Snapshot {
+                    level: level.clone(),
+                    selected: self.selected,
+                });
+            }
+            self.selected = snapshot.selected;
+            let cam = self.renderer.camera.clone();
+            self.renderer.set_level(&snapshot.level);
+            self.renderer.camera = cam;
+            self.level = Some(snapshot.level);
+        }
+    }
+
+    /// Redo the last undone change.
+    fn redo(&mut self) {
+        if let Some(snapshot) = self.history.redo.pop() {
+            if let Some(ref level) = self.level {
+                self.history.undo.push(Snapshot {
+                    level: level.clone(),
+                    selected: self.selected,
+                });
+            }
+            self.selected = snapshot.selected;
+            let cam = self.renderer.camera.clone();
+            self.renderer.set_level(&snapshot.level);
+            self.renderer.camera = cam;
+            self.level = Some(snapshot.level);
+        }
     }
 }
 
@@ -164,7 +278,15 @@ impl eframe::App for EditorApp {
                 self.pending_file = Some((name, data));
             }
             if let Some((name, data)) = self.pending_file.take() {
-                self.load_level(name, data);
+                if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
+                    if let Ok(text) = String::from_utf8(data) {
+                        self.load_level_text(name, &text);
+                    } else {
+                        self.status = "UTF-8 解码失败".to_string();
+                    }
+                } else {
+                    self.load_level(name, data);
+                }
             }
         }
 
@@ -195,19 +317,30 @@ impl eframe::App for EditorApp {
                 };
 
                 if let Some((name, data)) = file_data {
-                    match parser::parse_level(data) {
-                        Ok(level) => {
-                            let obj_count = level.objects.len();
-                            let root_count = level.roots.len();
-                            self.renderer.set_level_key(&name);
-                            self.renderer.set_level(&level);
-                            self.level = Some(level);
-                            self.file_name = Some(name);
-                            self.selected = None;
-                            self.status = self.lang.i18n().fmt_status_loaded(obj_count, root_count);
+                    if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml")
+                    {
+                        match String::from_utf8(data) {
+                            Ok(text) => self.load_level_text(name, &text),
+                            Err(_) => self.status = "UTF-8 解码失败".to_string(),
                         }
-                        Err(e) => {
-                            self.status = format!("解析失败: {}", e);
+                    } else {
+                        match parser::parse_level(data) {
+                            Ok(level) => {
+                                let obj_count = level.objects.len();
+                                let root_count = level.roots.len();
+                                self.renderer.set_level_key(&name);
+                                self.renderer.set_level(&level);
+                                self.level = Some(level);
+                                self.file_name = Some(name);
+                                self.selected = None;
+                                self.history.undo.clear();
+                                self.history.redo.clear();
+                                self.status =
+                                    self.lang.i18n().fmt_status_loaded(obj_count, root_count);
+                            }
+                            Err(e) => {
+                                self.status = format!("解析失败: {}", e);
+                            }
                         }
                     }
                 }
@@ -217,6 +350,18 @@ impl eframe::App for EditorApp {
         // B key — toggle background visibility
         if ctx.input(|i| i.key_pressed(egui::Key::B)) {
             self.renderer.show_bg = !self.renderer.show_bg;
+        }
+
+        // Cmd+Z / Ctrl+Z — undo
+        if ctx.input(|i| i.modifiers.command && !i.modifiers.shift && i.key_pressed(egui::Key::Z)) {
+            self.undo();
+        }
+        // Cmd+Shift+Z / Ctrl+Shift+Z / Ctrl+Y — redo
+        if ctx.input(|i| {
+            (i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::Z))
+                || (i.modifiers.command && i.key_pressed(egui::Key::Y))
+        }) {
+            self.redo();
         }
 
         // Handle Delete / Backspace key — queue confirmation dialog
@@ -254,10 +399,13 @@ impl eframe::App for EditorApp {
                 });
             match action {
                 1 => {
+                    self.push_undo();
                     if let Some(ref mut level) = self.level {
                         level.delete_object(del_idx);
                         self.selected = None;
+                        let cam = self.renderer.camera.clone();
                         self.renderer.set_level(level);
+                        self.renderer.camera = cam;
                         self.status = format!("已删除: {}", del_name);
                     }
                     self.pending_delete = None;
@@ -352,8 +500,147 @@ impl eframe::App for EditorApp {
                             }
                         }
                     }
+                    ui.separator();
+                    if ui.button(t.get("menu_import_text")).clicked() {
+                        ui.close();
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("YAML / TOML", &["yaml", "yml", "toml"])
+                                .pick_file()
+                            {
+                                let name = path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .unwrap_or_default();
+                                match std::fs::read_to_string(&path) {
+                                    Ok(text) => {
+                                        self.load_level_text(name, &text);
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_read_error", &e.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            let repaint_ctx = ctx.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                if let Some(file) = rfd::AsyncFileDialog::new()
+                                    .add_filter("YAML / TOML", &["yaml", "yml", "toml"])
+                                    .pick_file()
+                                    .await
+                                {
+                                    let name = file.file_name();
+                                    let data = file.read().await;
+                                    WASM_OPEN_RESULT.with(|q| {
+                                        q.borrow_mut().replace((name, data));
+                                    });
+                                    repaint_ctx.request_repaint();
+                                }
+                            });
+                        }
+                    }
+                    if ui.button(t.get("menu_export_yaml")).clicked() {
+                        ui.close();
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            if let Some(text) = self.export_yaml()
+                                && let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("YAML files", &["yaml"])
+                                    .set_file_name("level.yaml")
+                                    .save_file()
+                            {
+                                match std::fs::write(&path, text.as_bytes()) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            if let Some(text) = self.export_yaml() {
+                                let file_name = self
+                                    .file_name
+                                    .as_deref()
+                                    .map(|n| n.replace(".bytes", ".yaml"))
+                                    .unwrap_or_else(|| "level.yaml".to_string());
+                                match export_bytes_wasm(&file_name, text.into_bytes()) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if ui.button(t.get("menu_export_toml")).clicked() {
+                        ui.close();
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            if let Some(text) = self.export_toml()
+                                && let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("TOML files", &["toml"])
+                                    .set_file_name("level.toml")
+                                    .save_file()
+                            {
+                                match std::fs::write(&path, text.as_bytes()) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            if let Some(text) = self.export_toml() {
+                                let file_name = self
+                                    .file_name
+                                    .as_deref()
+                                    .map(|n| n.replace(".bytes", ".toml"))
+                                    .unwrap_or_else(|| "level.toml".to_string());
+                                match export_bytes_wasm(&file_name, text.into_bytes()) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 });
                 ui.menu_button(t.get("menu_edit"), |ui| {
+                    ui.set_min_width(120.0);
+                    let is_mac = cfg!(target_os = "macos");
+                    let undo_shortcut = if is_mac { "⌘+Z" } else { "Ctrl+Z" };
+                    let redo_shortcut = if is_mac { "Shift+⌘+Z" } else { "Ctrl+Y" };
+                    if ui
+                        .add(egui::Button::new(t.get("menu_undo")).shortcut_text(undo_shortcut))
+                        .clicked()
+                    {
+                        ui.close();
+                        self.undo();
+                    }
+                    if ui
+                        .add(egui::Button::new(t.get("menu_redo")).shortcut_text(redo_shortcut))
+                        .clicked()
+                    {
+                        ui.close();
+                        self.redo();
+                    }
+                    ui.separator();
                     if ui.button(t.get("menu_add_object")).clicked() {
                         ui.close();
                         if self.level.is_some() {
@@ -487,6 +774,12 @@ impl eframe::App for EditorApp {
                             ui.label(t.get("shortcuts_b_key"));
                             ui.label(t.get("shortcuts_toggle_bg"));
                             ui.end_row();
+                            ui.label(t.get("shortcuts_undo"));
+                            ui.label(t.get("shortcuts_undo_action"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_redo"));
+                            ui.label(t.get("shortcuts_redo_action"));
+                            ui.end_row();
                         });
                 });
         }
@@ -541,6 +834,7 @@ impl eframe::App for EditorApp {
                     ui.separator();
                     ui.horizontal(|ui| {
                         if ui.button(t.get("btn_ok")).clicked() {
+                            self.push_undo();
                             if let Some(ref mut level) = self.level {
                                 let name = if self.add_obj_name.is_empty() {
                                     "NewObject".to_string()
@@ -586,7 +880,9 @@ impl eframe::App for EditorApp {
                                 }
                                 level.roots.push(new_idx);
                                 self.selected = Some(new_idx);
+                                let cam = self.renderer.camera.clone();
                                 self.renderer.set_level(level);
+                                self.renderer.camera = cam;
                                 self.status = t.fmt1("status_added", &name);
                             }
                             self.show_add_dialog = false;
@@ -654,10 +950,34 @@ impl eframe::App for EditorApp {
 
                     if let (Some(level), Some(sel)) = (&mut self.level, self.selected) {
                         if sel < level.objects.len() {
+                            // Clone the object before editing so we can snapshot pre-state
+                            let pre_obj = if !self.props_changed_prev {
+                                Some(level.objects[sel].clone())
+                            } else {
+                                None
+                            };
                             let changed = show_properties_editable(ui, &mut level.objects[sel], t);
                             if changed {
+                                if let Some(obj_backup) = pre_obj {
+                                    // First change frame — push undo with pre-edit state
+                                    let mut level_snapshot = level.clone();
+                                    level_snapshot.objects[sel] = obj_backup;
+                                    self.history.undo.push(Snapshot {
+                                        level: level_snapshot,
+                                        selected: self.selected,
+                                    });
+                                    if self.history.undo.len() > UNDO_MAX {
+                                        self.history.undo.remove(0);
+                                    }
+                                    self.history.redo.clear();
+                                }
+                                self.props_changed_prev = true;
                                 // Rebuild renderer when properties change
+                                let cam = self.renderer.camera.clone();
                                 self.renderer.set_level(level);
+                                self.renderer.camera = cam;
+                            } else {
+                                self.props_changed_prev = false;
                             }
                         }
                     } else {
@@ -679,6 +999,16 @@ impl eframe::App for EditorApp {
                     && let Some(ref mut level) = self.level
                     && idx < level.objects.len()
                 {
+                    // Snapshot pre-drag state for undo
+                    self.history.undo.push(Snapshot {
+                        level: level.clone(),
+                        selected: self.selected,
+                    });
+                    if self.history.undo.len() > UNDO_MAX {
+                        self.history.undo.remove(0);
+                    }
+                    self.history.redo.clear();
+
                     match &mut level.objects[idx] {
                         LevelObject::Prefab(p) => {
                             p.position.x += delta.x;
@@ -731,12 +1061,10 @@ impl eframe::App for EditorApp {
 
                                 ui.add_space(4.0);
                                 ui.label(
-                                    egui::RichText::new(t.get("panel_drop_hint"))
-                                        .color(hint_color),
+                                    egui::RichText::new(t.get("panel_drop_hint")).color(hint_color),
                                 );
                                 ui.label(
-                                    egui::RichText::new(t.get("panel_open_hint"))
-                                        .color(sub_color),
+                                    egui::RichText::new(t.get("panel_open_hint")).color(sub_color),
                                 );
                             });
                         },
@@ -1191,15 +1519,25 @@ fn show_override_tree(
         let has_children = !node.children.is_empty();
         let is_container = matches!(
             node.node_type.as_str(),
-            "GameObject" | "Component" | "Array" | "AnimationCurve" | "Generic"
+            "GameObject"
+                | "Component"
+                | "Array"
+                | "AnimationCurve"
+                | "Generic"
+                | "Element"
+                | "Vector2"
+                | "Vector3"
+                | "Quaternion"
+                | "Color"
+                | "Rect"
+                | "Keyframe"
+                | "Bounds"
         ) || has_children;
         let allow_add_sibling = node.node_type != "ArraySize";
 
         let id = ctx_id.with(i);
 
         if is_container {
-            let child_add_id = id.with("add");
-            let mut adding_child: bool = ui.data(|d| d.get_temp(child_add_id).unwrap_or(false));
             // Collapsible section
             let header = egui::collapsing_header::CollapsingState::load_with_default_open(
                 ui.ctx(),
@@ -1208,8 +1546,13 @@ fn show_override_tree(
             );
             header
                 .show_header(ui, |ui| {
-                    if ui.small_button("+").on_hover_text(t.get("btn_add")).clicked() {
-                        adding_child = true;
+                    if allow_add_sibling
+                        && ui
+                            .small_button("+")
+                            .on_hover_text(t.get("btn_add"))
+                            .clicked()
+                    {
+                        ui.data_mut(|d| d.insert_temp(add_id, true));
                     }
 
                     let color = override_type_color(&node.node_type);
@@ -1228,22 +1571,19 @@ fn show_override_tree(
                     }
                 })
                 .body(|ui| {
-                    changed |= show_override_tree(ui, &mut node.children, depth + 1, ctx_id.with(i), t);
+                    changed |=
+                        show_override_tree(ui, &mut node.children, depth + 1, ctx_id.with(i), t);
                 });
-
-            if adding_child {
-                ui.horizontal(|ui| {
-                    ui.add_space((depth as f32 + 1.0) * 12.0);
-                    changed |= show_add_node_form(ui, &mut node.children, child_add_id, &mut adding_child, depth + 1, t);
-                });
-            }
-            ui.data_mut(|d| d.insert_temp(child_add_id, adding_child));
         } else if node.value.is_some() {
             // Leaf value — editable inline
             ui.horizontal(|ui| {
-                ui.add_space(depth as f32 * 12.0);
+                // Fixed indent to align with collapse-triangle header content
+                ui.add_space(ui.spacing().indent);
                 if allow_add_sibling
-                    && ui.small_button("+").on_hover_text(t.get("btn_add")).clicked()
+                    && ui
+                        .small_button("+")
+                        .on_hover_text(t.get("btn_add"))
+                        .clicked()
                 {
                     ui.data_mut(|d| d.insert_temp(add_id, true));
                 }
@@ -1266,7 +1606,13 @@ fn show_override_tree(
                 }
                 ui.label("=");
                 let val = node.value.as_mut().unwrap();
-                if ui
+                if node.node_type == "Boolean" {
+                    let mut checked = val.eq_ignore_ascii_case("true");
+                    if ui.checkbox(&mut checked, "").changed() {
+                        *val = if checked { "True" } else { "False" }.to_string();
+                        changed = true;
+                    }
+                } else if ui
                     .add(egui::TextEdit::singleline(val).desired_width(val_w))
                     .changed()
                 {
@@ -1276,9 +1622,12 @@ fn show_override_tree(
         } else {
             // Non-container without value
             ui.horizontal(|ui| {
-                ui.add_space(depth as f32 * 12.0);
+                ui.add_space(ui.spacing().indent);
                 if allow_add_sibling
-                    && ui.small_button("+").on_hover_text(t.get("btn_add")).clicked()
+                    && ui
+                        .small_button("+")
+                        .on_hover_text(t.get("btn_add"))
+                        .clicked()
                 {
                     ui.data_mut(|d| d.insert_temp(add_id, true));
                 }
@@ -1310,7 +1659,7 @@ fn show_override_tree(
         changed |= show_add_node_form(ui, nodes, add_id, &mut adding, depth, t);
     } else {
         ui.horizontal(|ui| {
-            ui.add_space(depth as f32 * 12.0);
+            ui.add_space(ui.spacing().indent);
             if ui.small_button(t.get("btn_add")).clicked() {
                 adding = true;
                 ui.data_mut(|d| d.insert_temp(add_id, true));
@@ -1428,7 +1777,7 @@ fn show_add_node_form(
     nodes: &mut Vec<OverrideNode>,
     add_id: egui::Id,
     adding: &mut bool,
-    depth: usize,
+    _depth: usize,
     t: &'static crate::locale::I18n,
 ) -> bool {
     let type_id = add_id.with("type");
@@ -1438,7 +1787,8 @@ fn show_add_node_form(
     let mut changed = false;
 
     ui.horizontal(|ui| {
-        ui.add_space(depth as f32 * 12.0);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+        ui.add_space(ui.spacing().indent);
         egui::ComboBox::from_id_salt(add_id.with("combo"))
             .width(90.0)
             .selected_text(OVERRIDE_ALL_TYPES[selected_idx])

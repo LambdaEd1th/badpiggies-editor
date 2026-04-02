@@ -342,6 +342,16 @@ pub fn props_tint_color(theme: Option<&str>) -> [f32; 4] {
     }
 }
 
+/// Sprites that keep their original material and are NOT tinted by
+/// GenericPropsNight / GenericPropsMorning2 at runtime in Unity.
+pub fn skip_props_tint(name: &str) -> bool {
+    name.starts_with("Crystal_")
+        || name.starts_with("Glow_")
+        || name.starts_with("Lit")
+        || name.starts_with("Secret_")
+        || name.starts_with("Star_")
+}
+
 // ── Color helpers ────────────────────────────────────
 
 /// Named prefab colors for known types.

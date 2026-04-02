@@ -816,6 +816,11 @@ impl LevelRenderer {
                     if sprite.atlas.as_deref() != Some("Props_Generic_Sheet_01.png") {
                         continue;
                     }
+                    // Emissive / collectible sprites keep their original material
+                    // and are NOT tinted by GenericProps theme variants.
+                    if assets::skip_props_tint(&sprite.name) {
+                        continue;
+                    }
                     if let Some(uv) = &sprite.uv {
                         let idx = (vertices.len() / 4) as u32;
                         self.opaque_sprite_map[i] = Some(idx);
@@ -2120,7 +2125,6 @@ impl LevelRenderer {
                 if (is_sel || !sprite.is_hidden)
                     && opaque_idx.is_none()
                     && let (Some(atlas_name), Some(uv)) = (&sprite.atlas, &sprite.uv)
-                    && atlas_name != "Props_Generic_Sheet_01.png"
                     && let (Some(resources), Some(device), Some(queue)) =
                         (&self.sprite_resources, &self.wgpu_device, &self.wgpu_queue)
                     && let Some(atlas) = self

@@ -51,7 +51,7 @@ shortcuts_b_key = B
 shortcuts_toggle_bg = 切换背景显示
 shortcuts_undo = ⌘Z / Ctrl+Z
 shortcuts_undo_action = 撤销
-shortcuts_redo = Shift+⌘Z / Ctrl+Shift+Z
+shortcuts_redo = Shift+⌘+Z / Ctrl+Shift+Z
 shortcuts_redo_action = 恢复
 
 # 关于窗口

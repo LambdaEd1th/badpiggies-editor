@@ -429,7 +429,8 @@ fn load_sprite_atlas(
     filename: &str,
 ) -> Option<SpriteAtlasGpu> {
     let path = format!("sprites/{}", filename);
-    let data = crate::assets::read_asset(&path)?;
+    let data = crate::assets::read_asset(&path)
+        .or_else(|| crate::assets::read_asset(&format!("props/{}", filename)))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
     let pixels = img.into_raw();

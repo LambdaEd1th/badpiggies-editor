@@ -476,9 +476,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
+                            let default_name = self.file_name.as_deref().unwrap_or("level.bytes");
                             if let Some(data) = self.export_level()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("Level files", &["bytes"])
+                                    .set_file_name(default_name)
                                     .save_file()
                             {
                                 match std::fs::write(&path, data) {
@@ -555,10 +557,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
+                            let yaml_name = self.file_name.as_deref().map(|n| format!("{n}.yaml")).unwrap_or_else(|| "level.yaml".into());
                             if let Some(text) = self.export_yaml()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("YAML files", &["yaml"])
-                                    .set_file_name("level.yaml")
+                                    .set_file_name(&yaml_name)
                                     .save_file()
                             {
                                 match std::fs::write(&path, text.as_bytes()) {
@@ -577,7 +580,7 @@ impl eframe::App for EditorApp {
                                 let file_name = self
                                     .file_name
                                     .as_deref()
-                                    .map(|n| n.replace(".bytes", ".yaml"))
+                                    .map(|n| format!("{n}.yaml"))
                                     .unwrap_or_else(|| "level.yaml".to_string());
                                 match export_bytes_wasm(&file_name, text.into_bytes()) {
                                     Ok(()) => {
@@ -594,10 +597,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
+                            let toml_name = self.file_name.as_deref().map(|n| format!("{n}.toml")).unwrap_or_else(|| "level.toml".into());
                             if let Some(text) = self.export_toml()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("TOML files", &["toml"])
-                                    .set_file_name("level.toml")
+                                    .set_file_name(&toml_name)
                                     .save_file()
                             {
                                 match std::fs::write(&path, text.as_bytes()) {
@@ -616,7 +620,7 @@ impl eframe::App for EditorApp {
                                 let file_name = self
                                     .file_name
                                     .as_deref()
-                                    .map(|n| n.replace(".bytes", ".toml"))
+                                    .map(|n| format!("{n}.toml"))
                                     .unwrap_or_else(|| "level.toml".to_string());
                                 match export_bytes_wasm(&file_name, text.into_bytes()) {
                                     Ok(()) => {
@@ -726,8 +730,26 @@ impl eframe::App for EditorApp {
                         let content = lines.join("\n");
                         #[cfg(not(target_arch = "wasm32"))]
                         {
+                            let log_name = {
+                                use std::time::{SystemTime, UNIX_EPOCH};
+                                let secs = SystemTime::now()
+                                    .duration_since(UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs();
+                                // Convert to local-ish YYYYMMdd_HHmmss (UTC)
+                                let s = secs % 60;
+                                let m = (secs / 60) % 60;
+                                let h = (secs / 3600) % 24;
+                                let days = secs / 86400;
+                                // Days since 1970-01-01 → y/m/d
+                                let (y, mo, d) = civil_from_days(days as i64);
+                                format!(
+                                    "{:04}{:02}{:02}_{:02}{:02}{:02}.log",
+                                    y, mo, d, h, m, s
+                                )
+                            };
                             if let Some(path) = rfd::FileDialog::new()
-                                .set_file_name("editor.log")
+                                .set_file_name(&log_name)
                                 .save_file()
                             {
                                 if let Err(e) = std::fs::write(&path, &content) {
@@ -1347,6 +1369,22 @@ fn configure_cjk_fonts(ctx: &egui::Context) {
         list.push("cjk".into());
     }
     ctx.set_fonts(fonts);
+}
+
+/// Convert days since Unix epoch to (year, month, day).
+/// Algorithm from Howard Hinnant's `civil_from_days`.
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
 }
 
 #[cfg(not(target_arch = "wasm32"))]

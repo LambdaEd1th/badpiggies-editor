@@ -325,6 +325,23 @@ pub fn ground_color(theme: &str) -> egui::Color32 {
     }
 }
 
+// ── Props tint per theme (Unity GenericProps material `_Color`) ──
+
+/// Returns the `_Color` tint that Unity applies to Props sprites via
+/// `GenericPropsNight.mat` / `GenericPropsMorning2.mat`.
+pub fn props_tint_color(theme: Option<&str>) -> [f32; 4] {
+    match theme {
+        // GenericPropsNight.mat  _Color = (0.745, 0.745, 1, 1)
+        Some("Night" | "Halloween" | "MayaCaveDark" | "MayaCave2Dark") => {
+            [0.7450981, 0.7450981, 1.0, 1.0]
+        }
+        // GenericPropsMorning2.mat  _Color = (0.443, 0.532, 0.582, 1)
+        Some("Morning") => [0.443, 0.532, 0.582, 1.0],
+        // GenericProps.mat  _Color = (1, 1, 1, 1)
+        _ => [1.0, 1.0, 1.0, 1.0],
+    }
+}
+
 // ── Color helpers ────────────────────────────────────
 
 /// Named prefab colors for known types.

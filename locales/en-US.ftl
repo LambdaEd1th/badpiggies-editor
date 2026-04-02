@@ -51,7 +51,7 @@ shortcuts_b_key = B
 shortcuts_toggle_bg = Toggle Background
 shortcuts_undo = ⌘Z / Ctrl+Z
 shortcuts_undo_action = Undo
-shortcuts_redo = ⇧⌘Z / Ctrl+⇧Z
+shortcuts_redo = Shift+⌘Z / Ctrl+Shift+Z
 shortcuts_redo_action = Redo
 
 # About window

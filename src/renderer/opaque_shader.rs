@@ -492,6 +492,7 @@ struct OpaqueBatchPaintCallback {
     screen_w: f32,
     screen_h: f32,
     zoom: f32,
+    tint_color: [f32; 4],
     draws: Vec<OpaqueBatchDraw>,
 }
 
@@ -512,7 +513,7 @@ impl egui_wgpu::CallbackTrait for OpaqueBatchPaintCallback {
                 y_offset: draw.y_offset,
                 _pad0: 0.0,
                 _pad1: 0.0,
-                tint_color: [1.0, 1.0, 1.0, 1.0],
+                tint_color: self.tint_color,
             };
             let sprite = &self.batch.sprites[draw.sprite_index as usize];
             queue.write_buffer(&sprite.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
@@ -554,6 +555,7 @@ pub fn make_opaque_batch_callback(
     screen_w: f32,
     screen_h: f32,
     zoom: f32,
+    tint_color: [f32; 4],
     draws: Vec<OpaqueBatchDraw>,
 ) -> egui::Shape {
     let cb = OpaqueBatchPaintCallback {
@@ -562,6 +564,7 @@ pub fn make_opaque_batch_callback(
         screen_w,
         screen_h,
         zoom,
+        tint_color,
         draws,
     };
     egui::Shape::Callback(egui_wgpu::Callback::new_paint_callback(clip_rect, cb))

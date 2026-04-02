@@ -18,6 +18,21 @@ use eframe::egui;
 use crate::assets;
 use crate::types::*;
 
+/// Point-in-triangle test using barycentric coordinates (sign of cross products).
+fn point_in_triangle(
+    px: f32, py: f32,
+    ax: f32, ay: f32,
+    bx: f32, by: f32,
+    cx: f32, cy: f32,
+) -> bool {
+    let d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
+    let d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
+    let d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
+    let has_neg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+    let has_pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+    !(has_neg && has_pos)
+}
+
 /// Known atlas filenames and their paths relative to the sprites directory.
 const ATLAS_FILES: &[&str] = &[
     "IngameAtlas.png",
@@ -1027,6 +1042,10 @@ impl LevelRenderer {
             let dx = (pos.x - sprite.world_pos.x).abs();
             let dy = (pos.y - sprite.world_pos.y).abs();
             if dx <= sprite.half_size.0 && dy <= sprite.half_size.1 {
+                // For terrain, refine hit test using fill mesh triangles
+                if sprite.is_terrain && !self.point_in_terrain(sprite.index, pos) {
+                    continue;
+                }
                 let dist = dx * dx + dy * dy;
                 if best.is_none() || dist < best.unwrap().1 {
                     best = Some((sprite.index, dist));
@@ -1034,6 +1053,39 @@ impl LevelRenderer {
             }
         }
         best.map(|(idx, _)| idx)
+    }
+
+    /// Check whether a world-space point lies inside a terrain's fill mesh triangles.
+    fn point_in_terrain(&self, index: ObjectIndex, pos: Vec2) -> bool {
+        let td = self.terrain_data.iter().find(|t| t.object_index == index);
+        let td = match td {
+            Some(t) => t,
+            None => return true, // no terrain data → fall back to AABB
+        };
+        let mesh = match td.fill_mesh {
+            Some(ref m) => m,
+            None => return true, // no fill mesh → fall back to AABB
+        };
+        let verts = &mesh.vertices;
+        let indices = &mesh.indices;
+        // Apply drag offset so hit test matches the drawn position
+        let (ox, oy) = self.terrain_drag_offset(index);
+        for tri in indices.chunks_exact(3) {
+            let (i0, i1, i2) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+            if i0 >= verts.len() || i1 >= verts.len() || i2 >= verts.len() {
+                continue;
+            }
+            let ax = verts[i0].pos.x + ox;
+            let ay = verts[i0].pos.y + oy;
+            let bx = verts[i1].pos.x + ox;
+            let by = verts[i1].pos.y + oy;
+            let cx = verts[i2].pos.x + ox;
+            let cy = verts[i2].pos.y + oy;
+            if point_in_triangle(pos.x, pos.y, ax, ay, bx, by, cx, cy) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Returns (dx, dy) drag offset for a given object index, or (0, 0) if not being dragged.
@@ -2243,6 +2295,7 @@ impl LevelRenderer {
         {
             let mut pending_opaque: Vec<opaque_shader::OpaqueBatchDraw> = Vec::new();
             let mut pending_transparent: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
+            let props_tint = assets::props_tint_color(self.bg_theme);
 
             for draw in gpu_draws {
                 match draw {
@@ -2272,6 +2325,7 @@ impl LevelRenderer {
                                 rect.width(),
                                 rect.height(),
                                 self.camera.zoom,
+                                props_tint,
                                 std::mem::take(&mut pending_opaque),
                             ));
                         }
@@ -2291,6 +2345,7 @@ impl LevelRenderer {
                     rect.width(),
                     rect.height(),
                     self.camera.zoom,
+                    props_tint,
                     pending_opaque,
                 ));
             }

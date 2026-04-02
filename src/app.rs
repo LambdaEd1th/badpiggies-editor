@@ -60,6 +60,8 @@ pub struct EditorApp {
     show_shortcuts: bool,
     /// Whether the about window is visible.
     show_about: bool,
+    /// Graphics API backend name (e.g. "Metal", "Vulkan").
+    gpu_backend: String,
     /// Current UI language.
     lang: Language,
     /// Undo/redo history.
@@ -83,6 +85,12 @@ impl EditorApp {
         let mut renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
         #[cfg(target_arch = "wasm32")]
         let renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
+
+        let gpu_backend = cc
+            .wgpu_render_state
+            .as_ref()
+            .map(|rs| rs.adapter.get_info().backend.to_string())
+            .unwrap_or_default();
 
         // Auto-detect asset base directory relative to the executable
         #[cfg(not(target_arch = "wasm32"))]
@@ -112,6 +120,7 @@ impl EditorApp {
             show_properties: true,
             show_shortcuts: false,
             show_about: false,
+            gpu_backend,
             lang: Language::from_system(),
             history: UndoStack {
                 undo: Vec::new(),
@@ -800,7 +809,10 @@ impl eframe::App for EditorApp {
                             env!("CARGO_PKG_VERSION")
                         ));
                         ui.separator();
-                        ui.label(env!("CARGO_PKG_AUTHORS"));
+                        ui.hyperlink_to(
+                            env!("CARGO_PKG_AUTHORS"),
+                            "https://space.bilibili.com/8217621",
+                        );
                         ui.label(t.get("about_built_with"));
                         ui.label(t.get("about_license"));
                     });
@@ -906,11 +918,15 @@ impl eframe::App for EditorApp {
                     ui.separator();
                     ui.label(format!("X: {:.2}  Y: {:.2}", mw.x, mw.y));
                 }
-                if let Some(ref name) = self.file_name {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if !self.gpu_backend.is_empty() {
+                        ui.label(&self.gpu_backend);
+                        ui.separator();
+                    }
+                    if let Some(ref name) = self.file_name {
                         ui.label(name);
-                    });
-                }
+                    }
+                });
             });
         });
 

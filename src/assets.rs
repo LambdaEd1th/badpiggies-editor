@@ -55,7 +55,7 @@ fn terrain_fill_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_05_night", "Ground_Rocks_Texture.png"),
             ("e2dTerrainBase_Halloween", "Ground_Halloween_Texture.png"),
             ("e2dTerrainBase_MM_Ice", "Ground_Ice_Texture.png"),
-            ("e2dTerrainBase_morning", "Ground_Rocks_Texture.png"),
+            ("e2dTerrainBase_morning", "Ground_Rocks_Texture_06.png"),
             ("e2dTerrainBase_MM_rock", "Ground_Temple_Rock_Texture.png"),
             ("e2dTerrainBase_MM_sand", "Ground_Temple_Tile_Texture.png"),
             (
@@ -121,7 +121,7 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_MM_Ice", "Ground_Ice_Outline.png"),
             (
                 "e2dTerrainBase_morning",
-                "Ground_Rocks_Outline_Texture_morning.png",
+                "Ground_Rocks_Outline_Texture_06.png",
             ),
             (
                 "e2dTerrainBase_MM_rock",

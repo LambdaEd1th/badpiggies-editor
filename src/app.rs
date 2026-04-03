@@ -1377,6 +1377,7 @@ fn configure_cjk_fonts(ctx: &egui::Context) {
 
 /// Convert days since Unix epoch to (year, month, day).
 /// Algorithm from Howard Hinnant's `civil_from_days`.
+#[cfg(not(target_arch = "wasm32"))]
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719468;
     let era = z.div_euclid(146097);

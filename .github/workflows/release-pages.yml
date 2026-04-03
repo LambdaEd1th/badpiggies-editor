@@ -119,6 +119,22 @@ jobs:
       - name: Build WASM site
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          # First pass: let trunk download wasm-opt (build will fail because
+          # wasm-bindgen emits bulk-memory ops that wasm-opt rejects in MVP mode).
+          trunk build --release --public-url "/${REPO_NAME}/" 2>/dev/null || true
+
+          # Wrap the downloaded wasm-opt binary so it always passes --all-features,
+          # which enables bulk-memory support.
+          WASM_OPT=$(find "${HOME}/.cache" "${HOME}/Library/Caches" \
+            -path '*/dev.trunkrs.trunk/*/bin/wasm-opt' -type f 2>/dev/null | head -1)
+          if [ -n "$WASM_OPT" ]; then
+            mv "$WASM_OPT" "${WASM_OPT}.orig"
+            printf '#!/bin/sh\nexec "%s" --all-features "$@"\n' "${WASM_OPT}.orig" > "$WASM_OPT"
+            chmod +x "$WASM_OPT"
+          fi
+
+          # Clean failed build artifacts and rebuild.
+          rm -rf dist/.stage target/wasm-opt
           trunk build --release --public-url "/${REPO_NAME}/"
 
       - name: Package web artifact

@@ -27,6 +27,8 @@ pub struct BgLayerCache {
     name_lower: Vec<String>,
     /// Effective sprites (with overrides applied), or None if using theme defaults.
     effective_sprites: Option<Vec<bg_data::BgSprite>>,
+    /// Sprite indices sorted by worldZ descending (farthest first = back-to-front).
+    sorted_indices: Vec<usize>,
 }
 
 impl BgLayerCache {
@@ -55,8 +57,11 @@ pub fn build_bg_layer_cache(
     };
     let sprites = effective_sprites.as_deref().unwrap_or(&theme.sprites);
 
-    // Build tile bands: group non-fill, non-sky sprites by (atlas, round(y), layer)
-    let mut groups: HashMap<(String, i32, i32), Vec<usize>> = HashMap::new();
+    // Build tile bands: group non-fill, non-sky sprites by parent_group (or
+    // fallback to atlas+round(y)+layer when no parent_group is set).
+    // Using parent_group avoids splitting sprites that belong to the same
+    // Unity repeating group but sit at slightly different Y positions.
+    let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
         let nl = sprite.name.to_ascii_lowercase();
@@ -67,13 +72,18 @@ pub fn build_bg_layer_cache(
         if name_lower[i].contains("fill") {
             continue;
         }
-        let atlas_key = sprite.atlas.as_deref().unwrap_or("").to_string();
-        let y_key = sprite.world_y.round() as i32;
+        let atlas_key = sprite.atlas.as_deref().unwrap_or("");
         let layer_key = sprite.layer.order();
-        groups
-            .entry((atlas_key, y_key, layer_key))
-            .or_default()
-            .push(i);
+        let y_key = sprite.world_y.round() as i32;
+        let group_key = if !sprite.parent_group.is_empty() {
+            format!(
+                "g:{}:{}:{}:{}",
+                sprite.parent_group, y_key, atlas_key, layer_key
+            )
+        } else {
+            format!("y:{}:{}:{}", y_key, atlas_key, layer_key)
+        };
+        groups.entry(group_key).or_default().push(i);
     }
 
     let mut singleton_set: HashSet<usize> = HashSet::new();
@@ -105,7 +115,13 @@ pub fn build_bg_layer_cache(
         if avg_spacing <= 0.1 {
             continue;
         }
-        let block_width = max_x - min_x + avg_spacing;
+        // Compute block_width from edge sprite display widths instead of
+        // avg_spacing so tile copies butt up seamlessly at copy boundaries.
+        let first = &sprites[sorted[0]];
+        let last = &sprites[*sorted.last().unwrap()];
+        let first_w = first.sprite_w * WORLD_SCALE * 2.0 * first.scale_x.abs();
+        let last_w = last.sprite_w * WORLD_SCALE * 2.0 * last.scale_x.abs();
+        let block_width = max_x - min_x + (first_w + last_w) / 2.0;
         let speed = sprites[sorted[0]].layer.parallax_speed();
         for &idx in &sorted {
             tile_info.insert(idx, (block_width, speed));
@@ -116,6 +132,17 @@ pub fn build_bg_layer_cache(
         tile_info,
         singleton_set,
         name_lower,
+        sorted_indices: {
+            let s = effective_sprites.as_deref().unwrap_or(&theme.sprites);
+            let mut idx: Vec<usize> = (0..s.len()).collect();
+            idx.sort_by(|a, b| {
+                s[*b]
+                    .world_z
+                    .partial_cmp(&s[*a].world_z)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            idx
+        },
         effective_sprites,
     })
 }
@@ -169,11 +196,15 @@ pub fn draw_background(
 }
 
 /// Draw parallax background sprite layers for the given theme.
+///
+/// `z_range` filters sprites by worldZ (real Unity world Z coordinate):
+/// only sprites with `z_range.0 <= worldZ < z_range.1` are drawn.
+/// Sprites are rendered in sorted order (farthest / highest worldZ first).
 pub fn draw_bg_layers(
     ctx: &DrawCtx<'_>,
     theme_name: &str,
     time: f64,
-    layer_range: Option<(i32, i32)>,
+    z_range: (f32, f32), // (inclusive min, exclusive max)
     cache: &BgLayerCache,
     mut gpu: Option<&mut BgGpuState<'_>>,
 ) {
@@ -186,18 +217,17 @@ pub fn draw_bg_layers(
 
     let sprites = cache.sprites(theme);
 
-    // Draw sprites in original order; tiled sprites get 3 shifted copies
+    // Draw sprites in Z-sorted order (farthest first = back-to-front)
     // Pre-compute wave/foam Y offsets
     let wave_y_offset = wave_offset(time);
     let foam_y_offset = foam_offset(time);
 
-    for (i, sprite) in sprites.iter().enumerate() {
-        // Layer range filter: skip sprites outside the requested range
-        if let Some((min_order, max_order)) = layer_range {
-            let order = sprite.layer.order();
-            if order < min_order || order > max_order {
-                continue;
-            }
+    for &i in &cache.sorted_indices {
+        let sprite = &sprites[i];
+        // World-Z range filter
+        let z = sprite.world_z;
+        if z < z_range.0 || z >= z_range.1 {
+            continue;
         }
 
         // Cloud drift: horizontal offset based on time
@@ -207,8 +237,8 @@ pub fn draw_bg_layers(
         } else {
             0.0
         };
-        // Wave/foam Y offset
-        let anim_y = if name_lower == "waves" {
+        // Wave/foam Y offset (Dummy is in OceanAnimRoot, same as Waves)
+        let anim_y = if name_lower == "waves" || name_lower == "dummy" {
             wave_y_offset
         } else if name_lower == "foam" {
             foam_y_offset
@@ -382,17 +412,27 @@ fn draw_bg_sprite_offset(
     let screen_rect =
         egui::Rect::from_center_size(center, egui::vec2(hw_screen * 2.0, hh_screen * 2.0));
 
-    // Fill color sprites (solid rectangles) — no shader needed
+    // Fill color sprites (solid rectangles) — no shader needed.
+    // Extend downward to screen bottom so fills cover the full depth,
+    // matching Unity's coverage.
     if let Some(rgb) = sprite.fill_color {
         let color = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-        painter.rect_filled(screen_rect, 0.0, color);
+        let fill_rect = egui::Rect::from_min_max(
+            screen_rect.left_top(),
+            egui::pos2(screen_rect.right(), rect.bottom()),
+        );
+        painter.rect_filled(fill_rect, 0.0, color);
         return;
     }
 
-    // Cutoff: Near/Ground layers use alpha cutout (0.5), others use minimal threshold
-    let cutoff = match sprite.layer {
-        bg_data::BgLayer::Near | bg_data::BgLayer::Ground => 0.5,
-        _ => 0.004,
+    // Cutoff: controls shader blend mode.
+    //   -1.0 → opaque (Unity _Custom/Unlit_Color_Geometry — fill layers)
+    //    0.5 → alpha cutout (Unity Unlit/Transparent Cutout, _Cutoff=0.5)
+    let name_lower_ref = sprite.name.to_ascii_lowercase();
+    let cutoff = if name_lower_ref.contains("fill") {
+        -1.0
+    } else {
+        0.5
     };
 
     // ── GPU path: use WGSL background shader ──
@@ -437,7 +477,15 @@ fn draw_bg_sprite_offset(
                     .get_or_load(g.device, g.queue, &g.resources, atlas_name)
         {
             let cell = 1.0 / sprite.subdiv;
-            let padding = 1.0 / 2048.0;
+            // When border > 0, border_off alone maps to the exact content
+            // boundary; the border pixels duplicate edge content for safe
+            // bilinear filtering.  Extra padding would skip actual content
+            // and create visible seams between adjacent tiled sprites.
+            let padding = if sprite.border > 0.0 {
+                0.0
+            } else {
+                1.0 / 2048.0
+            };
             let border_off = sprite.border / 1024.0;
             let u0 = sprite.uv_x * cell + padding + border_off;
             let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding - border_off;

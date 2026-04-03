@@ -79,13 +79,18 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
     // Exact Unity shader: return tex2D(_MainTex, i.texcoord) * _Color;
     let c = textureSample(main_tex, main_sampler, in.uv) * u.tint_color;
 
-    // Alpha test / discard (cutoff controls shader mode):
+    // Texture is already premultiplied at load time (matching Unity's
+    // "Alpha Is Transparency" import).  Shader modes:
+    //   cutoff < 0     → opaque fill (force alpha = 1)
     //   cutoff ≈ 0.004 → transparent blend (discard fully-transparent only)
     //   cutoff = 0.5   → alpha cutout (Unlit/Transparent Cutout)
+    if (u.cutoff < 0.0) {
+        return vec4<f32>(c.rgb, 1.0);
+    }
     if (c.a < u.cutoff) { discard; }
 
-    // Premultiply for egui compositor (egui uses premultiplied alpha blending)
-    return vec4<f32>(c.rgb * c.a, c.a);
+    // Already premultiplied — pass through for egui compositor
+    return vec4<f32>(c.rgb, c.a);
 }
 "#;
 
@@ -383,7 +388,16 @@ pub fn load_bg_texture(
     let data = crate::assets::read_asset(&path)?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
-    let pixels = img.into_raw();
+    // Premultiply alpha into RGB — matches Unity's "Alpha Is Transparency"
+    // import setting.  This ensures bilinear filtering between alpha=0 and
+    // alpha=255 texels produces the same (dark) colour as Unity.
+    let mut pixels = img.into_raw();
+    for chunk in pixels.chunks_exact_mut(4) {
+        let a = chunk[3] as u16;
+        chunk[0] = ((chunk[0] as u16 * a) / 255) as u8;
+        chunk[1] = ((chunk[1] as u16 * a) / 255) as u8;
+        chunk[2] = ((chunk[2] as u16 * a) / 255) as u8;
+    }
     Some(upload_bg_atlas(device, queue, resources, &pixels, w, h))
 }
 

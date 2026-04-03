@@ -311,11 +311,14 @@ pub fn sky_top_color(theme: &str) -> egui::Color32 {
 
 /// Ground fill color per theme (sampled from Background_*_Sheet fill sprite UV regions).
 pub fn ground_color(theme: &str) -> egui::Color32 {
+    // Must match the Near_fill color for ocean themes (Jungle/Morning/Maya)
+    // so the semi-transparent wave bottom blends seamlessly against it, just
+    // like Unity's Camera.backgroundColor fills behind the scene.
     match theme {
         "Jungle" => egui::Color32::from_rgb(0x33, 0x88, 0x44),
         "Plateau" => egui::Color32::from_rgb(0x33, 0x77, 0x66),
         "Night" => egui::Color32::from_rgb(0x20, 0x2d, 0x42),
-        "Morning" => egui::Color32::from_rgb(0x33, 0x44, 0x55),
+        "Morning" => egui::Color32::from_rgb(0x3f, 0x4b, 0x5b),
         "Halloween" => egui::Color32::from_rgb(0x3d, 0x2c, 0x4d),
         "Cave" => egui::Color32::from_rgb(0x11, 0x21, 0x11),
         "Maya" => egui::Color32::from_rgb(0x05, 0x18, 0x26),

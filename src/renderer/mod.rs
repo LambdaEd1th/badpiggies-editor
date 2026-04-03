@@ -19,15 +19,10 @@ use crate::assets;
 use crate::types::*;
 
 /// Point-in-triangle test using barycentric coordinates (sign of cross products).
-fn point_in_triangle(
-    px: f32, py: f32,
-    ax: f32, ay: f32,
-    bx: f32, by: f32,
-    cx: f32, cy: f32,
-) -> bool {
-    let d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
-    let d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
-    let d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
+fn point_in_triangle(p: egui::Pos2, a: egui::Pos2, b: egui::Pos2, c: egui::Pos2) -> bool {
+    let d1 = (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+    let d2 = (p.x - c.x) * (b.y - c.y) - (b.x - c.x) * (p.y - c.y);
+    let d3 = (p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y);
     let has_neg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
     let has_pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
     !(has_neg && has_pos)
@@ -1080,13 +1075,10 @@ impl LevelRenderer {
             if i0 >= verts.len() || i1 >= verts.len() || i2 >= verts.len() {
                 continue;
             }
-            let ax = verts[i0].pos.x + ox;
-            let ay = verts[i0].pos.y + oy;
-            let bx = verts[i1].pos.x + ox;
-            let by = verts[i1].pos.y + oy;
-            let cx = verts[i2].pos.x + ox;
-            let cy = verts[i2].pos.y + oy;
-            if point_in_triangle(pos.x, pos.y, ax, ay, bx, by, cx, cy) {
+            let a = egui::pos2(verts[i0].pos.x + ox, verts[i0].pos.y + oy);
+            let b = egui::pos2(verts[i1].pos.x + ox, verts[i1].pos.y + oy);
+            let c = egui::pos2(verts[i2].pos.x + ox, verts[i2].pos.y + oy);
+            if point_in_triangle(egui::pos2(pos.x, pos.y), a, b, c) {
                 return true;
             }
         }
@@ -1143,7 +1135,7 @@ impl LevelRenderer {
             // Reset per-frame fill shader slot counter
             self.fill_slot_counter = 0;
 
-            // Parallax background layers: sky only (order 0)
+            // Parallax background layers: sky (worldZ >= 17.5, before cloud instances)
             if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
                 let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
                     (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
@@ -1165,7 +1157,7 @@ impl LevelRenderer {
                     },
                     theme_name,
                     self.time,
-                    Some((0, 0)), // sky only
+                    (17.5, f32::INFINITY),
                     cache,
                     gpu.as_mut(),
                 );
@@ -1217,7 +1209,7 @@ impl LevelRenderer {
                 }
             }
 
-            // Parallax background layers: camera(1) through near(4) — behind clouds in Z
+            // Parallax background layers: camera through near (5 <= worldZ < 17.5)
             if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
                 let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
                     (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
@@ -1239,7 +1231,7 @@ impl LevelRenderer {
                     },
                     theme_name,
                     self.time,
-                    Some((1, 4)), // camera..near
+                    (5.0, 17.5),
                     cache,
                     gpu.as_mut(),
                 );
@@ -1361,7 +1353,7 @@ impl LevelRenderer {
             }
         }
 
-        // ── Ground background layer (order 5) ──
+        // ── Ground background (eff_z 0..5): beach/grass, behind collider terrain ──
         if self.show_bg
             && let Some(theme_name) = self.bg_theme
         {
@@ -1386,7 +1378,7 @@ impl LevelRenderer {
                     },
                     theme_name,
                     self.time,
-                    Some((5, 5)), // ground only (foreground drawn after sprites)
+                    (0.0, 5.0), // ground behind terrain (beach/grass)
                     cache,
                     gpu.as_mut(),
                 );
@@ -2326,10 +2318,12 @@ impl LevelRenderer {
                                 rect,
                                 resources.clone(),
                                 batch.clone(),
-                                rect.width(),
-                                rect.height(),
-                                self.camera.zoom,
-                                props_tint,
+                                opaque_shader::OpaqueBatchParams {
+                                    screen_w: rect.width(),
+                                    screen_h: rect.height(),
+                                    zoom: self.camera.zoom,
+                                    tint_color: props_tint,
+                                },
                                 std::mem::take(&mut pending_opaque),
                             ));
                         }
@@ -2346,10 +2340,12 @@ impl LevelRenderer {
                     rect,
                     resources.clone(),
                     batch.clone(),
-                    rect.width(),
-                    rect.height(),
-                    self.camera.zoom,
-                    props_tint,
+                    opaque_shader::OpaqueBatchParams {
+                        screen_w: rect.width(),
+                        screen_h: rect.height(),
+                        zoom: self.camera.zoom,
+                        tint_color: props_tint,
+                    },
                     pending_opaque,
                 ));
             }
@@ -2470,7 +2466,7 @@ impl LevelRenderer {
             }
         }
 
-        // ── Foreground background layer (renderOrder=20, after sprites) ──
+        // ── Front-ground + foreground (eff_z < 0): waves/foam/dummy + foreground, after sprites ──
         if self.show_bg
             && let Some(theme_name) = self.bg_theme
         {
@@ -2495,7 +2491,7 @@ impl LevelRenderer {
                     },
                     theme_name,
                     self.time,
-                    Some((6, 100)), // foreground only
+                    (f32::NEG_INFINITY, 0.0), // waves/foam/dummy + foreground
                     cache,
                     gpu.as_mut(),
                 );

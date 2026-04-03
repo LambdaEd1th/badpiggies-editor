@@ -548,23 +548,28 @@ impl egui_wgpu::CallbackTrait for OpaqueBatchPaintCallback {
 ///
 /// All opaque sprites draw in one render pass, avoiding per-sprite render pass
 /// switches that cause frame drops in large levels.
+/// Parameters for constructing an opaque batch draw call.
+pub struct OpaqueBatchParams {
+    pub screen_w: f32,
+    pub screen_h: f32,
+    pub zoom: f32,
+    pub tint_color: [f32; 4],
+}
+
 pub fn make_opaque_batch_callback(
     clip_rect: egui::Rect,
     resources: Arc<OpaqueResources>,
     batch: Arc<OpaqueSpriteBatch>,
-    screen_w: f32,
-    screen_h: f32,
-    zoom: f32,
-    tint_color: [f32; 4],
+    params: OpaqueBatchParams,
     draws: Vec<OpaqueBatchDraw>,
 ) -> egui::Shape {
     let cb = OpaqueBatchPaintCallback {
         resources,
         batch,
-        screen_w,
-        screen_h,
-        zoom,
-        tint_color,
+        screen_w: params.screen_w,
+        screen_h: params.screen_h,
+        zoom: params.zoom,
+        tint_color: params.tint_color,
         draws,
     };
     egui::Shape::Callback(egui_wgpu::Callback::new_paint_callback(clip_rect, cb))

@@ -557,7 +557,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let yaml_name = self.file_name.as_deref().map(|n| format!("{n}.yaml")).unwrap_or_else(|| "level.yaml".into());
+                            let yaml_name = self
+                                .file_name
+                                .as_deref()
+                                .map(|n| format!("{n}.yaml"))
+                                .unwrap_or_else(|| "level.yaml".into());
                             if let Some(text) = self.export_yaml()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("YAML files", &["yaml"])
@@ -597,7 +601,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let toml_name = self.file_name.as_deref().map(|n| format!("{n}.toml")).unwrap_or_else(|| "level.toml".into());
+                            let toml_name = self
+                                .file_name
+                                .as_deref()
+                                .map(|n| format!("{n}.toml"))
+                                .unwrap_or_else(|| "level.toml".into());
                             if let Some(text) = self.export_toml()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("TOML files", &["toml"])
@@ -743,14 +751,10 @@ impl eframe::App for EditorApp {
                                 let days = secs / 86400;
                                 // Days since 1970-01-01 → y/m/d
                                 let (y, mo, d) = civil_from_days(days as i64);
-                                format!(
-                                    "{:04}{:02}{:02}_{:02}{:02}{:02}.log",
-                                    y, mo, d, h, m, s
-                                )
+                                format!("{:04}{:02}{:02}_{:02}{:02}{:02}.log", y, mo, d, h, m, s)
                             };
-                            if let Some(path) = rfd::FileDialog::new()
-                                .set_file_name(&log_name)
-                                .save_file()
+                            if let Some(path) =
+                                rfd::FileDialog::new().set_file_name(&log_name).save_file()
                             {
                                 if let Err(e) = std::fs::write(&path, &content) {
                                     self.status = format!("Log export error: {e}");
@@ -976,7 +980,7 @@ impl eframe::App for EditorApp {
         if self.show_properties {
             egui::Panel::right("properties")
                 .default_size(280.0)
-                .size_range(120.0..=500.0)
+                .size_range(120.0..=f32::INFINITY)
                 .resizable(true)
                 .show_inside(ui, |ui| {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);

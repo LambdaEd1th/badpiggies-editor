@@ -119,23 +119,17 @@ jobs:
       - name: Build WASM site
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          # First pass: let trunk download wasm-opt (build will fail because
-          # wasm-bindgen emits bulk-memory ops that wasm-opt rejects in MVP mode).
-          trunk build --release --public-url "/${REPO_NAME}/" 2>/dev/null || true
-
-          # Wrap the downloaded wasm-opt binary so it always passes --all-features,
-          # which enables bulk-memory support.
-          WASM_OPT=$(find "${HOME}/.cache" "${HOME}/Library/Caches" \
-            -path '*/dev.trunkrs.trunk/*/bin/wasm-opt' -type f 2>/dev/null | head -1)
-          if [ -n "$WASM_OPT" ]; then
-            mv "$WASM_OPT" "${WASM_OPT}.orig"
-            printf '#!/bin/sh\nexec "%s" --all-features "$@"\n' "${WASM_OPT}.orig" > "$WASM_OPT"
-            chmod +x "$WASM_OPT"
-          fi
-
-          # Clean failed build artifacts and rebuild.
-          rm -rf dist/.stage target/wasm-opt
+          # Disable trunk's built-in wasm-opt: it rejects bulk-memory ops
+          # that wasm-bindgen 0.2.115+ emits.  We run wasm-opt manually below.
+          sed -i 's/data-wasm-opt="2"/data-wasm-opt="0"/' index.html
           trunk build --release --public-url "/${REPO_NAME}/"
+
+      - name: Optimize WASM
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y binaryen
+          WASM=$(find dist -name '*_bg.wasm' | head -1)
+          wasm-opt --all-features -O2 "$WASM" -o "${WASM}.opt"
+          mv "${WASM}.opt" "$WASM"
 
       - name: Package web artifact
         run: zip -r badpiggies-editor-web-${{ github.ref_name }}.zip dist

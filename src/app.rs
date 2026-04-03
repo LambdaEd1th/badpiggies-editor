@@ -76,6 +76,7 @@ impl EditorApp {
         configure_cjk_fonts(&cc.egui_ctx);
 
         // Disable debug visualisations that cause red-frame flicker in dev builds
+        #[cfg(debug_assertions)]
         cc.egui_ctx.global_style_mut(|s| {
             s.debug.show_unaligned = false;
             s.debug.warn_if_rect_changes_id = false;

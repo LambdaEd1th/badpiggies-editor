@@ -1,12 +1,15 @@
 //! WGSL background shader — unified port of Unity's background rendering shaders.
 //!
-//! Three original Unity shaders share identical fragment logic: `tex2D(_MainTex, uv) * _Color`
+//! Three original Unity shaders, unified with `cutoff` + `tint_color` uniforms:
 //!
-//! | Shader | Blend | Usage |
-//! |--------|-------|-------|
-//! | `_Custom/Unlit_Color_Geometry` | Off (opaque) | Fill layers |
-//! | `_Custom/Unlit_ColorTransparent_Geometry` | SrcAlpha OneMinusSrcAlpha | Far hills, clouds |
-//! | `Unlit/Transparent Cutout` | Alpha test (_Cutoff=0.5) | Near hills, beach |
+//! | Shader | Fragment | Blend | Usage |
+//! |--------|----------|-------|-------|
+//! | `_Custom/Unlit_Color_Geometry` | `tex * _Color` | Off (opaque) | Solid fill layers (Sky, Ground) |
+//! | `_Custom/Unlit_ColorTransparent_Geometry` | `tex * _Color` | SrcAlpha 1-SrcAlpha | Far hills, clouds |
+//! | `Unlit/Transparent Cutout` (fileID 10750) | `tex` (no _Color!) | Alpha test | Cave shapes, plateaus, fills |
+//!
+//! **Note**: `Unlit/Transparent Cutout` does NOT use `_Color`. The `_Color` values on
+//! materials using this shader (e.g. cave fill layers) are dead data, ignored at runtime.
 //!
 //! Unified as a single WGSL shader with `cutoff` uniform controlling alpha test.
 //! Uses a shared large uniform buffer with dynamic offsets for efficient multi-sprite
@@ -427,7 +430,7 @@ impl BgAtlasCache {
             return Some(arc.clone());
         }
         // Determine prefix from filename
-        let prefix = if filename.contains("Sky_Texture") {
+        let prefix = if filename.contains("Sky_Texture") || filename.contains("_sky.") {
             "sky"
         } else {
             "bg"

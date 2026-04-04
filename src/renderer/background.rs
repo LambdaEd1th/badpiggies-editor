@@ -46,9 +46,19 @@ pub fn build_bg_layer_cache(
     let theme = bg_data::get_theme(theme_name)?;
 
     let effective_sprites = if let Some(raw) = bg_override_text {
+        // Try Transform-based overrides first (EP1-5 style)
         let overrides = bg_data::parse_bg_overrides(raw);
         if !overrides.groups.is_empty() || !overrides.sprites.is_empty() {
             Some(bg_data::apply_bg_overrides(theme, &overrides))
+        } else if !theme.child_order.is_empty() {
+            // Try PositionSerializer-based overrides (EP6 style)
+            let overrides =
+                bg_data::parse_position_serializer_overrides(raw, &theme.child_order);
+            if !overrides.groups.is_empty() {
+                Some(bg_data::apply_bg_overrides(theme, &overrides))
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -433,11 +443,12 @@ fn draw_bg_sprite_offset(
     }
 
     // Cutoff: controls shader blend mode.
-    //   -1.0 → opaque (Unity _Custom/Unlit_Color_Geometry — fill layers)
+    //   -1.0 → opaque (Unity _Custom/Unlit_Color_Geometry — solid fill layers)
     //    0.5 → alpha cutout (Unity Unlit/Transparent Cutout, _Cutoff=0.5)
-    let name_lower_ref = sprite.name.to_ascii_lowercase();
-    let cutoff = if name_lower_ref.contains("fill") {
-        -1.0
+    //    0.004 → alpha blend (nearly transparent sprites like clouds)
+    // Solid fills (fillColor) already returned above; atlas-based sprites use cutout.
+    let cutoff = if sprite.alpha_blend {
+        0.004
     } else {
         0.5
     };
@@ -463,7 +474,7 @@ fn draw_bg_sprite_offset(
                 uv_max: [1.0, 1.0],
                 content_ratio_x,
                 _pad: 0.0,
-                tint_color: [1.0, 1.0, 1.0, 1.0],
+                tint_color: sprite.tint,
             };
             let slot = *g.slot_counter;
             *g.slot_counter += 1;
@@ -525,7 +536,7 @@ fn draw_bg_sprite_offset(
                 uv_max: [u1, v1],
                 content_ratio_x,
                 _pad: 0.0,
-                tint_color: [1.0, 1.0, 1.0, 1.0],
+                tint_color: sprite.tint,
             };
             let slot = *g.slot_counter;
             *g.slot_counter += 1;

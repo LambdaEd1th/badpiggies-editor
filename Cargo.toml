@@ -22,7 +22,7 @@ toml = "1.1"
 bytemuck = { version = "1", features = ["derive"] }
 fluent-bundle = "0.16"
 unic-langid = { version = "0.9", features = ["macros"] }
-sys-locale = "0.3"
+sys-locale = { version = "0.3", features = ["js"] }
 rust-embed = { version = "8", features = ["debug-embed"] }
 
 # Native dependencies

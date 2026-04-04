@@ -263,7 +263,60 @@ pub fn is_dark_terrain(terrain_name: &str) -> bool {
 
 // ── Background theme detection ───────────────────────
 
+/// Exact level-key → theme mapping for Episode 6 (Maya) levels.
+/// The level binary does NOT contain the background SET name; it stores an
+/// opaque prefab reference index that can only be resolved via the Unity
+/// loader prefab's `m_references` array.  Heuristic name-matching fails for
+/// ~85% of EP6 levels, so we use a hardcoded table derived from the loader
+/// analysis.
+fn ep6_theme_for_key(key: &str) -> Option<&'static str> {
+    // Strip to just the key portion after "episode_6_level_"
+    let suffix = key
+        .to_ascii_lowercase()
+        .replace("episode_6_level_", "")
+        .replace("_data", "");
+    match suffix.as_str() {
+        // Maya (outdoor): levels 1-4, 33-36, star I, IX
+        "1" | "2" | "3" | "4" | "33" | "34" | "35" | "36" | "i" | "ix" => Some("Maya"),
+        // MayaCave2Dark: levels 5-8, 17-20, 29-32, star II, V, VIII
+        "5" | "6" | "7" | "8" | "17" | "18" | "19" | "20" | "29" | "30" | "31" | "32"
+        | "ii" | "v" | "viii" => Some("MayaCave2Dark"),
+        // MayaHigh: levels 9-12, 25-28, star III, VII
+        "9" | "10" | "11" | "12" | "25" | "26" | "27" | "28" | "iii" | "vii" => {
+            Some("MayaHigh")
+        }
+        // MayaTemple: levels 13-16, 21-24, star IV, VI
+        "13" | "14" | "15" | "16" | "21" | "22" | "23" | "24" | "iv" | "vi" => {
+            Some("MayaTemple")
+        }
+        _ => None,
+    }
+}
+
+/// Exact sandbox level-key → theme.
+fn sandbox_theme_for_key(key: &str) -> Option<&'static str> {
+    let lower = key.to_ascii_lowercase();
+    if lower.contains("episode_6_dark") {
+        Some("MayaCave2Dark")
+    } else if lower.contains("episode_6_ice") {
+        Some("MayaTemple")
+    } else if lower.contains("episode_6_tower") {
+        Some("Maya")
+    } else {
+        None
+    }
+}
+
 const BG_THEME_PATTERNS: &[(&str, &str)] = &[
+    // Level binaries use "MM" (Mayan Mischief) prefix for Maya episode backgrounds.
+    // Match the specific MM_ variants BEFORE the generic fallbacks.
+    ("MM_Cave_02_SET_DARK", "MayaCave2Dark"),
+    ("MM_Cave_01_SET_DARK", "MayaCaveDark"),
+    ("MM_Cave", "MayaCave"),
+    ("MM_Temple", "MayaTemple"),
+    ("MM_High", "MayaHigh"),
+    ("MM_01_SET", "Maya"),
+    // Also keep original patterns for any prefab names that DO contain "Maya".
     ("MayaCave2Dark", "MayaCave2Dark"),
     ("MayaCaveDark", "MayaCaveDark"),
     ("MayaCave", "MayaCave"),
@@ -273,13 +326,28 @@ const BG_THEME_PATTERNS: &[(&str, &str)] = &[
     ("Jungle", "Jungle"),
     ("Plateau", "Plateau"),
     ("Morning", "Morning"),
+    ("Forest", "Morning"),
     ("Night", "Night"),
     ("Halloween", "Halloween"),
     ("Cave", "Cave"),
 ];
 
-/// Detect which background theme to use from level object names.
-pub fn detect_bg_theme(object_names: &[String]) -> Option<&'static str> {
+/// Detect which background theme to use.
+///
+/// For Episode 6 levels the theme is determined by a hardcoded lookup table
+/// (derived from Unity loader prefab `m_references[4]` GUIDs), because the
+/// level binary object names do NOT reliably encode the background variant.
+/// For all other episodes, substring matching on object names is sufficient.
+pub fn detect_bg_theme(level_key: &str, object_names: &[String]) -> Option<&'static str> {
+    // 1. Try exact EP6 level lookup first
+    if let Some(theme) = ep6_theme_for_key(level_key) {
+        return Some(theme);
+    }
+    // 2. Try sandbox lookup
+    if let Some(theme) = sandbox_theme_for_key(level_key) {
+        return Some(theme);
+    }
+    // 3. Fall back to heuristic name matching (works for EP1-5)
     for name in object_names {
         for &(pattern, theme) in BG_THEME_PATTERNS {
             if name.contains(pattern) {
@@ -299,12 +367,12 @@ pub fn sky_top_color(theme: &str) -> egui::Color32 {
         "Morning" => egui::Color32::from_rgb(0xf7, 0xf8, 0xda),
         "Halloween" => egui::Color32::from_rgb(0x0a, 0x4b, 0x38),
         "Cave" => egui::Color32::from_rgb(0x58, 0xc0, 0x44),
-        "Maya" => egui::Color32::from_rgb(0x26, 0xaa, 0xc2),
+        "Maya" => egui::Color32::from_rgb(0x7d, 0xbf, 0xe9),
         "MayaCave" => egui::Color32::from_rgb(0x58, 0xc0, 0x44),
         "MayaCave2Dark" => egui::Color32::from_rgb(0x03, 0x12, 0x12),
         "MayaCaveDark" => egui::Color32::from_rgb(0x58, 0xc0, 0x44),
-        "MayaHigh" => egui::Color32::from_rgb(0x96, 0xb6, 0xc7),
-        "MayaTemple" => egui::Color32::from_rgb(0x26, 0x78, 0xc2),
+        "MayaHigh" => egui::Color32::from_rgb(0x7d, 0xbf, 0xe9),
+        "MayaTemple" => egui::Color32::from_rgb(0xfd, 0xf8, 0x7b),
         _ => egui::Color32::from_rgb(0x26, 0xaa, 0xc2),
     }
 }

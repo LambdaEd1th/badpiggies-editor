@@ -83,6 +83,8 @@ pub struct BgSprite {
     pub local_x: f32,
     pub local_y: f32,
     pub parent_group: String,
+    pub tint: [f32; 4],
+    pub alpha_blend: bool,
 }
 
 /// Full theme data with sprites organized by layer.
@@ -90,6 +92,10 @@ pub struct BgSprite {
 pub struct BgTheme {
     pub sprites: Vec<BgSprite>,
     pub group_defaults: HashMap<String, [f32; 3]>,
+    /// PositionSerializer child root-order → group name mapping.
+    /// When present, per-level `childLocalPositions` arrays are applied as
+    /// group position overrides (EP6 background prefabs).
+    pub child_order: Vec<String>,
 }
 
 // ── JSON deserialization ──
@@ -99,6 +105,8 @@ struct ThemeJson {
     sprites: Vec<SpriteJson>,
     #[serde(rename = "groupDefaults")]
     group_defaults: HashMap<String, [f64; 3]>,
+    #[serde(rename = "childOrder", default)]
+    child_order: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -141,6 +149,9 @@ struct SpriteJson {
     local_y: f64,
     #[serde(rename = "parentGroup", default)]
     parent_group: String,
+    tint: Option<String>,
+    #[serde(rename = "alphaBlend", default)]
+    alpha_blend: bool,
 }
 
 fn parse_hex_color(s: &str) -> Option<[u8; 3]> {
@@ -191,6 +202,10 @@ fn build_themes() -> HashMap<String, BgTheme> {
                 local_x: s.local_x as f32,
                 local_y: s.local_y as f32,
                 parent_group: s.parent_group.clone(),
+                tint: s.tint.as_deref().and_then(parse_hex_color)
+                    .map(|[r, g, b]| [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
+                    .unwrap_or([1.0, 1.0, 1.0, 1.0]),
+                alpha_blend: s.alpha_blend,
             });
         }
         // Sort by layer order then by Z (farther back first)
@@ -211,6 +226,7 @@ fn build_themes() -> HashMap<String, BgTheme> {
             BgTheme {
                 sprites,
                 group_defaults,
+                child_order: theme_json.child_order,
             },
         );
     }
@@ -324,6 +340,63 @@ pub fn apply_bg_overrides(theme: &BgTheme, overrides: &BgOverrides) -> Vec<BgSpr
         .collect()
 }
 
+/// Parse PositionSerializer `childLocalPositions` into group overrides.
+///
+/// EP6 background prefabs use a `PositionSerializer` component with an array
+/// of child positions (indexed by `m_RootOrder`).  The `child_order` slice
+/// maps each array index to the corresponding background group name so we
+/// can produce the same `BgOverrides` struct that `apply_bg_overrides` expects.
+pub fn parse_position_serializer_overrides(raw: &str, child_order: &[String]) -> BgOverrides {
+    let mut result = BgOverrides {
+        groups: HashMap::new(),
+        sprites: HashMap::new(),
+    };
+
+    if !raw.contains("PositionSerializer") || child_order.is_empty() {
+        return result;
+    }
+
+    let mut current_element: Option<usize> = None;
+    let mut current_pos: [Option<f32>; 3] = [None, None, None];
+
+    for line in raw.lines() {
+        let content = line.trim();
+        if let Some(rest) = content.strip_prefix("Element ") {
+            // Flush previous element
+            if let Some(idx) = current_element {
+                if idx < child_order.len() && !child_order[idx].is_empty() {
+                    result
+                        .groups
+                        .insert(child_order[idx].clone(), current_pos);
+                }
+            }
+            current_element = rest.trim().parse::<usize>().ok();
+            current_pos = [None, None, None];
+        } else if let Some(rest) = content.strip_prefix("Float ") {
+            if let Some((axis, val_str)) = rest.split_once('=') {
+                if let Ok(val) = val_str.trim().parse::<f32>() {
+                    match axis.trim() {
+                        "x" => current_pos[0] = Some(val),
+                        "y" => current_pos[1] = Some(val),
+                        "z" => current_pos[2] = Some(val),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    // Flush last element
+    if let Some(idx) = current_element {
+        if idx < child_order.len() && !child_order[idx].is_empty() {
+            result
+                .groups
+                .insert(child_order[idx].clone(), current_pos);
+        }
+    }
+
+    result
+}
+
 /// All known background atlas filenames.
 pub fn bg_atlas_files() -> &'static [&'static str] {
     &[
@@ -348,6 +421,7 @@ pub fn sky_texture_files() -> &'static [&'static str] {
     &[
         "Halloween_Sky_Texture.png",
         "Jungle_Sky_Texture.png",
+        "Maya_Backgrounds_sky.png",
         "Morning_Sky_Texture.png",
         "Night_Sky_Texture.png",
         "Plateau_Sky_Texture.png",

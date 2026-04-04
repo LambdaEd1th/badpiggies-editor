@@ -608,7 +608,7 @@ impl LevelRenderer {
                 LevelObject::Parent(p) => p.name.clone(),
             })
             .collect();
-        self.bg_theme = assets::detect_bg_theme(&names);
+        self.bg_theme = assets::detect_bg_theme(&self.level_key, &names);
 
         // Find BackgroundObject override text for BG position adjustments
         self.bg_override_text = find_bg_override_text(&level.objects);
@@ -2859,12 +2859,16 @@ fn compute_world_position(level: &LevelData, idx: ObjectIndex) -> Vec3 {
 }
 
 /// Search the flat object arena for a BackgroundObject with override data.
+///
+/// Accepts both `Component UnityEngine.Transform` overrides (EP1-5 style)
+/// and `PositionSerializer` / `childLocalPositions` (EP6 style).
 fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
     for obj in objects {
         if let LevelObject::Prefab(inst) = obj
             && inst.name.contains("Background")
             && let Some(ref od) = inst.override_data
-            && od.raw_text.contains("Component UnityEngine.Transform")
+            && (od.raw_text.contains("Component UnityEngine.Transform")
+                || od.raw_text.contains("PositionSerializer"))
         {
             return Some(od.raw_text.clone());
         }

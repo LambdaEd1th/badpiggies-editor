@@ -6239,6 +6239,28 @@ localY = 4.486
 parentGroup = "Ocean"
 
 [Maya]
+childOrder = ["Background_Sky", "BGLayerFurther", "BGLayerFar", "BGLayerNear", "BeachLayer", "FGLayer", "Ocean"]
+[[Maya.sprites]]
+name = "Background_Sky"
+skyTexture = "Maya_Backgrounds_sky.png"
+uvX = 0
+uvY = 0
+gridW = 16
+gridH = 16
+spriteW = 128
+spriteH = 128
+subdiv = 16
+border = 0
+worldX = 0
+worldY = 62.2248
+worldZ = 50
+worldScaleX = 70.87
+worldScaleY = 41.18017
+layer = "sky"
+localX = 0
+localY = 62.2248
+parentGroup = "Background_Sky"
+
 [[Maya.sprites]]
 name = "Background_Maya_03"
 atlas = "Background_Maya_Sheet_01.png"
@@ -6662,6 +6684,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6672,7 +6695,7 @@ subdiv = 32
 border = 0
 worldX = 0
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6683,6 +6706,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6693,7 +6717,7 @@ subdiv = 32
 border = 0
 worldX = 26
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6704,6 +6728,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6714,7 +6739,7 @@ subdiv = 32
 border = 0
 worldX = 52
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6725,6 +6750,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6735,7 +6761,7 @@ subdiv = 32
 border = 0
 worldX = 104
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6746,6 +6772,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6756,7 +6783,7 @@ subdiv = 32
 border = 0
 worldX = 78
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6767,6 +6794,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6777,7 +6805,7 @@ subdiv = 32
 border = 0
 worldX = -52
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6788,6 +6816,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6798,7 +6827,7 @@ subdiv = 32
 border = 0
 worldX = -26
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6809,6 +6838,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6819,7 +6849,7 @@ subdiv = 32
 border = 0
 worldX = -78
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -6830,6 +6860,7 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6840,7 +6871,7 @@ subdiv = 32
 border = 0
 worldX = -104
 worldY = 9.4425
-worldZ = 30
+worldZ = 31
 worldScaleX = 1
 worldScaleY = 1
 layer = "far"
@@ -9264,6 +9295,7 @@ localY = 4.49
 parentGroup = "Ocean"
 
 [MayaCave]
+childOrder = ["Background_Sky", "GroundLayer", "BGLayerNear", "BGLayerFar", "FGLayer"]
 [[MayaCave.sprites]]
 name = "Background_Sky"
 atlas = "Background_Cave_Sheet_01.png"
@@ -9303,7 +9335,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -90.514
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9324,7 +9356,7 @@ worldScaleX = -2.1016
 worldScaleY = 1.0567
 layer = "ground"
 localX = 110.4025
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9345,7 +9377,7 @@ worldScaleX = 257.9848
 worldScaleY = 10.0297
 layer = "ground"
 localX = 9.9631
-localY = -10.0281
+localY = -14.1286
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9366,7 +9398,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -77.0624
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9387,7 +9419,7 @@ worldScaleX = -2.1
 worldScaleY = 1.0567
 layer = "ground"
 localX = -63.554
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9408,7 +9440,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -50.2116
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9429,7 +9461,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = -36.9091
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9450,7 +9482,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -23.5664
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9471,7 +9503,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = -10.2639
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9492,7 +9524,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 16.381
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9513,7 +9545,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = 3.0785
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9534,7 +9566,7 @@ worldScaleX = 2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 29.6349
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9555,7 +9587,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 42.9375
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9576,7 +9608,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 69.5215
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9597,7 +9629,7 @@ worldScaleX = 2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 56.219
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9618,7 +9650,7 @@ worldScaleX = -2.1016
 worldScaleY = 1.0567
 layer = "ground"
 localX = 96.445
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -9639,7 +9671,7 @@ worldScaleX = 2.2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 82.8149
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCave.sprites]]
@@ -11155,9 +11187,10 @@ localY = 54.0112
 parentGroup = "FGLayer"
 
 [MayaCave2Dark]
+childOrder = ["Background_Sky", "GroundLayer", "BGLayerFurther", "BGLayerFarTop", "BGLayerFarBottom", "BGLayerNear", "FGLayer"]
 [[MayaCave2Dark.sprites]]
 name = "Background_Sky_Fill1"
-fillColor = "#031212"
+fillColor = "#040B12"
 uvX = 98
 uvY = 4
 gridW = 9
@@ -11178,7 +11211,7 @@ parentGroup = "Background_Sky_Fill1"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Sky_Fill2"
-fillColor = "#031212"
+atlas = "Background_Maya_Sheet_03.png"
 uvX = 10
 uvY = 0
 gridW = 2
@@ -11640,7 +11673,7 @@ parentGroup = "Background_Sky"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass_fill"
-fillColor = "#414128"
+fillColor = "#424229"
 uvX = 6
 uvY = 5
 gridW = 1
@@ -11656,12 +11689,12 @@ worldScaleX = 793.3032
 worldScaleY = 10.0297
 layer = "ground"
 localX = 10
-localY = -4.23
+localY = -5.9597
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11677,12 +11710,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -100.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11698,12 +11731,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -107.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11719,12 +11752,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -114.45
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11740,12 +11773,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -121.25
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11761,12 +11794,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -128.05
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11782,12 +11815,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -134.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11803,12 +11836,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -141.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11824,12 +11857,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -148.45
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11845,12 +11878,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -155.25
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11866,12 +11899,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -162.05
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11887,12 +11920,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -168.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11908,12 +11941,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -175.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11929,12 +11962,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -182.45
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11950,12 +11983,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -189.25
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11971,12 +12004,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -196.05
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -11992,12 +12025,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -202.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12013,12 +12046,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -209.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12034,12 +12067,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -216.45
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12055,12 +12088,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -223.25
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12076,12 +12109,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -230.05
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12097,12 +12130,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -236.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12118,12 +12151,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -243.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12139,12 +12172,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -250.45
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12160,12 +12193,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -257.25
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12181,12 +12214,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -264.05
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12202,12 +12235,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -270.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12223,12 +12256,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -277.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12244,12 +12277,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -284.45
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12265,12 +12298,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -291.25
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12286,12 +12319,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -298.05
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12307,12 +12340,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -304.85
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12328,12 +12361,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -311.65
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12349,12 +12382,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -94.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12370,12 +12403,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -87.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12391,12 +12424,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -80.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12412,12 +12445,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -73.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12433,12 +12466,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -66.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12454,12 +12487,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -60.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12475,12 +12508,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -53.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12496,12 +12529,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -46.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12517,12 +12550,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -39.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12538,12 +12571,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -32.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12559,12 +12592,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -26.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12580,12 +12613,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -19.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12601,12 +12634,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -12.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12622,12 +12655,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -5.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12643,12 +12676,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 1.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12664,12 +12697,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 7.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12685,12 +12718,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 14.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12706,12 +12739,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 21.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12727,12 +12760,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 28.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12748,12 +12781,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 35.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12769,12 +12802,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 41.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12790,12 +12823,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 48.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12811,12 +12844,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 55.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12832,12 +12865,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 62.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12853,12 +12886,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 69.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12874,12 +12907,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 75.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12895,12 +12928,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 82.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12916,12 +12949,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 89.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12937,12 +12970,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 96.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12958,12 +12991,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 103.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -12979,12 +13012,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 109.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13000,12 +13033,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 116.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13021,12 +13054,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 123.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13042,12 +13075,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 130.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13063,12 +13096,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 137.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13084,12 +13117,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 143.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13105,12 +13138,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 150.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13126,12 +13159,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 157.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13147,12 +13180,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 164.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13168,12 +13201,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 171.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13189,12 +13222,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 177.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13210,12 +13243,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 184.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13231,12 +13264,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 191.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13252,12 +13285,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 198.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13273,12 +13306,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 205.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13294,12 +13327,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 211.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13315,12 +13348,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 218.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13336,12 +13369,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 225.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13357,12 +13390,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 232.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13378,12 +13411,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 239.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13399,12 +13432,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 245.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13420,12 +13453,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 252.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13441,12 +13474,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 259.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13462,12 +13495,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 266.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13483,12 +13516,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 273.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13504,12 +13537,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 279.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13525,12 +13558,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 286.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13546,12 +13579,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 293.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13567,12 +13600,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 300.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13588,12 +13621,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 307.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13609,12 +13642,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 313.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13630,12 +13663,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 320.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13651,12 +13684,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 327.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -13672,12 +13705,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 334.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Further_Fill"
-fillColor = "#031230"
+atlas = "Background_Maya_Sheet_03.png"
 uvX = 28
 uvY = 23
 gridW = 2
@@ -13698,7 +13731,7 @@ parentGroup = "BGLayerFurther"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Further_Fill_2"
-fillColor = "#031230"
+atlas = "Background_Maya_Sheet_03.png"
 uvX = 28
 uvY = 23
 gridW = 2
@@ -14160,7 +14193,7 @@ parentGroup = "BGLayerFurther"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Far_Fill_2"
-fillColor = "#030312"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 5
 uvY = 22
 gridW = 3
@@ -14181,7 +14214,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14202,7 +14235,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14223,7 +14256,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14244,7 +14277,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14265,7 +14298,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14286,7 +14319,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14307,7 +14340,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14328,7 +14361,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14349,7 +14382,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14370,7 +14403,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14391,7 +14424,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14412,7 +14445,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14433,7 +14466,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14454,7 +14487,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14475,7 +14508,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14496,7 +14529,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14517,7 +14550,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14538,7 +14571,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14559,7 +14592,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14580,7 +14613,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14601,7 +14634,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Plateau_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 9
 gridW = 16
@@ -14622,7 +14655,7 @@ parentGroup = "BGLayerFarTop"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Far_Fill"
-fillColor = "#121221"
+atlas = "Background_Maya_Sheet_03.png"
 uvX = 23
 uvY = 30
 gridW = 4
@@ -15210,7 +15243,7 @@ parentGroup = "BGLayerFarBottom"
 
 [[MayaCave2Dark.sprites]]
 name = "Background_Near_Fill"
-fillColor = "#212130"
+atlas = "Background_Maya_Sheet_03.png"
 uvX = 8
 uvY = 27
 gridW = 3
@@ -16406,6 +16439,7 @@ localY = -4.62
 parentGroup = "FGLayer"
 
 [MayaCaveDark]
+childOrder = ["Background_Sky", "GroundLayer", "BGLayerNear", "BGLayerFar", "FGLayer"]
 [[MayaCaveDark.sprites]]
 name = "Background_Sky"
 atlas = "Background_Cave_Sheet_01.png"
@@ -16445,7 +16479,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -90.514
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16466,7 +16500,7 @@ worldScaleX = -2.1016
 worldScaleY = 1.0567
 layer = "ground"
 localX = 110.4025
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16487,7 +16521,7 @@ worldScaleX = 257.9848
 worldScaleY = 10.0297
 layer = "ground"
 localX = 9.9631
-localY = -10.0281
+localY = -14.1286
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16508,7 +16542,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -77.0624
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16529,7 +16563,7 @@ worldScaleX = -2.1
 worldScaleY = 1.0567
 layer = "ground"
 localX = -63.554
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16550,7 +16584,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -50.2116
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16571,7 +16605,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = -36.9091
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16592,7 +16626,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = -23.5664
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16613,7 +16647,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = -10.2639
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16634,7 +16668,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 16.381
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16655,7 +16689,7 @@ worldScaleX = 2.025
 worldScaleY = 1.0567
 layer = "ground"
 localX = 3.0785
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16676,7 +16710,7 @@ worldScaleX = 2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 29.6349
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16697,7 +16731,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 42.9375
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16718,7 +16752,7 @@ worldScaleX = -2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 69.5215
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16739,7 +16773,7 @@ worldScaleX = 2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 56.219
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16760,7 +16794,7 @@ worldScaleX = -2.1016
 worldScaleY = 1.0567
 layer = "ground"
 localX = 96.445
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -16781,7 +16815,7 @@ worldScaleX = 2.2
 worldScaleY = 1.0567
 layer = "ground"
 localX = 82.8149
-localY = -6.0017
+localY = -8.4558
 parentGroup = "GroundLayer"
 
 [[MayaCaveDark.sprites]]
@@ -18297,26 +18331,27 @@ localY = 54.0112
 parentGroup = "FGLayer"
 
 [MayaHigh]
+childOrder = ["Background_Sky", "BGLayerFurther", "BGLayerFar", "BGLayerNear", "FGLayer"]
 [[MayaHigh.sprites]]
-name = "Background_Maya_High_Further_Fill"
-fillColor = "#96b6c7"
-uvX = 23
-uvY = 23
-gridW = 1
-gridH = 1
-spriteW = 32
-spriteH = 32
-subdiv = 32
+name = "Background_Sky"
+skyTexture = "Maya_Backgrounds_sky.png"
+uvX = 0
+uvY = 0
+gridW = 16
+gridH = 16
+spriteW = 128
+spriteH = 128
+subdiv = 16
 border = 0
 worldX = 0
-worldY = -2.14
-worldZ = 40
-worldScaleX = 285
-worldScaleY = 13.5959
-layer = "further"
+worldY = -2.26
+worldZ = 50
+worldScaleX = 70.87
+worldScaleY = 41.18017
+layer = "sky"
 localX = 0
-localY = -3.3
-parentGroup = "BGLayerFurther"
+localY = -2.26
+parentGroup = "Background_Sky"
 
 [[MayaHigh.sprites]]
 name = "Background_Maya_High_Further_01"
@@ -18716,27 +18751,6 @@ layer = "further"
 localX = 19
 localY = 1.2
 parentGroup = "BGLayerFurther"
-
-[[MayaHigh.sprites]]
-name = "Background_Maya_High_Far_Fill"
-fillColor = "#7d98a4"
-uvX = 23
-uvY = 23
-gridW = 1
-gridH = 1
-spriteW = 32
-spriteH = 32
-subdiv = 32
-border = 0
-worldX = 0
-worldY = -5.34
-worldZ = 30
-worldScaleX = 285
-worldScaleY = 13.5959
-layer = "far"
-localX = 0
-localY = -1.5
-parentGroup = "BGLayerFar"
 
 [[MayaHigh.sprites]]
 name = "Background_Maya_High_Far_01"
@@ -19160,7 +19174,7 @@ parentGroup = "BGLayerFar"
 
 [[MayaHigh.sprites]]
 name = "Background_Maya_High_Near_Fill"
-fillColor = "#dcedff"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 23
 uvY = 23
 gridW = 1
@@ -19370,7 +19384,7 @@ parentGroup = "BGLayerNear"
 
 [[MayaHigh.sprites]]
 name = "Foreground_Maya_High_Fill"
-fillColor = "#baddee"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 2
 uvY = 17
 gridW = 1
@@ -19747,9 +19761,10 @@ localY = -3.9
 parentGroup = "FGLayer"
 
 [MayaTemple]
+childOrder = ["Background_Sky", "GroundLayer", "BGLayerFurther", "BGLayerFar", "BGLayerNearTop", "BGLayerNearBottom", "FGLayer"]
 [[MayaTemple.sprites]]
 name = "Background_Sky"
-skyTexture = "Plateau_Sky_Texture.png"
+fillColor = "#fdf87b"
 uvX = 0
 uvY = 0
 gridW = 16
@@ -19770,7 +19785,7 @@ parentGroup = "Background_Sky"
 
 [[MayaTemple.sprites]]
 name = "Grass_fill"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 12
 uvY = 0
 gridW = 1
@@ -19786,12 +19801,12 @@ worldScaleX = 644.9737
 worldScaleY = 30.4652
 layer = "ground"
 localX = 8.18
-localY = -11.48
+localY = -16.1742
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19807,12 +19822,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -189.16
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19828,12 +19843,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -216.36
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19849,12 +19864,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -229.96
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19870,12 +19885,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -257.16
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19891,12 +19906,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -182.36
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19912,12 +19927,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -236.76
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19933,12 +19948,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -195.96
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19954,12 +19969,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -202.76
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19975,12 +19990,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -243.56
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -19996,12 +20011,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -209.56
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20017,12 +20032,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -250.36
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20038,12 +20053,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -223.16
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20059,12 +20074,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -141.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20080,12 +20095,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -168.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20101,12 +20116,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -128.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20122,12 +20137,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -162.06
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20143,12 +20158,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -121.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20164,12 +20179,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -114.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20185,12 +20200,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -155.26
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20206,12 +20221,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -100.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20227,12 +20242,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -175.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20248,12 +20263,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -148.46
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20269,12 +20284,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -134.86
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20290,12 +20305,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -107.66
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20311,12 +20326,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -94.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20332,12 +20347,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -87.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20353,12 +20368,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -80.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20374,12 +20389,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -73.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20395,12 +20410,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -66.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20416,12 +20431,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -60.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20437,12 +20452,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -53.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20458,12 +20473,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -46.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20479,12 +20494,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -39.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20500,12 +20515,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -32.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20521,12 +20536,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -26.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20542,12 +20557,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -19.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20563,12 +20578,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -12.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20584,12 +20599,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = -5.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20605,12 +20620,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 1.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20626,12 +20641,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 7.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20647,12 +20662,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 14.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20668,12 +20683,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 21.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20689,12 +20704,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 28.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20710,12 +20725,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 35.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20731,12 +20746,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 41.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20752,12 +20767,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 48.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20773,12 +20788,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 55.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20794,12 +20809,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 62.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20815,12 +20830,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 69.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20836,12 +20851,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 75.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20857,12 +20872,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 82.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20878,12 +20893,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 89.5
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20899,12 +20914,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 96.3
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20920,12 +20935,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 103.1
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20941,12 +20956,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 109.9
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20962,12 +20977,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 116.7
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -20983,12 +20998,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 184.67
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21004,12 +21019,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 123.47
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21025,12 +21040,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 137.07
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21046,12 +21061,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 191.47
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21067,12 +21082,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 143.87
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21088,12 +21103,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 157.47
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21109,12 +21124,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 164.27
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21130,12 +21145,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 130.27
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21151,12 +21166,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 177.87
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21172,12 +21187,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 150.67
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21193,12 +21208,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 171.07
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21214,12 +21229,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 245.84
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21235,12 +21250,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 225.44
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21256,12 +21271,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 252.64
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21277,12 +21292,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 205.04
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21298,12 +21313,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 239.04
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21319,12 +21334,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 232.24
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21340,12 +21355,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 218.64
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21361,12 +21376,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 266.24
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21382,12 +21397,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 211.84
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21403,12 +21418,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 198.24
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Grass"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 4
 uvY = 0
 gridW = 4
@@ -21424,12 +21439,12 @@ worldScaleX = 1.02
 worldScaleY = 1
 layer = "ground"
 localX = 259.44
-localY = -1.37
+localY = -1.9302
 parentGroup = "GroundLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Fill"
-fillColor = "#dcedff"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 29
 uvY = 4
 gridW = 1
@@ -21450,7 +21465,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21471,7 +21486,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21492,7 +21507,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21513,7 +21528,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21534,7 +21549,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21555,7 +21570,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21576,7 +21591,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21597,7 +21612,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21618,7 +21633,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Top"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 28
 gridW = 32
@@ -21639,7 +21654,7 @@ parentGroup = "BGLayerNearTop"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -21660,7 +21675,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -21681,7 +21696,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -21702,7 +21717,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -21723,7 +21738,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Fill"
-fillColor = "#dcedff"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 29
 uvY = 4
 gridW = 1
@@ -21744,7 +21759,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21765,7 +21780,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21786,7 +21801,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21807,7 +21822,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21828,7 +21843,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21849,7 +21864,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21870,7 +21885,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21891,7 +21906,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21912,7 +21927,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_Base"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 24
 gridW = 32
@@ -21933,7 +21948,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -21954,7 +21969,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -21975,7 +21990,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -21996,7 +22011,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22017,7 +22032,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22038,7 +22053,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22059,7 +22074,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22080,7 +22095,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22101,7 +22116,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22122,7 +22137,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -22143,7 +22158,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22164,7 +22179,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22185,7 +22200,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22206,7 +22221,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22227,7 +22242,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22248,7 +22263,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -22269,7 +22284,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22290,7 +22305,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22311,7 +22326,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -22332,7 +22347,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22353,7 +22368,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -22374,7 +22389,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22395,7 +22410,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22416,7 +22431,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22437,7 +22452,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22458,7 +22473,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22479,7 +22494,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22500,7 +22515,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22521,7 +22536,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -22542,7 +22557,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_02"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 6
 uvY = 0
 gridW = 6
@@ -22563,7 +22578,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22584,7 +22599,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22605,7 +22620,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_01"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 0
 uvY = 1
 gridW = 6
@@ -22626,7 +22641,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_04"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 26
 uvY = 2
 gridW = 6
@@ -22647,7 +22662,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_Near_03"
-atlas = "Background_Maya_Sheet_05.png"
+atlas = "Background_Maya_Sheet_04.png"
 uvX = 13
 uvY = 0
 gridW = 4
@@ -22668,7 +22683,7 @@ parentGroup = "BGLayerNearBottom"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22689,7 +22704,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22710,7 +22725,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22731,7 +22746,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22752,7 +22767,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22773,7 +22788,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22794,7 +22809,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22815,7 +22830,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22836,7 +22851,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22857,7 +22872,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22878,7 +22893,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22899,7 +22914,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22920,7 +22935,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22941,7 +22956,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22962,7 +22977,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -22983,7 +22998,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23004,7 +23019,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23025,7 +23040,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23046,7 +23061,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23067,7 +23082,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23088,7 +23103,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23109,7 +23124,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23130,7 +23145,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23151,7 +23166,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23172,7 +23187,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23193,7 +23208,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 0
 uvY = 18
 gridW = 32
@@ -23214,7 +23229,7 @@ parentGroup = "FGLayer"
 
 [[MayaTemple.sprites]]
 name = "Background_Maya_Temple_FG_Fill"
-atlas = "Background_Maya_Sheet_02.png"
+atlas = "Background_Maya_Sheet_05.png"
 uvX = 25
 uvY = 19
 gridW = 1
@@ -28487,99 +28502,99 @@ localY = -5.0497
 parentGroup = "FGLayer"
 
 [Cave.groupDefaults]
-BGLayerFar = [ 66, 15.3432, 60,]
-BGLayerNear = [ -7, 3.6244, 50,]
-Background_Sky = [ -7, 24.1728, 20,]
-FGLayer = [ -189.9259, -3.1049, -9.6775,]
-GroundLayer = [ -16.8049, 0.7176, -22.5078,]
+BGLayerFar = [66, 15.3432, 60]
+BGLayerNear = [-7, 3.6244, 50]
+Background_Sky = [-7, 24.1728, 20]
+FGLayer = [-189.9259, -3.1049, -9.6775]
+GroundLayer = [-16.8049, 0.7176, -22.5078]
 
 [Halloween.groupDefaults]
-BGLayerFar = [ 66, 10.0092, 60,]
-BGLayerNear = [ -7, 0.9878, 50,]
-Background_Cloud = [ 77.32, 5.12, 16,]
-Background_Clouds_Whirl = [ 13.5074, 11, 17,]
-"Background_Moon_&_Castle" = [ 13.6461, 7.8715, 14,]
-Background_Moon_Glow = [ 13.0351, 10.0994, 16,]
-Background_Sky = [ -7, 39.8768, 20,]
-FGLayer = [ -65, -6.2, -10,]
-GrassLayer = [ -16.8049, 0.7176, -22.5078,]
+BGLayerFar = [66, 10.0092, 60]
+BGLayerNear = [-7, 0.9878, 50]
+Background_Cloud = [77.32, 5.12, 16]
+Background_Clouds_Whirl = [13.5074, 11, 17]
+"Background_Moon_&_Castle" = [13.6461, 7.8715, 14]
+Background_Moon_Glow = [13.0351, 10.0994, 16]
+Background_Sky = [-7, 39.8768, 20]
+FGLayer = [-65, -6.2, -10]
+GrassLayer = [-16.8049, 0.7176, -22.5078]
 
 [Jungle.groupDefaults]
-BGLayerFar = [ -16.931, 9.9787, 36.7514,]
-BGLayerNear = [ -5.3451, 3.2668, 50,]
-Background_Sky = [ -7, 24.9311, 20,]
-BeachLayer = [ -16.8049, 0.7176, -22.5078,]
-Ocean = [ -104.5186, -14.8572, 0,]
+BGLayerFar = [-16.931, 9.9787, 36.7514]
+BGLayerNear = [-5.3451, 3.2668, 50]
+Background_Sky = [-7, 24.9311, 20]
+BeachLayer = [-16.8049, 0.7176, -22.5078]
+Ocean = [-104.5186, -14.8572, 0]
 
 [Maya.groupDefaults]
-BGLayerFar = [ 0, 11.7712, 30,]
-BGLayerFurther = [ 0, 7.8, 40,]
-BGLayerNear = [ 0, 6.9, 20,]
-Background_Sky = [ 0, 62.2248, 50,]
-BeachLayer = [ 0, 0, 0,]
-FGLayer = [ 0, 0, -5,]
-Ocean = [ 0, -14.1561, 0,]
+BGLayerFar = [0, 11.7712, 30]
+BGLayerFurther = [0, 7.8, 40]
+BGLayerNear = [0, 6.9, 20]
+Background_Sky = [0, 62.2248, 50]
+BeachLayer = [0, 0, 0]
+FGLayer = [0, 0, -5]
+Ocean = [0, -14.1561, 0]
 
 [MayaCave.groupDefaults]
-BGLayerFar = [ 66, 15.3432, 60,]
-BGLayerNear = [ -7, 3.6244, 50,]
-Background_Sky = [ -7, 24.1728, 20,]
-FGLayer = [ -189.9259, -3.1049, -9.6775,]
-GroundLayer = [ -16.8049, 0.7176, -22.5078,]
+BGLayerFar = [66, 15.3432, 60]
+BGLayerNear = [-7, 3.6244, 50]
+Background_Sky = [-7, 24.1728, 20]
+FGLayer = [-189.9259, -3.1049, -9.6775]
+GroundLayer = [-16.8049, 0.7176, -22.5078]
 
 [MayaCave2Dark.groupDefaults]
-BGLayerFarBottom = [ 0, -2.04, 60,]
-BGLayerFarTop = [ 0, 12.82, 60,]
-BGLayerFurther = [ 0, -3.19, 60,]
-BGLayerNear = [ 0, -2.7, 50,]
-Background_Sky = [ 0, 0, 0,]
-Background_Sky_Fill1 = [ -2, 8.06, 20,]
-FGLayer = [ -189.9, -8.2, -5.1,]
-GroundLayer = [ -16.8, -7.6, -22.5,]
+BGLayerFarBottom = [0, -2.04, 60]
+BGLayerFarTop = [0, 12.82, 60]
+BGLayerFurther = [0, -3.19, 60]
+BGLayerNear = [0, -2.7, 50]
+Background_Sky = [0, 0, 0]
+Background_Sky_Fill1 = [-2, 8.06, 20]
+FGLayer = [-189.9, -8.2, -5.1]
+GroundLayer = [-16.8, -7.6, -22.5]
 
 [MayaCaveDark.groupDefaults]
-BGLayerFar = [ 66, 15.3432, 60,]
-BGLayerNear = [ -7, 3.6244, 50,]
-Background_Sky = [ -7, 24.1728, 20,]
-FGLayer = [ -189.9259, -3.1049, -9.6775,]
-GroundLayer = [ -16.8049, 0.7176, -22.5078,]
+BGLayerFar = [66, 15.3432, 60]
+BGLayerNear = [-7, 3.6244, 50]
+Background_Sky = [-7, 24.1728, 20]
+FGLayer = [-189.9259, -3.1049, -9.6775]
+GroundLayer = [-16.8049, 0.7176, -22.5078]
 
 [MayaHigh.groupDefaults]
-BGLayerFar = [ 0, -3.84, 30,]
-BGLayerFurther = [ 0, 1.16, 40,]
-BGLayerNear = [ 0, 9.37, 20,]
-Background_Sky = [ 0, -2.26, 50,]
-FGLayer = [ 0, -2.5, -5,]
+BGLayerFar = [0, -3.84, 30]
+BGLayerFurther = [0, 1.16, 40]
+BGLayerNear = [0, 9.37, 20]
+Background_Sky = [0, -2.26, 50]
+FGLayer = [0, -2.5, -5]
 
 [MayaTemple.groupDefaults]
-BGLayerFar = [ 0, -3.84, 30,]
-BGLayerFurther = [ 0, 1.16, 40,]
-BGLayerNearBottom = [ 0, 9.37, 20,]
-BGLayerNearTop = [ 0, 9.85, 20,]
-Background_Sky = [ 0, 49, 50,]
-FGLayer = [ 0, -2.5, -5,]
-GroundLayer = [ -15.5, -7.9, -22,]
+BGLayerFar = [0, -3.84, 30]
+BGLayerFurther = [0, 1.16, 40]
+BGLayerNearBottom = [0, 9.37, 20]
+BGLayerNearTop = [0, 9.85, 20]
+Background_Sky = [0, 49, 50]
+FGLayer = [0, -2.5, -5]
+GroundLayer = [-15.5, -7.9, -22]
 
 [Morning.groupDefaults]
-BGLayerClouds = [ -5.3451, 24.5706, 99.8386,]
-BGLayerFar = [ -16.931, 9.9787, 36.7514,]
-BGLayerForeground = [ -5.3451, 4.4951, 50,]
-BGLayerNear = [ -5.3451, 3.2668, 50,]
-Background_Sky = [ -14.0181, 28.9921, 32.6422,]
-BeachLayer = [ -16.8049, 0.7176, -22.5078,]
-Ocean = [ -104.5186, -14.8572, 0,]
+BGLayerClouds = [-5.3451, 24.5706, 99.8386]
+BGLayerFar = [-16.931, 9.9787, 36.7514]
+BGLayerForeground = [-5.3451, 4.4951, 50]
+BGLayerNear = [-5.3451, 3.2668, 50]
+Background_Sky = [-14.0181, 28.9921, 32.6422]
+BeachLayer = [-16.8049, 0.7176, -22.5078]
+Ocean = [-104.5186, -14.8572, 0]
 
 [Night.groupDefaults]
-BGLayerFar = [ 66, 15.3432, 60,]
-BGLayerNear = [ -7, 3.6244, 50,]
-Background_Sky = [ -7, 24.1728, 20,]
-FGLayer = [ -184.7258, -3.1049, -9.6775,]
-GrassLayer = [ -16.8049, 0.7176, -22.5078,]
-Moon = [ 14.6713, 11.8637, 16,]
+BGLayerFar = [66, 15.3432, 60]
+BGLayerNear = [-7, 3.6244, 50]
+Background_Sky = [-7, 24.1728, 20]
+FGLayer = [-184.7258, -3.1049, -9.6775]
+GrassLayer = [-16.8049, 0.7176, -22.5078]
+Moon = [14.6713, 11.8637, 16]
 
 [Plateau.groupDefaults]
-BGLayerFar = [ 66, 14.7738, 60,]
-BGLayerNear = [ -7, 2.2484, 51.7626,]
-Background_Sky = [ -7, 23.2279, 20,]
-FGLayer = [ -31.0994, -6.5023, -9.6775,]
-GrassLayer = [ -16.8049, 0.7176, -22.5078,]
+BGLayerFar = [66, 14.7738, 60]
+BGLayerNear = [-7, 2.2484, 51.7626]
+Background_Sky = [-7, 23.2279, 20]
+FGLayer = [-31.0994, -6.5023, -9.6775]
+GrassLayer = [-16.8049, 0.7176, -22.5078]

@@ -1545,6 +1545,34 @@ impl LevelRenderer {
             }
         }
 
+        // Goal flag meshes: draw BEFORE collider terrain so terrain edge
+        // occludes the flag bottom (matching Unity's opaque-then-transparent
+        // render queue behaviour where terrain Z-writes block the flag).
+        if let Some(flag_tex) = self.tex_cache.get(GOAL_FLAG_TEXTURE) {
+            for sprite in &self.sprite_data {
+                if !sprite.name_lower.starts_with("goalarea") {
+                    continue;
+                }
+                let margin = 1.5;
+                if sprite.world_pos.x + margin < visible_min_x
+                    || sprite.world_pos.x - margin > visible_max_x
+                    || sprite.world_pos.y + margin < visible_min_y
+                    || sprite.world_pos.y - margin > visible_max_y
+                {
+                    continue;
+                }
+                sprites::draw_goal_flag(
+                    &painter,
+                    sprite,
+                    &self.camera,
+                    canvas_center,
+                    rect,
+                    self.time,
+                    flag_tex,
+                );
+            }
+        }
+
         // Collider terrain: interleave fill + edge per terrain (back-to-front)
         // so that front terrain's fill covers back terrain's edge properly.
         for (ti, td) in self.terrain_data.iter().enumerate() {
@@ -2044,20 +2072,8 @@ impl LevelRenderer {
                 sprite.override_text.as_deref(),
             );
 
-            // Draw goal flag mesh BEHIND the GoalArea icon sprite (flag is at Z=0, icon at Z=-0.5)
-            if sprite.name_lower.starts_with("goalarea")
-                && let Some(flag_tex) = self.tex_cache.get(GOAL_FLAG_TEXTURE)
-            {
-                sprites::draw_goal_flag(
-                    &painter,
-                    sprite,
-                    &self.camera,
-                    canvas_center,
-                    rect,
-                    t,
-                    flag_tex,
-                );
-            }
+            // Goal flag is drawn in a pre-terrain pass (see above) so that
+            // terrain edge occludes the flag bottom, matching Unity Z-buffer.
 
             let mut is_gpu_rendered = false;
 

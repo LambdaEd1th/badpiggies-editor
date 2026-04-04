@@ -309,7 +309,13 @@ fn wave_offset(time: f64) -> f32 {
     hermite(KEYS, t)
 }
 
-/// Foam Y offset (6-second hermite loop, rest at 0.774923).
+/// Foam Y offset (6-second hermite loop).
+///
+/// The animation curve stores absolute `localPosition.y` values for
+/// `FoamAnimRoot`.  At rest the animation sets Y = 0.774923, but the
+/// prefab default that bg-data.toml baked into `worldY` used the
+/// *prefab* value 1.146046.  We subtract the prefab Y so the returned
+/// delta is relative to the baked position.
 fn foam_offset(time: f64) -> f32 {
     const KEYS: &[(f32, f32, f32, f32)] = &[
         (0.0, 0.774923, 0.0, 0.0),
@@ -319,9 +325,10 @@ fn foam_offset(time: f64) -> f32 {
         (3.7, 1.739951, -0.399446, -0.399446),
         (6.0, 0.774923, 0.0, 0.0),
     ];
-    const REST: f32 = 0.774923;
+    // FoamAnimRoot prefab localY (baked into bg-data.toml worldY).
+    const PREFAB_Y: f32 = 1.146046;
     let t = (time % 6.0) as f32;
-    hermite(KEYS, t) - REST
+    hermite(KEYS, t) - PREFAB_Y
 }
 
 /// Cloud horizontal drift offset based on layer speed.

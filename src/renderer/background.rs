@@ -38,6 +38,83 @@ impl BgLayerCache {
     }
 }
 
+fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
+    sprite.sprite_w * WORLD_SCALE * 2.0 * sprite.scale_x.abs()
+}
+
+fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f32> {
+    let spacings: Vec<f32> = sorted
+        .windows(2)
+        .filter_map(|pair| {
+            let dx = sprites[pair[1]].world_x - sprites[pair[0]].world_x;
+            (dx > 0.1).then_some(dx)
+        })
+        .collect();
+    if spacings.is_empty() {
+        return None;
+    }
+
+    let mut sorted_spacings = spacings.clone();
+    sorted_spacings.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let median_spacing = sorted_spacings[sorted_spacings.len() / 2];
+    let spacing_min = *sorted_spacings.first()?;
+    let spacing_max = *sorted_spacings.last()?;
+
+    let min_x = sprites[sorted[0]].world_x;
+    let max_x = sprites[*sorted.last().unwrap()].world_x;
+
+    // Uniform strip bands such as Morning cloud layers should preserve their
+    // authored edge-to-edge contact at the wrap point. Irregular authored bands
+    // such as Jungle far hills need center-spacing cadence instead.
+    if spacing_max - spacing_min <= median_spacing * 0.15 {
+        let mut edge_gaps: Vec<f32> = sorted
+            .windows(2)
+            .map(|pair| {
+                let a = &sprites[pair[0]];
+                let b = &sprites[pair[1]];
+                let a_right = a.world_x + sprite_display_width(a) * 0.5;
+                let b_left = b.world_x - sprite_display_width(b) * 0.5;
+                b_left - a_right
+            })
+            .collect();
+        edge_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median_edge_gap = edge_gaps[edge_gaps.len() / 2];
+        let first = &sprites[sorted[0]];
+        let last = &sprites[*sorted.last().unwrap()];
+        let min_left = first.world_x - sprite_display_width(first) * 0.5;
+        let max_right = last.world_x + sprite_display_width(last) * 0.5;
+        Some(max_right - min_left + median_edge_gap)
+    } else {
+        Some(max_x - min_x + median_spacing)
+    }
+}
+
+fn tile_group_key(sprite: &bg_data::BgSprite, name_lower: &str, name_count: usize) -> Option<String> {
+    if sprite.fill_color.is_some() || sprite.sky_texture.is_some() || name_lower.contains("fill") {
+        return None;
+    }
+
+    let layer_key = sprite.layer.order();
+    if !sprite.parent_group.is_empty() {
+        if name_count <= 1 {
+            Some(format!("g:{}:{}", sprite.parent_group, layer_key))
+        } else {
+            let z_key = sprite.world_z.round() as i32;
+            Some(format!("g:{}:{}:{}", sprite.parent_group, layer_key, z_key))
+        }
+    } else {
+        let atlas_key = sprite.atlas.as_deref().unwrap_or("");
+        let y_key = sprite.world_y.round() as i32;
+        Some(format!("y:{}:{}:{}", y_key, atlas_key, layer_key))
+    }
+}
+
+fn bg_sprite_x_animation_offset(_name_lower: &str, _time: f64, _layer: &bg_data::BgLayer) -> f32 {
+    // Unity's background prefab cloud strips are static parallax sprites.
+    // Only CloudSet instances animate horizontally at runtime.
+    0.0
+}
+
 /// Build the background layer cache. Call once at level load time.
 pub fn build_bg_layer_cache(
     theme_name: &str,
@@ -74,28 +151,36 @@ pub fn build_bg_layer_cache(
     // share one block_width and tile as a coherent unit (e.g. MayaTemple
     // vertical block columns must tile at the same period as the base strips).
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut parent_group_names: HashMap<(String, i32), HashSet<String>> = HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
         let nl = sprite.name.to_ascii_lowercase();
         name_lower.push(nl);
+        if !sprite.parent_group.is_empty() && sprite.fill_color.is_none() && sprite.sky_texture.is_none() {
+            parent_group_names
+                .entry((sprite.parent_group.clone(), sprite.layer.order()))
+                .or_default()
+                .insert(name_lower[i].clone());
+        }
+    }
+
+    for (i, sprite) in sprites.iter().enumerate() {
         if sprite.fill_color.is_some() || sprite.sky_texture.is_some() {
             continue;
         }
         if name_lower[i].contains("fill") {
             continue;
         }
-        let layer_key = sprite.layer.order();
-        let group_key = if !sprite.parent_group.is_empty() {
-            // Include rounded worldZ so that sprites at different depths
-            // (e.g. Ocean Waves at z=-2 vs Foam at z=-1) tile independently.
-            // Without this, the mixed X ranges produce a block_width that
-            // leaves gaps for the narrower sub-group at tile boundaries.
-            let z_key = sprite.world_z.round() as i32;
-            format!("g:{}:{}:{}", sprite.parent_group, layer_key, z_key)
+        let name_count = if sprite.parent_group.is_empty() {
+            0
         } else {
-            let atlas_key = sprite.atlas.as_deref().unwrap_or("");
-            let y_key = sprite.world_y.round() as i32;
-            format!("y:{}:{}:{}", y_key, atlas_key, layer_key)
+            parent_group_names
+                .get(&(sprite.parent_group.clone(), sprite.layer.order()))
+                .map(HashSet::len)
+                .unwrap_or(0)
+        };
+        let Some(group_key) = tile_group_key(sprite, &name_lower[i], name_count) else {
+            continue;
         };
         groups.entry(group_key).or_default().push(i);
     }
@@ -123,19 +208,9 @@ pub fn build_bg_layer_cache(
                 .partial_cmp(&sprites[*b].world_x)
                 .unwrap()
         });
-        let min_x = sprites[sorted[0]].world_x;
-        let max_x = sprites[*sorted.last().unwrap()].world_x;
-        let avg_spacing = (max_x - min_x) / (sorted.len() as f32 - 1.0);
-        if avg_spacing <= 0.1 {
+        let Some(block_width) = tile_block_width(&sorted, sprites) else {
             continue;
-        }
-        // Compute block_width from edge sprite display widths instead of
-        // avg_spacing so tile copies butt up seamlessly at copy boundaries.
-        let first = &sprites[sorted[0]];
-        let last = &sprites[*sorted.last().unwrap()];
-        let first_w = first.sprite_w * WORLD_SCALE * 2.0 * first.scale_x.abs();
-        let last_w = last.sprite_w * WORLD_SCALE * 2.0 * last.scale_x.abs();
-        let block_width = max_x - min_x + (first_w + last_w) / 2.0;
+        };
         let speed = sprites[sorted[0]].layer.parallax_speed();
         for &idx in &sorted {
             tile_info.insert(idx, (block_width, speed));
@@ -163,6 +238,196 @@ pub fn build_bg_layer_cache(
         sorted_indices: idx,
         effective_sprites,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn median(values: &mut [f32]) -> f32 {
+        values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        values[values.len() / 2]
+    }
+
+    #[test]
+    fn jungle_far_tiles_share_one_period_across_z() {
+        let cache = build_bg_layer_cache("Jungle", None).expect("jungle cache");
+        let theme = bg_data::get_theme("Jungle").expect("jungle theme");
+        let sprites = cache.sprites(theme);
+
+        let far_indices: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(_, sprite)| {
+                sprite.parent_group == "BGLayerFar"
+                    && sprite.name == "Background_Jungle_02"
+            })
+            .map(|(idx, _)| idx)
+            .collect();
+
+        assert!(far_indices.len() > 4, "expected far hill sprites in jungle theme");
+
+        let first_width = cache
+            .tile_info
+            .get(&far_indices[0])
+            .map(|(width, _)| *width)
+            .expect("first far hill should tile");
+
+        for idx in far_indices {
+            let width = cache
+                .tile_info
+                .get(&idx)
+                .map(|(block_width, _)| *block_width)
+                .expect("every far hill should tile");
+            assert!(
+                (width - first_width).abs() < 0.001,
+                "expected shared block width, got {width} vs {first_width}"
+            );
+        }
+    }
+
+    #[test]
+    fn jungle_far_wrap_gap_matches_internal_spacing() {
+        let cache = build_bg_layer_cache("Jungle", None).expect("jungle cache");
+        let theme = bg_data::get_theme("Jungle").expect("jungle theme");
+        let sprites = cache.sprites(theme);
+
+        let mut far_indices: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(_, sprite)| {
+                sprite.parent_group == "BGLayerFar"
+                    && sprite.name == "Background_Jungle_02"
+            })
+            .map(|(idx, _)| idx)
+            .collect();
+        far_indices.sort_by(|a, b| {
+            sprites[*a]
+                .world_x
+                .partial_cmp(&sprites[*b].world_x)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let min_x = sprites[*far_indices.first().expect("first")].world_x;
+        let max_x = sprites[*far_indices.last().expect("last")].world_x;
+        let mut diffs: Vec<f32> = far_indices
+            .windows(2)
+            .map(|pair| sprites[pair[1]].world_x - sprites[pair[0]].world_x)
+            .collect();
+        let expected_wrap_gap = median(&mut diffs);
+
+        let block_width = cache
+            .tile_info
+            .get(&far_indices[0])
+            .map(|(width, _)| *width)
+            .expect("far hills should tile");
+        let actual_wrap_gap = block_width - (max_x - min_x);
+
+        assert!(
+            (actual_wrap_gap - expected_wrap_gap).abs() < 0.001,
+            "expected wrap gap {expected_wrap_gap}, got {actual_wrap_gap}"
+        );
+    }
+
+    #[test]
+    fn ocean_parent_group_still_splits_by_depth_when_names_differ() {
+        let theme = bg_data::get_theme("Jungle").expect("jungle theme");
+        let sprites = &theme.sprites;
+
+        let ocean_name_count = sprites
+            .iter()
+            .filter(|sprite| sprite.parent_group == "Ocean")
+            .map(|sprite| sprite.name.to_ascii_lowercase())
+            .collect::<HashSet<_>>()
+            .len();
+
+        assert!(ocean_name_count >= 2, "expected multiple Ocean sprite names");
+
+        let wave = sprites
+            .iter()
+            .find(|sprite| sprite.parent_group == "Ocean" && sprite.name == "Waves")
+            .expect("wave sprite");
+        let foam = sprites
+            .iter()
+            .find(|sprite| sprite.parent_group == "Ocean" && sprite.name == "Foam")
+            .expect("foam sprite");
+
+        let wave_key = tile_group_key(wave, "waves", ocean_name_count).expect("wave key");
+        let foam_key = tile_group_key(foam, "foam", ocean_name_count).expect("foam key");
+
+        assert!(
+            wave_key != foam_key,
+            "expected Ocean sub-bands to keep separate repeat groups"
+        );
+    }
+
+    #[test]
+    fn background_cloud_sprites_do_not_drift_over_time() {
+        let offset_start = bg_sprite_x_animation_offset(
+            "background_clouds _forest_01",
+            0.0,
+            &bg_data::BgLayer::Sky,
+        );
+        let offset_later = bg_sprite_x_animation_offset(
+            "background_clouds _forest_01",
+            123.45,
+            &bg_data::BgLayer::Sky,
+        );
+
+        assert_eq!(offset_start, 0.0);
+        assert_eq!(offset_later, 0.0);
+    }
+
+    #[test]
+    fn morning_cloud_wrap_gap_matches_internal_edge_gap() {
+        let cache = build_bg_layer_cache("Morning", None).expect("morning cache");
+        let theme = bg_data::get_theme("Morning").expect("morning theme");
+        let sprites = cache.sprites(theme);
+
+        let mut cloud_indices: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(_, sprite)| {
+                sprite.parent_group == "BGLayerClouds"
+                    && sprite.name == "Background_Clouds _Forest_01"
+            })
+            .map(|(idx, _)| idx)
+            .collect();
+        cloud_indices.sort_by(|a, b| {
+            sprites[*a]
+                .world_x
+                .partial_cmp(&sprites[*b].world_x)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let first = &sprites[*cloud_indices.first().expect("first cloud")];
+        let last = &sprites[*cloud_indices.last().expect("last cloud")];
+        let min_left = first.world_x - sprite_display_width(first) * 0.5;
+        let max_right = last.world_x + sprite_display_width(last) * 0.5;
+        let mut edge_gaps: Vec<f32> = cloud_indices
+            .windows(2)
+            .map(|pair| {
+                let a = &sprites[pair[0]];
+                let b = &sprites[pair[1]];
+                let a_right = a.world_x + sprite_display_width(a) * 0.5;
+                let b_left = b.world_x - sprite_display_width(b) * 0.5;
+                b_left - a_right
+            })
+            .collect();
+        let expected_wrap_gap = median(&mut edge_gaps);
+
+        let block_width = cache
+            .tile_info
+            .get(&cloud_indices[0])
+            .map(|(width, _)| *width)
+            .expect("cloud strip should tile");
+        let actual_wrap_gap = block_width - (max_right - min_left);
+
+        assert!(
+            (actual_wrap_gap - expected_wrap_gap).abs() < 0.001,
+            "expected wrap gap {expected_wrap_gap}, got {actual_wrap_gap}"
+        );
+    }
 }
 
 /// GPU state passed by the renderer for background sprites.
@@ -248,13 +513,8 @@ pub fn draw_bg_layers(
             continue;
         }
 
-        // Cloud drift: horizontal offset based on time
         let name_lower = &cache.name_lower[i];
-        let cloud_x = if name_lower.contains("cloud") {
-            cloud_drift_offset(time, &sprite.layer)
-        } else {
-            0.0
-        };
+        let anim_x = bg_sprite_x_animation_offset(name_lower, time, &sprite.layer);
         // Wave/foam Y offset (Dummy is in OceanAnimRoot, same as Waves)
         let anim_y = if name_lower == "waves" || name_lower == "dummy" {
             wave_y_offset
@@ -271,7 +531,7 @@ pub fn draw_bg_layers(
             let viewport_w = rect.width() / camera.zoom;
             let n = (viewport_w / block_width).ceil() as i32 + 1;
             for copy in -n..=n {
-                let x_offset = copy as f32 * block_width + shift + cloud_x;
+                let x_offset = copy as f32 * block_width + shift + anim_x;
                 draw_bg_sprite_offset(ctx, sprite, x_offset, anim_y, false, &mut gpu);
             }
         } else {
@@ -279,7 +539,7 @@ pub fn draw_bg_layers(
                 || sprite.sky_texture.is_some()
                 || name_lower.contains("fill")
                 || cache.singleton_set.contains(&i);
-            draw_bg_sprite_offset(ctx, sprite, cloud_x, anim_y, extend_fill_like, &mut gpu);
+            draw_bg_sprite_offset(ctx, sprite, anim_x, anim_y, extend_fill_like, &mut gpu);
         }
     }
 }
@@ -347,17 +607,6 @@ fn foam_offset(time: f64) -> f32 {
     const PREFAB_Y: f32 = 1.146046;
     let t = (time % 6.0) as f32;
     hermite(KEYS, t) - PREFAB_Y
-}
-
-/// Cloud horizontal drift offset based on layer speed.
-fn cloud_drift_offset(time: f64, layer: &bg_data::BgLayer) -> f32 {
-    let velocity = match layer {
-        bg_data::BgLayer::Sky => 0.1,
-        bg_data::BgLayer::Far | bg_data::BgLayer::Further => 0.2,
-        bg_data::BgLayer::Near => 0.3,
-        _ => 0.15,
-    };
-    (time * velocity) as f32
 }
 
 fn draw_bg_sprite_offset(

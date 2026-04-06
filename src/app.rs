@@ -678,15 +678,6 @@ impl eframe::App for EditorApp {
                         ui.close();
                         self.renderer.fit_to_level();
                     }
-                    let bg_label = if self.renderer.show_bg {
-                        t.get("menu_hide_bg")
-                    } else {
-                        t.get("menu_show_bg")
-                    };
-                    if ui.button(bg_label).clicked() {
-                        ui.close();
-                        self.renderer.show_bg = !self.renderer.show_bg;
-                    }
                     ui.separator();
                     {
                         let mut v = self.show_object_tree;
@@ -704,6 +695,13 @@ impl eframe::App for EditorApp {
                     }
                     ui.separator();
                     {
+                        let mut v = self.renderer.show_bg;
+                        if ui.checkbox(&mut v, t.get("menu_background")).clicked() {
+                            ui.close();
+                            self.renderer.show_bg = v;
+                        }
+                    }
+                    {
                         let mut v = self.renderer.show_grid;
                         if ui.checkbox(&mut v, t.get("menu_grid")).clicked() {
                             ui.close();
@@ -715,6 +713,13 @@ impl eframe::App for EditorApp {
                         if ui.checkbox(&mut v, t.get("menu_physics_ground")).clicked() {
                             ui.close();
                             self.renderer.show_ground = v;
+                        }
+                    }
+                    if self.renderer.is_dark_level() {
+                        let mut v = self.renderer.show_dark_overlay;
+                        if ui.checkbox(&mut v, t.get("menu_dark_overlay")).clicked() {
+                            ui.close();
+                            self.renderer.show_dark_overlay = v;
                         }
                     }
                     ui.separator();

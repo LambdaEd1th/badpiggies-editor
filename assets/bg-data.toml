@@ -4666,6 +4666,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4687,6 +4688,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4708,6 +4710,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4729,6 +4732,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4750,6 +4754,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4771,6 +4776,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4792,6 +4798,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4813,6 +4820,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4834,6 +4842,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4855,6 +4864,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4876,6 +4886,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4897,6 +4908,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4918,6 +4930,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -4939,6 +4952,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4960,6 +4974,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -4981,6 +4996,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -5002,6 +5018,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 4
 gridW = 8
@@ -5023,6 +5040,7 @@ parentGroup = "BGLayerFar"
 [[Jungle.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Jungle_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 0
 gridW = 32
@@ -6684,7 +6702,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6706,7 +6723,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6728,7 +6744,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6750,7 +6765,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6772,7 +6786,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6794,7 +6807,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6816,7 +6828,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6838,7 +6849,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -6860,7 +6870,6 @@ parentGroup = "BGLayerFar"
 [[Maya.sprites]]
 name = "Background_Maya_01"
 atlas = "Background_Maya_Sheet_02.png"
-alphaBlend = true
 uvX = 0
 uvY = 28
 gridW = 32
@@ -8556,7 +8565,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -8.6
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8577,7 +8586,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -1.94
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8598,7 +8607,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 4.71
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8619,7 +8628,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 11.36
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8640,7 +8649,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 31.329
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8661,7 +8670,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 37.987
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8682,7 +8691,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 24.668
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8703,7 +8712,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 18.01
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8724,7 +8733,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 44.647
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8745,7 +8754,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 51.309
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8766,7 +8775,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 64.634
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8787,7 +8796,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 57.971
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8808,7 +8817,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 84.616
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8829,7 +8838,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 91.279
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8850,7 +8859,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 77.954
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8871,7 +8880,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 71.291
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8892,7 +8901,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 97.941
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8913,7 +8922,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 104.602
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8934,7 +8943,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -15.26
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8955,7 +8964,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -21.92
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8976,7 +8985,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -48.56
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -8997,7 +9006,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -41.9
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9018,7 +9027,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -28.58
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9039,7 +9048,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -35.24
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9060,7 +9069,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -61.88
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9081,7 +9090,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -55.22
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9102,7 +9111,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -68.54
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9123,7 +9132,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -75.2
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9144,7 +9153,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -101.85
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9165,7 +9174,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -95.184
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9186,7 +9195,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -81.86
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9207,7 +9216,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -88.518
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9228,7 +9237,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -115.17
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9249,7 +9258,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = -108.51
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9270,7 +9279,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 111.264
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [[Maya.sprites]]
@@ -9291,7 +9300,7 @@ worldScaleX = 1
 worldScaleY = 1
 layer = "ground"
 localX = 117.926
-localY = 4.49
+localY = 5.636046
 parentGroup = "Ocean"
 
 [MayaCave]
@@ -15831,7 +15840,7 @@ parentGroup = "BGLayerNear"
 
 [[MayaCave2Dark.sprites]]
 name = "Fill2"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 29
 uvY = 16
 gridW = 5
@@ -15852,7 +15861,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15873,7 +15882,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15894,7 +15903,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15915,7 +15924,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15936,7 +15945,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15957,7 +15966,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15978,7 +15987,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -15999,7 +16008,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16020,7 +16029,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16041,7 +16050,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16062,7 +16071,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16083,7 +16092,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16104,7 +16113,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16125,7 +16134,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16146,7 +16155,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16167,7 +16176,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16188,7 +16197,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16209,7 +16218,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16230,7 +16239,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16251,7 +16260,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16272,7 +16281,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16293,7 +16302,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16314,7 +16323,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16335,7 +16344,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16356,7 +16365,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16377,7 +16386,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16398,7 +16407,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -16419,7 +16428,7 @@ parentGroup = "FGLayer"
 
 [[MayaCave2Dark.sprites]]
 name = "Pillars01"
-atlas = "Background_Maya_Sheet_03.png"
+atlas = "Background_Maya_Sheet_02.png"
 uvX = 0
 uvY = 4
 gridW = 16
@@ -24050,6 +24059,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8
@@ -24071,6 +24081,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24092,6 +24103,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8
@@ -24113,6 +24125,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24134,6 +24147,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8
@@ -24155,6 +24169,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24176,6 +24191,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24197,6 +24213,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8
@@ -24218,6 +24235,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8
@@ -24239,6 +24257,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24260,6 +24279,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24281,6 +24301,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8
@@ -24302,6 +24323,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24323,6 +24345,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 10
 gridW = 32
@@ -24344,6 +24367,7 @@ parentGroup = "BGLayerFar"
 [[Morning.sprites]]
 name = "Background_Jungle_02"
 atlas = "Background_Morning_Sheet_02.png"
+alphaBlend = true
 uvX = 0
 uvY = 5
 gridW = 8

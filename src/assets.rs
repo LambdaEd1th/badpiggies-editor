@@ -56,13 +56,24 @@ fn terrain_fill_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_Halloween", "Ground_Halloween_Texture.png"),
             ("e2dTerrainBase_MM_Ice", "Ground_Ice_Texture.png"),
             ("e2dTerrainBase_morning", "Ground_Rocks_Texture_06.png"),
-            ("e2dTerrainBase_MM_rock", "Ground_Temple_Rock_Texture.png"),
-            ("e2dTerrainBase_MM_sand", "Ground_Temple_Tile_Texture.png"),
+            ("e2dTerrainBase_MM_rock", "Ground_Temple_Tile_Texture.png"),
+            ("e2dTerrainBase_MM_sand", "Ground_Temple_Rock_Texture.png"),
             (
                 "e2dTerrainBase_MM_TempleDarkRock",
-                "Ground_Temple_Dark_Texture.png",
+                "Ground_Temple_cave.png",
             ),
             ("e2dTerrainBase_MM_caveSand", "Ground_Maya_cave_texture.png"),
+            // Dark MM variants have their own distinct fill textures
+            ("e2dTerrainDark_MM", "Ground_Temple_Dark_Texture.png"),
+            ("e2dTerrainDark_MM_rock", "Ground_Temple_Dark_Texture_02.png"),
+            (
+                "e2dTerrainDark_MM_TempleDarkRock",
+                "Ground_Temple_cave_dark.png",
+            ),
+            (
+                "e2dTerrainDark_MM_CaveSand",
+                "Ground_Maya_cave_texture_bg.png",
+            ),
         ])
     })
 }
@@ -93,6 +104,7 @@ fn terrain_splat0_map() -> &'static HashMap<&'static str, &'static str> {
                 "Ground_Grass_Maya_Texture.png",
             ),
             // Dark variants with different Splat0 than their base
+            ("e2dTerrainDark_MM", "Ground_Grass_Texture.png"),
             ("e2dTerrainDark_MM_CaveSand", "Ground_Grass_Texture.png"),
             (
                 "e2dTerrainDark_MM_rock",
@@ -168,7 +180,7 @@ fn dark_terrain_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainDark_02", "e2dTerrainBase_02"),
             ("e2dTerrainDark_03", "e2dTerrainBase_02"),
             ("e2dTerrainDark_05_night(150)", "e2dTerrainBase_05_night"),
-            ("e2dTerrainDark_MM", "e2dTerrainBase"),
+            ("e2dTerrainDark_MM", "e2dTerrainBase_MM_sand"),
             ("e2dTerrainDark_MM_CaveSand", "e2dTerrainBase_MM_caveSand"),
             (
                 "e2dTerrainDark_MM_TempleDarkRock",
@@ -231,8 +243,12 @@ fn resolve_terrain_base(name: &str) -> String {
 
 /// Get the fill texture filename for a terrain object name.
 pub fn get_terrain_fill_texture(terrain_name: &str) -> Option<&'static str> {
-    let base = resolve_terrain_base(terrain_name);
-    terrain_fill_map().get(base.as_str()).copied()
+    let key = normalize_terrain(terrain_name);
+    // Check direct entry first (dark variants may have their own texture)
+    terrain_fill_map().get(key.as_str()).copied().or_else(|| {
+        let base = resolve_terrain_base(terrain_name);
+        terrain_fill_map().get(base.as_str()).copied()
+    })
 }
 
 /// Get Splat0 (surface/grass) texture filename.
@@ -366,11 +382,9 @@ pub fn sky_top_color(theme: &str) -> egui::Color32 {
         "Night" => egui::Color32::from_rgb(0x43, 0x47, 0x54),
         "Morning" => egui::Color32::from_rgb(0xf7, 0xf8, 0xda),
         "Halloween" => egui::Color32::from_rgb(0x0a, 0x4b, 0x38),
-        "Cave" => egui::Color32::from_rgb(0x58, 0xc0, 0x44),
+        "Cave" | "MayaCave" | "MayaCaveDark" => egui::Color32::from_rgb(0x11, 0x21, 0x11),
         "Maya" => egui::Color32::from_rgb(0x7d, 0xbf, 0xe9),
-        "MayaCave" => egui::Color32::from_rgb(0x58, 0xc0, 0x44),
         "MayaCave2Dark" => egui::Color32::from_rgb(0x03, 0x12, 0x12),
-        "MayaCaveDark" => egui::Color32::from_rgb(0x58, 0xc0, 0x44),
         "MayaHigh" => egui::Color32::from_rgb(0x7d, 0xbf, 0xe9),
         "MayaTemple" => egui::Color32::from_rgb(0xfd, 0xf8, 0x7b),
         _ => egui::Color32::from_rgb(0x26, 0xaa, 0xc2),
@@ -388,9 +402,9 @@ pub fn ground_color(theme: &str) -> egui::Color32 {
         "Night" => egui::Color32::from_rgb(0x20, 0x2d, 0x42),
         "Morning" => egui::Color32::from_rgb(0x3f, 0x4b, 0x5b),
         "Halloween" => egui::Color32::from_rgb(0x3d, 0x2c, 0x4d),
-        "Cave" => egui::Color32::from_rgb(0x11, 0x21, 0x11),
+        "Cave" | "MayaCave" | "MayaCaveDark" => egui::Color32::from_rgb(0x11, 0x21, 0x11),
         "Maya" => egui::Color32::from_rgb(0x05, 0x18, 0x26),
-        "MayaCave" | "MayaCave2Dark" | "MayaCaveDark" => egui::Color32::from_rgb(0x11, 0x21, 0x11),
+        "MayaCave2Dark" => egui::Color32::from_rgb(0x03, 0x12, 0x12),
         "MayaHigh" | "MayaTemple" => egui::Color32::from_rgb(0x05, 0x18, 0x26),
         _ => egui::Color32::from_rgb(0x33, 0x77, 0x66),
     }

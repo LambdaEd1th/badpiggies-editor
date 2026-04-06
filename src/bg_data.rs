@@ -325,8 +325,17 @@ pub fn apply_bg_overrides(theme: &BgTheme, overrides: &BgOverrides) -> Vec<BgSpr
             let gx = group_ovr.and_then(|o| o[0]).unwrap_or(defaults[0]);
             let gy = group_ovr.and_then(|o| o[1]).unwrap_or(defaults[1]);
             let gz = group_ovr.and_then(|o| o[2]).unwrap_or(defaults[2]);
-            let lx = sprite_ovr.and_then(|o| o[0]).unwrap_or(s.local_x);
-            let ly = sprite_ovr.and_then(|o| o[1]).unwrap_or(s.local_y);
+            // When a sprite IS its own group parent (name == parentGroup),
+            // its default localY already equals the group default position
+            // (both represent the same Transform.m_LocalPosition). Using
+            // localY here would double-count the offset. Treat it as 0.
+            let is_group_root = s.name == s.parent_group;
+            let lx = sprite_ovr
+                .and_then(|o| o[0])
+                .unwrap_or(if is_group_root { 0.0 } else { s.local_x });
+            let ly = sprite_ovr
+                .and_then(|o| o[1])
+                .unwrap_or(if is_group_root { 0.0 } else { s.local_y });
             let new_x = gx + lx;
             let new_y = gy + ly;
             let sprite_local_z = s.world_z - defaults[2];

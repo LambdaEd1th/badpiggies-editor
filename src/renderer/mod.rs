@@ -217,6 +217,7 @@ pub struct LevelRenderer {
 struct CloudInstance {
     x: f32,
     y: f32,
+    z: f32,
     center_x: f32,
     limits: f32,
     velocity: f32,
@@ -236,6 +237,7 @@ struct CloudConfig {
     velocity: f32,
     limits: f32,
     height: f32,
+    far_plane: f32,
     sprites: &'static [CloudSpriteInfo],
 }
 struct CloudSpriteInfo {
@@ -253,6 +255,7 @@ const CLOUD_CONFIGS: &[(&str, CloudConfig)] = &[
             velocity: 0.2,
             limits: 93.24,
             height: 5.0,
+            far_plane: 1.0,
             sprites: &[
                 CloudSpriteInfo {
                     name: "Background_Cloud_01_SET_0",
@@ -282,6 +285,7 @@ const CLOUD_CONFIGS: &[(&str, CloudConfig)] = &[
             velocity: 0.2,
             limits: 93.24,
             height: 10.0,
+            far_plane: 1.0,
             sprites: &[
                 CloudSpriteInfo {
                     name: "Background_Cloud_01_SET",
@@ -311,6 +315,7 @@ const CLOUD_CONFIGS: &[(&str, CloudConfig)] = &[
             velocity: 0.2,
             limits: 40.0,
             height: 2.5,
+            far_plane: 1.0,
             sprites: &[
                 CloudSpriteInfo {
                     name: "Background_Cloud_01_SET_1",
@@ -340,6 +345,7 @@ const CLOUD_CONFIGS: &[(&str, CloudConfig)] = &[
             velocity: 0.5,
             limits: 93.0,
             height: 4.0,
+            far_plane: 1.0,
             sprites: &[
                 CloudSpriteInfo {
                     name: "Background_Cloud_01_SET_2",
@@ -363,6 +369,7 @@ const CLOUD_CONFIGS: &[(&str, CloudConfig)] = &[
             velocity: 0.1,
             limits: 250.0,
             height: 0.84,
+            far_plane: 1.0,
             sprites: &[
                 CloudSpriteInfo {
                     name: "Background_Cloud_02_SET_3",
@@ -928,6 +935,7 @@ impl LevelRenderer {
                 let pos = compute_world_position(level, idx);
                 let cx = pos.x;
                 let cy = pos.y;
+                let cz = pos.z;
                 let mut seed: u32 = (cx * 1000.0) as u32 ^ (cy * 1000.0) as u32;
                 for i in 0..config.max_clouds {
                     seed = (seed.wrapping_mul(1103515245)).wrapping_add(12345);
@@ -938,9 +946,12 @@ impl LevelRenderer {
                     let y = cy + ((seed % 10000) as f32 / 5000.0 - 1.0) * config.height;
                     seed = seed.wrapping_mul(17) ^ (i as u32 + 2);
                     let opacity = 0.8 + (seed % 200) as f32 / 1000.0;
+                    seed = seed.wrapping_mul(19) ^ (i as u32 + 3);
+                    let z = cz + (seed % 10000) as f32 / 10000.0 * config.far_plane;
                     self.cloud_instances.push(CloudInstance {
                         x,
                         y,
+                        z,
                         center_x: cx,
                         limits: config.limits,
                         velocity: config.velocity,
@@ -1163,78 +1174,166 @@ impl LevelRenderer {
                 );
             }
 
-            // Cloud sprite instances (drift + wrap) — Z=15, between sky(Z=20) and near(Z≈6)
-            let dt = ui.input(|i| i.stable_dt);
-            for cloud in &mut self.cloud_instances {
-                cloud.x += cloud.velocity * dt;
-                if cloud.x > cloud.center_x + cloud.limits {
-                    cloud.x = cloud.center_x - cloud.limits;
-                } else if cloud.x < cloud.center_x - cloud.limits {
-                    cloud.x = cloud.center_x + cloud.limits;
-                }
-                // Render cloud sprite (camera-layer parallax: offset by camera.center
-                // so clouds stay fixed on screen, matching TS cloudGroup.position.x = camX * 1.0)
-                if let Some(info) = crate::sprite_db::get_sprite_info(&cloud.sprite_name) {
-                    let hw = info.world_w * cloud.scale_x;
-                    let hh = info.world_h * cloud.scale_y;
-                    let center = self.camera.world_to_screen(
-                        Vec2 {
-                            x: cloud.x + self.camera.center.x,
-                            y: cloud.y,
-                        },
-                        canvas_center,
-                    );
-                    let sw = hw * 2.0 * self.camera.zoom;
-                    let sh = hh * 2.0 * self.camera.zoom;
-                    if center.x + sw < rect.left() - 50.0
-                        || center.x - sw > rect.right() + 50.0
-                        || center.y + sh < rect.top() - 50.0
-                        || center.y - sh > rect.bottom() + 50.0
-                    {
-                        continue;
-                    }
-                    let draw_rect = egui::Rect::from_center_size(center, egui::vec2(sw, sh));
-                    if let Some(tex_id) = self.tex_cache.get(&cloud.atlas) {
-                        // UV Y flip: Unity V=0 at bottom, egui V=0 at top
-                        let uv_rect = egui::Rect::from_min_max(
-                            egui::pos2(info.uv.x, 1.0 - info.uv.y - info.uv.h),
-                            egui::pos2(info.uv.x + info.uv.w, 1.0 - info.uv.y),
-                        );
-                        let alpha = (cloud.opacity * 255.0) as u8;
-                        let tint = egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
-                        let mut mesh = egui::Mesh::with_texture(tex_id);
-                        mesh.add_rect_with_uv(draw_rect, uv_rect, tint);
-                        painter.add(egui::Shape::mesh(mesh));
-                    }
-                }
-            }
+            // Parallax background layers + clouds: (5 <= worldZ < 17.5)
+            // Clouds participate in Z-sorted rendering so that bg fills/hills
+            // at lower Z naturally occlude them via painter's algorithm.
+            {
+                // Find cloud Z range to split bg layer rendering around clouds
+                let cloud_z_min = self
+                    .cloud_instances
+                    .iter()
+                    .map(|c| c.z)
+                    .fold(f32::INFINITY, f32::min);
+                let cloud_z_max = self
+                    .cloud_instances
+                    .iter()
+                    .map(|c| c.z)
+                    .fold(f32::NEG_INFINITY, f32::max);
 
-            // Parallax background layers: camera through near (5 <= worldZ < 17.5)
-            if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
-                let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
-                    (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
-                        resources: r.clone(),
-                        atlas_cache: &mut self.bg_atlas_cache,
-                        device: d,
-                        queue: q,
-                        slot_counter: &mut self.bg_slot_counter,
-                    }),
-                    _ => None,
+                let draw_ctx = DrawCtx {
+                    painter: &painter,
+                    camera: &self.camera,
+                    canvas_center,
+                    canvas_rect: rect,
+                    tex_cache: &self.tex_cache,
                 };
-                background::draw_bg_layers(
-                    &DrawCtx {
-                        painter: &painter,
-                        camera: &self.camera,
-                        canvas_center,
-                        canvas_rect: rect,
-                        tex_cache: &self.tex_cache,
-                    },
-                    theme_name,
-                    self.time,
-                    (5.0, 17.5),
-                    cache,
-                    gpu.as_mut(),
-                );
+
+                if !self.cloud_instances.is_empty() && cloud_z_min < 17.5 && cloud_z_max >= 5.0 {
+                    // Pass 1: bg sprites BEHIND clouds (farther, higher Z)
+                    if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
+                        let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                            (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                                resources: r.clone(),
+                                atlas_cache: &mut self.bg_atlas_cache,
+                                device: d,
+                                queue: q,
+                                slot_counter: &mut self.bg_slot_counter,
+                            }),
+                            _ => None,
+                        };
+                        background::draw_bg_layers(
+                            &draw_ctx,
+                            theme_name,
+                            self.time,
+                            (cloud_z_max, 17.5),
+                            cache,
+                            gpu.as_mut(),
+                        );
+                    }
+
+                    // Pass 2: clouds (sorted by Z descending = farthest first)
+                    let dt = ui.input(|i| i.stable_dt);
+                    // Sort clouds by Z descending for correct painter's order
+                    let mut cloud_order: Vec<usize> =
+                        (0..self.cloud_instances.len()).collect();
+                    cloud_order
+                        .sort_by(|&a, &b| {
+                            self.cloud_instances[b]
+                                .z
+                                .partial_cmp(&self.cloud_instances[a].z)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    for ci in cloud_order {
+                        let cloud = &mut self.cloud_instances[ci];
+                        cloud.x += cloud.velocity * dt;
+                        if cloud.x > cloud.center_x + cloud.limits {
+                            cloud.x = cloud.center_x - cloud.limits;
+                        } else if cloud.x < cloud.center_x - cloud.limits {
+                            cloud.x = cloud.center_x + cloud.limits;
+                        }
+                        if let Some(info) =
+                            crate::sprite_db::get_sprite_info(&cloud.sprite_name)
+                        {
+                            let hw = info.world_w * cloud.scale_x;
+                            let hh = info.world_h * cloud.scale_y;
+                            let center = self.camera.world_to_screen(
+                                Vec2 {
+                                    x: cloud.x + self.camera.center.x,
+                                    y: cloud.y,
+                                },
+                                canvas_center,
+                            );
+                            let sw = hw * 2.0 * self.camera.zoom;
+                            let sh = hh * 2.0 * self.camera.zoom;
+                            if center.x + sw < rect.left() - 50.0
+                                || center.x - sw > rect.right() + 50.0
+                                || center.y + sh < rect.top() - 50.0
+                                || center.y - sh > rect.bottom() + 50.0
+                            {
+                                continue;
+                            }
+                            let draw_rect =
+                                egui::Rect::from_center_size(center, egui::vec2(sw, sh));
+                            if let Some(tex_id) = self.tex_cache.get(&cloud.atlas) {
+                                let uv_rect = egui::Rect::from_min_max(
+                                    egui::pos2(info.uv.x, 1.0 - info.uv.y - info.uv.h),
+                                    egui::pos2(info.uv.x + info.uv.w, 1.0 - info.uv.y),
+                                );
+                                let alpha = (cloud.opacity * 255.0) as u8;
+                                let tint =
+                                    egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
+                                let mut mesh = egui::Mesh::with_texture(tex_id);
+                                mesh.add_rect_with_uv(draw_rect, uv_rect, tint);
+                                painter.add(egui::Shape::mesh(mesh));
+                            }
+                        }
+                    }
+
+                    // Pass 3: bg sprites IN FRONT of clouds (closer, lower Z)
+                    if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
+                        let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                            (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                                resources: r.clone(),
+                                atlas_cache: &mut self.bg_atlas_cache,
+                                device: d,
+                                queue: q,
+                                slot_counter: &mut self.bg_slot_counter,
+                            }),
+                            _ => None,
+                        };
+                        background::draw_bg_layers(
+                            &draw_ctx,
+                            theme_name,
+                            self.time,
+                            (5.0, cloud_z_min),
+                            cache,
+                            gpu.as_mut(),
+                        );
+                    }
+                } else {
+                    // No clouds or clouds outside this z_range — single pass
+                    if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
+                        let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                            (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                                resources: r.clone(),
+                                atlas_cache: &mut self.bg_atlas_cache,
+                                device: d,
+                                queue: q,
+                                slot_counter: &mut self.bg_slot_counter,
+                            }),
+                            _ => None,
+                        };
+                        background::draw_bg_layers(
+                            &draw_ctx,
+                            theme_name,
+                            self.time,
+                            (5.0, 17.5),
+                            cache,
+                            gpu.as_mut(),
+                        );
+                    }
+
+                    // Still update cloud positions for any clouds that exist
+                    let dt = ui.input(|i| i.stable_dt);
+                    for cloud in &mut self.cloud_instances {
+                        cloud.x += cloud.velocity * dt;
+                        if cloud.x > cloud.center_x + cloud.limits {
+                            cloud.x = cloud.center_x - cloud.limits;
+                        } else if cloud.x < cloud.center_x - cloud.limits {
+                            cloud.x = cloud.center_x + cloud.limits;
+                        }
+                    }
+                }
             }
         }
 

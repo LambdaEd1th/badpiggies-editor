@@ -69,8 +69,10 @@ pub fn build_bg_layer_cache(
 
     // Build tile bands: group non-fill, non-sky sprites by parent_group (or
     // fallback to atlas+round(y)+layer when no parent_group is set).
-    // Using parent_group avoids splitting sprites that belong to the same
-    // Unity repeating group but sit at slightly different Y positions.
+    // When parent_group is set, we group by parent_group+layer only — NO Y or
+    // atlas in the key — so that all sprites in the same Unity repeating group
+    // share one block_width and tile as a coherent unit (e.g. MayaTemple
+    // vertical block columns must tile at the same period as the base strips).
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
@@ -82,15 +84,17 @@ pub fn build_bg_layer_cache(
         if name_lower[i].contains("fill") {
             continue;
         }
-        let atlas_key = sprite.atlas.as_deref().unwrap_or("");
         let layer_key = sprite.layer.order();
-        let y_key = sprite.world_y.round() as i32;
         let group_key = if !sprite.parent_group.is_empty() {
-            format!(
-                "g:{}:{}:{}:{}",
-                sprite.parent_group, y_key, atlas_key, layer_key
-            )
+            // Include rounded worldZ so that sprites at different depths
+            // (e.g. Ocean Waves at z=-2 vs Foam at z=-1) tile independently.
+            // Without this, the mixed X ranges produce a block_width that
+            // leaves gaps for the narrower sub-group at tile boundaries.
+            let z_key = sprite.world_z.round() as i32;
+            format!("g:{}:{}:{}", sprite.parent_group, layer_key, z_key)
         } else {
+            let atlas_key = sprite.atlas.as_deref().unwrap_or("");
+            let y_key = sprite.world_y.round() as i32;
             format!("y:{}:{}:{}", y_key, atlas_key, layer_key)
         };
         groups.entry(group_key).or_default().push(i);
@@ -138,21 +142,25 @@ pub fn build_bg_layer_cache(
         }
     }
 
+    // Sort sprites by worldZ descending (farthest first = back-to-front),
+    // matching Unity's Transparent queue rendering order.
+    // Fill sprites (e.g. z=9.9) have slightly lower Z than their companion
+    // hills (e.g. z=10.0), so they naturally render AFTER (on top of) the
+    // hills — covering the lower portion while hilltops remain visible.
+    let s = effective_sprites.as_deref().unwrap_or(&theme.sprites);
+    let mut idx: Vec<usize> = (0..s.len()).collect();
+    idx.sort_by(|a, b| {
+        s[*b]
+            .world_z
+            .partial_cmp(&s[*a].world_z)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     Some(BgLayerCache {
         tile_info,
         singleton_set,
         name_lower,
-        sorted_indices: {
-            let s = effective_sprites.as_deref().unwrap_or(&theme.sprites);
-            let mut idx: Vec<usize> = (0..s.len()).collect();
-            idx.sort_by(|a, b| {
-                s[*b]
-                    .world_z
-                    .partial_cmp(&s[*a].world_z)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            idx
-        },
+        sorted_indices: idx,
         effective_sprites,
     })
 }
@@ -227,7 +235,7 @@ pub fn draw_bg_layers(
 
     let sprites = cache.sprites(theme);
 
-    // Draw sprites in Z-sorted order (farthest first = back-to-front)
+    // Draw sprites in Z-sorted order (farthest first = back-to-front).
     // Pre-compute wave/foam Y offsets
     let wave_y_offset = wave_offset(time);
     let foam_y_offset = foam_offset(time);
@@ -430,15 +438,13 @@ fn draw_bg_sprite_offset(
         egui::Rect::from_center_size(center, egui::vec2(hw_screen * 2.0, hh_screen * 2.0));
 
     // Fill color sprites (solid rectangles) — no shader needed.
-    // Extend downward to screen bottom so fills cover the full depth,
-    // matching Unity's coverage.
+    // In Unity these use _Custom/Unlit_Color_Geometry (Queue=Transparent,
+    // ZWrite Off, no blend = opaque).  They render at their natural size
+    // and position, painting a solid fill color ON TOP of the farther hill
+    // sprites (fill Z is slightly lower = closer to camera).
     if let Some(rgb) = sprite.fill_color {
         let color = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-        let fill_rect = egui::Rect::from_min_max(
-            screen_rect.left_top(),
-            egui::pos2(screen_rect.right(), rect.bottom()),
-        );
-        painter.rect_filled(fill_rect, 0.0, color);
+        painter.rect_filled(screen_rect, 0.0, color);
         return;
     }
 
@@ -556,11 +562,17 @@ fn draw_bg_sprite_offset(
     // Sky texture
     if let Some(ref sky_name) = sprite.sky_texture {
         if let Some(tex_id) = tex_cache.get(sky_name) {
+            let tint = egui::Color32::from_rgba_unmultiplied(
+                (sprite.tint[0] * 255.0) as u8,
+                (sprite.tint[1] * 255.0) as u8,
+                (sprite.tint[2] * 255.0) as u8,
+                (sprite.tint[3] * 255.0) as u8,
+            );
             let mut mesh = egui::Mesh::with_texture(tex_id);
             mesh.add_rect_with_uv(
                 screen_rect,
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                egui::Color32::WHITE,
+                tint,
             );
             painter.add(egui::Shape::mesh(mesh));
         }

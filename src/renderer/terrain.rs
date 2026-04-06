@@ -89,7 +89,11 @@ pub fn build_terrain(
 
     let decorative = !td.has_collider;
 
-    // Resolve fill texture: level-refs first, then name-based fallback
+    // Resolve fill texture: level-refs first, then name-based fallback.
+    // Each terrain object's texture is determined by its per-level loader
+    // m_references entry (captured in level-refs.toml), NOT by the background
+    // theme.  Different terrain prefab names (e.g. MM_sand, MM_rock,
+    // Dark_MM_rock) map to different textures within the same level.
     let fill_texture = crate::level_refs::get_level_ref(level_key, td.fill_texture_index)
         .map(|s| s.to_string())
         .or_else(|| assets::get_terrain_fill_texture(&prefab.name).map(|s| s.to_string()));

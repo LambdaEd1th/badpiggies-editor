@@ -472,47 +472,6 @@ impl eframe::App for EditorApp {
                             });
                         }
                     }
-                    ui.separator();
-                    if ui.button(t.get("menu_export_level")).clicked() {
-                        ui.close();
-                        #[cfg(not(target_arch = "wasm32"))]
-                        {
-                            let default_name = self.file_name.as_deref().unwrap_or("level.bytes");
-                            if let Some(data) = self.export_level()
-                                && let Some(path) = rfd::FileDialog::new()
-                                    .add_filter("Level files", &["bytes"])
-                                    .set_file_name(default_name)
-                                    .save_file()
-                            {
-                                match std::fs::write(&path, data) {
-                                    Ok(()) => {
-                                        self.status = t.get("status_exported");
-                                    }
-                                    Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e.to_string());
-                                    }
-                                }
-                            }
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        {
-                            if let Some(data) = self.export_level() {
-                                let file_name = self
-                                    .file_name
-                                    .clone()
-                                    .unwrap_or_else(|| "level.bytes".to_string());
-                                match export_bytes_wasm(&file_name, data) {
-                                    Ok(()) => {
-                                        self.status = t.get("status_exported");
-                                    }
-                                    Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    ui.separator();
                     if ui.button(t.get("menu_import_text")).clicked() {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
@@ -552,6 +511,46 @@ impl eframe::App for EditorApp {
                                     repaint_ctx.request_repaint();
                                 }
                             });
+                        }
+                    }
+                    ui.separator();
+                    if ui.button(t.get("menu_export_level")).clicked() {
+                        ui.close();
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let default_name = self.file_name.as_deref().unwrap_or("level.bytes");
+                            if let Some(data) = self.export_level()
+                                && let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("Level files", &["bytes"])
+                                    .set_file_name(default_name)
+                                    .save_file()
+                            {
+                                match std::fs::write(&path, data) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e.to_string());
+                                    }
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            if let Some(data) = self.export_level() {
+                                let file_name = self
+                                    .file_name
+                                    .clone()
+                                    .unwrap_or_else(|| "level.bytes".to_string());
+                                match export_bytes_wasm(&file_name, data) {
+                                    Ok(()) => {
+                                        self.status = t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.status = t.fmt1("status_export_error", &e);
+                                    }
+                                }
+                            }
                         }
                     }
                     if ui.button(t.get("menu_export_yaml")).clicked() {

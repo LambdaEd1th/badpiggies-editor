@@ -189,12 +189,14 @@ fn build_fill_mesh(td: &TerrainData, offset: Vec3) -> Option<egui::Mesh> {
 
     let mut mesh = egui::Mesh::default();
     // Add vertices in world coordinates (will be transformed to screen later)
+    // UV uses LOCAL-space position (matching Unity's GetPointFillUV), not world-space.
+    // Y is negated: Unity UV (0,0)=bottom-left vs wgpu (0,0)=top-left.
     for v in verts {
         let wx = v.x + offset.x;
         let wy = v.y + offset.y;
         mesh.vertices.push(egui::epaint::Vertex {
             pos: egui::pos2(wx, wy),
-            uv: egui::pos2((wx - tile_off_x) / tile_size, (wy - tile_off_y) / tile_size),
+            uv: egui::pos2((v.x - tile_off_x) / tile_size, (tile_off_y - v.y) / tile_size),
             color,
         });
     }

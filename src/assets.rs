@@ -135,22 +135,10 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
                 "e2dTerrainBase_morning",
                 "Ground_Rocks_Outline_Texture_06.png",
             ),
-            (
-                "e2dTerrainBase_MM_rock",
-                "Ground_Rocks_Outline_Texture_03.png",
-            ),
-            (
-                "e2dTerrainBase_MM_sand",
-                "Ground_Rocks_Outline_Texture_03.png",
-            ),
-            (
-                "e2dTerrainBase_MM_TempleDarkRock",
-                "Ground_Rocks_Outline_Texture_06.png",
-            ),
-            (
-                "e2dTerrainBase_MM_caveSand",
-                "Ground_Rocks_Outline_Texture_06.png",
-            ),
+            ("e2dTerrainBase_MM_rock", "Border.png"),
+            ("e2dTerrainBase_MM_sand", "Border.png"),
+            ("e2dTerrainBase_MM_TempleDarkRock", "Border_Maya_Cave.png"),
+            ("e2dTerrainBase_MM_caveSand", "Border_Maya_Cave.png"),
             // Dark variants with different Splat1 than their base
             ("e2dTerrainDark_02", "Ground_Rocks_Outline_Texture.png"),
             ("e2dTerrainDark_03", "Ground_Rocks_Outline_Texture_05.png"),
@@ -158,15 +146,9 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
                 "e2dTerrainDark_05_night(150)",
                 "Ground_Rocks_Outline_Texture_04.png",
             ),
-            ("e2dTerrainDark_MM", "Ground_Rocks_Outline_Texture_06.png"),
-            (
-                "e2dTerrainDark_MM_CaveSand",
-                "Ground_Rocks_Outline_Texture_06.png",
-            ),
-            (
-                "e2dTerrainDark_MM_rock",
-                "Ground_Rocks_Outline_Texture_03.png",
-            ),
+            ("e2dTerrainDark_MM", "Border_Maya_Cave.png"),
+            ("e2dTerrainDark_MM_CaveSand", "Border_Maya_Cave.png"),
+            ("e2dTerrainDark_MM_rock", "Border_Maya_Cave.png"),
         ])
     })
 }

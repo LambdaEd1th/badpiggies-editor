@@ -43,50 +43,33 @@ fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
 }
 
 fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f32> {
-    let spacings: Vec<f32> = sorted
+    // Use edge-to-edge bounding for the wrap gap: the gap between the last
+    // sprite's right edge and the first sprite's left edge in the next copy
+    // should equal the median edge gap between adjacent sprites.  This is
+    // correct regardless of whether sprites have uniform or varying display
+    // widths (e.g. BGLayerNear's first sprite has a smaller scale than the
+    // rest; a centre-to-centre formula would produce a 1-world-unit gap at
+    // the seam, while edge-based matches the ~0-pixel internal overlap).
+    let mut edge_gaps: Vec<f32> = sorted
         .windows(2)
-        .filter_map(|pair| {
-            let dx = sprites[pair[1]].world_x - sprites[pair[0]].world_x;
-            (dx > 0.1).then_some(dx)
+        .map(|pair| {
+            let a = &sprites[pair[0]];
+            let b = &sprites[pair[1]];
+            let a_right = a.world_x + sprite_display_width(a) * 0.5;
+            let b_left = b.world_x - sprite_display_width(b) * 0.5;
+            b_left - a_right
         })
         .collect();
-    if spacings.is_empty() {
+    if edge_gaps.is_empty() {
         return None;
     }
-
-    let mut sorted_spacings = spacings.clone();
-    sorted_spacings.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let median_spacing = sorted_spacings[sorted_spacings.len() / 2];
-    let spacing_min = *sorted_spacings.first()?;
-    let spacing_max = *sorted_spacings.last()?;
-
-    let min_x = sprites[sorted[0]].world_x;
-    let max_x = sprites[*sorted.last().unwrap()].world_x;
-
-    // Uniform strip bands such as Morning cloud layers should preserve their
-    // authored edge-to-edge contact at the wrap point. Irregular authored bands
-    // such as Jungle far hills need center-spacing cadence instead.
-    if spacing_max - spacing_min <= median_spacing * 0.15 {
-        let mut edge_gaps: Vec<f32> = sorted
-            .windows(2)
-            .map(|pair| {
-                let a = &sprites[pair[0]];
-                let b = &sprites[pair[1]];
-                let a_right = a.world_x + sprite_display_width(a) * 0.5;
-                let b_left = b.world_x - sprite_display_width(b) * 0.5;
-                b_left - a_right
-            })
-            .collect();
-        edge_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let median_edge_gap = edge_gaps[edge_gaps.len() / 2];
-        let first = &sprites[sorted[0]];
-        let last = &sprites[*sorted.last().unwrap()];
-        let min_left = first.world_x - sprite_display_width(first) * 0.5;
-        let max_right = last.world_x + sprite_display_width(last) * 0.5;
-        Some(max_right - min_left + median_edge_gap)
-    } else {
-        Some(max_x - min_x + median_spacing)
-    }
+    edge_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let median_edge_gap = edge_gaps[edge_gaps.len() / 2];
+    let first = &sprites[sorted[0]];
+    let last = &sprites[*sorted.last().unwrap()];
+    let min_left = first.world_x - sprite_display_width(first) * 0.5;
+    let max_right = last.world_x + sprite_display_width(last) * 0.5;
+    Some(max_right - min_left + median_edge_gap)
 }
 
 fn tile_group_key(sprite: &bg_data::BgSprite, name_lower: &str, name_count: usize) -> Option<String> {
@@ -99,7 +82,13 @@ fn tile_group_key(sprite: &bg_data::BgSprite, name_lower: &str, name_count: usiz
         if name_count <= 1 {
             Some(format!("g:{}:{}", sprite.parent_group, layer_key))
         } else {
-            let z_key = sprite.world_z.round() as i32;
+            // Use 0.5-unit Z granularity: multiply by 2 before rounding.
+            // Plain z.round() collapses Z=5.5 and Z=6.0 to the same key (both →
+            // 6), merging e.g. Lamp_01 and Background_Plateau_02 in Halloween
+            // BGLayerNear and producing the wrong block_width.  Sprites that
+            // belong to a single tiling strip (like Morning BGLayerForeground's
+            // 14 uniquely-named trees, all at Z=−8.94) still share one key.
+            let z_key = (sprite.world_z * 2.0).round() as i32;
             Some(format!("g:{}:{}:{}", sprite.parent_group, layer_key, z_key))
         }
     } else {
@@ -330,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn ocean_parent_group_still_splits_by_depth_when_names_differ() {
+    fn ocean_parent_group_splits_by_name_when_names_differ() {
         let theme = bg_data::get_theme("Jungle").expect("jungle theme");
         let sprites = &theme.sprites;
 
@@ -379,8 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn morning_cloud_wrap_gap_matches_internal_edge_gap() {
-        let cache = build_bg_layer_cache("Morning", None).expect("morning cache");
+    fn morning_cloud_wrap_gap_matches_internal_edge_gap() {        let cache = build_bg_layer_cache("Morning", None).expect("morning cache");
         let theme = bg_data::get_theme("Morning").expect("morning theme");
         let sprites = cache.sprites(theme);
 
@@ -426,6 +414,51 @@ mod tests {
         assert!(
             (actual_wrap_gap - expected_wrap_gap).abs() < 0.001,
             "expected wrap gap {expected_wrap_gap}, got {actual_wrap_gap}"
+        );
+    }
+
+    /// Halloween BGLayerNear has 4 sprite names at 3 different Z values.
+    /// Background_Plateau_02 (Z=6) and Lamp_01 (Z=5.5) both round to z_key=6
+    /// under the old scheme, merging their interleaved X positions and producing
+    /// a completely wrong block_width (~173 instead of ~185).
+    /// With name-based splitting each type gets its own clean tile group.
+    #[test]
+    fn halloween_near_plateau_tiles_at_correct_period() {
+        let cache = build_bg_layer_cache("Halloween", None).expect("halloween cache");
+        let theme = bg_data::get_theme("Halloween").expect("halloween theme");
+        let sprites = cache.sprites(theme);
+
+        let mut plateau_indices: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| {
+                s.parent_group == "BGLayerNear" && s.name == "Background_Plateau_02"
+            })
+            .map(|(idx, _)| idx)
+            .collect();
+        assert!(plateau_indices.len() >= 4, "expected BGLayerNear plateau sprites");
+
+        plateau_indices.sort_by(|a, b| {
+            sprites[*a]
+                .world_x
+                .partial_cmp(&sprites[*b].world_x)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let block_width = cache
+            .tile_info
+            .get(&plateau_indices[0])
+            .map(|(w, _)| *w)
+            .expect("plateau should tile");
+
+        // Correct period ≈ 7 * 26.4 ≈ 184–185.  Old (broken) period was ~173.
+        assert!(
+            block_width > 180.0,
+            "block_width {block_width:.2} too small — Z-rounding collision bug"
+        );
+        assert!(
+            block_width < 195.0,
+            "block_width {block_width:.2} too large"
         );
     }
 }

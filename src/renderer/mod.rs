@@ -1605,6 +1605,28 @@ impl LevelRenderer {
                     self.camera.zoom = (self.camera.zoom * factor).clamp(2.0, 500.0);
                 }
             }
+
+            // Pinch-to-zoom on touch devices (mobile WASM)
+            if let Some(touch) = ui.input(|i| i.multi_touch()) {
+                // Zoom
+                if (touch.zoom_delta - 1.0).abs() > 0.001 {
+                    let center = rect.center();
+                    let world_before =
+                        self.camera.screen_to_world(egui::pos2(center.x, center.y), canvas_center);
+                    self.camera.zoom =
+                        (self.camera.zoom * touch.zoom_delta).clamp(2.0, 500.0);
+                    let world_after =
+                        self.camera.screen_to_world(egui::pos2(center.x, center.y), canvas_center);
+                    self.camera.center.x -= world_after.x - world_before.x;
+                    self.camera.center.y -= world_after.y - world_before.y;
+                }
+                // Pan via multi-touch drag
+                let td = touch.translation_delta;
+                if td.x.abs() > 0.5 || td.y.abs() > 0.5 {
+                    self.camera.center.x -= td.x / self.camera.zoom;
+                    self.camera.center.y += td.y / self.camera.zoom;
+                }
+            }
         }
 
         // ── Collider terrain (Z≈0, in front of ground background) ──

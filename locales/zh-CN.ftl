@@ -132,6 +132,9 @@ cli_write_error = 写入 { $path } 失败: { $error }
 cli_convert_ok = { $input } -> { $output } ({ $obj_count } 个对象, { $root_count } 个根节点)
 cli_error_prefix = 错误: { $name }
 
+# 标签页
+menu_close_tab = 关闭标签页
+
 # HUD 覆盖层
 hud_zoom = 缩放
 hud_theme = 主题

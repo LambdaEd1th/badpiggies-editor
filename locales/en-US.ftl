@@ -132,6 +132,9 @@ cli_write_error = Failed to write { $path }: { $error }
 cli_convert_ok = { $input } -> { $output } ({ $obj_count } objects, { $root_count } roots)
 cli_error_prefix = Error: { $name }
 
+# Tabs
+menu_close_tab = Close Tab
+
 # HUD overlay
 hud_zoom = Zoom
 hud_theme = Theme

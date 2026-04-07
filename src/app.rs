@@ -38,8 +38,8 @@ struct Clipboard {
     objects: Vec<LevelObject>,
 }
 
-/// Main application state.
-pub struct EditorApp {
+/// Per-tab editor state (each tab is an independent level editor).
+struct Tab {
     /// Currently loaded level data.
     level: Option<LevelData>,
     /// File name of the loaded level.
@@ -48,10 +48,124 @@ pub struct EditorApp {
     selected: Option<ObjectIndex>,
     /// Object clipboard for copy/cut/paste.
     clipboard: Option<Clipboard>,
-    /// Canvas renderer state.
+    /// Canvas renderer state (owns per-level caches; shares GPU pipelines via Arc).
     renderer: LevelRenderer,
     /// Status message.
     status: String,
+    /// Pending delete confirmation: (object_index, object_name).
+    pending_delete: Option<(ObjectIndex, String)>,
+    /// Undo/redo history.
+    history: UndoStack,
+    /// Whether properties were changed in the previous frame (for undo coalescing).
+    props_changed_prev: bool,
+}
+
+impl Tab {
+    fn new(renderer: LevelRenderer, welcome_status: String) -> Self {
+        Self {
+            level: None,
+            file_name: None,
+            selected: None,
+            clipboard: None,
+            renderer,
+            status: welcome_status,
+            pending_delete: None,
+            history: UndoStack {
+                undo: Vec::new(),
+                redo: Vec::new(),
+            },
+            props_changed_prev: false,
+        }
+    }
+
+    /// Display name for the tab.
+    fn title(&self) -> String {
+        self.file_name.clone().unwrap_or_else(|| "(untitled)".to_string())
+    }
+
+    fn load_level(&mut self, name: String, data: Vec<u8>, i18n: &I18n) {
+        match parser::parse_level(data) {
+            Ok(level) => {
+                let obj_count = level.objects.len();
+                let root_count = level.roots.len();
+                self.renderer.set_level_key(&name);
+                self.renderer.set_level(&level);
+                self.level = Some(level);
+                self.file_name = Some(name);
+                self.selected = None;
+                self.history.undo.clear();
+                self.history.redo.clear();
+                self.status = i18n.fmt_status_loaded(obj_count, root_count);
+            }
+            Err(e) => {
+                self.status = format!("解析失败: {}", e);
+            }
+        }
+    }
+
+    fn load_level_text(&mut self, name: String, text: &str, i18n: &I18n) {
+        let result: Result<LevelData, String> = if name.ends_with(".yaml") || name.ends_with(".yml")
+        {
+            serde_yaml::from_str(text).map_err(|e| e.to_string())
+        } else if name.ends_with(".toml") {
+            toml::from_str(text).map_err(|e| e.to_string())
+        } else {
+            Err("不支持的文件格式".to_string())
+        };
+        match result {
+            Ok(level) => {
+                let obj_count = level.objects.len();
+                let root_count = level.roots.len();
+                self.renderer.set_level_key(&name);
+                self.renderer.set_level(&level);
+                self.level = Some(level);
+                self.file_name = Some(name);
+                self.selected = None;
+                self.history.undo.clear();
+                self.history.redo.clear();
+                self.status = i18n.fmt_status_loaded(obj_count, root_count);
+            }
+            Err(e) => {
+                self.status = format!("解析失败: {}", e);
+            }
+        }
+    }
+
+    fn export_level(&self) -> Option<Vec<u8>> {
+        self.level.as_ref().map(parser::serialize_level)
+    }
+
+    fn export_yaml(&self) -> Option<String> {
+        self.level
+            .as_ref()
+            .and_then(|l| serde_yaml::to_string(l).ok())
+    }
+
+    fn export_toml(&self) -> Option<String> {
+        self.level
+            .as_ref()
+            .and_then(|l| toml::to_string_pretty(l).ok())
+    }
+
+    /// Determine the target parent for a paste operation.
+    fn paste_target_parent(level: &LevelData, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
+        let sel = selected?;
+        if sel >= level.objects.len() {
+            return None;
+        }
+        match &level.objects[sel] {
+            LevelObject::Parent(_) => Some(sel),
+            LevelObject::Prefab(p) => p.parent,
+        }
+    }
+}
+
+/// Main application state.
+pub struct EditorApp {
+    /// Open tabs.
+    tabs: Vec<Tab>,
+    /// Index of the currently active tab.
+    active_tab: usize,
     /// Add-object dialog state.
     show_add_dialog: bool,
     add_obj_is_parent: bool,
@@ -60,8 +174,6 @@ pub struct EditorApp {
     /// Pending file data from drag-and-drop or file picker.
     #[cfg(target_arch = "wasm32")]
     pending_file: Option<(String, Vec<u8>)>,
-    /// Pending delete confirmation: (object_index, object_name).
-    pending_delete: Option<(ObjectIndex, String)>,
     /// Whether the object tree panel is visible.
     show_object_tree: bool,
     /// Whether the properties panel is visible.
@@ -74,10 +186,6 @@ pub struct EditorApp {
     gpu_backend: String,
     /// Current UI language.
     lang: Language,
-    /// Undo/redo history.
-    history: UndoStack,
-    /// Whether properties were changed in the previous frame (for undo coalescing).
-    props_changed_prev: bool,
 }
 
 impl LevelData {
@@ -190,33 +298,24 @@ impl EditorApp {
             }
         }
 
+        let lang = Language::from_system();
+        let initial_tab = Tab::new(renderer, lang.i18n().get("status_welcome"));
+
         Self {
-            level: None,
-            file_name: None,
-            selected: None,
-            renderer,
-            status: crate::locale::Language::from_system()
-                .i18n()
-                .get("status_welcome"),
+            tabs: vec![initial_tab],
+            active_tab: 0,
             show_add_dialog: false,
             add_obj_is_parent: false,
             add_obj_name: String::new(),
             add_obj_prefab_index: 0,
             #[cfg(target_arch = "wasm32")]
             pending_file: None,
-            pending_delete: None,
             show_object_tree: true,
             show_properties: true,
             show_shortcuts: false,
             show_about: false,
             gpu_backend,
-            lang: Language::from_system(),
-            history: UndoStack {
-                undo: Vec::new(),
-                redo: Vec::new(),
-            },
-            clipboard: None,
-            props_changed_prev: false,
+            lang,
         }
     }
 
@@ -253,176 +352,113 @@ impl EditorApp {
         None
     }
 
-    fn load_level(&mut self, name: String, data: Vec<u8>) {
-        match parser::parse_level(data) {
-            Ok(level) => {
-                let obj_count = level.objects.len();
-                let root_count = level.roots.len();
-                self.renderer.set_level_key(&name);
-                self.renderer.set_level(&level);
-                self.level = Some(level);
-                self.file_name = Some(name);
-                self.selected = None;
-                self.history.undo.clear();
-                self.history.redo.clear();
-                self.status = self.lang.i18n().fmt_status_loaded(obj_count, root_count);
-            }
-            Err(e) => {
-                self.status = format!("解析失败: {}", e);
-            }
-        }
-    }
-
-    fn export_level(&self) -> Option<Vec<u8>> {
-        self.level.as_ref().map(parser::serialize_level)
-    }
-
-    fn export_yaml(&self) -> Option<String> {
-        self.level
-            .as_ref()
-            .and_then(|l| serde_yaml::to_string(l).ok())
-    }
-
-    fn export_toml(&self) -> Option<String> {
-        self.level
-            .as_ref()
-            .and_then(|l| toml::to_string_pretty(l).ok())
-    }
-
-    fn load_level_text(&mut self, name: String, text: &str) {
-        let result: Result<LevelData, String> = if name.ends_with(".yaml") || name.ends_with(".yml")
-        {
-            serde_yaml::from_str(text).map_err(|e| e.to_string())
-        } else if name.ends_with(".toml") {
-            toml::from_str(text).map_err(|e| e.to_string())
-        } else {
-            Err("不支持的文件格式".to_string())
-        };
-        match result {
-            Ok(level) => {
-                let obj_count = level.objects.len();
-                let root_count = level.roots.len();
-                self.renderer.set_level_key(&name);
-                self.renderer.set_level(&level);
-                self.level = Some(level);
-                self.file_name = Some(name);
-                self.selected = None;
-                self.history.undo.clear();
-                self.history.redo.clear();
-                self.status = self.lang.i18n().fmt_status_loaded(obj_count, root_count);
-            }
-            Err(e) => {
-                self.status = format!("解析失败: {}", e);
-            }
-        }
-    }
-
     /// Snapshot current state onto the undo stack (call before mutation).
     fn push_undo(&mut self) {
-        if let Some(ref level) = self.level {
-            self.history.undo.push(Snapshot {
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(ref level) = tab.level {
+            tab.history.undo.push(Snapshot {
                 level: level.clone(),
-                selected: self.selected,
+                selected: tab.selected,
             });
-            if self.history.undo.len() > UNDO_MAX {
-                self.history.undo.remove(0);
+            if tab.history.undo.len() > UNDO_MAX {
+                tab.history.undo.remove(0);
             }
-            self.history.redo.clear();
+            tab.history.redo.clear();
         }
     }
 
     /// Undo the last change.
     fn undo(&mut self) {
-        if let Some(snapshot) = self.history.undo.pop() {
-            if let Some(ref level) = self.level {
-                self.history.redo.push(Snapshot {
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(snapshot) = tab.history.undo.pop() {
+            if let Some(ref level) = tab.level {
+                tab.history.redo.push(Snapshot {
                     level: level.clone(),
-                    selected: self.selected,
+                    selected: tab.selected,
                 });
             }
-            self.selected = snapshot.selected;
-            let cam = self.renderer.camera.clone();
-            self.renderer.set_level(&snapshot.level);
-            self.renderer.camera = cam;
-            self.level = Some(snapshot.level);
+            tab.selected = snapshot.selected;
+            let cam = tab.renderer.camera.clone();
+            tab.renderer.set_level(&snapshot.level);
+            tab.renderer.camera = cam;
+            tab.level = Some(snapshot.level);
         }
     }
 
     /// Redo the last undone change.
     fn redo(&mut self) {
-        if let Some(snapshot) = self.history.redo.pop() {
-            if let Some(ref level) = self.level {
-                self.history.undo.push(Snapshot {
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(snapshot) = tab.history.redo.pop() {
+            if let Some(ref level) = tab.level {
+                tab.history.undo.push(Snapshot {
                     level: level.clone(),
-                    selected: self.selected,
+                    selected: tab.selected,
                 });
             }
-            self.selected = snapshot.selected;
-            let cam = self.renderer.camera.clone();
-            self.renderer.set_level(&snapshot.level);
-            self.renderer.camera = cam;
-            self.level = Some(snapshot.level);
+            tab.selected = snapshot.selected;
+            let cam = tab.renderer.camera.clone();
+            tab.renderer.set_level(&snapshot.level);
+            tab.renderer.camera = cam;
+            tab.level = Some(snapshot.level);
         }
     }
 
     /// Copy the selected object (and its subtree) to the clipboard.
     fn copy_selected(&mut self) {
-        if let Some(sel) = self.selected
-            && let Some(ref level) = self.level
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(sel) = tab.selected
+            && let Some(ref level) = tab.level
             && sel < level.objects.len()
         {
-            self.clipboard = Some(level.clone_subtree(sel));
+            tab.clipboard = Some(level.clone_subtree(sel));
         }
     }
 
     /// Cut the selected object: copy then delete.
     fn cut_selected(&mut self) {
-        if let Some(sel) = self.selected
-            && let Some(ref level) = self.level
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(sel) = tab.selected
+            && let Some(ref level) = tab.level
             && sel < level.objects.len()
         {
-            self.clipboard = Some(level.clone_subtree(sel));
-            self.push_undo();
-            if let Some(ref mut level) = self.level {
-                level.delete_object(sel);
-                self.selected = None;
-                let cam = self.renderer.camera.clone();
-                self.renderer.set_level(level);
-                self.renderer.camera = cam;
+            tab.clipboard = Some(level.clone_subtree(sel));
+            // push_undo inline (can't call self method while borrowing tab)
+            let undo_snap = Snapshot { level: level.clone(), selected: tab.selected };
+            tab.history.undo.push(undo_snap);
+            if tab.history.undo.len() > UNDO_MAX {
+                tab.history.undo.remove(0);
             }
-        }
-    }
-
-    /// Determine the target parent for a paste operation based on the current
-    /// selection.  If the selected object is a Parent, paste into it; if it has
-    /// a parent, paste as a sibling; otherwise paste at root level.
-    fn paste_target_parent(level: &LevelData, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
-        let sel = selected?;
-        if sel >= level.objects.len() {
-            return None;
-        }
-        match &level.objects[sel] {
-            // Selected object IS a parent → paste inside it.
-            LevelObject::Parent(_) => Some(sel),
-            // Selected object has a parent → paste as sibling.
-            LevelObject::Prefab(p) => p.parent,
+            tab.history.redo.clear();
+            if let Some(ref mut level) = tab.level {
+                level.delete_object(sel);
+                tab.selected = None;
+                let cam = tab.renderer.camera.clone();
+                tab.renderer.set_level(level);
+                tab.renderer.camera = cam;
+            }
         }
     }
 
     /// Paste from the clipboard, offset slightly from the original position.
     fn paste(&mut self) {
-        let clip = match self.clipboard.clone() {
+        let tab = &mut self.tabs[self.active_tab];
+        let clip = match tab.clipboard.clone() {
             Some(c) => c,
             None => return,
         };
-        if self.level.is_none() {
+        if tab.level.is_none() {
             return;
         }
-        let target = Self::paste_target_parent(self.level.as_ref().unwrap(), self.selected);
-        self.push_undo();
-        let level = self.level.as_mut().unwrap();
+        let target = Tab::paste_target_parent(tab.level.as_ref().unwrap(), tab.selected);
+        // push_undo inline
+        {
+            let level = tab.level.as_ref().unwrap();
+            tab.history.undo.push(Snapshot { level: level.clone(), selected: tab.selected });
+            if tab.history.undo.len() > UNDO_MAX { tab.history.undo.remove(0); }
+            tab.history.redo.clear();
+        }
+        let level = tab.level.as_mut().unwrap();
         let new_root = level.paste_subtree(&clip, target);
-        // Offset the pasted root so it doesn't overlap the original exactly.
         match &mut level.objects[new_root] {
             LevelObject::Prefab(p) => {
                 p.position.x += 1.0;
@@ -433,30 +469,33 @@ impl EditorApp {
                 p.position.y -= 1.0;
             }
         }
-        self.selected = Some(new_root);
-        let cam = self.renderer.camera.clone();
-        self.renderer.set_level(level);
-        self.renderer.camera = cam;
+        tab.selected = Some(new_root);
+        let cam = tab.renderer.camera.clone();
+        tab.renderer.set_level(level);
+        tab.renderer.camera = cam;
     }
 
     /// Duplicate the selected object in-place (copy + paste in one step).
     fn duplicate_selected(&mut self) {
-        let sel = match self.selected {
+        let tab = &mut self.tabs[self.active_tab];
+        let sel = match tab.selected {
             Some(s) => s,
             None => return,
         };
-        if self.level.is_none() {
+        if tab.level.is_none() {
             return;
         }
-        let level_ref = self.level.as_ref().unwrap();
+        let level_ref = tab.level.as_ref().unwrap();
         let clip = level_ref.clone_subtree(sel);
-        // Duplicate should land in the same parent as the original.
         let target = match &level_ref.objects[sel] {
             LevelObject::Prefab(p) => p.parent,
             LevelObject::Parent(p) => p.parent,
         };
-        self.push_undo();
-        let level = self.level.as_mut().unwrap();
+        // push_undo inline
+        tab.history.undo.push(Snapshot { level: level_ref.clone(), selected: tab.selected });
+        if tab.history.undo.len() > UNDO_MAX { tab.history.undo.remove(0); }
+        tab.history.redo.clear();
+        let level = tab.level.as_mut().unwrap();
         let new_root = level.paste_subtree(&clip, target);
         match &mut level.objects[new_root] {
             LevelObject::Prefab(p) => {
@@ -468,10 +507,63 @@ impl EditorApp {
                 p.position.y -= 1.0;
             }
         }
-        self.selected = Some(new_root);
-        let cam = self.renderer.camera.clone();
-        self.renderer.set_level(level);
-        self.renderer.camera = cam;
+        tab.selected = Some(new_root);
+        let cam = tab.renderer.camera.clone();
+        tab.renderer.set_level(level);
+        tab.renderer.camera = cam;
+    }
+
+    /// Load a level into the active tab (or a new tab if active tab already has a level).
+    fn load_level_into_tab(&mut self, name: String, data: Vec<u8>) {
+        let i18n = self.lang.i18n();
+        let tab = &self.tabs[self.active_tab];
+        if tab.level.is_some() {
+            // Active tab has a level — open in new tab
+            let new_renderer = tab.renderer.clone_for_new_tab();
+            let mut new_tab = Tab::new(new_renderer, String::new());
+            new_tab.load_level(name, data, i18n);
+            self.tabs.push(new_tab);
+            self.active_tab = self.tabs.len() - 1;
+        } else {
+            // Active tab is empty — load here
+            self.tabs[self.active_tab].load_level(name, data, i18n);
+        }
+    }
+
+    /// Load a text-format level into the active tab (or new tab).
+    fn load_level_text_into_tab(&mut self, name: String, text: &str) {
+        let i18n = self.lang.i18n();
+        let tab = &self.tabs[self.active_tab];
+        if tab.level.is_some() {
+            let new_renderer = tab.renderer.clone_for_new_tab();
+            let mut new_tab = Tab::new(new_renderer, String::new());
+            new_tab.load_level_text(name, text, i18n);
+            self.tabs.push(new_tab);
+            self.active_tab = self.tabs.len() - 1;
+        } else {
+            self.tabs[self.active_tab].load_level_text(name, text, i18n);
+        }
+    }
+
+    /// Close tab at index. Returns false if last tab was closed (app keeps at least 1 tab).
+    fn close_tab(&mut self, idx: usize) {
+        if self.tabs.len() <= 1 {
+            // Last tab — just clear it
+            let tab = &mut self.tabs[0];
+            tab.level = None;
+            tab.file_name = None;
+            tab.selected = None;
+            tab.history.undo.clear();
+            tab.history.redo.clear();
+            tab.status = self.lang.i18n().get("status_welcome");
+            return;
+        }
+        self.tabs.remove(idx);
+        if self.active_tab >= self.tabs.len() {
+            self.active_tab = self.tabs.len() - 1;
+        } else if self.active_tab > idx {
+            self.active_tab -= 1;
+        }
     }
 }
 
@@ -488,12 +580,12 @@ impl eframe::App for EditorApp {
             if let Some((name, data)) = self.pending_file.take() {
                 if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
                     if let Ok(text) = String::from_utf8(data) {
-                        self.load_level_text(name, &text);
+                        self.load_level_text_into_tab(name, &text);
                     } else {
-                        self.status = "UTF-8 解码失败".to_string();
+                        self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
                     }
                 } else {
-                    self.load_level(name, data);
+                    self.load_level_into_tab(name, data);
                 }
             }
         }
@@ -528,28 +620,11 @@ impl eframe::App for EditorApp {
                     if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml")
                     {
                         match String::from_utf8(data) {
-                            Ok(text) => self.load_level_text(name, &text),
-                            Err(_) => self.status = "UTF-8 解码失败".to_string(),
+                            Ok(text) => self.load_level_text_into_tab(name, &text),
+                            Err(_) => self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string(),
                         }
                     } else {
-                        match parser::parse_level(data) {
-                            Ok(level) => {
-                                let obj_count = level.objects.len();
-                                let root_count = level.roots.len();
-                                self.renderer.set_level_key(&name);
-                                self.renderer.set_level(&level);
-                                self.level = Some(level);
-                                self.file_name = Some(name);
-                                self.selected = None;
-                                self.history.undo.clear();
-                                self.history.redo.clear();
-                                self.status =
-                                    self.lang.i18n().fmt_status_loaded(obj_count, root_count);
-                            }
-                            Err(e) => {
-                                self.status = format!("解析失败: {}", e);
-                            }
-                        }
+                        self.load_level_into_tab(name, data);
                     }
                 }
             }
@@ -557,7 +632,7 @@ impl eframe::App for EditorApp {
 
         // B key — toggle background visibility
         if ctx.input(|i| i.key_pressed(egui::Key::B)) {
-            self.renderer.show_bg = !self.renderer.show_bg;
+            self.tabs[self.active_tab].renderer.show_bg = !self.tabs[self.active_tab].renderer.show_bg;
         }
 
         // Cmd+Z / Ctrl+Z — undo
@@ -589,24 +664,39 @@ impl eframe::App for EditorApp {
             self.duplicate_selected();
         }
 
+        // Cmd+W / Ctrl+W — close tab (only when multiple tabs open)
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::W)) {
+            if self.tabs.len() > 1 {
+                self.close_tab(self.active_tab);
+            }
+        }
+
+        // Cmd+T / Ctrl+T — new empty tab
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::T)) {
+            let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
+            let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+            self.tabs.push(new_tab);
+            self.active_tab = self.tabs.len() - 1;
+        }
+
         // Handle Delete / Backspace key — queue confirmation dialog
         // Only when no text widget has focus (avoid intercepting text editing)
-        if let Some(sel) = self.selected {
+        if let Some(sel) = self.tabs[self.active_tab].selected {
             let delete_pressed = !ctx.egui_wants_keyboard_input()
                 && ctx.input(|i| {
                     i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
                 });
             if delete_pressed
-                && self.pending_delete.is_none()
-                && let Some(ref level) = self.level
+                && self.tabs[self.active_tab].pending_delete.is_none()
+                && let Some(ref level) = self.tabs[self.active_tab].level
             {
                 let name = level.objects[sel].name().to_string();
-                self.pending_delete = Some((sel, name));
+                self.tabs[self.active_tab].pending_delete = Some((sel, name));
             }
         }
 
         // Delete confirmation dialog
-        if let Some((del_idx, ref del_name)) = self.pending_delete.clone() {
+        if let Some((del_idx, ref del_name)) = self.tabs[self.active_tab].pending_delete.clone() {
             let mut action = 0u8; // 0=pending, 1=confirm, 2=cancel
             egui::Window::new(t.get("win_confirm_delete"))
                 .collapsible(false)
@@ -627,18 +717,19 @@ impl eframe::App for EditorApp {
             match action {
                 1 => {
                     self.push_undo();
-                    if let Some(ref mut level) = self.level {
+                    let tab = &mut self.tabs[self.active_tab];
+                    if let Some(ref mut level) = tab.level {
                         level.delete_object(del_idx);
-                        self.selected = None;
-                        let cam = self.renderer.camera.clone();
-                        self.renderer.set_level(level);
-                        self.renderer.camera = cam;
-                        self.status = format!("已删除: {}", del_name);
+                        tab.selected = None;
+                        let cam = tab.renderer.camera.clone();
+                        tab.renderer.set_level(level);
+                        tab.renderer.camera = cam;
+                        tab.status = format!("已删除: {}", del_name);
                     }
-                    self.pending_delete = None;
+                    tab.pending_delete = None;
                 }
                 2 => {
-                    self.pending_delete = None;
+                    self.tabs[self.active_tab].pending_delete = None;
                 }
                 _ => {}
             }
@@ -662,10 +753,10 @@ impl eframe::App for EditorApp {
                                             .file_name()
                                             .map(|n| n.to_string_lossy().into_owned())
                                             .unwrap_or_default();
-                                        self.load_level(name, data);
+                                        self.load_level_into_tab(name, data);
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_read_error", &e.to_string());
+                                        self.tabs[self.active_tab].status = t.fmt1("status_read_error", &e.to_string());
                                     }
                                 }
                             }
@@ -703,10 +794,10 @@ impl eframe::App for EditorApp {
                                     .unwrap_or_default();
                                 match std::fs::read_to_string(&path) {
                                     Ok(text) => {
-                                        self.load_level_text(name, &text);
+                                        self.load_level_text_into_tab(name, &text);
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_read_error", &e.to_string());
+                                        self.tabs[self.active_tab].status = t.fmt1("status_read_error", &e.to_string());
                                     }
                                 }
                             }
@@ -735,8 +826,8 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let default_name = self.file_name.as_deref().unwrap_or("level.bytes");
-                            if let Some(data) = self.export_level()
+                            let default_name = self.tabs[self.active_tab].file_name.as_deref().unwrap_or("level.bytes");
+                            if let Some(data) = self.tabs[self.active_tab].export_level()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("Level files", &["bytes"])
                                     .set_file_name(default_name)
@@ -744,27 +835,26 @@ impl eframe::App for EditorApp {
                             {
                                 match std::fs::write(&path, data) {
                                     Ok(()) => {
-                                        self.status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status = t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e.to_string());
+                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
                             }
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
-                            if let Some(data) = self.export_level() {
-                                let file_name = self
-                                    .file_name
+                            if let Some(data) = self.tabs[self.active_tab].export_level() {
+                                let file_name = self.tabs[self.active_tab].file_name
                                     .clone()
                                     .unwrap_or_else(|| "level.bytes".to_string());
                                 match export_bytes_wasm(&file_name, data) {
                                     Ok(()) => {
-                                        self.status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status = t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e);
+                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -774,12 +864,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let yaml_name = self
-                                .file_name
+                            let yaml_name = self.tabs[self.active_tab].file_name
                                 .as_deref()
                                 .map(|n| format!("{n}.yaml"))
                                 .unwrap_or_else(|| "level.yaml".into());
-                            if let Some(text) = self.export_yaml()
+                            if let Some(text) = self.tabs[self.active_tab].export_yaml()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("YAML files", &["yaml"])
                                     .set_file_name(&yaml_name)
@@ -787,28 +876,27 @@ impl eframe::App for EditorApp {
                             {
                                 match std::fs::write(&path, text.as_bytes()) {
                                     Ok(()) => {
-                                        self.status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status = t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e.to_string());
+                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
                             }
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
-                            if let Some(text) = self.export_yaml() {
-                                let file_name = self
-                                    .file_name
+                            if let Some(text) = self.tabs[self.active_tab].export_yaml() {
+                                let file_name = self.tabs[self.active_tab].file_name
                                     .as_deref()
                                     .map(|n| format!("{n}.yaml"))
                                     .unwrap_or_else(|| "level.yaml".to_string());
                                 match export_bytes_wasm(&file_name, text.into_bytes()) {
                                     Ok(()) => {
-                                        self.status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status = t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e);
+                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -818,12 +906,11 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let toml_name = self
-                                .file_name
+                            let toml_name = self.tabs[self.active_tab].file_name
                                 .as_deref()
                                 .map(|n| format!("{n}.toml"))
                                 .unwrap_or_else(|| "level.toml".into());
-                            if let Some(text) = self.export_toml()
+                            if let Some(text) = self.tabs[self.active_tab].export_toml()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("TOML files", &["toml"])
                                     .set_file_name(&toml_name)
@@ -831,28 +918,27 @@ impl eframe::App for EditorApp {
                             {
                                 match std::fs::write(&path, text.as_bytes()) {
                                     Ok(()) => {
-                                        self.status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status = t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e.to_string());
+                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
                             }
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
-                            if let Some(text) = self.export_toml() {
-                                let file_name = self
-                                    .file_name
+                            if let Some(text) = self.tabs[self.active_tab].export_toml() {
+                                let file_name = self.tabs[self.active_tab].file_name
                                     .as_deref()
                                     .map(|n| format!("{n}.toml"))
                                     .unwrap_or_else(|| "level.toml".to_string());
                                 match export_bytes_wasm(&file_name, text.into_bytes()) {
                                     Ok(()) => {
-                                        self.status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status = t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.status = t.fmt1("status_export_error", &e);
+                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -879,8 +965,8 @@ impl eframe::App for EditorApp {
                         self.redo();
                     }
                     ui.separator();
-                    let has_sel = self.selected.is_some() && self.level.is_some();
-                    let has_clip = self.clipboard.is_some() && self.level.is_some();
+                    let has_sel = self.tabs[self.active_tab].selected.is_some() && self.tabs[self.active_tab].level.is_some();
+                    let has_clip = self.tabs[self.active_tab].clipboard.is_some() && self.tabs[self.active_tab].level.is_some();
                     let copy_shortcut = if is_mac { "⌘+C" } else { "Ctrl+C" };
                     let cut_shortcut = if is_mac { "⌘+X" } else { "Ctrl+X" };
                     let paste_shortcut = if is_mac { "⌘+V" } else { "Ctrl+V" };
@@ -919,17 +1005,17 @@ impl eframe::App for EditorApp {
                         .clicked()
                     {
                         ui.close();
-                        if let Some(sel) = self.selected
-                            && let Some(ref level) = self.level
+                        if let Some(sel) = self.tabs[self.active_tab].selected
+                            && let Some(ref level) = self.tabs[self.active_tab].level
                         {
                             let name = level.objects[sel].name().to_string();
-                            self.pending_delete = Some((sel, name));
+                            self.tabs[self.active_tab].pending_delete = Some((sel, name));
                         }
                     }
                     ui.separator();
                     if ui.button(t.get("menu_add_object")).clicked() {
                         ui.close();
-                        if self.level.is_some() {
+                        if self.tabs[self.active_tab].level.is_some() {
                             self.add_obj_name = "NewObject".into();
                             self.add_obj_prefab_index = 0;
                             self.add_obj_is_parent = false;
@@ -941,7 +1027,7 @@ impl eframe::App for EditorApp {
                     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
                     if ui.button(t.get("menu_fit_view")).clicked() {
                         ui.close();
-                        self.renderer.fit_to_level();
+                        self.tabs[self.active_tab].renderer.fit_to_level();
                     }
                     ui.separator();
                     {
@@ -960,38 +1046,38 @@ impl eframe::App for EditorApp {
                     }
                     ui.separator();
                     {
-                        let mut v = self.renderer.show_bg;
+                        let mut v = self.tabs[self.active_tab].renderer.show_bg;
                         if ui.checkbox(&mut v, t.get("menu_background")).clicked() {
                             ui.close();
-                            self.renderer.show_bg = v;
+                            self.tabs[self.active_tab].renderer.show_bg = v;
                         }
                     }
                     {
-                        let mut v = self.renderer.show_grid;
+                        let mut v = self.tabs[self.active_tab].renderer.show_grid;
                         if ui.checkbox(&mut v, t.get("menu_grid")).clicked() {
                             ui.close();
-                            self.renderer.show_grid = v;
+                            self.tabs[self.active_tab].renderer.show_grid = v;
                         }
                     }
                     {
-                        let mut v = self.renderer.show_ground;
+                        let mut v = self.tabs[self.active_tab].renderer.show_ground;
                         if ui.checkbox(&mut v, t.get("menu_physics_ground")).clicked() {
                             ui.close();
-                            self.renderer.show_ground = v;
+                            self.tabs[self.active_tab].renderer.show_ground = v;
                         }
                     }
                     {
-                        let mut v = self.renderer.show_level_bounds;
+                        let mut v = self.tabs[self.active_tab].renderer.show_level_bounds;
                         if ui.checkbox(&mut v, t.get("menu_level_bounds")).clicked() {
                             ui.close();
-                            self.renderer.show_level_bounds = v;
+                            self.tabs[self.active_tab].renderer.show_level_bounds = v;
                         }
                     }
-                    if self.renderer.is_dark_level() {
-                        let mut v = self.renderer.show_dark_overlay;
+                    if self.tabs[self.active_tab].renderer.is_dark_level() {
+                        let mut v = self.tabs[self.active_tab].renderer.show_dark_overlay;
                         if ui.checkbox(&mut v, t.get("menu_dark_overlay")).clicked() {
                             ui.close();
-                            self.renderer.show_dark_overlay = v;
+                            self.tabs[self.active_tab].renderer.show_dark_overlay = v;
                         }
                     }
                     ui.separator();
@@ -1034,16 +1120,16 @@ impl eframe::App for EditorApp {
                                 rfd::FileDialog::new().set_file_name(&log_name).save_file()
                             {
                                 if let Err(e) = std::fs::write(&path, &content) {
-                                    self.status = format!("Log export error: {e}");
+                                    self.tabs[self.active_tab].status = format!("Log export error: {e}");
                                 } else {
-                                    self.status = format!("Log exported: {}", path.display());
+                                    self.tabs[self.active_tab].status = format!("Log exported: {}", path.display());
                                 }
                             }
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
                             if let Err(e) = export_bytes_wasm("editor.log", content.into_bytes()) {
-                                self.status = format!("Log export error: {e}");
+                                self.tabs[self.active_tab].status = format!("Log export error: {e}");
                             }
                         }
                     }
@@ -1165,16 +1251,19 @@ impl eframe::App for EditorApp {
                     ui.horizontal(|ui| {
                         if ui.button(t.get("btn_ok")).clicked() {
                             self.push_undo();
-                            if let Some(ref mut level) = self.level {
-                                let name = if self.add_obj_name.is_empty() {
-                                    "NewObject".to_string()
-                                } else {
-                                    self.add_obj_name.clone()
-                                };
+                            let add_name = if self.add_obj_name.is_empty() {
+                                "NewObject".to_string()
+                            } else {
+                                self.add_obj_name.clone()
+                            };
+                            let is_parent = self.add_obj_is_parent;
+                            let prefab_index = self.add_obj_prefab_index;
+                            let tab = &mut self.tabs[self.active_tab];
+                            if let Some(ref mut level) = tab.level {
                                 let new_idx = level.objects.len();
-                                if self.add_obj_is_parent {
+                                if is_parent {
                                     level.objects.push(LevelObject::Parent(ParentObject {
-                                        name: name.clone(),
+                                        name: add_name.clone(),
                                         position: Vec3 {
                                             x: 0.0,
                                             y: 0.0,
@@ -1185,13 +1274,13 @@ impl eframe::App for EditorApp {
                                     }));
                                 } else {
                                     level.objects.push(LevelObject::Prefab(PrefabInstance {
-                                        name: name.clone(),
+                                        name: add_name.clone(),
                                         position: Vec3 {
                                             x: 0.0,
                                             y: 0.0,
                                             z: 0.0,
                                         },
-                                        prefab_index: self.add_obj_prefab_index,
+                                        prefab_index,
                                         rotation: Vec3 {
                                             x: 0.0,
                                             y: 0.0,
@@ -1209,11 +1298,11 @@ impl eframe::App for EditorApp {
                                     }));
                                 }
                                 level.roots.push(new_idx);
-                                self.selected = Some(new_idx);
-                                let cam = self.renderer.camera.clone();
-                                self.renderer.set_level(level);
-                                self.renderer.camera = cam;
-                                self.status = t.fmt1("status_added", &name);
+                                tab.selected = Some(new_idx);
+                                let cam = tab.renderer.camera.clone();
+                                tab.renderer.set_level(level);
+                                tab.renderer.camera = cam;
+                                tab.status = t.fmt1("status_added", &add_name);
                             }
                             self.show_add_dialog = false;
                         }
@@ -1227,12 +1316,50 @@ impl eframe::App for EditorApp {
             }
         }
 
+        // ── Tab bar ──
+        {
+            egui::Panel::top("tab_bar").show_inside(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let mut close_idx: Option<usize> = None;
+                    for i in 0..self.tabs.len() {
+                        let title = self.tabs[i].title();
+                        let is_active = i == self.active_tab;
+                        let resp = ui.selectable_label(is_active, &title);
+                        if resp.clicked() {
+                            self.active_tab = i;
+                        }
+                        // Middle-click to close tab
+                        if resp.middle_clicked() {
+                            close_idx = Some(i);
+                        }
+                        // Right-click context menu
+                        resp.context_menu(|ui| {
+                            if ui.button(t.get("menu_close_tab")).clicked() {
+                                close_idx = Some(i);
+                                ui.close();
+                            }
+                        });
+                    }
+                    if let Some(idx) = close_idx {
+                        self.close_tab(idx);
+                    }
+                    // "+" button to add a new empty tab
+                    if ui.button("+").clicked() {
+                        let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
+                        let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+                        self.tabs.push(new_tab);
+                        self.active_tab = self.tabs.len() - 1;
+                    }
+                });
+            });
+        }
+
         // ── Status bar ──
         egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(&self.status);
+                ui.label(&self.tabs[self.active_tab].status);
                 // Mouse world coordinates
-                if let Some(mw) = self.renderer.mouse_world {
+                if let Some(mw) = self.tabs[self.active_tab].renderer.mouse_world {
                     ui.separator();
                     ui.label(format!("X: {:.2}  Y: {:.2}", mw.x, mw.y));
                 }
@@ -1241,7 +1368,7 @@ impl eframe::App for EditorApp {
                         ui.label(&self.gpu_backend);
                         ui.separator();
                     }
-                    if let Some(ref name) = self.file_name {
+                    if let Some(ref name) = self.tabs[self.active_tab].file_name {
                         ui.label(name);
                     }
                 });
@@ -1252,14 +1379,17 @@ impl eframe::App for EditorApp {
         if self.show_object_tree {
             egui::Panel::left("object_tree")
                 .default_size(240.0)
+                .resizable(true)
                 .show_inside(ui, |ui| {
                     ui.heading(t.get("panel_object_list"));
                     ui.separator();
 
-                    if let Some(ref level) = self.level {
-                        let mut drop_action: Option<(ObjectIndex, DropPosition)> = None;
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            let mut new_selection = self.selected;
+                    let mut drop_action: Option<(ObjectIndex, DropPosition)> = None;
+                    let mut new_selection = self.tabs[self.active_tab].selected;
+                    if let Some(ref level) = self.tabs[self.active_tab].level {
+                        egui::ScrollArea::vertical()
+                            .auto_shrink(false)
+                            .show(ui, |ui| {
                             for &root_idx in &level.roots {
                                 if let Some(dr) = show_object_tree(ui, level, root_idx, &mut new_selection, 0) {
                                     if drop_action.is_none() {
@@ -1267,20 +1397,21 @@ impl eframe::App for EditorApp {
                                     }
                                 }
                             }
-                            self.selected = new_selection;
                         });
-                        // Handle drop action outside the immutable borrow of level
-                        if let Some((source_idx, drop_pos)) = drop_action {
-                            self.push_undo();
-                            if let Some(ref mut level) = self.level {
-                                let new_sel = level.move_object(source_idx, drop_pos);
-                                if let Some(ns) = new_sel {
-                                    self.selected = Some(ns);
-                                }
-                                let cam = self.renderer.camera.clone();
-                                self.renderer.set_level(level);
-                                self.renderer.camera = cam;
+                    }
+                    self.tabs[self.active_tab].selected = new_selection;
+                    // Handle drop action outside the immutable borrow of level
+                    if let Some((source_idx, drop_pos)) = drop_action {
+                        self.push_undo();
+                        let tab = &mut self.tabs[self.active_tab];
+                        if let Some(ref mut level) = tab.level {
+                            let new_sel = level.move_object(source_idx, drop_pos);
+                            if let Some(ns) = new_sel {
+                                tab.selected = Some(ns);
                             }
+                            let cam = tab.renderer.camera.clone();
+                            tab.renderer.set_level(level);
+                            tab.renderer.camera = cam;
                         }
                     }
                 });
@@ -1300,10 +1431,12 @@ impl eframe::App for EditorApp {
                     ui.heading(t.get("panel_properties"));
                     ui.separator();
 
-                    if let (Some(level), Some(sel)) = (&mut self.level, self.selected) {
+                    let tab = &mut self.tabs[self.active_tab];
+                    let sel = tab.selected;
+                    if let (Some(level), Some(sel)) = (&mut tab.level, sel) {
                         if sel < level.objects.len() {
                             // Clone the object before editing so we can snapshot pre-state
-                            let pre_obj = if !self.props_changed_prev {
+                            let pre_obj = if !tab.props_changed_prev {
                                 Some(level.objects[sel].clone())
                             } else {
                                 None
@@ -1314,22 +1447,22 @@ impl eframe::App for EditorApp {
                                     // First change frame — push undo with pre-edit state
                                     let mut level_snapshot = level.clone();
                                     level_snapshot.objects[sel] = obj_backup;
-                                    self.history.undo.push(Snapshot {
+                                    tab.history.undo.push(Snapshot {
                                         level: level_snapshot,
-                                        selected: self.selected,
+                                        selected: tab.selected,
                                     });
-                                    if self.history.undo.len() > UNDO_MAX {
-                                        self.history.undo.remove(0);
+                                    if tab.history.undo.len() > UNDO_MAX {
+                                        tab.history.undo.remove(0);
                                     }
-                                    self.history.redo.clear();
+                                    tab.history.redo.clear();
                                 }
-                                self.props_changed_prev = true;
+                                tab.props_changed_prev = true;
                                 // Rebuild renderer when properties change
-                                let cam = self.renderer.camera.clone();
-                                self.renderer.set_level(level);
-                                self.renderer.camera = cam;
+                                let cam = tab.renderer.camera.clone();
+                                tab.renderer.set_level(level);
+                                tab.renderer.camera = cam;
                             } else {
-                                self.props_changed_prev = false;
+                                tab.props_changed_prev = false;
                             }
                         }
                     } else {
@@ -1340,41 +1473,44 @@ impl eframe::App for EditorApp {
 
         // ── Central panel: Canvas ──
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            if self.level.is_some() {
-                self.renderer.show(ui, self.selected, t);
+            let tab = &mut self.tabs[self.active_tab];
+            if tab.level.is_some() {
+                let sel = tab.selected;
+                tab.renderer.show(ui, sel, t);
                 // Pick up click-to-select from renderer
-                if let Some(idx) = self.renderer.clicked_object {
-                    self.selected = Some(idx);
+                if let Some(idx) = tab.renderer.clicked_object {
+                    tab.selected = Some(idx);
                 }
                 // Pick up drag result — update object position
-                if let Some((idx, delta)) = self.renderer.drag_result.take()
-                    && let Some(ref mut level) = self.level
-                    && idx < level.objects.len()
-                {
-                    // Snapshot pre-drag state for undo
-                    self.history.undo.push(Snapshot {
-                        level: level.clone(),
-                        selected: self.selected,
-                    });
-                    if self.history.undo.len() > UNDO_MAX {
-                        self.history.undo.remove(0);
-                    }
-                    self.history.redo.clear();
+                if let Some((idx, delta)) = tab.renderer.drag_result.take() {
+                    if let Some(ref mut level) = tab.level {
+                        if idx < level.objects.len() {
+                            // Snapshot pre-drag state for undo
+                            tab.history.undo.push(Snapshot {
+                                level: level.clone(),
+                                selected: tab.selected,
+                            });
+                            if tab.history.undo.len() > UNDO_MAX {
+                                tab.history.undo.remove(0);
+                            }
+                            tab.history.redo.clear();
 
-                    match &mut level.objects[idx] {
-                        LevelObject::Prefab(p) => {
-                            p.position.x += delta.x;
-                            p.position.y += delta.y;
-                        }
-                        LevelObject::Parent(p) => {
-                            p.position.x += delta.x;
-                            p.position.y += delta.y;
+                            match &mut level.objects[idx] {
+                                LevelObject::Prefab(p) => {
+                                    p.position.x += delta.x;
+                                    p.position.y += delta.y;
+                                }
+                                LevelObject::Parent(p) => {
+                                    p.position.x += delta.x;
+                                    p.position.y += delta.y;
+                                }
+                            }
+                            // Rebuild draw data but preserve camera position/zoom
+                            let cam = tab.renderer.camera.clone();
+                            tab.renderer.set_level(level);
+                            tab.renderer.camera = cam;
                         }
                     }
-                    // Rebuild draw data but preserve camera position/zoom
-                    let cam = self.renderer.camera.clone();
-                    self.renderer.set_level(level);
-                    self.renderer.camera = cam;
                 }
             } else {
                 let rect = ui.available_rect_before_wrap();

@@ -3,6 +3,7 @@
 pub mod background;
 pub mod bg_shader;
 pub mod compounds;
+pub mod dark_shader;
 pub mod edge_shader;
 pub mod fill_shader;
 pub mod grid;
@@ -207,6 +208,10 @@ pub struct LevelRenderer {
     sprite_atlas_cache: sprite_shader::SpriteAtlasCache,
     /// Per-frame sprite shader draw slot counter.
     sprite_slot_counter: u32,
+    /// Shared wgpu dark overlay shader pipeline + resources.
+    dark_resources: Option<Arc<dark_shader::DarkResources>>,
+    /// Pre-built GPU meshes for dark overlay (fan-triangulated lit-area polygons).
+    dark_gpu_meshes: Option<Arc<dark_shader::DarkGpuMeshes>>,
     /// Shared wgpu terrain fill shader pipeline + resources.
     fill_resources: Option<Arc<fill_shader::FillResources>>,
     /// Cached GPU fill textures (loaded lazily per ground texture).
@@ -217,6 +222,12 @@ pub struct LevelRenderer {
     fill_slot_counter: u32,
     /// Reusable scratch mesh buffer for terrain CPU transform (avoids per-frame allocation).
     terrain_scratch_mesh: egui::Mesh,
+    /// Cached dark overlay mesh (layer 1: dark complement).
+    dark_overlay_mesh: Option<egui::Mesh>,
+    /// Cached dark overlay border ring mesh (layer 2).
+    dark_overlay_ring: Option<egui::Mesh>,
+    /// Camera/viewport state when dark overlay was last built.
+    dark_overlay_key: (f32, f32, f32, f32, f32),
 }
 
 /// A pre-computed lit area polygon from a LitArea prefab's bezier curve.
@@ -540,6 +551,12 @@ impl LevelRenderer {
                 rs.target_format,
             ))
         });
+        let dark_resources = render_state.map(|rs| {
+            Arc::new(dark_shader::init_dark_resources(
+                &rs.device,
+                rs.target_format,
+            ))
+        });
         Self {
             camera: Camera::default(),
             world_positions: Vec::new(),
@@ -594,7 +611,12 @@ impl LevelRenderer {
             fill_texture_cache: fill_shader::FillTextureCache::new(),
             fill_gpu_meshes: Vec::new(),
             fill_slot_counter: 0,
+            dark_resources,
+            dark_gpu_meshes: None,
             terrain_scratch_mesh: egui::Mesh::default(),
+            dark_overlay_mesh: None,
+            dark_overlay_ring: None,
+            dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0),
         }
     }
 
@@ -630,6 +652,9 @@ impl LevelRenderer {
         self.cloud_instances.clear();
         self.dark_level = false;
         self.lit_area_polygons.clear();
+        self.dark_overlay_mesh = None;
+        self.dark_overlay_ring = None;
+        self.dark_gpu_meshes = None;
 
         // Collect all object names for BG theme detection
         let names: Vec<String> = level
@@ -995,6 +1020,17 @@ impl LevelRenderer {
 
         // Parse dark level flag and LitArea polygons
         parse_dark_level_data(level, &mut self.dark_level, &mut self.lit_area_polygons);
+
+        // Build GPU fan-triangulated meshes for dark overlay stencil pass
+        if self.dark_level && !self.lit_area_polygons.is_empty() {
+            if let Some(device) = &self.wgpu_device {
+                let pairs = self.lit_area_polygons.iter().map(|la| {
+                    (la.border_vertices.as_slice(), la.vertices.as_slice())
+                });
+                self.dark_gpu_meshes =
+                    Some(Arc::new(dark_shader::build_dark_gpu_meshes(device, pairs)));
+            }
+        }
 
         // Fit camera to level bounds
         self.fit_to_level();
@@ -2633,13 +2669,49 @@ impl LevelRenderer {
 
         // ── Dark level overlay with LitArea cutouts ──
         if self.dark_level && self.show_dark_overlay {
-            draw_dark_overlay(
-                &painter,
-                rect,
-                &self.camera,
-                canvas_center,
-                &self.lit_area_polygons,
-            );
+            if let (Some(resources), Some(gpu_meshes)) =
+                (&self.dark_resources, &self.dark_gpu_meshes)
+            {
+                // GPU stencil-based dark overlay
+                painter.add(dark_shader::make_dark_callback(
+                    rect,
+                    resources.clone(),
+                    gpu_meshes.clone(),
+                    [self.camera.center.x, self.camera.center.y],
+                    [rect.left(), rect.top(), rect.width(), rect.height()],
+                    self.camera.zoom,
+                ));
+            } else {
+                // Fallback: simple CPU dark overlay (no GPU or no lit-area meshes)
+                let key = (
+                    self.camera.center.x,
+                    self.camera.center.y,
+                    self.camera.zoom,
+                    rect.width(),
+                    rect.height(),
+                );
+                if key != self.dark_overlay_key || self.dark_overlay_mesh.is_none() {
+                    let (dark_mesh, ring_mesh) = build_dark_overlay_meshes(
+                        rect,
+                        &self.camera,
+                        canvas_center,
+                        &self.lit_area_polygons,
+                    );
+                    self.dark_overlay_mesh = Some(dark_mesh);
+                    self.dark_overlay_ring = ring_mesh;
+                    self.dark_overlay_key = key;
+                }
+                if let Some(ref mesh) = self.dark_overlay_mesh {
+                    if !mesh.vertices.is_empty() {
+                        painter.add(egui::Shape::mesh(mesh.clone()));
+                    }
+                }
+                if let Some(ref mesh) = self.dark_overlay_ring {
+                    if !mesh.vertices.is_empty() {
+                        painter.add(egui::Shape::mesh(mesh.clone()));
+                    }
+                }
+            }
         }
 
         // ── Front-ground + foreground (eff_z < 0): waves/foam/dummy + foreground, after sprites ──
@@ -3357,29 +3429,28 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
 ///    with a semi-transparent dimming effect (matches Unity's ~0.686 multiply)
 ///
 /// Each layer uses horizontal scanline decomposition for robust polygon filling.
-fn draw_dark_overlay(
-    painter: &egui::Painter,
+/// Build dark overlay meshes (complement + ring) without drawing.
+/// Returns (dark_complement_mesh, optional_ring_mesh).
+fn build_dark_overlay_meshes(
     rect: egui::Rect,
     camera: &Camera,
     canvas_center: egui::Vec2,
     lit_areas: &[LitAreaPolygon],
-) {
-    // Unity colors: MaskQuad color = (0.046, 0.059, 0.045, 1.0) with SrcAlpha blend
-    // Border multiply = ~0.686 → effectively dims to ~69% brightness
+) -> (egui::Mesh, Option<egui::Mesh>) {
     let dark_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200);
-    // Border ring: semi-transparent dimming effect
     let border_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 80);
 
     if lit_areas.is_empty() {
-        painter.rect_filled(rect, 0.0, dark_color);
-        return;
+        let mut m = egui::Mesh::default();
+        let uv = egui::pos2(0.0, 0.0);
+        emit_quad(&mut m, rect.left(), rect.right(), rect.left(), rect.right(), rect.top(), rect.bottom(), dark_color, uv);
+        return (m, None);
     }
 
     let to_screen = |wx: f32, wy: f32| -> egui::Pos2 {
         camera.world_to_screen(Vec2 { x: wx, y: wy }, canvas_center)
     };
 
-    // Convert border polygons (outer boundary) to screen space
     let border_polys: Vec<Vec<egui::Pos2>> = lit_areas
         .iter()
         .filter_map(|la| {
@@ -3392,7 +3463,6 @@ fn draw_dark_overlay(
         })
         .collect();
 
-    // Convert inner polygons (lit area boundary) to screen space
     let inner_polys: Vec<Vec<egui::Pos2>> = lit_areas
         .iter()
         .filter_map(|la| {
@@ -3406,26 +3476,26 @@ fn draw_dark_overlay(
         .collect();
 
     if border_polys.is_empty() {
-        painter.rect_filled(rect, 0.0, dark_color);
-        return;
+        let mut m = egui::Mesh::default();
+        let uv = egui::pos2(0.0, 0.0);
+        emit_quad(&mut m, rect.left(), rect.right(), rect.left(), rect.right(), rect.top(), rect.bottom(), dark_color, uv);
+        return (m, None);
     }
 
-    // Layer 1: Dark overlay with holes at border polygon boundaries
-    let dark_mesh = build_scanline_complement_mesh(rect, &border_polys, dark_color);
+    let mut dark_mesh = build_scanline_complement_mesh(rect, &border_polys, dark_color);
     if dark_mesh.vertices.is_empty() {
-        painter.rect_filled(rect, 0.0, dark_color);
-    } else {
-        painter.add(egui::Shape::mesh(dark_mesh));
+        let uv = egui::pos2(0.0, 0.0);
+        emit_quad(&mut dark_mesh, rect.left(), rect.right(), rect.left(), rect.right(), rect.top(), rect.bottom(), dark_color, uv);
     }
 
-    // Layer 2: Border ring (between border_vertices and vertices)
-    // This is the region inside border_polys but outside inner_polys
-    if !inner_polys.is_empty() {
-        let border_mesh = build_scanline_ring_mesh(rect, &border_polys, &inner_polys, border_color);
-        if !border_mesh.vertices.is_empty() {
-            painter.add(egui::Shape::mesh(border_mesh));
-        }
-    }
+    let ring_mesh = if !inner_polys.is_empty() {
+        let m = build_scanline_ring_mesh(rect, &border_polys, &inner_polys, border_color);
+        if m.vertices.is_empty() { None } else { Some(m) }
+    } else {
+        None
+    };
+
+    (dark_mesh, ring_mesh)
 }
 
 /// Build a scanline mesh covering `rect` minus the holes defined by `polys`.

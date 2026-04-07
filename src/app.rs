@@ -30,6 +30,14 @@ struct UndoStack {
     redo: Vec<Snapshot>,
 }
 
+/// Clipboard contents for copy/cut/paste.
+#[derive(Clone)]
+struct Clipboard {
+    /// Cloned objects forming a self-contained subtree.
+    /// objects[0] is always the root of the copied subtree.
+    objects: Vec<LevelObject>,
+}
+
 /// Main application state.
 pub struct EditorApp {
     /// Currently loaded level data.
@@ -38,6 +46,8 @@ pub struct EditorApp {
     file_name: Option<String>,
     /// Currently selected object index.
     selected: Option<ObjectIndex>,
+    /// Object clipboard for copy/cut/paste.
+    clipboard: Option<Clipboard>,
     /// Canvas renderer state.
     renderer: LevelRenderer,
     /// Status message.
@@ -68,6 +78,86 @@ pub struct EditorApp {
     history: UndoStack,
     /// Whether properties were changed in the previous frame (for undo coalescing).
     props_changed_prev: bool,
+}
+
+impl LevelData {
+    /// Deep-clone the subtree rooted at `root_idx` into a self-contained
+    /// `Clipboard`.  All internal parent/children indices are remapped to
+    /// be relative to the cloned vec (root is always index 0).
+    fn clone_subtree(&self, root_idx: ObjectIndex) -> Clipboard {
+        // Collect all indices in the subtree (BFS).
+        let mut indices = Vec::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(root_idx);
+        while let Some(idx) = queue.pop_front() {
+            indices.push(idx);
+            if let LevelObject::Parent(p) = &self.objects[idx] {
+                for &child in &p.children {
+                    queue.push_back(child);
+                }
+            }
+        }
+        // Build old→new index mapping.
+        let remap: std::collections::HashMap<ObjectIndex, ObjectIndex> =
+            indices.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+        // Clone and remap.
+        let objects: Vec<LevelObject> = indices
+            .iter()
+            .map(|&old_idx| {
+                let mut obj = self.objects[old_idx].clone();
+                match &mut obj {
+                    LevelObject::Prefab(p) => {
+                        p.parent = p.parent.and_then(|pi| remap.get(&pi).copied());
+                    }
+                    LevelObject::Parent(p) => {
+                        p.parent = p.parent.and_then(|pi| remap.get(&pi).copied());
+                        p.children = p.children.iter().filter_map(|c| remap.get(c).copied()).collect();
+                    }
+                }
+                obj
+            })
+            .collect();
+        Clipboard { objects }
+    }
+
+    /// Paste a clipboard subtree into the level.  All objects are appended to
+    /// the arena.  If `parent_idx` is `Some`, the pasted root becomes a child
+    /// of that parent; otherwise it becomes a new root-level object.
+    /// Returns the index of the pasted root.
+    fn paste_subtree(&mut self, clip: &Clipboard, parent_idx: Option<ObjectIndex>) -> ObjectIndex {
+        let base = self.objects.len();
+        for (i, obj) in clip.objects.iter().enumerate() {
+            let mut obj = obj.clone();
+            match &mut obj {
+                LevelObject::Prefab(p) => {
+                    p.parent = p.parent.map(|pi| pi + base);
+                    // Clear terrain data — it's level-specific and not transferable.
+                    p.terrain_data = None;
+                }
+                LevelObject::Parent(p) => {
+                    p.parent = p.parent.map(|pi| pi + base);
+                    p.children = p.children.iter().map(|&c| c + base).collect();
+                }
+            }
+            // The root of the pasted subtree: set its parent.
+            if i == 0 {
+                match &mut obj {
+                    LevelObject::Prefab(p) => p.parent = parent_idx,
+                    LevelObject::Parent(p) => p.parent = parent_idx,
+                }
+            }
+            self.objects.push(obj);
+        }
+        if let Some(pi) = parent_idx {
+            // Add the pasted root as a child of the target parent.
+            if let LevelObject::Parent(p) = &mut self.objects[pi] {
+                p.children.push(base);
+            }
+        } else {
+            self.roots.push(base);
+        }
+        base
+    }
 }
 
 impl EditorApp {
@@ -127,6 +217,7 @@ impl EditorApp {
                 undo: Vec::new(),
                 redo: Vec::new(),
             },
+            clipboard: None,
             props_changed_prev: false,
         }
     }
@@ -275,6 +366,115 @@ impl EditorApp {
             self.level = Some(snapshot.level);
         }
     }
+
+    /// Copy the selected object (and its subtree) to the clipboard.
+    fn copy_selected(&mut self) {
+        if let Some(sel) = self.selected
+            && let Some(ref level) = self.level
+            && sel < level.objects.len()
+        {
+            self.clipboard = Some(level.clone_subtree(sel));
+        }
+    }
+
+    /// Cut the selected object: copy then delete.
+    fn cut_selected(&mut self) {
+        if let Some(sel) = self.selected
+            && let Some(ref level) = self.level
+            && sel < level.objects.len()
+        {
+            self.clipboard = Some(level.clone_subtree(sel));
+            self.push_undo();
+            if let Some(ref mut level) = self.level {
+                level.delete_object(sel);
+                self.selected = None;
+                let cam = self.renderer.camera.clone();
+                self.renderer.set_level(level);
+                self.renderer.camera = cam;
+            }
+        }
+    }
+
+    /// Determine the target parent for a paste operation based on the current
+    /// selection.  If the selected object is a Parent, paste into it; if it has
+    /// a parent, paste as a sibling; otherwise paste at root level.
+    fn paste_target_parent(level: &LevelData, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
+        let sel = selected?;
+        if sel >= level.objects.len() {
+            return None;
+        }
+        match &level.objects[sel] {
+            // Selected object IS a parent → paste inside it.
+            LevelObject::Parent(_) => Some(sel),
+            // Selected object has a parent → paste as sibling.
+            LevelObject::Prefab(p) => p.parent,
+        }
+    }
+
+    /// Paste from the clipboard, offset slightly from the original position.
+    fn paste(&mut self) {
+        let clip = match self.clipboard.clone() {
+            Some(c) => c,
+            None => return,
+        };
+        if self.level.is_none() {
+            return;
+        }
+        let target = Self::paste_target_parent(self.level.as_ref().unwrap(), self.selected);
+        self.push_undo();
+        let level = self.level.as_mut().unwrap();
+        let new_root = level.paste_subtree(&clip, target);
+        // Offset the pasted root so it doesn't overlap the original exactly.
+        match &mut level.objects[new_root] {
+            LevelObject::Prefab(p) => {
+                p.position.x += 1.0;
+                p.position.y -= 1.0;
+            }
+            LevelObject::Parent(p) => {
+                p.position.x += 1.0;
+                p.position.y -= 1.0;
+            }
+        }
+        self.selected = Some(new_root);
+        let cam = self.renderer.camera.clone();
+        self.renderer.set_level(level);
+        self.renderer.camera = cam;
+    }
+
+    /// Duplicate the selected object in-place (copy + paste in one step).
+    fn duplicate_selected(&mut self) {
+        let sel = match self.selected {
+            Some(s) => s,
+            None => return,
+        };
+        if self.level.is_none() {
+            return;
+        }
+        let level_ref = self.level.as_ref().unwrap();
+        let clip = level_ref.clone_subtree(sel);
+        // Duplicate should land in the same parent as the original.
+        let target = match &level_ref.objects[sel] {
+            LevelObject::Prefab(p) => p.parent,
+            LevelObject::Parent(p) => p.parent,
+        };
+        self.push_undo();
+        let level = self.level.as_mut().unwrap();
+        let new_root = level.paste_subtree(&clip, target);
+        match &mut level.objects[new_root] {
+            LevelObject::Prefab(p) => {
+                p.position.x += 1.0;
+                p.position.y -= 1.0;
+            }
+            LevelObject::Parent(p) => {
+                p.position.x += 1.0;
+                p.position.y -= 1.0;
+            }
+        }
+        self.selected = Some(new_root);
+        let cam = self.renderer.camera.clone();
+        self.renderer.set_level(level);
+        self.renderer.camera = cam;
+    }
 }
 
 impl eframe::App for EditorApp {
@@ -374,6 +574,23 @@ impl eframe::App for EditorApp {
             self.redo();
         }
 
+        // Cmd+C / Ctrl+C — copy
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::C)) {
+            self.copy_selected();
+        }
+        // Cmd+X / Ctrl+X — cut
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::X)) {
+            self.cut_selected();
+        }
+        // Cmd+V / Ctrl+V — paste
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::V)) {
+            self.paste();
+        }
+        // Cmd+D / Ctrl+D — duplicate
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::D)) {
+            self.duplicate_selected();
+        }
+
         // Handle Delete / Backspace key — queue confirmation dialog
         // Only when no text widget has focus (avoid intercepting text editing)
         if let Some(sel) = self.selected {
@@ -401,7 +618,9 @@ impl eframe::App for EditorApp {
                     ui.label(t.fmt1("status_delete_confirm", del_name));
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        ui.button(t.get("btn_ok")).clicked();
+                        if ui.button(t.get("btn_ok")).clicked() {
+                            action = 1;
+                        }
                         if ui.button(t.get("btn_cancel")).clicked() {
                             action = 2;
                         }
@@ -662,6 +881,54 @@ impl eframe::App for EditorApp {
                         self.redo();
                     }
                     ui.separator();
+                    let has_sel = self.selected.is_some() && self.level.is_some();
+                    let has_clip = self.clipboard.is_some() && self.level.is_some();
+                    let copy_shortcut = if is_mac { "⌘+C" } else { "Ctrl+C" };
+                    let cut_shortcut = if is_mac { "⌘+X" } else { "Ctrl+X" };
+                    let paste_shortcut = if is_mac { "⌘+V" } else { "Ctrl+V" };
+                    let dup_shortcut = if is_mac { "⌘+D" } else { "Ctrl+D" };
+                    if ui
+                        .add_enabled(has_sel, egui::Button::new(t.get("menu_copy")).shortcut_text(copy_shortcut))
+                        .clicked()
+                    {
+                        ui.close();
+                        self.copy_selected();
+                    }
+                    if ui
+                        .add_enabled(has_sel, egui::Button::new(t.get("menu_cut")).shortcut_text(cut_shortcut))
+                        .clicked()
+                    {
+                        ui.close();
+                        self.cut_selected();
+                    }
+                    if ui
+                        .add_enabled(has_clip, egui::Button::new(t.get("menu_paste")).shortcut_text(paste_shortcut))
+                        .clicked()
+                    {
+                        ui.close();
+                        self.paste();
+                    }
+                    if ui
+                        .add_enabled(has_sel, egui::Button::new(t.get("menu_duplicate")).shortcut_text(dup_shortcut))
+                        .clicked()
+                    {
+                        ui.close();
+                        self.duplicate_selected();
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(has_sel, egui::Button::new(t.get("menu_delete")).shortcut_text("Del"))
+                        .clicked()
+                    {
+                        ui.close();
+                        if let Some(sel) = self.selected
+                            && let Some(ref level) = self.level
+                        {
+                            let name = level.objects[sel].name().to_string();
+                            self.pending_delete = Some((sel, name));
+                        }
+                    }
+                    ui.separator();
                     if ui.button(t.get("menu_add_object")).clicked() {
                         ui.close();
                         if self.level.is_some() {
@@ -820,6 +1087,21 @@ impl eframe::App for EditorApp {
                             ui.label(t.get("shortcuts_redo"));
                             ui.label(t.get("shortcuts_redo_action"));
                             ui.end_row();
+                            ui.label(t.get("shortcuts_copy"));
+                            ui.label(t.get("shortcuts_copy_action"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_cut"));
+                            ui.label(t.get("shortcuts_cut_action"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_paste"));
+                            ui.label(t.get("shortcuts_paste_action"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_duplicate"));
+                            ui.label(t.get("shortcuts_duplicate_action"));
+                            ui.end_row();
+                            ui.label(t.get("shortcuts_delete"));
+                            ui.label(t.get("shortcuts_delete_action"));
+                            ui.end_row();
                         });
                 });
         }
@@ -970,13 +1252,31 @@ impl eframe::App for EditorApp {
                     ui.separator();
 
                     if let Some(ref level) = self.level {
+                        let mut drop_action: Option<(ObjectIndex, DropPosition)> = None;
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             let mut new_selection = self.selected;
                             for &root_idx in &level.roots {
-                                show_object_tree(ui, level, root_idx, &mut new_selection, 0);
+                                if let Some(dr) = show_object_tree(ui, level, root_idx, &mut new_selection, 0) {
+                                    if drop_action.is_none() {
+                                        drop_action = Some(dr);
+                                    }
+                                }
                             }
                             self.selected = new_selection;
                         });
+                        // Handle drop action outside the immutable borrow of level
+                        if let Some((source_idx, drop_pos)) = drop_action {
+                            self.push_undo();
+                            if let Some(ref mut level) = self.level {
+                                let new_sel = level.move_object(source_idx, drop_pos);
+                                if let Some(ns) = new_sel {
+                                    self.selected = Some(ns);
+                                }
+                                let cam = self.renderer.camera.clone();
+                                self.renderer.set_level(level);
+                                self.renderer.camera = cam;
+                            }
+                        }
                     }
                 });
         }
@@ -1161,43 +1461,174 @@ fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> Result<(), String> {
     Ok(())
 }
 
-/// Recursively render the object tree.
+/// Drag-and-drop payload for the object tree.
+struct DndPayload(ObjectIndex);
+
+/// Where to drop an item in the tree.
+pub enum DropPosition {
+    /// Insert before `target` in its parent's children list (or in roots).
+    Before(ObjectIndex),
+    /// Insert after `target` in its parent's children list (or in roots).
+    After(ObjectIndex),
+    /// Insert as the last child of a Parent object.
+    IntoParent(ObjectIndex),
+}
+
+/// Recursively render the object tree with drag-and-drop support.
+/// Returns a `DropPosition` if a drop occurred this frame.
+/// Like `selectable_label` but with `Sense::click_and_drag()` so a single
+/// widget handles both click-to-select and drag-to-reorder without conflicts.
+fn selectable_label_draggable(ui: &mut egui::Ui, selected: bool, text: &str) -> egui::Response {
+    let button_padding = ui.spacing().button_padding;
+    let total_extra = button_padding + button_padding;
+    let wrap_width = ui.available_width() - total_extra.x;
+    let galley = egui::WidgetText::from(text).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        wrap_width,
+        egui::TextStyle::Button,
+    );
+    let mut desired_size = total_extra + galley.size();
+    desired_size.y = desired_size.y.max(ui.spacing().interact_size.y);
+    let (rect, response) = ui.allocate_at_least(desired_size, egui::Sense::click_and_drag());
+    if ui.is_rect_visible(response.rect) {
+        let text_pos = ui
+            .layout()
+            .align_size_within_rect(galley.size(), rect.shrink2(button_padding))
+            .min;
+        let visuals = ui.style().interact_selectable(&response, selected);
+        if selected || response.hovered() || response.highlighted() {
+            let r = rect.expand(visuals.expansion);
+            ui.painter()
+                .rect(r, visuals.rounding(), visuals.bg_fill, visuals.bg_stroke, egui::StrokeKind::Inside);
+        }
+        ui.painter().galley(text_pos, galley, visuals.text_color());
+    }
+    response
+}
+
 fn show_object_tree(
     ui: &mut egui::Ui,
     level: &LevelData,
     idx: ObjectIndex,
     selected: &mut Option<ObjectIndex>,
     depth: usize,
-) {
+) -> Option<(ObjectIndex, DropPosition)> {
     let obj = &level.objects[idx];
     let is_selected = *selected == Some(idx);
+    let mut drop_result: Option<(ObjectIndex, DropPosition)> = None;
 
     match obj {
         LevelObject::Parent(parent) => {
-            let id = ui.make_persistent_id(format!("obj_{}", idx));
-            egui::collapsing_header::CollapsingState::load_with_default_open(
+            let collapse_id = ui.make_persistent_id(format!("obj_{}", idx));
+            let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
                 ui.ctx(),
-                id,
+                collapse_id,
                 depth < 1,
-            )
-            .show_header(ui, |ui| {
-                if ui.selectable_label(is_selected, &parent.name).clicked() {
+            );
+            let header_res = ui.horizontal(|ui| {
+                let label_res = selectable_label_draggable(ui, is_selected, &parent.name);
+                if label_res.clicked() {
                     *selected = Some(idx);
                 }
-            })
-            .body(|ui| {
+                if label_res.dragged() {
+                    label_res.dnd_set_drag_payload(DndPayload(idx));
+                }
+                state.show_toggle_button(ui, egui::collapsing_header::paint_default_icon);
+                label_res
+            });
+            let header_rect = header_res.response.rect;
+
+            // Drop target detection on the header
+            if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
+                let in_rect = header_rect.contains(egui::pos2(pointer_pos.x, pointer_pos.y));
+                if in_rect {
+                    // Upper 25% = before, lower 25% = after, middle 50% = into parent
+                    let frac = (pointer_pos.y - header_rect.top()) / header_rect.height();
+                    if frac < 0.25 {
+                        if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
+                            // Draw line above
+                            let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
+                            ui.painter().hline(header_rect.x_range(), header_rect.top(), stroke);
+                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>() {
+                                if payload.0 != idx {
+                                    drop_result = Some((payload.0, DropPosition::Before(idx)));
+                                }
+                            }
+                        }
+                    } else if frac > 0.75 {
+                        if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
+                            // Draw line below
+                            let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
+                            ui.painter().hline(header_rect.x_range(), header_rect.bottom(), stroke);
+                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>() {
+                                if payload.0 != idx {
+                                    drop_result = Some((payload.0, DropPosition::After(idx)));
+                                }
+                            }
+                        }
+                    } else {
+                        // Middle = drop into parent
+                        if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
+                            let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
+                            ui.painter().rect_stroke(header_rect, 2.0, stroke, egui::StrokeKind::Outside);
+                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>() {
+                                if payload.0 != idx {
+                                    drop_result = Some((payload.0, DropPosition::IntoParent(idx)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Show children
+            state.show_body_indented(&header_res.response, ui, |ui| {
                 for &child in &parent.children {
-                    show_object_tree(ui, level, child, selected, depth + 1);
+                    if let Some(dr) = show_object_tree(ui, level, child, selected, depth + 1) {
+                        if drop_result.is_none() {
+                            drop_result = Some(dr);
+                        }
+                    }
                 }
             });
+            state.store(ui.ctx());
         }
         LevelObject::Prefab(prefab) => {
             let label = format!("{} [{}]", prefab.name, prefab.prefab_index);
-            if ui.selectable_label(is_selected, label).clicked() {
+            let label_res = selectable_label_draggable(ui, is_selected, &label);
+            if label_res.clicked() {
                 *selected = Some(idx);
+            }
+            if label_res.dragged() {
+                label_res.dnd_set_drag_payload(DndPayload(idx));
+            }
+
+            // Drop target: upper half = before, lower half = after
+            if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
+                let r = label_res.rect;
+                if r.contains(egui::pos2(pointer_pos.x, pointer_pos.y)) {
+                    let frac = (pointer_pos.y - r.top()) / r.height();
+                    let pos = if frac < 0.5 {
+                        DropPosition::Before(idx)
+                    } else {
+                        DropPosition::After(idx)
+                    };
+                    if let Some(_payload) = label_res.dnd_hover_payload::<DndPayload>() {
+                        let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
+                        let y = if frac < 0.5 { r.top() } else { r.bottom() };
+                        ui.painter().hline(r.x_range(), y, stroke);
+                    }
+                    if let Some(payload) = label_res.dnd_release_payload::<DndPayload>() {
+                        if payload.0 != idx {
+                            drop_result = Some((payload.0, pos));
+                        }
+                    }
+                }
             }
         }
     }
+    drop_result
 }
 
 /// Show editable properties. Returns true if anything changed.

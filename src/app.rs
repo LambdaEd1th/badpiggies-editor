@@ -980,6 +980,13 @@ impl eframe::App for EditorApp {
                             self.renderer.show_ground = v;
                         }
                     }
+                    {
+                        let mut v = self.renderer.show_level_bounds;
+                        if ui.checkbox(&mut v, t.get("menu_level_bounds")).clicked() {
+                            ui.close();
+                            self.renderer.show_level_bounds = v;
+                        }
+                    }
                     if self.renderer.is_dark_level() {
                         let mut v = self.renderer.show_dark_overlay;
                         if ui.checkbox(&mut v, t.get("menu_dark_overlay")).clicked() {

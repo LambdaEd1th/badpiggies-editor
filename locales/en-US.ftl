@@ -21,6 +21,7 @@ menu_object_list = Object List
 menu_properties = Properties
 menu_grid = Grid
 menu_physics_ground = Physics Ground
+menu_level_bounds = Level Bounds
 menu_dark_overlay = Dark Overlay
 menu_language = Language
 menu_help = Help

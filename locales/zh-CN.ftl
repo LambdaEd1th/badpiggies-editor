@@ -21,6 +21,7 @@ menu_object_list = 对象列表
 menu_properties = 属性面板
 menu_grid = 网格
 menu_physics_ground = 物理地面
+menu_level_bounds = 关卡边界
 menu_dark_overlay = 暗层覆盖
 menu_language = 语言
 menu_help = 帮助

@@ -158,6 +158,10 @@ pub struct LevelRenderer {
     dark_level: bool,
     /// Whether to show the dark overlay (togglable in UI).
     pub show_dark_overlay: bool,
+    /// Parsed camera limits from LevelManager (topLeft + size).
+    camera_limits: Option<[f32; 4]>,
+    /// Whether to show the level bounds border.
+    pub show_level_bounds: bool,
     /// Pre-computed lit area polygons (world-space vertices for each LitArea).
     lit_area_polygons: Vec<LitAreaPolygon>,
     /// Fan state machines for propeller animation.
@@ -582,6 +586,8 @@ impl LevelRenderer {
             show_grid: true,
             dark_level: false,
             show_dark_overlay: true,
+            camera_limits: None,
+            show_level_bounds: false,
             lit_area_polygons: Vec::new(),
             fan_emitters: Vec::new(),
             fan_particles: Vec::new(),
@@ -1020,6 +1026,9 @@ impl LevelRenderer {
 
         // Parse dark level flag and LitArea polygons
         parse_dark_level_data(level, &mut self.dark_level, &mut self.lit_area_polygons);
+
+        // Parse camera limits from LevelManager
+        self.camera_limits = parse_camera_limits(level);
 
         // Build GPU fan-triangulated meshes for dark overlay stencil pass
         if self.dark_level && !self.lit_area_polygons.is_empty() {
@@ -2880,6 +2889,38 @@ impl LevelRenderer {
             }
         }
 
+        // Level bounds border (drawn on top of everything)
+        if self.show_level_bounds {
+            if let Some([tl_x, tl_y, w, h]) = self.camera_limits {
+                let min_x = tl_x;
+                let max_x = tl_x + w;
+                let min_y = tl_y - h;
+                let max_y = tl_y;
+
+                let p_tl = self.camera.world_to_screen(Vec2 { x: min_x, y: max_y }, canvas_center);
+                let p_br = self.camera.world_to_screen(Vec2 { x: max_x, y: min_y }, canvas_center);
+                let bounds_rect = egui::Rect::from_two_pos(p_tl, p_br);
+                let clipped = bounds_rect.intersect(rect);
+                if clipped.width() > 0.0 && clipped.height() > 0.0 {
+                    let color = egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180);
+                    let stroke = egui::Stroke::new(2.0, color);
+                    painter.rect_stroke(bounds_rect, 0.0, stroke, egui::StrokeKind::Inside);
+                    // Label at top-left corner inside the rect
+                    painter.text(
+                        egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() + 2.0),
+                        egui::Align2::LEFT_TOP,
+                        format!(
+                            "{} ({:.1}, {:.1}) {}x{}",
+                            tr.get("menu_level_bounds"),
+                            tl_x, tl_y, w, h
+                        ),
+                        egui::FontId::proportional(11.0),
+                        color,
+                    );
+                }
+            }
+        }
+
         // Zoom + theme info
         let theme_label = self
             .bg_theme
@@ -3103,6 +3144,55 @@ fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
                 || od.raw_text.contains("PositionSerializer"))
         {
             return Some(od.raw_text.clone());
+        }
+    }
+    None
+}
+
+/// Parse `m_cameraLimits` from LevelManager override data.
+/// Returns `[topLeft.x, topLeft.y, size.x, size.y]` or `None` if not overridden.
+fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
+    for obj in &level.objects {
+        if let LevelObject::Prefab(p) = obj {
+            if p.name == "LevelManager" {
+                if let Some(ref od) = p.override_data {
+                    if let Some(pos) = od.raw_text.find("m_cameraLimits") {
+                        let after = &od.raw_text[pos..];
+                        // Parse topLeft x, y and size x, y
+                        // Format: "Float x = V" / "Float y = V" in order: tl.x, tl.y, sz.x, sz.y
+                        let mut vals = [0f32; 4];
+                        let mut search = after;
+                        for v in vals.iter_mut() {
+                            // Find whichever of "Float x = " or "Float y = " comes first
+                            let fx = search.find("Float x = ");
+                            let fy = search.find("Float y = ");
+                            let fp = match (fx, fy) {
+                                (Some(a), Some(b)) => Some(a.min(b)),
+                                (Some(a), None) => Some(a),
+                                (None, Some(b)) => Some(b),
+                                (None, None) => None,
+                            };
+                            if let Some(fp) = fp {
+                                let eq = &search[fp..];
+                                if let Some(eq_pos) = eq.find("= ") {
+                                    let num_start = &eq[eq_pos + 2..];
+                                    let end = num_start
+                                        .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                                        .unwrap_or(num_start.len());
+                                    if let Ok(val) = num_start[..end].parse::<f32>() {
+                                        *v = val;
+                                    }
+                                    search = &num_start[end..];
+                                }
+                            }
+                        }
+                        // Only return if size is non-zero
+                        if vals[2] > 0.0 && vals[3] > 0.0 {
+                            return Some(vals);
+                        }
+                    }
+                }
+            }
         }
     }
     None

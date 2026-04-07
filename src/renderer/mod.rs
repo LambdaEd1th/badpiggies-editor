@@ -1262,7 +1262,7 @@ impl LevelRenderer {
                     tex_cache: &self.tex_cache,
                 };
 
-                if !self.cloud_instances.is_empty() && cloud_z_min < 17.5 && cloud_z_max >= 5.0 {
+                if !self.cloud_instances.is_empty() {
                     // Pass 1: bg sprites BEHIND clouds (farther, higher Z)
                     if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
                         let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {

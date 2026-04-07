@@ -122,16 +122,13 @@ pub fn build_terrain(
     } else {
         assets::get_terrain_splat0(&prefab.name).map(|s| s.to_string())
     };
-    let edge_splat1 = assets::get_terrain_splat1(&prefab.name)
-        .map(|s| s.to_string())
-        .or_else(|| {
-            if td.curve_textures.len() > 1 {
-                crate::level_refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
-        });
+    let edge_splat1 = if td.curve_textures.len() > 1 {
+        crate::level_refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
+            .map(|s| s.to_string())
+            .or_else(|| assets::get_terrain_splat1(&prefab.name).map(|s| s.to_string()))
+    } else {
+        assets::get_terrain_splat1(&prefab.name).map(|s| s.to_string())
+    };
 
     // Extract curve outer vertices for selection outline
     let curve_world_verts: Vec<(f32, f32)> = td

@@ -131,8 +131,6 @@ impl LevelData {
             match &mut obj {
                 LevelObject::Prefab(p) => {
                     p.parent = p.parent.map(|pi| pi + base);
-                    // Clear terrain data — it's level-specific and not transferable.
-                    p.terrain_data = None;
                 }
                 LevelObject::Parent(p) => {
                     p.parent = p.parent.map(|pi| pi + base);

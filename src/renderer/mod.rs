@@ -1567,7 +1567,8 @@ impl LevelRenderer {
                 &self.camera,
                 canvas_center,
                 rect,
-                &self.tex_cache,
+                &mut self.tex_cache,
+                ui.ctx(),
             );
         }
 

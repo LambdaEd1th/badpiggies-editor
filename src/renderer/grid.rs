@@ -24,12 +24,15 @@ pub struct ConstructionGrid {
     pub grid_height: i32,
     /// Left-most column offset relative to base.
     pub x_min: i32,
+    /// True if the level overrides m_gridCellPrefab (GridCellLight = white grid).
+    pub light_grid: bool,
 }
 
 /// Try to parse the construction grid from level data.
 /// Looks for LevelManager override data and LevelStart position.
 pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     let mut lm_override: Option<&str> = None;
+    let mut light_grid = false;
     let mut level_start_pos = Vec3 {
         x: 0.0,
         y: 0.0,
@@ -57,6 +60,11 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     }
 
     let text = lm_override?;
+
+    // Check if m_gridCellPrefab is overridden (GridCellLight = white grid for dark/ep6 levels)
+    if text.contains("m_gridCellPrefab") {
+        light_grid = true;
+    }
 
     // Find m_constructionGridRows array and its size
     let size_pattern = "m_constructionGridRows";
@@ -114,14 +122,15 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
         grid_width,
         grid_height,
         x_min,
+        light_grid,
     })
 }
 
 /// Draw the construction grid using the GridCellLight sprite texture.
 ///
-/// The game renders grid cells as the GridCellLight sprite with a black color
-/// tint (`color: 0x000000`), making a semi-transparent dark overlay whose shape
-/// is defined by the sprite's alpha channel (subtle outward-bowing edges).
+/// The game renders grid cells as the GridCell/GridCellLight sprite with a
+/// material color tint.  The custom shader replaces texture RGB with the
+/// material color and uses texture alpha as mask.
 ///
 /// Grid cell world size: 103×104 px × prefabScale(0.3) × 20/768 ≈ 0.805 × 0.813
 /// (half-extent ≈ 0.402 × 0.406)
@@ -131,32 +140,54 @@ pub fn draw_construction_grid(
     camera: &Camera,
     canvas_center: egui::Vec2,
     canvas_rect: egui::Rect,
-    tex_cache: &TextureCache,
+    tex_cache: &mut TextureCache,
+    ctx: &egui::Context,
 ) {
-    // Look up GridCellLight sprite from sprite database
-    let sprite = sprite_db::get_sprite_info("GridCellLight");
-    let tex_id = sprite.and_then(|s| tex_cache.get(&s.atlas));
+    // Look up the appropriate sprite.
+    let sprite_name = if grid.light_grid { "GridCellLight" } else { "GridCell" };
+    let sprite = sprite_db::get_sprite_info(sprite_name);
+
+    // For light grids, we use a pre-processed texture with RGB replaced by white,
+    // so egui's multiplicative blending produces the correct white overlay.
+    // For dark grids, the original atlas texture works fine (black RGB).
+    let (tex_id, uv_min, uv_max) = if grid.light_grid {
+        if let Some(s) = sprite {
+            let uv = &s.uv;
+            let atlas_path = format!("sprites/{}", s.atlas);
+            let tid = tex_cache.load_sprite_white_alpha(
+                ctx,
+                "GridCellLight_white",
+                &atlas_path,
+                uv.x,
+                uv.y,
+                uv.w,
+                uv.h,
+            );
+            // Cropped texture → full UV range
+            (tid, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
+        } else {
+            (None, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
+        }
+    } else {
+        let tid = sprite.and_then(|s| tex_cache.get(&s.atlas));
+        let (uv0, uv1) = if let Some(s) = sprite {
+            let uv = &s.uv;
+            (
+                egui::pos2(uv.x, 1.0 - uv.y - uv.h),
+                egui::pos2(uv.x + uv.w, 1.0 - uv.y),
+            )
+        } else {
+            (egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
+        };
+        (tid, uv0, uv1)
+    };
 
     // Cell half-extents: GridCell prefab scale = 0.3
     // pixelW(103) × 0.3 × 10/768, pixelH(104) × 0.3 × 10/768
     let half_w = 103.0 * 0.3 * 10.0 / 768.0; // ≈ 0.4023
     let half_h = 104.0 * 0.3 * 10.0 / 768.0; // ≈ 0.4063
 
-    // UV coordinates for GridCellLight (flip Y: Unity V=0 at bottom, egui V=0 at top)
-    let (uv_min, uv_max) = if let Some(s) = sprite {
-        let uv = &s.uv;
-        (
-            egui::pos2(uv.x, 1.0 - uv.y - uv.h),
-            egui::pos2(uv.x + uv.w, 1.0 - uv.y),
-        )
-    } else {
-        (egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
-    };
-
-    // Black tint color: RGB=0, alpha modulated by texture
-    // In the game, color: 0x000000 means the sprite's RGB is replaced with black,
-    // and only its alpha channel contributes to transparency.
-    let tint = egui::Color32::from_rgba_premultiplied(0, 0, 0, 255);
+    let tint = egui::Color32::from_rgba_premultiplied(255, 255, 255, 255);
 
     for row in 0..grid.grid_height {
         let bits = grid.rows[row as usize];
@@ -182,14 +213,17 @@ pub fn draw_construction_grid(
             }
 
             if let Some(tid) = tex_id {
-                // Draw textured cell using the GridCellLight sprite
                 let mut mesh = egui::Mesh::with_texture(tid);
                 let uv_rect = egui::Rect::from_min_max(uv_min, uv_max);
                 mesh.add_rect_with_uv(cell_rect, uv_rect, tint);
                 painter.add(egui::Shape::mesh(mesh));
             } else {
-                // Fallback: semi-transparent black rectangle
-                let fallback = egui::Color32::from_rgba_premultiplied(0, 0, 0, 40);
+                // Fallback: semi-transparent rectangle
+                let fallback = if grid.light_grid {
+                    egui::Color32::from_rgba_unmultiplied(255, 255, 255, 64)
+                } else {
+                    egui::Color32::from_rgba_premultiplied(0, 0, 0, 40)
+                };
                 painter.rect_filled(cell_rect, 0.0, fallback);
             }
         }

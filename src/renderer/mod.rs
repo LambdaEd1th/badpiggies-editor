@@ -2905,15 +2905,18 @@ impl LevelRenderer {
                     let color = egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180);
                     let stroke = egui::Stroke::new(2.0, color);
                     painter.rect_stroke(bounds_rect, 0.0, stroke, egui::StrokeKind::Inside);
-                    // Label at top-left corner inside the rect
+                    // Title outside the rect, coordinates inside
+                    painter.text(
+                        egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() - 16.0),
+                        egui::Align2::LEFT_TOP,
+                        tr.get("menu_level_bounds"),
+                        egui::FontId::proportional(11.0),
+                        color,
+                    );
                     painter.text(
                         egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() + 2.0),
                         egui::Align2::LEFT_TOP,
-                        format!(
-                            "{} ({:.1}, {:.1}) {}x{}",
-                            tr.get("menu_level_bounds"),
-                            tl_x, tl_y, w, h
-                        ),
+                        format!("({:.1}, {:.1}) {}x{}", tl_x, tl_y, w, h),
                         egui::FontId::proportional(11.0),
                         color,
                     );

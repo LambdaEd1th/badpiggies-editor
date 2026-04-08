@@ -29,17 +29,17 @@ pub struct UvRect {
     pub h: f32,
 }
 
-// ── JSON deserialization structures ──
+// ── TOML deserialization structures ──
 
 #[derive(Deserialize)]
-struct SpriteDataJson {
+struct SpriteDataToml {
     runtime: HashMap<String, RuntimeEntry>,
     unmanaged: HashMap<String, UnmanagedEntry>,
 }
 
 #[derive(Deserialize)]
 struct RuntimeEntry {
-    uv: UvJson,
+    uv: UvToml,
     width: f32,
     height: f32,
     #[serde(rename = "scaleX")]
@@ -50,7 +50,7 @@ struct RuntimeEntry {
 }
 
 #[derive(Deserialize)]
-struct UvJson {
+struct UvToml {
     x: f32,
     y: f32,
     w: f32,
@@ -81,7 +81,7 @@ static SPRITE_DB: OnceLock<HashMap<String, SpriteInfo>> = OnceLock::new();
 
 fn build_db() -> HashMap<String, SpriteInfo> {
     let toml_str = include_str!("../assets/sprite-data.toml");
-    let data: SpriteDataJson = toml::from_str(toml_str).expect("sprite-data.toml parse error");
+    let data: SpriteDataToml = toml::from_str(toml_str).expect("sprite-data.toml parse error");
 
     let mut map = HashMap::with_capacity(data.runtime.len() + data.unmanaged.len());
 

@@ -80,7 +80,9 @@ impl Tab {
 
     /// Display name for the tab.
     fn title(&self) -> String {
-        self.file_name.clone().unwrap_or_else(|| "(untitled)".to_string())
+        self.file_name
+            .clone()
+            .unwrap_or_else(|| "(untitled)".to_string())
     }
 
     fn load_level(&mut self, name: String, data: Vec<u8>, i18n: &I18n) {
@@ -148,7 +150,10 @@ impl Tab {
     }
 
     /// Determine the target parent for a paste operation.
-    fn paste_target_parent(level: &LevelData, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
+    fn paste_target_parent(
+        level: &LevelData,
+        selected: Option<ObjectIndex>,
+    ) -> Option<ObjectIndex> {
         let sel = selected?;
         if sel >= level.objects.len() {
             return None;
@@ -206,8 +211,11 @@ impl LevelData {
             }
         }
         // Build old→new index mapping.
-        let remap: std::collections::HashMap<ObjectIndex, ObjectIndex> =
-            indices.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+        let remap: std::collections::HashMap<ObjectIndex, ObjectIndex> = indices
+            .iter()
+            .enumerate()
+            .map(|(new, &old)| (old, new))
+            .collect();
         // Clone and remap.
         let objects: Vec<LevelObject> = indices
             .iter()
@@ -219,7 +227,11 @@ impl LevelData {
                     }
                     LevelObject::Parent(p) => {
                         p.parent = p.parent.and_then(|pi| remap.get(&pi).copied());
-                        p.children = p.children.iter().filter_map(|c| remap.get(c).copied()).collect();
+                        p.children = p
+                            .children
+                            .iter()
+                            .filter_map(|c| remap.get(c).copied())
+                            .collect();
                     }
                 }
                 obj
@@ -423,7 +435,10 @@ impl EditorApp {
         {
             tab.clipboard = Some(level.clone_subtree(sel));
             // push_undo inline (can't call self method while borrowing tab)
-            let undo_snap = Snapshot { level: level.clone(), selected: tab.selected };
+            let undo_snap = Snapshot {
+                level: level.clone(),
+                selected: tab.selected,
+            };
             tab.history.undo.push(undo_snap);
             if tab.history.undo.len() > UNDO_MAX {
                 tab.history.undo.remove(0);
@@ -453,8 +468,13 @@ impl EditorApp {
         // push_undo inline
         {
             let level = tab.level.as_ref().unwrap();
-            tab.history.undo.push(Snapshot { level: level.clone(), selected: tab.selected });
-            if tab.history.undo.len() > UNDO_MAX { tab.history.undo.remove(0); }
+            tab.history.undo.push(Snapshot {
+                level: level.clone(),
+                selected: tab.selected,
+            });
+            if tab.history.undo.len() > UNDO_MAX {
+                tab.history.undo.remove(0);
+            }
             tab.history.redo.clear();
         }
         let level = tab.level.as_mut().unwrap();
@@ -492,8 +512,13 @@ impl EditorApp {
             LevelObject::Parent(p) => p.parent,
         };
         // push_undo inline
-        tab.history.undo.push(Snapshot { level: level_ref.clone(), selected: tab.selected });
-        if tab.history.undo.len() > UNDO_MAX { tab.history.undo.remove(0); }
+        tab.history.undo.push(Snapshot {
+            level: level_ref.clone(),
+            selected: tab.selected,
+        });
+        if tab.history.undo.len() > UNDO_MAX {
+            tab.history.undo.remove(0);
+        }
         tab.history.redo.clear();
         let level = tab.level.as_mut().unwrap();
         let new_root = level.paste_subtree(&clip, target);
@@ -621,7 +646,9 @@ impl eframe::App for EditorApp {
                     {
                         match String::from_utf8(data) {
                             Ok(text) => self.load_level_text_into_tab(name, &text),
-                            Err(_) => self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string(),
+                            Err(_) => {
+                                self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string()
+                            }
                         }
                     } else {
                         self.load_level_into_tab(name, data);
@@ -632,7 +659,8 @@ impl eframe::App for EditorApp {
 
         // B key — toggle background visibility
         if ctx.input(|i| i.key_pressed(egui::Key::B)) {
-            self.tabs[self.active_tab].renderer.show_bg = !self.tabs[self.active_tab].renderer.show_bg;
+            self.tabs[self.active_tab].renderer.show_bg =
+                !self.tabs[self.active_tab].renderer.show_bg;
         }
 
         // Cmd+Z / Ctrl+Z — undo
@@ -665,10 +693,10 @@ impl eframe::App for EditorApp {
         }
 
         // Cmd+W / Ctrl+W — close tab (only when multiple tabs open)
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::W))
-            && self.tabs.len() > 1 {
-                self.close_tab(self.active_tab);
-            }
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::W)) && self.tabs.len() > 1
+        {
+            self.close_tab(self.active_tab);
+        }
 
         // Cmd+T / Ctrl+T — new empty tab
         if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::T)) {
@@ -755,7 +783,8 @@ impl eframe::App for EditorApp {
                                         self.load_level_into_tab(name, data);
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_read_error", &e.to_string());
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_read_error", &e.to_string());
                                     }
                                 }
                             }
@@ -796,7 +825,8 @@ impl eframe::App for EditorApp {
                                         self.load_level_text_into_tab(name, &text);
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_read_error", &e.to_string());
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_read_error", &e.to_string());
                                     }
                                 }
                             }
@@ -825,7 +855,10 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let default_name = self.tabs[self.active_tab].file_name.as_deref().unwrap_or("level.bytes");
+                            let default_name = self.tabs[self.active_tab]
+                                .file_name
+                                .as_deref()
+                                .unwrap_or("level.bytes");
                             if let Some(data) = self.tabs[self.active_tab].export_level()
                                 && let Some(path) = rfd::FileDialog::new()
                                     .add_filter("Level files", &["bytes"])
@@ -834,10 +867,12 @@ impl eframe::App for EditorApp {
                             {
                                 match std::fs::write(&path, data) {
                                     Ok(()) => {
-                                        self.tabs[self.active_tab].status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e.to_string());
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
                             }
@@ -845,15 +880,18 @@ impl eframe::App for EditorApp {
                         #[cfg(target_arch = "wasm32")]
                         {
                             if let Some(data) = self.tabs[self.active_tab].export_level() {
-                                let file_name = self.tabs[self.active_tab].file_name
+                                let file_name = self.tabs[self.active_tab]
+                                    .file_name
                                     .clone()
                                     .unwrap_or_else(|| "level.bytes".to_string());
                                 match export_bytes_wasm(&file_name, data) {
                                     Ok(()) => {
-                                        self.tabs[self.active_tab].status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e);
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -863,7 +901,8 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let yaml_name = self.tabs[self.active_tab].file_name
+                            let yaml_name = self.tabs[self.active_tab]
+                                .file_name
                                 .as_deref()
                                 .map(|n| format!("{n}.yaml"))
                                 .unwrap_or_else(|| "level.yaml".into());
@@ -875,10 +914,12 @@ impl eframe::App for EditorApp {
                             {
                                 match std::fs::write(&path, text.as_bytes()) {
                                     Ok(()) => {
-                                        self.tabs[self.active_tab].status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e.to_string());
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
                             }
@@ -886,16 +927,19 @@ impl eframe::App for EditorApp {
                         #[cfg(target_arch = "wasm32")]
                         {
                             if let Some(text) = self.tabs[self.active_tab].export_yaml() {
-                                let file_name = self.tabs[self.active_tab].file_name
+                                let file_name = self.tabs[self.active_tab]
+                                    .file_name
                                     .as_deref()
                                     .map(|n| format!("{n}.yaml"))
                                     .unwrap_or_else(|| "level.yaml".to_string());
                                 match export_bytes_wasm(&file_name, text.into_bytes()) {
                                     Ok(()) => {
-                                        self.tabs[self.active_tab].status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e);
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -905,7 +949,8 @@ impl eframe::App for EditorApp {
                         ui.close();
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let toml_name = self.tabs[self.active_tab].file_name
+                            let toml_name = self.tabs[self.active_tab]
+                                .file_name
                                 .as_deref()
                                 .map(|n| format!("{n}.toml"))
                                 .unwrap_or_else(|| "level.toml".into());
@@ -917,10 +962,12 @@ impl eframe::App for EditorApp {
                             {
                                 match std::fs::write(&path, text.as_bytes()) {
                                     Ok(()) => {
-                                        self.tabs[self.active_tab].status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e.to_string());
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_export_error", &e.to_string());
                                     }
                                 }
                             }
@@ -928,16 +975,19 @@ impl eframe::App for EditorApp {
                         #[cfg(target_arch = "wasm32")]
                         {
                             if let Some(text) = self.tabs[self.active_tab].export_toml() {
-                                let file_name = self.tabs[self.active_tab].file_name
+                                let file_name = self.tabs[self.active_tab]
+                                    .file_name
                                     .as_deref()
                                     .map(|n| format!("{n}.toml"))
                                     .unwrap_or_else(|| "level.toml".to_string());
                                 match export_bytes_wasm(&file_name, text.into_bytes()) {
                                     Ok(()) => {
-                                        self.tabs[self.active_tab].status = t.get("status_exported");
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
                                     }
                                     Err(e) => {
-                                        self.tabs[self.active_tab].status = t.fmt1("status_export_error", &e);
+                                        self.tabs[self.active_tab].status =
+                                            t.fmt1("status_export_error", &e);
                                     }
                                 }
                             }
@@ -964,35 +1014,49 @@ impl eframe::App for EditorApp {
                         self.redo();
                     }
                     ui.separator();
-                    let has_sel = self.tabs[self.active_tab].selected.is_some() && self.tabs[self.active_tab].level.is_some();
-                    let has_clip = self.tabs[self.active_tab].clipboard.is_some() && self.tabs[self.active_tab].level.is_some();
+                    let has_sel = self.tabs[self.active_tab].selected.is_some()
+                        && self.tabs[self.active_tab].level.is_some();
+                    let has_clip = self.tabs[self.active_tab].clipboard.is_some()
+                        && self.tabs[self.active_tab].level.is_some();
                     let copy_shortcut = if is_mac { "⌘+C" } else { "Ctrl+C" };
                     let cut_shortcut = if is_mac { "⌘+X" } else { "Ctrl+X" };
                     let paste_shortcut = if is_mac { "⌘+V" } else { "Ctrl+V" };
                     let dup_shortcut = if is_mac { "⌘+D" } else { "Ctrl+D" };
                     if ui
-                        .add_enabled(has_sel, egui::Button::new(t.get("menu_copy")).shortcut_text(copy_shortcut))
+                        .add_enabled(
+                            has_sel,
+                            egui::Button::new(t.get("menu_copy")).shortcut_text(copy_shortcut),
+                        )
                         .clicked()
                     {
                         ui.close();
                         self.copy_selected();
                     }
                     if ui
-                        .add_enabled(has_sel, egui::Button::new(t.get("menu_cut")).shortcut_text(cut_shortcut))
+                        .add_enabled(
+                            has_sel,
+                            egui::Button::new(t.get("menu_cut")).shortcut_text(cut_shortcut),
+                        )
                         .clicked()
                     {
                         ui.close();
                         self.cut_selected();
                     }
                     if ui
-                        .add_enabled(has_clip, egui::Button::new(t.get("menu_paste")).shortcut_text(paste_shortcut))
+                        .add_enabled(
+                            has_clip,
+                            egui::Button::new(t.get("menu_paste")).shortcut_text(paste_shortcut),
+                        )
                         .clicked()
                     {
                         ui.close();
                         self.paste();
                     }
                     if ui
-                        .add_enabled(has_sel, egui::Button::new(t.get("menu_duplicate")).shortcut_text(dup_shortcut))
+                        .add_enabled(
+                            has_sel,
+                            egui::Button::new(t.get("menu_duplicate")).shortcut_text(dup_shortcut),
+                        )
                         .clicked()
                     {
                         ui.close();
@@ -1000,7 +1064,10 @@ impl eframe::App for EditorApp {
                     }
                     ui.separator();
                     if ui
-                        .add_enabled(has_sel, egui::Button::new(t.get("menu_delete")).shortcut_text("Del"))
+                        .add_enabled(
+                            has_sel,
+                            egui::Button::new(t.get("menu_delete")).shortcut_text("Del"),
+                        )
                         .clicked()
                     {
                         ui.close();
@@ -1119,16 +1186,19 @@ impl eframe::App for EditorApp {
                                 rfd::FileDialog::new().set_file_name(&log_name).save_file()
                             {
                                 if let Err(e) = std::fs::write(&path, &content) {
-                                    self.tabs[self.active_tab].status = format!("Log export error: {e}");
+                                    self.tabs[self.active_tab].status =
+                                        format!("Log export error: {e}");
                                 } else {
-                                    self.tabs[self.active_tab].status = format!("Log exported: {}", path.display());
+                                    self.tabs[self.active_tab].status =
+                                        format!("Log exported: {}", path.display());
                                 }
                             }
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
                             if let Err(e) = export_bytes_wasm("editor.log", content.into_bytes()) {
-                                self.tabs[self.active_tab].status = format!("Log export error: {e}");
+                                self.tabs[self.active_tab].status =
+                                    format!("Log export error: {e}");
                             }
                         }
                     }
@@ -1353,7 +1423,8 @@ impl eframe::App for EditorApp {
                     // "+" button to add a new empty tab
                     if ui.button("+").clicked() {
                         let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
-                        let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+                        let new_tab =
+                            Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
                         self.tabs.push(new_tab);
                         self.active_tab = self.tabs.len() - 1;
                     }
@@ -1397,13 +1468,15 @@ impl eframe::App for EditorApp {
                         egui::ScrollArea::vertical()
                             .auto_shrink(false)
                             .show(ui, |ui| {
-                            for &root_idx in &level.roots {
-                                if let Some(dr) = show_object_tree(ui, level, root_idx, &mut new_selection, 0)
-                                    && drop_action.is_none() {
+                                for &root_idx in &level.roots {
+                                    if let Some(dr) =
+                                        show_object_tree(ui, level, root_idx, &mut new_selection, 0)
+                                        && drop_action.is_none()
+                                    {
                                         drop_action = Some(dr);
                                     }
-                            }
-                        });
+                                }
+                            });
                     }
                     self.tabs[self.active_tab].selected = new_selection;
                     // Handle drop action outside the immutable borrow of level
@@ -1490,32 +1563,33 @@ impl eframe::App for EditorApp {
                 // Pick up drag result — update object position
                 if let Some((idx, delta)) = tab.renderer.drag_result.take()
                     && let Some(ref mut level) = tab.level
-                        && idx < level.objects.len() {
-                            // Snapshot pre-drag state for undo
-                            tab.history.undo.push(Snapshot {
-                                level: level.clone(),
-                                selected: tab.selected,
-                            });
-                            if tab.history.undo.len() > UNDO_MAX {
-                                tab.history.undo.remove(0);
-                            }
-                            tab.history.redo.clear();
+                    && idx < level.objects.len()
+                {
+                    // Snapshot pre-drag state for undo
+                    tab.history.undo.push(Snapshot {
+                        level: level.clone(),
+                        selected: tab.selected,
+                    });
+                    if tab.history.undo.len() > UNDO_MAX {
+                        tab.history.undo.remove(0);
+                    }
+                    tab.history.redo.clear();
 
-                            match &mut level.objects[idx] {
-                                LevelObject::Prefab(p) => {
-                                    p.position.x += delta.x;
-                                    p.position.y += delta.y;
-                                }
-                                LevelObject::Parent(p) => {
-                                    p.position.x += delta.x;
-                                    p.position.y += delta.y;
-                                }
-                            }
-                            // Rebuild draw data but preserve camera position/zoom
-                            let cam = tab.renderer.camera.clone();
-                            tab.renderer.set_level(level);
-                            tab.renderer.camera = cam;
+                    match &mut level.objects[idx] {
+                        LevelObject::Prefab(p) => {
+                            p.position.x += delta.x;
+                            p.position.y += delta.y;
                         }
+                        LevelObject::Parent(p) => {
+                            p.position.x += delta.x;
+                            p.position.y += delta.y;
+                        }
+                    }
+                    // Rebuild draw data but preserve camera position/zoom
+                    let cam = tab.renderer.camera.clone();
+                    tab.renderer.set_level(level);
+                    tab.renderer.camera = cam;
+                }
             } else {
                 let rect = ui.available_rect_before_wrap();
                 let is_dark = ui.visuals().dark_mode;
@@ -1644,8 +1718,13 @@ fn selectable_label_draggable(ui: &mut egui::Ui, selected: bool, text: &str) -> 
         let visuals = ui.style().interact_selectable(&response, selected);
         if selected || response.hovered() || response.highlighted() {
             let r = rect.expand(visuals.expansion);
-            ui.painter()
-                .rect(r, visuals.corner_radius, visuals.bg_fill, visuals.bg_stroke, egui::StrokeKind::Inside);
+            ui.painter().rect(
+                r,
+                visuals.corner_radius,
+                visuals.bg_fill,
+                visuals.bg_stroke,
+                egui::StrokeKind::Inside,
+            );
         }
         ui.painter().galley(text_pos, galley, visuals.text_color());
     }
@@ -1694,31 +1773,44 @@ fn show_object_tree(
                         if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
                             // Draw line above
                             let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
-                            ui.painter().hline(header_rect.x_range(), header_rect.top(), stroke);
-                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>()
-                                && payload.0 != idx {
-                                    drop_result = Some((payload.0, DropPosition::Before(idx)));
-                                }
+                            ui.painter()
+                                .hline(header_rect.x_range(), header_rect.top(), stroke);
+                            if let Some(payload) =
+                                header_res.inner.dnd_release_payload::<DndPayload>()
+                                && payload.0 != idx
+                            {
+                                drop_result = Some((payload.0, DropPosition::Before(idx)));
+                            }
                         }
                     } else if frac > 0.75 {
                         if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
                             // Draw line below
                             let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
-                            ui.painter().hline(header_rect.x_range(), header_rect.bottom(), stroke);
-                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>()
-                                && payload.0 != idx {
-                                    drop_result = Some((payload.0, DropPosition::After(idx)));
-                                }
+                            ui.painter()
+                                .hline(header_rect.x_range(), header_rect.bottom(), stroke);
+                            if let Some(payload) =
+                                header_res.inner.dnd_release_payload::<DndPayload>()
+                                && payload.0 != idx
+                            {
+                                drop_result = Some((payload.0, DropPosition::After(idx)));
+                            }
                         }
                     } else {
                         // Middle = drop into parent
                         if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
                             let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
-                            ui.painter().rect_stroke(header_rect, 2.0, stroke, egui::StrokeKind::Outside);
-                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>()
-                                && payload.0 != idx {
-                                    drop_result = Some((payload.0, DropPosition::IntoParent(idx)));
-                                }
+                            ui.painter().rect_stroke(
+                                header_rect,
+                                2.0,
+                                stroke,
+                                egui::StrokeKind::Outside,
+                            );
+                            if let Some(payload) =
+                                header_res.inner.dnd_release_payload::<DndPayload>()
+                                && payload.0 != idx
+                            {
+                                drop_result = Some((payload.0, DropPosition::IntoParent(idx)));
+                            }
                         }
                     }
                 }
@@ -1728,9 +1820,10 @@ fn show_object_tree(
             state.show_body_indented(&header_res.response, ui, |ui| {
                 for &child in &parent.children {
                     if let Some(dr) = show_object_tree(ui, level, child, selected, depth + 1)
-                        && drop_result.is_none() {
-                            drop_result = Some(dr);
-                        }
+                        && drop_result.is_none()
+                    {
+                        drop_result = Some(dr);
+                    }
                 }
             });
             state.store(ui.ctx());
@@ -1761,9 +1854,10 @@ fn show_object_tree(
                         ui.painter().hline(r.x_range(), y, stroke);
                     }
                     if let Some(payload) = label_res.dnd_release_payload::<DndPayload>()
-                        && payload.0 != idx {
-                            drop_result = Some((payload.0, pos));
-                        }
+                        && payload.0 != idx
+                    {
+                        drop_result = Some((payload.0, pos));
+                    }
                 }
             }
         }

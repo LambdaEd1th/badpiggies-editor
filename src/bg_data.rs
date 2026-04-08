@@ -98,11 +98,11 @@ pub struct BgTheme {
     pub child_order: Vec<String>,
 }
 
-// ── JSON deserialization ──
+// ── TOML deserialization ──
 
 #[derive(Deserialize)]
-struct ThemeJson {
-    sprites: Vec<SpriteJson>,
+struct ThemeToml {
+    sprites: Vec<SpriteToml>,
     #[serde(rename = "groupDefaults")]
     group_defaults: HashMap<String, [f64; 3]>,
     #[serde(rename = "childOrder", default)]
@@ -110,7 +110,7 @@ struct ThemeJson {
 }
 
 #[derive(Deserialize)]
-struct SpriteJson {
+struct SpriteToml {
     #[allow(dead_code)]
     name: String,
     atlas: Option<String>,
@@ -169,13 +169,13 @@ static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
     let toml_str = include_str!("../assets/bg-data.toml");
-    let raw: HashMap<String, ThemeJson> =
+    let raw: HashMap<String, ThemeToml> =
         toml::from_str(toml_str).expect("bg-data.toml parse error");
 
     let mut themes = HashMap::with_capacity(raw.len());
-    for (name, theme_json) in raw {
-        let mut sprites = Vec::with_capacity(theme_json.sprites.len());
-        for s in &theme_json.sprites {
+    for (name, theme_toml) in raw {
+        let mut sprites = Vec::with_capacity(theme_toml.sprites.len());
+        for s in &theme_toml.sprites {
             let layer = match BgLayer::from_str(&s.layer) {
                 Some(l) => l,
                 None => continue,
@@ -202,7 +202,10 @@ fn build_themes() -> HashMap<String, BgTheme> {
                 local_x: s.local_x as f32,
                 local_y: s.local_y as f32,
                 parent_group: s.parent_group.clone(),
-                tint: s.tint.as_deref().and_then(parse_hex_color)
+                tint: s
+                    .tint
+                    .as_deref()
+                    .and_then(parse_hex_color)
                     .map(|[r, g, b]| [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
                     .unwrap_or([1.0, 1.0, 1.0, 1.0]),
                 alpha_blend: s.alpha_blend,
@@ -216,7 +219,7 @@ fn build_themes() -> HashMap<String, BgTheme> {
                     .unwrap_or(std::cmp::Ordering::Equal),
             )
         });
-        let group_defaults: HashMap<String, [f32; 3]> = theme_json
+        let group_defaults: HashMap<String, [f32; 3]> = theme_toml
             .group_defaults
             .iter()
             .map(|(k, v)| (k.clone(), [v[0] as f32, v[1] as f32, v[2] as f32]))
@@ -226,7 +229,7 @@ fn build_themes() -> HashMap<String, BgTheme> {
             BgTheme {
                 sprites,
                 group_defaults,
-                child_order: theme_json.child_order,
+                child_order: theme_toml.child_order,
             },
         );
     }
@@ -330,12 +333,16 @@ pub fn apply_bg_overrides(theme: &BgTheme, overrides: &BgOverrides) -> Vec<BgSpr
             // (both represent the same Transform.m_LocalPosition). Using
             // localY here would double-count the offset. Treat it as 0.
             let is_group_root = s.name == s.parent_group;
-            let lx = sprite_ovr
-                .and_then(|o| o[0])
-                .unwrap_or(if is_group_root { 0.0 } else { s.local_x });
-            let ly = sprite_ovr
-                .and_then(|o| o[1])
-                .unwrap_or(if is_group_root { 0.0 } else { s.local_y });
+            let lx = sprite_ovr.and_then(|o| o[0]).unwrap_or(if is_group_root {
+                0.0
+            } else {
+                s.local_x
+            });
+            let ly = sprite_ovr.and_then(|o| o[1]).unwrap_or(if is_group_root {
+                0.0
+            } else {
+                s.local_y
+            });
             let new_x = gx + lx;
             let new_y = gy + ly;
             let sprite_local_z = s.world_z - defaults[2];
@@ -373,31 +380,32 @@ pub fn parse_position_serializer_overrides(raw: &str, child_order: &[String]) ->
         if let Some(rest) = content.strip_prefix("Element ") {
             // Flush previous element
             if let Some(idx) = current_element
-                && idx < child_order.len() && !child_order[idx].is_empty() {
-                    result
-                        .groups
-                        .insert(child_order[idx].clone(), current_pos);
-                }
+                && idx < child_order.len()
+                && !child_order[idx].is_empty()
+            {
+                result.groups.insert(child_order[idx].clone(), current_pos);
+            }
             current_element = rest.trim().parse::<usize>().ok();
             current_pos = [None, None, None];
         } else if let Some(rest) = content.strip_prefix("Float ")
             && let Some((axis, val_str)) = rest.split_once('=')
-                && let Ok(val) = val_str.trim().parse::<f32>() {
-                    match axis.trim() {
-                        "x" => current_pos[0] = Some(val),
-                        "y" => current_pos[1] = Some(val),
-                        "z" => current_pos[2] = Some(val),
-                        _ => {}
-                    }
-                }
+            && let Ok(val) = val_str.trim().parse::<f32>()
+        {
+            match axis.trim() {
+                "x" => current_pos[0] = Some(val),
+                "y" => current_pos[1] = Some(val),
+                "z" => current_pos[2] = Some(val),
+                _ => {}
+            }
+        }
     }
     // Flush last element
     if let Some(idx) = current_element
-        && idx < child_order.len() && !child_order[idx].is_empty() {
-            result
-                .groups
-                .insert(child_order[idx].clone(), current_pos);
-        }
+        && idx < child_order.len()
+        && !child_order[idx].is_empty()
+    {
+        result.groups.insert(child_order[idx].clone(), current_pos);
+    }
 
     result
 }

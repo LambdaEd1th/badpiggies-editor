@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-struct LevelRefsJson {
+struct LevelRefsToml {
     refs: HashMap<String, HashMap<String, String>>,
     prefabs: HashMap<String, HashMap<String, String>>,
 }
@@ -30,7 +30,7 @@ fn data() -> &'static LevelRefsData {
     static INSTANCE: OnceLock<LevelRefsData> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         let toml_str = include_str!("../assets/level-refs.toml");
-        let raw: LevelRefsJson = toml::from_str(toml_str).expect("Failed to parse level-refs.toml");
+        let raw: LevelRefsToml = toml::from_str(toml_str).expect("Failed to parse level-refs.toml");
 
         let refs: RefsMap = raw
             .refs

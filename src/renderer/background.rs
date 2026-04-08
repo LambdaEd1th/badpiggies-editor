@@ -72,7 +72,11 @@ fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f
     Some(max_right - min_left + median_edge_gap)
 }
 
-fn tile_group_key(sprite: &bg_data::BgSprite, name_lower: &str, name_count: usize) -> Option<String> {
+fn tile_group_key(
+    sprite: &bg_data::BgSprite,
+    name_lower: &str,
+    name_count: usize,
+) -> Option<String> {
     if sprite.fill_color.is_some() || sprite.sky_texture.is_some() || name_lower.contains("fill") {
         return None;
     }
@@ -118,8 +122,7 @@ pub fn build_bg_layer_cache(
             Some(bg_data::apply_bg_overrides(theme, &overrides))
         } else if !theme.child_order.is_empty() {
             // Try PositionSerializer-based overrides (EP6 style)
-            let overrides =
-                bg_data::parse_position_serializer_overrides(raw, &theme.child_order);
+            let overrides = bg_data::parse_position_serializer_overrides(raw, &theme.child_order);
             if !overrides.groups.is_empty() {
                 Some(bg_data::apply_bg_overrides(theme, &overrides))
             } else {
@@ -145,7 +148,10 @@ pub fn build_bg_layer_cache(
     for (i, sprite) in sprites.iter().enumerate() {
         let nl = sprite.name.to_ascii_lowercase();
         name_lower.push(nl);
-        if !sprite.parent_group.is_empty() && sprite.fill_color.is_none() && sprite.sky_texture.is_none() {
+        if !sprite.parent_group.is_empty()
+            && sprite.fill_color.is_none()
+            && sprite.sky_texture.is_none()
+        {
             parent_group_names
                 .entry((sprite.parent_group.clone(), sprite.layer.order()))
                 .or_default()
@@ -501,11 +507,7 @@ fn draw_bg_sprite_offset(
     //    0.5 → alpha cutout (Unity Unlit/Transparent Cutout, _Cutoff=0.5)
     //    0.004 → alpha blend (nearly transparent sprites like clouds)
     // Solid fills (fillColor) already returned above; atlas-based sprites use cutout.
-    let cutoff = if sprite.alpha_blend {
-        0.004
-    } else {
-        0.5
-    };
+    let cutoff = if sprite.alpha_blend { 0.004 } else { 0.5 };
 
     // ── GPU path: use WGSL background shader ──
     if let Some(g) = gpu
@@ -688,13 +690,15 @@ mod tests {
             .iter()
             .enumerate()
             .filter(|(_, sprite)| {
-                sprite.parent_group == "BGLayerFar"
-                    && sprite.name == "Background_Jungle_02"
+                sprite.parent_group == "BGLayerFar" && sprite.name == "Background_Jungle_02"
             })
             .map(|(idx, _)| idx)
             .collect();
 
-        assert!(far_indices.len() > 4, "expected far hill sprites in jungle theme");
+        assert!(
+            far_indices.len() > 4,
+            "expected far hill sprites in jungle theme"
+        );
 
         let first_width = cache
             .tile_info
@@ -725,8 +729,7 @@ mod tests {
             .iter()
             .enumerate()
             .filter(|(_, sprite)| {
-                sprite.parent_group == "BGLayerFar"
-                    && sprite.name == "Background_Jungle_02"
+                sprite.parent_group == "BGLayerFar" && sprite.name == "Background_Jungle_02"
             })
             .map(|(idx, _)| idx)
             .collect();
@@ -770,7 +773,10 @@ mod tests {
             .collect::<HashSet<_>>()
             .len();
 
-        assert!(ocean_name_count >= 2, "expected multiple Ocean sprite names");
+        assert!(
+            ocean_name_count >= 2,
+            "expected multiple Ocean sprite names"
+        );
 
         let wave = sprites
             .iter()
@@ -872,12 +878,13 @@ mod tests {
         let mut plateau_indices: Vec<usize> = sprites
             .iter()
             .enumerate()
-            .filter(|(_, s)| {
-                s.parent_group == "BGLayerNear" && s.name == "Background_Plateau_02"
-            })
+            .filter(|(_, s)| s.parent_group == "BGLayerNear" && s.name == "Background_Plateau_02")
             .map(|(idx, _)| idx)
             .collect();
-        assert!(plateau_indices.len() >= 4, "expected BGLayerNear plateau sprites");
+        assert!(
+            plateau_indices.len() >= 4,
+            "expected BGLayerNear plateau sprites"
+        );
 
         plateau_indices.sort_by(|a, b| {
             sprites[*a]

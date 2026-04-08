@@ -58,14 +58,14 @@ fn terrain_fill_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_morning", "Ground_Rocks_Texture_06.png"),
             ("e2dTerrainBase_MM_rock", "Ground_Temple_Tile_Texture.png"),
             ("e2dTerrainBase_MM_sand", "Ground_Temple_Rock_Texture.png"),
-            (
-                "e2dTerrainBase_MM_TempleDarkRock",
-                "Ground_Temple_cave.png",
-            ),
+            ("e2dTerrainBase_MM_TempleDarkRock", "Ground_Temple_cave.png"),
             ("e2dTerrainBase_MM_caveSand", "Ground_Maya_cave_texture.png"),
             // Dark MM variants have their own distinct fill textures
             ("e2dTerrainDark_MM", "Ground_Temple_Dark_Texture.png"),
-            ("e2dTerrainDark_MM_rock", "Ground_Temple_Dark_Texture_02.png"),
+            (
+                "e2dTerrainDark_MM_rock",
+                "Ground_Temple_Dark_Texture_02.png",
+            ),
             (
                 "e2dTerrainDark_MM_TempleDarkRock",
                 "Ground_Temple_cave_dark.png",
@@ -277,16 +277,12 @@ fn ep6_theme_for_key(key: &str) -> Option<&'static str> {
         // Maya (outdoor): levels 1-4, 33-36, star I, IX
         "1" | "2" | "3" | "4" | "33" | "34" | "35" | "36" | "i" | "ix" => Some("Maya"),
         // MayaCave2Dark: levels 5-8, 17-20, 29-32, star II, V, VIII
-        "5" | "6" | "7" | "8" | "17" | "18" | "19" | "20" | "29" | "30" | "31" | "32"
-        | "ii" | "v" | "viii" => Some("MayaCave2Dark"),
+        "5" | "6" | "7" | "8" | "17" | "18" | "19" | "20" | "29" | "30" | "31" | "32" | "ii"
+        | "v" | "viii" => Some("MayaCave2Dark"),
         // MayaHigh: levels 9-12, 25-28, star III, VII
-        "9" | "10" | "11" | "12" | "25" | "26" | "27" | "28" | "iii" | "vii" => {
-            Some("MayaHigh")
-        }
+        "9" | "10" | "11" | "12" | "25" | "26" | "27" | "28" | "iii" | "vii" => Some("MayaHigh"),
         // MayaTemple: levels 13-16, 21-24, star IV, VI
-        "13" | "14" | "15" | "16" | "21" | "22" | "23" | "24" | "iv" | "vi" => {
-            Some("MayaTemple")
-        }
+        "13" | "14" | "15" | "16" | "21" | "22" | "23" | "24" | "iv" | "vi" => Some("MayaTemple"),
         _ => None,
     }
 }

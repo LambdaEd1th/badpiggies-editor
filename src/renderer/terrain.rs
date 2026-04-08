@@ -198,7 +198,10 @@ fn build_fill_mesh(td: &TerrainData, offset: Vec3) -> Option<egui::Mesh> {
         let wy = v.y + offset.y;
         mesh.vertices.push(egui::epaint::Vertex {
             pos: egui::pos2(wx, wy),
-            uv: egui::pos2((v.x - tile_off_x) / tile_size, (tile_off_y - v.y) / tile_size),
+            uv: egui::pos2(
+                (v.x - tile_off_x) / tile_size,
+                (tile_off_y - v.y) / tile_size,
+            ),
             color,
         });
     }

@@ -391,7 +391,11 @@ impl DarkOffscreen {
     fn new(device: &wgpu::Device, res: &DarkResources, width: u32, height: u32) -> Self {
         let color_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("dark_color_rt"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -403,7 +407,11 @@ impl DarkOffscreen {
 
         let stencil_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("dark_stencil_rt"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -428,7 +436,13 @@ impl DarkOffscreen {
             ],
         });
 
-        Self { color_view, stencil_view, composite_bind_group, width, height }
+        Self {
+            color_view,
+            stencil_view,
+            composite_bind_group,
+            width,
+            height,
+        }
     }
 }
 
@@ -454,22 +468,38 @@ pub fn build_dark_gpu_meshes<'a>(
 
     let border_vbo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("dark_border_vbo"),
-        contents: if border_verts.is_empty() { &[0u8; 8] } else { bytemuck::cast_slice(&border_verts) },
+        contents: if border_verts.is_empty() {
+            &[0u8; 8]
+        } else {
+            bytemuck::cast_slice(&border_verts)
+        },
         usage: wgpu::BufferUsages::VERTEX,
     });
     let border_ibo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("dark_border_ibo"),
-        contents: if border_idxs.is_empty() { &[0u8; 4] } else { bytemuck::cast_slice(&border_idxs) },
+        contents: if border_idxs.is_empty() {
+            &[0u8; 4]
+        } else {
+            bytemuck::cast_slice(&border_idxs)
+        },
         usage: wgpu::BufferUsages::INDEX,
     });
     let inner_vbo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("dark_inner_vbo"),
-        contents: if inner_verts.is_empty() { &[0u8; 8] } else { bytemuck::cast_slice(&inner_verts) },
+        contents: if inner_verts.is_empty() {
+            &[0u8; 8]
+        } else {
+            bytemuck::cast_slice(&inner_verts)
+        },
         usage: wgpu::BufferUsages::VERTEX,
     });
     let inner_ibo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("dark_inner_ibo"),
-        contents: if inner_idxs.is_empty() { &[0u8; 4] } else { bytemuck::cast_slice(&inner_idxs) },
+        contents: if inner_idxs.is_empty() {
+            &[0u8; 4]
+        } else {
+            bytemuck::cast_slice(&inner_idxs)
+        },
         usage: wgpu::BufferUsages::INDEX,
     });
 
@@ -548,7 +578,11 @@ impl egui_wgpu::CallbackTrait for DarkPaintCallback {
             _pad1: [0.0; 2],
             color: [0.0; 4],
         };
-        queue.write_buffer(&self.resources.uniform_buffer, 0, bytemuck::bytes_of(&camera_u));
+        queue.write_buffer(
+            &self.resources.uniform_buffer,
+            0,
+            bytemuck::bytes_of(&camera_u),
+        );
 
         // Slot 1: dark fill color (premultiplied)
         let dark_a: f32 = 200.0 / 255.0;
@@ -647,11 +681,7 @@ impl egui_wgpu::CallbackTrait for DarkPaintCallback {
             pass.draw(0..3, 0..1);
 
             // 4. Fill border where stencil == 1 (border ring zone)
-            pass.set_bind_group(
-                0,
-                &uniform_bg,
-                &[(self.resources.slot_stride * 2) as u32],
-            );
+            pass.set_bind_group(0, &uniform_bg, &[(self.resources.slot_stride * 2) as u32]);
             pass.set_stencil_reference(1);
             pass.draw(0..3, 0..1);
         }

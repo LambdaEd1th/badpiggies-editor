@@ -1100,14 +1100,17 @@ impl LevelRenderer {
         self.camera_limits = parse_camera_limits(level);
 
         // Build GPU fan-triangulated meshes for dark overlay stencil pass
-        if self.dark_level && !self.lit_area_polygons.is_empty()
-            && let Some(device) = &self.wgpu_device {
-                let pairs = self.lit_area_polygons.iter().map(|la| {
-                    (la.border_vertices.as_slice(), la.vertices.as_slice())
-                });
-                self.dark_gpu_meshes =
-                    Some(Arc::new(dark_shader::build_dark_gpu_meshes(device, pairs)));
-            }
+        if self.dark_level
+            && !self.lit_area_polygons.is_empty()
+            && let Some(device) = &self.wgpu_device
+        {
+            let pairs = self
+                .lit_area_polygons
+                .iter()
+                .map(|la| (la.border_vertices.as_slice(), la.vertices.as_slice()));
+            self.dark_gpu_meshes =
+                Some(Arc::new(dark_shader::build_dark_gpu_meshes(device, pairs)));
+        }
 
         // Fit camera to level bounds
         self.fit_to_level();
@@ -1342,16 +1345,17 @@ impl LevelRenderer {
                 if !self.cloud_instances.is_empty() {
                     // Pass 1: bg sprites BEHIND clouds (farther, higher Z)
                     if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
-                        let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
-                            (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
-                                resources: r.clone(),
-                                atlas_cache: &mut self.bg_atlas_cache,
-                                device: d,
-                                queue: q,
-                                slot_counter: &mut self.bg_slot_counter,
-                            }),
-                            _ => None,
-                        };
+                        let mut gpu =
+                            match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                                (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                                    resources: r.clone(),
+                                    atlas_cache: &mut self.bg_atlas_cache,
+                                    device: d,
+                                    queue: q,
+                                    slot_counter: &mut self.bg_slot_counter,
+                                }),
+                                _ => None,
+                            };
                         background::draw_bg_layers(
                             &draw_ctx,
                             theme_name,
@@ -1365,15 +1369,13 @@ impl LevelRenderer {
                     // Pass 2: clouds (sorted by Z descending = farthest first)
                     let dt = ui.input(|i| i.stable_dt);
                     // Sort clouds by Z descending for correct painter's order
-                    let mut cloud_order: Vec<usize> =
-                        (0..self.cloud_instances.len()).collect();
-                    cloud_order
-                        .sort_by(|&a, &b| {
-                            self.cloud_instances[b]
-                                .z
-                                .partial_cmp(&self.cloud_instances[a].z)
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                        });
+                    let mut cloud_order: Vec<usize> = (0..self.cloud_instances.len()).collect();
+                    cloud_order.sort_by(|&a, &b| {
+                        self.cloud_instances[b]
+                            .z
+                            .partial_cmp(&self.cloud_instances[a].z)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
                     for ci in cloud_order {
                         let cloud = &mut self.cloud_instances[ci];
                         cloud.x += cloud.velocity * dt;
@@ -1382,9 +1384,7 @@ impl LevelRenderer {
                         } else if cloud.x < cloud.center_x - cloud.limits {
                             cloud.x = cloud.center_x + cloud.limits;
                         }
-                        if let Some(info) =
-                            crate::sprite_db::get_sprite_info(&cloud.sprite_name)
-                        {
+                        if let Some(info) = crate::sprite_db::get_sprite_info(&cloud.sprite_name) {
                             let hw = info.world_w * cloud.scale_x;
                             let hh = info.world_h * cloud.scale_y;
                             let center = self.camera.world_to_screen(
@@ -1422,16 +1422,17 @@ impl LevelRenderer {
 
                     // Pass 3: bg sprites IN FRONT of clouds (closer, lower Z)
                     if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
-                        let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
-                            (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
-                                resources: r.clone(),
-                                atlas_cache: &mut self.bg_atlas_cache,
-                                device: d,
-                                queue: q,
-                                slot_counter: &mut self.bg_slot_counter,
-                            }),
-                            _ => None,
-                        };
+                        let mut gpu =
+                            match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                                (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                                    resources: r.clone(),
+                                    atlas_cache: &mut self.bg_atlas_cache,
+                                    device: d,
+                                    queue: q,
+                                    slot_counter: &mut self.bg_slot_counter,
+                                }),
+                                _ => None,
+                            };
                         background::draw_bg_layers(
                             &draw_ctx,
                             theme_name,
@@ -1444,16 +1445,17 @@ impl LevelRenderer {
                 } else {
                     // No clouds or clouds outside this z_range — single pass
                     if let (Some(theme_name), Some(cache)) = (self.bg_theme, &self.bg_layer_cache) {
-                        let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
-                            (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
-                                resources: r.clone(),
-                                atlas_cache: &mut self.bg_atlas_cache,
-                                device: d,
-                                queue: q,
-                                slot_counter: &mut self.bg_slot_counter,
-                            }),
-                            _ => None,
-                        };
+                        let mut gpu =
+                            match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
+                                (Some(r), Some(d), Some(q)) => Some(background::BgGpuState {
+                                    resources: r.clone(),
+                                    atlas_cache: &mut self.bg_atlas_cache,
+                                    device: d,
+                                    queue: q,
+                                    slot_counter: &mut self.bg_slot_counter,
+                                }),
+                                _ => None,
+                            };
                         background::draw_bg_layers(
                             &draw_ctx,
                             theme_name,
@@ -1753,12 +1755,13 @@ impl LevelRenderer {
                 // Zoom
                 if (touch.zoom_delta - 1.0).abs() > 0.001 {
                     let center = rect.center();
-                    let world_before =
-                        self.camera.screen_to_world(egui::pos2(center.x, center.y), canvas_center);
-                    self.camera.zoom =
-                        (self.camera.zoom * touch.zoom_delta).clamp(2.0, 500.0);
-                    let world_after =
-                        self.camera.screen_to_world(egui::pos2(center.x, center.y), canvas_center);
+                    let world_before = self
+                        .camera
+                        .screen_to_world(egui::pos2(center.x, center.y), canvas_center);
+                    self.camera.zoom = (self.camera.zoom * touch.zoom_delta).clamp(2.0, 500.0);
+                    let world_after = self
+                        .camera
+                        .screen_to_world(egui::pos2(center.x, center.y), canvas_center);
                     self.camera.center.x -= world_after.x - world_before.x;
                     self.camera.center.y -= world_after.y - world_before.y;
                 }
@@ -2782,13 +2785,15 @@ impl LevelRenderer {
                     self.dark_overlay_key = key;
                 }
                 if let Some(ref mesh) = self.dark_overlay_mesh
-                    && !mesh.vertices.is_empty() {
-                        painter.add(egui::Shape::mesh(mesh.clone()));
-                    }
+                    && !mesh.vertices.is_empty()
+                {
+                    painter.add(egui::Shape::mesh(mesh.clone()));
+                }
                 if let Some(ref mesh) = self.dark_overlay_ring
-                    && !mesh.vertices.is_empty() {
-                        painter.add(egui::Shape::mesh(mesh.clone()));
-                    }
+                    && !mesh.vertices.is_empty()
+                {
+                    painter.add(egui::Shape::mesh(mesh.clone()));
+                }
             }
         }
 
@@ -2960,37 +2965,42 @@ impl LevelRenderer {
 
         // Level bounds border (drawn on top of everything)
         if self.show_level_bounds
-            && let Some([tl_x, tl_y, w, h]) = self.camera_limits {
-                let min_x = tl_x;
-                let max_x = tl_x + w;
-                let min_y = tl_y - h;
-                let max_y = tl_y;
+            && let Some([tl_x, tl_y, w, h]) = self.camera_limits
+        {
+            let min_x = tl_x;
+            let max_x = tl_x + w;
+            let min_y = tl_y - h;
+            let max_y = tl_y;
 
-                let p_tl = self.camera.world_to_screen(Vec2 { x: min_x, y: max_y }, canvas_center);
-                let p_br = self.camera.world_to_screen(Vec2 { x: max_x, y: min_y }, canvas_center);
-                let bounds_rect = egui::Rect::from_two_pos(p_tl, p_br);
-                let clipped = bounds_rect.intersect(rect);
-                if clipped.width() > 0.0 && clipped.height() > 0.0 {
-                    let color = egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180);
-                    let stroke = egui::Stroke::new(2.0, color);
-                    painter.rect_stroke(bounds_rect, 0.0, stroke, egui::StrokeKind::Inside);
-                    // Title outside the rect, coordinates inside
-                    painter.text(
-                        egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() - 16.0),
-                        egui::Align2::LEFT_TOP,
-                        tr.get("menu_level_bounds"),
-                        egui::FontId::proportional(11.0),
-                        color,
-                    );
-                    painter.text(
-                        egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() + 2.0),
-                        egui::Align2::LEFT_TOP,
-                        format!("({:.1}, {:.1}) {}x{}", tl_x, tl_y, w, h),
-                        egui::FontId::proportional(11.0),
-                        color,
-                    );
-                }
+            let p_tl = self
+                .camera
+                .world_to_screen(Vec2 { x: min_x, y: max_y }, canvas_center);
+            let p_br = self
+                .camera
+                .world_to_screen(Vec2 { x: max_x, y: min_y }, canvas_center);
+            let bounds_rect = egui::Rect::from_two_pos(p_tl, p_br);
+            let clipped = bounds_rect.intersect(rect);
+            if clipped.width() > 0.0 && clipped.height() > 0.0 {
+                let color = egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180);
+                let stroke = egui::Stroke::new(2.0, color);
+                painter.rect_stroke(bounds_rect, 0.0, stroke, egui::StrokeKind::Inside);
+                // Title outside the rect, coordinates inside
+                painter.text(
+                    egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() - 16.0),
+                    egui::Align2::LEFT_TOP,
+                    tr.get("menu_level_bounds"),
+                    egui::FontId::proportional(11.0),
+                    color,
+                );
+                painter.text(
+                    egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() + 2.0),
+                    egui::Align2::LEFT_TOP,
+                    format!("({:.1}, {:.1}) {}x{}", tl_x, tl_y, w, h),
+                    egui::FontId::proportional(11.0),
+                    color,
+                );
             }
+        }
 
         // Zoom + theme info
         let theme_label = self
@@ -3226,42 +3236,43 @@ fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
     for obj in &level.objects {
         if let LevelObject::Prefab(p) = obj
             && p.name == "LevelManager"
-                && let Some(ref od) = p.override_data
-                    && let Some(pos) = od.raw_text.find("m_cameraLimits") {
-                        let after = &od.raw_text[pos..];
-                        // Parse topLeft x, y and size x, y
-                        // Format: "Float x = V" / "Float y = V" in order: tl.x, tl.y, sz.x, sz.y
-                        let mut vals = [0f32; 4];
-                        let mut search = after;
-                        for v in vals.iter_mut() {
-                            // Find whichever of "Float x = " or "Float y = " comes first
-                            let fx = search.find("Float x = ");
-                            let fy = search.find("Float y = ");
-                            let fp = match (fx, fy) {
-                                (Some(a), Some(b)) => Some(a.min(b)),
-                                (Some(a), None) => Some(a),
-                                (None, Some(b)) => Some(b),
-                                (None, None) => None,
-                            };
-                            if let Some(fp) = fp {
-                                let eq = &search[fp..];
-                                if let Some(eq_pos) = eq.find("= ") {
-                                    let num_start = &eq[eq_pos + 2..];
-                                    let end = num_start
-                                        .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                                        .unwrap_or(num_start.len());
-                                    if let Ok(val) = num_start[..end].parse::<f32>() {
-                                        *v = val;
-                                    }
-                                    search = &num_start[end..];
-                                }
-                            }
+            && let Some(ref od) = p.override_data
+            && let Some(pos) = od.raw_text.find("m_cameraLimits")
+        {
+            let after = &od.raw_text[pos..];
+            // Parse topLeft x, y and size x, y
+            // Format: "Float x = V" / "Float y = V" in order: tl.x, tl.y, sz.x, sz.y
+            let mut vals = [0f32; 4];
+            let mut search = after;
+            for v in vals.iter_mut() {
+                // Find whichever of "Float x = " or "Float y = " comes first
+                let fx = search.find("Float x = ");
+                let fy = search.find("Float y = ");
+                let fp = match (fx, fy) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                };
+                if let Some(fp) = fp {
+                    let eq = &search[fp..];
+                    if let Some(eq_pos) = eq.find("= ") {
+                        let num_start = &eq[eq_pos + 2..];
+                        let end = num_start
+                            .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                            .unwrap_or(num_start.len());
+                        if let Ok(val) = num_start[..end].parse::<f32>() {
+                            *v = val;
                         }
-                        // Only return if size is non-zero
-                        if vals[2] > 0.0 && vals[3] > 0.0 {
-                            return Some(vals);
-                        }
+                        search = &num_start[end..];
                     }
+                }
+            }
+            // Only return if size is non-zero
+            if vals[2] > 0.0 && vals[3] > 0.0 {
+                return Some(vals);
+            }
+        }
     }
     None
 }
@@ -3280,21 +3291,23 @@ fn parse_dark_level_data(
             // Check LevelManager for m_darkLevel
             if p.name == "LevelManager"
                 && let Some(ref od) = p.override_data
-                    && let Some(pos) = od.raw_text.find("m_darkLevel") {
-                        let after = &od.raw_text[pos..];
-                        if let Some(eq) = after.find("= ") {
-                            let val = after[eq + 2..].trim_start();
-                            if val.starts_with("True") || val.starts_with("true") {
-                                *dark_level = true;
-                            }
-                        }
+                && let Some(pos) = od.raw_text.find("m_darkLevel")
+            {
+                let after = &od.raw_text[pos..];
+                if let Some(eq) = after.find("= ") {
+                    let val = after[eq + 2..].trim_start();
+                    if val.starts_with("True") || val.starts_with("true") {
+                        *dark_level = true;
                     }
+                }
+            }
 
             // Parse LitArea bezier curves
             if p.name == "LitArea"
-                && let Some(polygon) = parse_lit_area_bezier(p) {
-                    lit_areas.push(polygon);
-                }
+                && let Some(polygon) = parse_lit_area_bezier(p)
+            {
+                lit_areas.push(polygon);
+            }
 
             // Parse point light sources (LitCrystal, LitMushroom)
             if let Some(polygon) = parse_point_light(p) {
@@ -3449,7 +3462,10 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         border_width
     );
 
-    Some(LitAreaPolygon { vertices: polygon, border_vertices })
+    Some(LitAreaPolygon {
+        vertices: polygon,
+        border_vertices,
+    })
 }
 
 /// Helper: find the next occurrence of a pattern like "Float x = " and parse the float value.
@@ -3457,7 +3473,9 @@ fn parse_next_float(text: &str, pattern: &str) -> Option<f32> {
     let pos = text.find(pattern)?;
     let after = &text[pos + pattern.len()..];
     let end = after
-        .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-' && c != 'E' && c != 'e' && c != '+')
+        .find(|c: char| {
+            !c.is_ascii_digit() && c != '.' && c != '-' && c != 'E' && c != 'e' && c != '+'
+        })
         .unwrap_or(after.len());
     after[..end].parse().ok()
 }
@@ -3522,7 +3540,11 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         (3.5, 0.3)
     } else if prefab.name.starts_with("Part_PointLight") {
         // Part_PointLight_04_SET is size=14, others are 7
-        if prefab.name.contains("_04") { (14.0, 0.5) } else { (7.0, 0.5) }
+        if prefab.name.contains("_04") {
+            (14.0, 0.5)
+        } else {
+            (7.0, 0.5)
+        }
     } else if prefab.name.starts_with("Part_SpotLight") {
         (7.0, 0.5) // TODO: beam shape, currently approximated as circle
     } else {
@@ -3570,7 +3592,10 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         segments
     );
 
-    Some(LitAreaPolygon { vertices, border_vertices })
+    Some(LitAreaPolygon {
+        vertices,
+        border_vertices,
+    })
 }
 
 /// Draw the dark level overlay with lit area cutouts and border glow rings.
@@ -3595,7 +3620,19 @@ fn build_dark_overlay_meshes(
     if lit_areas.is_empty() {
         let mut m = egui::Mesh::default();
         let uv = egui::pos2(0.0, 0.0);
-        emit_quad(&mut m, Trapezoid { left_top: rect.left(), right_top: rect.right(), left_bot: rect.left(), right_bot: rect.right(), y_top: rect.top(), y_bot: rect.bottom() }, dark_color, uv);
+        emit_quad(
+            &mut m,
+            Trapezoid {
+                left_top: rect.left(),
+                right_top: rect.right(),
+                left_bot: rect.left(),
+                right_bot: rect.right(),
+                y_top: rect.top(),
+                y_bot: rect.bottom(),
+            },
+            dark_color,
+            uv,
+        );
         return (m, None);
     }
 
@@ -3630,14 +3667,38 @@ fn build_dark_overlay_meshes(
     if border_polys.is_empty() {
         let mut m = egui::Mesh::default();
         let uv = egui::pos2(0.0, 0.0);
-        emit_quad(&mut m, Trapezoid { left_top: rect.left(), right_top: rect.right(), left_bot: rect.left(), right_bot: rect.right(), y_top: rect.top(), y_bot: rect.bottom() }, dark_color, uv);
+        emit_quad(
+            &mut m,
+            Trapezoid {
+                left_top: rect.left(),
+                right_top: rect.right(),
+                left_bot: rect.left(),
+                right_bot: rect.right(),
+                y_top: rect.top(),
+                y_bot: rect.bottom(),
+            },
+            dark_color,
+            uv,
+        );
         return (m, None);
     }
 
     let mut dark_mesh = build_scanline_complement_mesh(rect, &border_polys, dark_color);
     if dark_mesh.vertices.is_empty() {
         let uv = egui::pos2(0.0, 0.0);
-        emit_quad(&mut dark_mesh, Trapezoid { left_top: rect.left(), right_top: rect.right(), left_bot: rect.left(), right_bot: rect.right(), y_top: rect.top(), y_bot: rect.bottom() }, dark_color, uv);
+        emit_quad(
+            &mut dark_mesh,
+            Trapezoid {
+                left_top: rect.left(),
+                right_top: rect.right(),
+                left_bot: rect.left(),
+                right_bot: rect.right(),
+                y_top: rect.top(),
+                y_bot: rect.bottom(),
+            },
+            dark_color,
+            uv,
+        );
     }
 
     let ring_mesh = if !inner_polys.is_empty() {
@@ -3690,14 +3751,40 @@ fn build_scanline_complement_mesh(
                     let x_rt = top_xs[i].min(rect.right());
                     let x_rb = bot_xs[i].min(rect.right());
                     if x_rt - prev_top > 0.5 || x_rb - prev_bot > 0.5 {
-                        emit_quad(&mut mesh, Trapezoid { left_top: prev_top, right_top: x_rt, left_bot: prev_bot, right_bot: x_rb, y_top, y_bot }, color, uv);
+                        emit_quad(
+                            &mut mesh,
+                            Trapezoid {
+                                left_top: prev_top,
+                                right_top: x_rt,
+                                left_bot: prev_bot,
+                                right_bot: x_rb,
+                                y_top,
+                                y_bot,
+                            },
+                            color,
+                            uv,
+                        );
                     }
                 }
                 prev_top = top_xs[i].max(rect.left());
                 prev_bot = bot_xs[i].max(rect.left());
             }
-            if count.is_multiple_of(2) && (rect.right() - prev_top > 0.5 || rect.right() - prev_bot > 0.5) {
-                emit_quad(&mut mesh, Trapezoid { left_top: prev_top, right_top: rect.right(), left_bot: prev_bot, right_bot: rect.right(), y_top, y_bot }, color, uv);
+            if count.is_multiple_of(2)
+                && (rect.right() - prev_top > 0.5 || rect.right() - prev_bot > 0.5)
+            {
+                emit_quad(
+                    &mut mesh,
+                    Trapezoid {
+                        left_top: prev_top,
+                        right_top: rect.right(),
+                        left_bot: prev_bot,
+                        right_bot: rect.right(),
+                        y_top,
+                        y_bot,
+                    },
+                    color,
+                    uv,
+                );
             }
         } else {
             let y_mid = (y_top + y_bot) * 0.5;
@@ -3706,12 +3793,36 @@ fn build_scanline_complement_mesh(
             for (i, &x) in mid_xs.iter().enumerate() {
                 let x = x.clamp(rect.left(), rect.right());
                 if i % 2 == 0 && x - prev_x > 0.5 {
-                    emit_quad(&mut mesh, Trapezoid { left_top: prev_x, right_top: x, left_bot: prev_x, right_bot: x, y_top, y_bot }, color, uv);
+                    emit_quad(
+                        &mut mesh,
+                        Trapezoid {
+                            left_top: prev_x,
+                            right_top: x,
+                            left_bot: prev_x,
+                            right_bot: x,
+                            y_top,
+                            y_bot,
+                        },
+                        color,
+                        uv,
+                    );
                 }
                 prev_x = x.max(rect.left());
             }
             if mid_xs.len().is_multiple_of(2) && rect.right() - prev_x > 0.5 {
-                emit_quad(&mut mesh, Trapezoid { left_top: prev_x, right_top: rect.right(), left_bot: prev_x, right_bot: rect.right(), y_top, y_bot }, color, uv);
+                emit_quad(
+                    &mut mesh,
+                    Trapezoid {
+                        left_top: prev_x,
+                        right_top: rect.right(),
+                        left_bot: prev_x,
+                        right_bot: rect.right(),
+                        y_top,
+                        y_bot,
+                    },
+                    color,
+                    uv,
+                );
             }
         }
     }
@@ -3793,7 +3904,19 @@ fn build_scanline_ring_mesh(
             let in_outer = is_point_in_polys(mid_x, mid_y, outer_polys);
             let in_inner = is_point_in_polys(mid_x, mid_y, inner_polys);
             if in_outer && !in_inner && (x_top - prev_top > 0.5 || x_bot - prev_bot > 0.5) {
-                emit_quad(&mut mesh, Trapezoid { left_top: prev_top, right_top: x_top, left_bot: prev_bot, right_bot: x_bot, y_top, y_bot }, color, uv);
+                emit_quad(
+                    &mut mesh,
+                    Trapezoid {
+                        left_top: prev_top,
+                        right_top: x_top,
+                        left_bot: prev_bot,
+                        right_bot: x_bot,
+                        y_top,
+                        y_bot,
+                    },
+                    color,
+                    uv,
+                );
             }
             prev_top = x_top;
             prev_bot = x_bot;
@@ -3832,17 +3955,30 @@ struct Trapezoid {
 }
 
 /// Emit a trapezoid quad into the mesh.
-fn emit_quad(
-    mesh: &mut egui::Mesh,
-    t: Trapezoid,
-    color: egui::Color32, uv: egui::Pos2,
-) {
+fn emit_quad(mesh: &mut egui::Mesh, t: Trapezoid, color: egui::Color32, uv: egui::Pos2) {
     let base = mesh.vertices.len() as u32;
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.left_top, t.y_top), uv, color });
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.right_top, t.y_top), uv, color });
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.right_bot, t.y_bot), uv, color });
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.left_bot, t.y_bot), uv, color });
-    mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: egui::pos2(t.left_top, t.y_top),
+        uv,
+        color,
+    });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: egui::pos2(t.right_top, t.y_top),
+        uv,
+        color,
+    });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: egui::pos2(t.right_bot, t.y_bot),
+        uv,
+        color,
+    });
+    mesh.vertices.push(egui::epaint::Vertex {
+        pos: egui::pos2(t.left_bot, t.y_bot),
+        uv,
+        color,
+    });
+    mesh.indices
+        .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 
 /// Find X intersections of all polygon edges with a horizontal line at the given Y.

@@ -46,8 +46,6 @@ struct Tab {
     file_name: Option<String>,
     /// Currently selected object index.
     selected: Option<ObjectIndex>,
-    /// Object clipboard for copy/cut/paste.
-    clipboard: Option<Clipboard>,
     /// Canvas renderer state (owns per-level caches; shares GPU pipelines via Arc).
     renderer: LevelRenderer,
     /// Status message.
@@ -66,7 +64,6 @@ impl Tab {
             level: None,
             file_name: None,
             selected: None,
-            clipboard: None,
             renderer,
             status: welcome_status,
             pending_delete: None,
@@ -187,6 +184,8 @@ pub struct EditorApp {
     show_shortcuts: bool,
     /// Whether the about window is visible.
     show_about: bool,
+    /// Object clipboard for copy/cut/paste (shared across tabs).
+    clipboard: Option<Clipboard>,
     /// Graphics API backend name (e.g. "Metal", "Vulkan").
     gpu_backend: String,
     /// Current UI language.
@@ -326,6 +325,7 @@ impl EditorApp {
             show_properties: true,
             show_shortcuts: false,
             show_about: false,
+            clipboard: None,
             gpu_backend,
             lang,
         }
@@ -417,12 +417,12 @@ impl EditorApp {
 
     /// Copy the selected object (and its subtree) to the clipboard.
     fn copy_selected(&mut self) {
-        let tab = &mut self.tabs[self.active_tab];
+        let tab = &self.tabs[self.active_tab];
         if let Some(sel) = tab.selected
             && let Some(ref level) = tab.level
             && sel < level.objects.len()
         {
-            tab.clipboard = Some(level.clone_subtree(sel));
+            self.clipboard = Some(level.clone_subtree(sel));
         }
     }
 
@@ -433,7 +433,7 @@ impl EditorApp {
             && let Some(ref level) = tab.level
             && sel < level.objects.len()
         {
-            tab.clipboard = Some(level.clone_subtree(sel));
+            self.clipboard = Some(level.clone_subtree(sel));
             // push_undo inline (can't call self method while borrowing tab)
             let undo_snap = Snapshot {
                 level: level.clone(),
@@ -456,11 +456,11 @@ impl EditorApp {
 
     /// Paste from the clipboard, offset slightly from the original position.
     fn paste(&mut self) {
-        let tab = &mut self.tabs[self.active_tab];
-        let clip = match tab.clipboard.clone() {
+        let clip = match self.clipboard.clone() {
             Some(c) => c,
             None => return,
         };
+        let tab = &mut self.tabs[self.active_tab];
         if tab.level.is_none() {
             return;
         }
@@ -593,6 +593,130 @@ impl EditorApp {
 }
 
 impl eframe::App for EditorApp {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        use egui::{Key, KeyboardShortcut, Modifiers};
+
+        // Handle keyboard shortcuts in logic() — runs before ui() and before
+        // any widgets can consume the events. Uses consume_shortcut/consume_key
+        // to prevent TextEdit widgets from also handling these keys.
+
+        // B key — toggle background visibility (only when no text widget has focus)
+        if !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::B))
+        {
+            self.tabs[self.active_tab].renderer.show_bg =
+                !self.tabs[self.active_tab].renderer.show_bg;
+        }
+
+        // Cmd+Shift+Z / Ctrl+Shift+Z — redo (check before Cmd+Z to match most specific first)
+        if ctx.input_mut(|i| {
+            i.consume_shortcut(&KeyboardShortcut::new(
+                Modifiers::COMMAND | Modifiers::SHIFT,
+                Key::Z,
+            ))
+        }) {
+            self.redo();
+        }
+        // Cmd+Z / Ctrl+Z — undo
+        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z)))
+        {
+            self.undo();
+        }
+        // Ctrl+Y — redo (alternative)
+        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Y)))
+        {
+            self.redo();
+        }
+
+        // Cmd+C / Ctrl+C — copy
+        // egui-winit converts Cmd+C into Event::Copy (not Event::Key), so we must
+        // consume Event::Copy instead of using consume_shortcut.
+        if ctx.input_mut(|i| {
+            let mut found = false;
+            i.events.retain(|e| {
+                if matches!(e, egui::Event::Copy) && !found {
+                    found = true;
+                    false // remove from queue
+                } else {
+                    true
+                }
+            });
+            found
+        }) {
+            self.copy_selected();
+        }
+        // Cmd+X / Ctrl+X — cut (egui-winit converts to Event::Cut)
+        if ctx.input_mut(|i| {
+            let mut found = false;
+            i.events.retain(|e| {
+                if matches!(e, egui::Event::Cut) && !found {
+                    found = true;
+                    false
+                } else {
+                    true
+                }
+            });
+            found
+        }) {
+            self.cut_selected();
+        }
+        // Cmd+V / Ctrl+V — paste (egui-winit converts to Event::Paste)
+        if ctx.input_mut(|i| {
+            let mut found = false;
+            i.events.retain(|e| {
+                if matches!(e, egui::Event::Paste(_)) && !found {
+                    found = true;
+                    false
+                } else {
+                    true
+                }
+            });
+            found
+        }) {
+            self.paste();
+        }
+        // Cmd+D / Ctrl+D — duplicate
+        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::D)))
+        {
+            self.duplicate_selected();
+        }
+
+        // Cmd+W / Ctrl+W — close tab (only when multiple tabs open)
+        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::W)))
+            && self.tabs.len() > 1
+        {
+            self.close_tab(self.active_tab);
+        }
+
+        // Cmd+T / Ctrl+T — new empty tab
+        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::T)))
+        {
+            let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
+            let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+            self.tabs.push(new_tab);
+            self.active_tab = self.tabs.len() - 1;
+        }
+
+        // Handle Delete / Backspace key — queue confirmation dialog
+        // Only when no text widget has focus (avoid intercepting text editing)
+        // Skip if hovering a terrain node (renderer handles node deletion instead)
+        if let Some(sel) = self.tabs[self.active_tab].selected {
+            let delete_pressed = !ctx.egui_wants_keyboard_input()
+                && ctx.input_mut(|i| {
+                    i.consume_key(Modifiers::NONE, Key::Delete)
+                        || i.consume_key(Modifiers::NONE, Key::Backspace)
+                });
+            if delete_pressed
+                && self.tabs[self.active_tab].renderer.hovered_terrain_node.is_none()
+                && self.tabs[self.active_tab].pending_delete.is_none()
+                && let Some(ref level) = self.tabs[self.active_tab].level
+            {
+                let name = level.objects[sel].name().to_string();
+                self.tabs[self.active_tab].pending_delete = Some((sel, name));
+            }
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let t = self.t();
@@ -656,71 +780,6 @@ impl eframe::App for EditorApp {
                 }
             }
         });
-
-        // B key — toggle background visibility
-        if ctx.input(|i| i.key_pressed(egui::Key::B)) {
-            self.tabs[self.active_tab].renderer.show_bg =
-                !self.tabs[self.active_tab].renderer.show_bg;
-        }
-
-        // Cmd+Z / Ctrl+Z — undo
-        if ctx.input(|i| i.modifiers.command && !i.modifiers.shift && i.key_pressed(egui::Key::Z)) {
-            self.undo();
-        }
-        // Cmd+Shift+Z / Ctrl+Shift+Z / Ctrl+Y — redo
-        if ctx.input(|i| {
-            (i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::Z))
-                || (i.modifiers.command && i.key_pressed(egui::Key::Y))
-        }) {
-            self.redo();
-        }
-
-        // Cmd+C / Ctrl+C — copy
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::C)) {
-            self.copy_selected();
-        }
-        // Cmd+X / Ctrl+X — cut
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::X)) {
-            self.cut_selected();
-        }
-        // Cmd+V / Ctrl+V — paste
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::V)) {
-            self.paste();
-        }
-        // Cmd+D / Ctrl+D — duplicate
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::D)) {
-            self.duplicate_selected();
-        }
-
-        // Cmd+W / Ctrl+W — close tab (only when multiple tabs open)
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::W)) && self.tabs.len() > 1
-        {
-            self.close_tab(self.active_tab);
-        }
-
-        // Cmd+T / Ctrl+T — new empty tab
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::T)) {
-            let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
-            let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
-            self.tabs.push(new_tab);
-            self.active_tab = self.tabs.len() - 1;
-        }
-
-        // Handle Delete / Backspace key — queue confirmation dialog
-        // Only when no text widget has focus (avoid intercepting text editing)
-        if let Some(sel) = self.tabs[self.active_tab].selected {
-            let delete_pressed = !ctx.egui_wants_keyboard_input()
-                && ctx.input(|i| {
-                    i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
-                });
-            if delete_pressed
-                && self.tabs[self.active_tab].pending_delete.is_none()
-                && let Some(ref level) = self.tabs[self.active_tab].level
-            {
-                let name = level.objects[sel].name().to_string();
-                self.tabs[self.active_tab].pending_delete = Some((sel, name));
-            }
-        }
 
         // Delete confirmation dialog
         if let Some((del_idx, ref del_name)) = self.tabs[self.active_tab].pending_delete.clone() {
@@ -1016,7 +1075,7 @@ impl eframe::App for EditorApp {
                     ui.separator();
                     let has_sel = self.tabs[self.active_tab].selected.is_some()
                         && self.tabs[self.active_tab].level.is_some();
-                    let has_clip = self.tabs[self.active_tab].clipboard.is_some()
+                    let has_clip = self.clipboard.is_some()
                         && self.tabs[self.active_tab].level.is_some();
                     let copy_shortcut = if is_mac { "⌘+C" } else { "Ctrl+C" };
                     let cut_shortcut = if is_mac { "⌘+X" } else { "Ctrl+X" };
@@ -1590,6 +1649,101 @@ impl eframe::App for EditorApp {
                     tab.renderer.set_level(level);
                     tab.renderer.camera = cam;
                 }
+                // Pick up terrain node drag result — update node position & regenerate mesh
+                if let Some(result) = tab.renderer.node_drag_result.take()
+                    && let Some(ref mut level) = tab.level
+                    && result.object_index < level.objects.len()
+                {
+                    // Snapshot pre-drag state for undo (before mutation)
+                    tab.history.undo.push(Snapshot {
+                        level: level.clone(),
+                        selected: tab.selected,
+                    });
+                    if tab.history.undo.len() > UNDO_MAX {
+                        tab.history.undo.remove(0);
+                    }
+                    tab.history.redo.clear();
+
+                    if let LevelObject::Prefab(ref mut p) = level.objects[result.object_index]
+                        && let Some(ref mut td) = p.terrain_data
+                    {
+                        // Extract current nodes, update dragged node, regenerate meshes
+                        let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
+                        if result.node_index < nodes.len() {
+                            nodes[result.node_index].position = result.new_local_pos;
+                            crate::terrain_gen::regenerate_terrain(td, &nodes);
+                        }
+                    }
+
+                    // Rebuild draw data but preserve camera position/zoom
+                    let cam = tab.renderer.camera.clone();
+                    tab.renderer.set_level(level);
+                    tab.renderer.camera = cam;
+                }
+                // Pick up terrain node edit action (add / delete)
+                if let Some(action) = tab.renderer.node_edit_action.take()
+                    && let Some(ref mut level) = tab.level
+                {
+                    use crate::renderer::NodeEditAction;
+                    let obj_idx = match &action {
+                        NodeEditAction::Delete { object_index, .. }
+                        | NodeEditAction::Insert { object_index, .. }
+                        | NodeEditAction::ToggleTexture { object_index, .. } => *object_index,
+                    };
+                    if obj_idx < level.objects.len() {
+                        // Push undo before mutation
+                        tab.history.undo.push(Snapshot {
+                            level: level.clone(),
+                            selected: tab.selected,
+                        });
+                        if tab.history.undo.len() > UNDO_MAX {
+                            tab.history.undo.remove(0);
+                        }
+                        tab.history.redo.clear();
+
+                        if let LevelObject::Prefab(ref mut p) = level.objects[obj_idx]
+                            && let Some(ref mut td) = p.terrain_data
+                        {
+                            let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
+                            match action {
+                                NodeEditAction::Delete { node_index, .. } => {
+                                    if node_index < nodes.len() && nodes.len() > 2 {
+                                        nodes.remove(node_index);
+                                    }
+                                }
+                                NodeEditAction::Insert {
+                                    after_node,
+                                    local_pos,
+                                    ..
+                                } => {
+                                    let insert_idx = (after_node + 1).min(nodes.len());
+                                    // Inherit texture from the preceding node
+                                    let tex = nodes
+                                        .get(after_node)
+                                        .map(|n| n.texture)
+                                        .unwrap_or(0);
+                                    nodes.insert(
+                                        insert_idx,
+                                        crate::terrain_gen::CurveNode {
+                                            position: local_pos,
+                                            texture: tex,
+                                        },
+                                    );
+                                }
+                                NodeEditAction::ToggleTexture { node_index, .. } => {
+                                    if let Some(node) = nodes.get_mut(node_index) {
+                                        node.texture = if node.texture == 0 { 1 } else { 0 };
+                                    }
+                                }
+                            }
+                            crate::terrain_gen::regenerate_terrain(td, &nodes);
+                        }
+
+                        let cam = tab.renderer.camera.clone();
+                        tab.renderer.set_level(level);
+                        tab.renderer.camera = cam;
+                    }
+                }
             } else {
                 let rect = ui.available_rect_before_wrap();
                 let is_dark = ui.visuals().dark_mode;
@@ -1907,8 +2061,38 @@ fn show_properties_editable(
                     t.get("prop_curve_vert_count"),
                     td.curve_mesh.vertices.len()
                 ));
-                ui.label(format!("{} {}", t.get("prop_collider"), td.has_collider));
-                show_color(ui, &t.get("prop_fill_color"), &td.fill_color);
+                ui.horizontal(|ui| {
+                    ui.label(t.get("prop_collider"));
+                    changed |= ui.checkbox(&mut td.has_collider, "").changed();
+                });
+                // Fill color — editable RGBA color picker
+                ui.horizontal(|ui| {
+                    ui.label(format!("  {}:", t.get("prop_fill_color")));
+                    let rgba = td.fill_color.to_rgba8();
+                    let mut color =
+                        egui::Color32::from_rgba_unmultiplied(rgba[0], rgba[1], rgba[2], rgba[3]);
+                    if egui::color_picker::color_edit_button_srgba(
+                        ui,
+                        &mut color,
+                        egui::color_picker::Alpha::OnlyBlend,
+                    )
+                    .changed()
+                    {
+                        td.fill_color = Color {
+                            r: color.r() as f32 / 255.0,
+                            g: color.g() as f32 / 255.0,
+                            b: color.b() as f32 / 255.0,
+                            a: color.a() as f32 / 255.0,
+                        };
+                        changed = true;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label(t.get("prop_fill_tex_index"));
+                    changed |= ui
+                        .add(egui::DragValue::new(&mut td.fill_texture_index).range(0..=31))
+                        .changed();
+                });
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_fill_offset_x"));
                     changed |= ui
@@ -2007,20 +2191,6 @@ fn edit_vec3(ui: &mut egui::Ui, id_prefix: &str, v: &mut Vec3) -> bool {
         });
     });
     changed
-}
-
-fn show_color(ui: &mut egui::Ui, label: &str, c: &Color) {
-    let rgba = c.to_rgba8();
-    ui.horizontal(|ui| {
-        let color = egui::Color32::from_rgba_unmultiplied(rgba[0], rgba[1], rgba[2], rgba[3]);
-        ui.label(format!("  {}: ", label));
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-        ui.painter().rect_filled(rect, 2.0, color);
-        ui.label(format!(
-            "#{:02x}{:02x}{:02x}{:02x}",
-            rgba[0], rgba[1], rgba[2], rgba[3]
-        ));
-    });
 }
 
 /// Load a system CJK font and register it as a fallback for proportional + monospace.

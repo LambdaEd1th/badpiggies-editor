@@ -36,6 +36,8 @@ pub struct TerrainDrawData {
     pub object_index: ObjectIndex,
     /// Curve mesh vertices in world space for selection outline.
     pub curve_world_verts: Vec<(f32, f32)>,
+    /// Per-node texture index (0=grass/splat0, 1=outline/splat1).
+    pub node_textures: Vec<usize>,
     /// Shader-ready edge vertices (world-space, with UV + gradient).
     pub edge_vertices: Vec<EdgeVertex>,
     /// Shader-ready edge indices (u16).
@@ -74,6 +76,7 @@ pub fn build_terrain(
                 fill_texture: None,
                 object_index,
                 curve_world_verts: Vec::new(),
+                node_textures: Vec::new(),
                 edge_vertices: Vec::new(),
                 edge_indices: Vec::new(),
                 edge_ctrl_pixels: None,
@@ -144,6 +147,26 @@ pub fn build_terrain(
         .map(|v| (v.x + world_offset.x, v.y + world_offset.y))
         .collect();
 
+    // Derive per-node texture index from control texture pixels
+    let node_count = td.curve_mesh.vertices.len() / 2;
+    let node_textures: Vec<usize> = (0..node_count)
+        .map(|i| {
+            td.control_texture_data
+                .as_ref()
+                .and_then(|data| {
+                    crate::terrain_gen::decode_control_png_pixels(data).map(|px| {
+                        let gi = i * 4 + 1; // green channel
+                        if gi < px.len() && px[gi] > 128 {
+                            1
+                        } else {
+                            0
+                        }
+                    })
+                })
+                .unwrap_or(0)
+        })
+        .collect();
+
     // Build CPU-textured edge meshes (fallback for when GLSL is unavailable)
     let (edge_splat0_mesh, edge_splat1_mesh) = build_edge_textured_meshes(
         &edge_vertices,
@@ -161,6 +184,7 @@ pub fn build_terrain(
         fill_texture,
         object_index,
         curve_world_verts,
+        node_textures,
         edge_vertices,
         edge_indices,
         edge_ctrl_pixels,

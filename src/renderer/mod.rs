@@ -29,6 +29,24 @@ fn point_in_triangle(p: egui::Pos2, a: egui::Pos2, b: egui::Pos2, c: egui::Pos2)
     !(has_neg && has_pos)
 }
 
+/// Distance from point (px,py) to segment (ax,ay)→(bx,by).
+/// Returns (distance, t) where t ∈ [0,1] is the projection parameter.
+fn point_to_segment_dist(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> (f32, f32) {
+    let dx = bx - ax;
+    let dy = by - ay;
+    let len_sq = dx * dx + dy * dy;
+    let t = if len_sq < 1e-12 {
+        0.0
+    } else {
+        ((px - ax) * dx + (py - ay) * dy) / len_sq
+    }
+    .clamp(0.0, 1.0);
+    let cx = ax + dx * t;
+    let cy = ay + dy * t;
+    let dist = ((px - cx) * (px - cx) + (py - cy) * (py - cy)).sqrt();
+    (dist, t)
+}
+
 /// Known atlas filenames and their paths relative to the sprites directory.
 const ATLAS_FILES: &[&str] = &[
     "IngameAtlas.png",
@@ -107,6 +125,48 @@ struct DragState {
     original_pos: Vec3,
 }
 
+/// State for an active terrain node drag operation.
+struct NodeDragState {
+    /// Which terrain object.
+    object_index: ObjectIndex,
+    /// Which node within the terrain.
+    node_index: usize,
+    /// Mouse position when drag started (world coords).
+    start_mouse: Vec2,
+    /// Original node position (world coords).
+    original_pos: Vec2,
+}
+
+/// Result of a completed terrain node drag.
+pub struct NodeDragResult {
+    /// Which terrain object.
+    pub object_index: ObjectIndex,
+    /// Which node within the terrain.
+    pub node_index: usize,
+    /// New node position in local terrain space.
+    pub new_local_pos: Vec2,
+}
+
+/// Result of a terrain node add or delete action.
+pub enum NodeEditAction {
+    /// Delete node at given index.
+    Delete {
+        object_index: ObjectIndex,
+        node_index: usize,
+    },
+    /// Insert a new node after `after_node`, at `local_pos`.
+    Insert {
+        object_index: ObjectIndex,
+        after_node: usize,
+        local_pos: Vec2,
+    },
+    /// Toggle texture index on a node (grass ↔ outline).
+    ToggleTexture {
+        object_index: ObjectIndex,
+        node_index: usize,
+    },
+}
+
 /// Renderer state for drawing levels.
 pub struct LevelRenderer {
     pub camera: Camera,
@@ -143,8 +203,14 @@ pub struct LevelRenderer {
     pub time: f64,
     /// Active drag state for object manipulation.
     dragging: Option<DragState>,
+    /// Active terrain node drag state.
+    node_dragging: Option<NodeDragState>,
     /// Completed drag result: (object index, position delta in world units).
     pub drag_result: Option<(ObjectIndex, Vec2)>,
+    /// Completed terrain node drag result.
+    pub node_drag_result: Option<NodeDragResult>,
+    /// Completed terrain node edit action (add/delete).
+    pub node_edit_action: Option<NodeEditAction>,
     /// Residual camera offset for dragged sprite, kept until drag_result is consumed
     /// (prevents 1-frame snap-back when opaque batch hasn't been rebuilt yet).
     pending_drag_offset: Option<(ObjectIndex, f32, f32)>,
@@ -224,6 +290,9 @@ pub struct LevelRenderer {
     fill_gpu_meshes: Vec<Option<Arc<fill_shader::FillGpuMesh>>>,
     /// Per-frame fill shader draw slot counter.
     fill_slot_counter: u32,
+    /// Index of the terrain node currently hovered by the mouse: (object, node_index).
+    /// Currently hovered terrain node (object_index, node_index).
+    pub hovered_terrain_node: Option<(ObjectIndex, usize)>,
     /// Reusable scratch mesh buffer for terrain CPU transform (avoids per-frame allocation).
     terrain_scratch_mesh: egui::Mesh,
     /// Cached dark overlay mesh (layer 1: dark complement).
@@ -579,7 +648,10 @@ impl LevelRenderer {
             mouse_world: None,
             time: 0.0,
             dragging: None,
+            node_dragging: None,
             drag_result: None,
+            node_drag_result: None,
+            node_edit_action: None,
             pending_drag_offset: None,
             show_bg: true,
             show_ground: false,
@@ -619,6 +691,7 @@ impl LevelRenderer {
             fill_slot_counter: 0,
             dark_resources,
             dark_gpu_meshes: None,
+            hovered_terrain_node: None,
             terrain_scratch_mesh: egui::Mesh::default(),
             dark_overlay_mesh: None,
             dark_overlay_ring: None,
@@ -648,7 +721,10 @@ impl LevelRenderer {
             mouse_world: None,
             time: 0.0,
             dragging: None,
+            node_dragging: None,
             drag_result: None,
+            node_drag_result: None,
+            node_edit_action: None,
             pending_drag_offset: None,
             show_bg: self.show_bg,
             show_ground: self.show_ground,
@@ -688,6 +764,7 @@ impl LevelRenderer {
             fill_slot_counter: 0,
             dark_resources: self.dark_resources.clone(),
             dark_gpu_meshes: None,
+            hovered_terrain_node: None,
             terrain_scratch_mesh: egui::Mesh::default(),
             dark_overlay_mesh: None,
             dark_overlay_ring: None,
@@ -1647,15 +1724,35 @@ impl LevelRenderer {
         let is_alt = ui.input(|i| i.modifiers.alt);
         self.clicked_object = None;
         self.drag_result = None;
+        self.node_drag_result = None;
+        self.node_edit_action = None;
 
-        // Start object drag on primary press (without shift/alt)
+        // Start drag on primary press (without shift/alt)
         if response.drag_started_by(egui::PointerButton::Primary)
             && !is_shift
             && !is_alt
             && let Some(pointer) = response.interact_pointer_pos()
         {
             let world = self.camera.screen_to_world(pointer, canvas_center);
-            if let Some(idx) = self.hit_test(world, selected) {
+
+            // Check if we're starting a terrain node drag
+            if let Some((obj_idx, node_idx)) = self.hovered_terrain_node {
+                // Find the world offset of this terrain
+                let (tdx, tdy) = self.terrain_drag_offset(obj_idx);
+                if let Some(td) = self.terrain_data.iter().find(|t| t.object_index == obj_idx) {
+                    let (nx, ny) = td.curve_world_verts[node_idx];
+                    self.node_dragging = Some(NodeDragState {
+                        object_index: obj_idx,
+                        node_index: node_idx,
+                        start_mouse: world,
+                        original_pos: Vec2 {
+                            x: nx + tdx,
+                            y: ny + tdy,
+                        },
+                    });
+                    self.clicked_object = Some(obj_idx);
+                }
+            } else if let Some(idx) = self.hit_test(world, selected) {
                 let orig = self
                     .sprite_data
                     .iter()
@@ -1678,13 +1775,14 @@ impl LevelRenderer {
             || (response.dragged_by(egui::PointerButton::Primary)
                 && !is_shift
                 && !is_alt
-                && self.dragging.is_none())
+                && self.dragging.is_none()
+                && self.node_dragging.is_none())
         {
             let delta = response.drag_delta();
             self.camera.center.x -= delta.x / self.camera.zoom;
             self.camera.center.y += delta.y / self.camera.zoom;
             self.panning = true;
-        } else if self.dragging.is_none() {
+        } else if self.dragging.is_none() && self.node_dragging.is_none() {
             self.panning = false;
         }
 
@@ -1706,6 +1804,24 @@ impl LevelRenderer {
             }
         }
 
+        // Update node position during terrain node drag
+        if let Some(ref ndrag) = self.node_dragging
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let current = self.camera.screen_to_world(pointer, canvas_center);
+            let new_x = ndrag.original_pos.x + (current.x - ndrag.start_mouse.x);
+            let new_y = ndrag.original_pos.y + (current.y - ndrag.start_mouse.y);
+            // Update the visual node position in curve_world_verts
+            if let Some(td) = self
+                .terrain_data
+                .iter_mut()
+                .find(|t| t.object_index == ndrag.object_index)
+                && ndrag.node_index < td.curve_world_verts.len()
+            {
+                td.curve_world_verts[ndrag.node_index] = (new_x, new_y);
+            }
+        }
+
         // End object drag
         if response.drag_stopped_by(egui::PointerButton::Primary)
             && let Some(drag) = self.dragging.take()
@@ -1724,6 +1840,36 @@ impl LevelRenderer {
             }
         }
 
+        // End terrain node drag
+        if response.drag_stopped_by(egui::PointerButton::Primary)
+            && let Some(ndrag) = self.node_dragging.take()
+        {
+            // Compute new node position in local terrain space
+            if let Some(td) = self
+                .terrain_data
+                .iter()
+                .find(|t| t.object_index == ndrag.object_index)
+                && ndrag.node_index < td.curve_world_verts.len()
+            {
+                let (wx, wy) = td.curve_world_verts[ndrag.node_index];
+                // Find the world offset of this terrain object
+                let world_offset = self
+                    .world_positions
+                    .iter()
+                    .find(|(idx, _)| *idx == ndrag.object_index)
+                    .map(|(_, p)| *p)
+                    .unwrap_or_default();
+                self.node_drag_result = Some(NodeDragResult {
+                    object_index: ndrag.object_index,
+                    node_index: ndrag.node_index,
+                    new_local_pos: Vec2 {
+                        x: wx - world_offset.x,
+                        y: wy - world_offset.y,
+                    },
+                });
+            }
+        }
+
         // Click-to-select (tap without drag)
         if response.clicked()
             && !self.panning
@@ -1731,6 +1877,91 @@ impl LevelRenderer {
         {
             let click_world = self.camera.screen_to_world(click_pos, canvas_center);
             self.clicked_object = self.hit_test(click_world, selected);
+        }
+
+        // Delete terrain node: Delete/Backspace while hovering a node (min 3 nodes)
+        if let Some((obj_idx, node_idx)) = self.hovered_terrain_node {
+            let delete_pressed = ui.input(|i| {
+                i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)
+            });
+            if delete_pressed
+                && let Some(td) = self
+                    .terrain_data
+                    .iter()
+                    .find(|t| t.object_index == obj_idx)
+                && td.curve_world_verts.len() > 2
+            {
+                self.node_edit_action = Some(NodeEditAction::Delete {
+                    object_index: obj_idx,
+                    node_index: node_idx,
+                });
+            }
+        }
+
+        // Toggle terrain node texture: right-click on a hovered node
+        if response.secondary_clicked()
+            && let Some((obj_idx, node_idx)) = self.hovered_terrain_node
+        {
+            self.node_edit_action = Some(NodeEditAction::ToggleTexture {
+                object_index: obj_idx,
+                node_index: node_idx,
+            });
+        }
+
+        // Insert terrain node: double-click on a terrain curve segment
+        if response.double_clicked()
+            && !self.panning
+            && let Some(click_pos) = response.interact_pointer_pos()
+        {
+            let click_world = self.camera.screen_to_world(click_pos, canvas_center);
+            // Find closest segment on selected terrain
+            let mut best: Option<(ObjectIndex, usize, f32, f32)> = None;
+            let threshold = 12.0 / self.camera.zoom; // 12 screen-px
+            for td in self.terrain_data.iter() {
+                if selected == Some(td.object_index) && td.curve_world_verts.len() >= 2 {
+                    let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
+                    for seg in 0..td.curve_world_verts.len() - 1 {
+                        let (ax, ay) = td.curve_world_verts[seg];
+                        let (bx, by) = td.curve_world_verts[seg + 1];
+                        let (ax, ay) = (ax + tdx, ay + tdy);
+                        let (bx, by) = (bx + tdx, by + tdy);
+                        let (dist, t) = point_to_segment_dist(
+                            click_world.x, click_world.y, ax, ay, bx, by,
+                        );
+                        if dist < threshold
+                            && (best.is_none() || dist < best.unwrap().2)
+                        {
+                            best = Some((td.object_index, seg, dist, t));
+                        }
+                    }
+                }
+            }
+            if let Some((obj_idx, seg, _dist, t)) = best
+                && let Some(td) = self
+                    .terrain_data
+                    .iter()
+                    .find(|tt| tt.object_index == obj_idx)
+            {
+                let (ax, ay) = td.curve_world_verts[seg];
+                let (bx, by) = td.curve_world_verts[seg + 1];
+                let (tdx, tdy) = self.terrain_drag_offset(obj_idx);
+                let wx = ax + (bx - ax) * t + tdx;
+                let wy = ay + (by - ay) * t + tdy;
+                let world_offset = self
+                    .world_positions
+                    .iter()
+                    .find(|(idx, _)| *idx == obj_idx)
+                    .map(|(_, p)| *p)
+                    .unwrap_or_default();
+                self.node_edit_action = Some(NodeEditAction::Insert {
+                    object_index: obj_idx,
+                    after_node: seg,
+                    local_pos: Vec2 {
+                        x: wx - world_offset.x,
+                        y: wy - world_offset.y,
+                    },
+                });
+            }
         }
 
         // Handle zoom (scroll wheel, center-preserving)
@@ -1950,7 +2181,8 @@ impl LevelRenderer {
             }
         }
 
-        // Selection outlines for all terrain
+        // Selection outlines and node handles for terrain
+        self.hovered_terrain_node = None;
         for td in self.terrain_data.iter() {
             if selected == Some(td.object_index) && td.curve_world_verts.len() >= 2 {
                 let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
@@ -1970,6 +2202,59 @@ impl LevelRenderer {
                 let stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
                 for pair in screen_pts.windows(2) {
                     painter.line_segment([pair[0], pair[1]], stroke);
+                }
+
+                // Node handles: draw small squares at each curve node position
+                const NODE_RADIUS: f32 = 4.0;
+                const HOVER_RADIUS: f32 = 8.0;
+
+                // Find hovered node (closest within threshold)
+                if let Some(mouse_w) = self.mouse_world {
+                    let mouse_wx = mouse_w.x - tdx;
+                    let mouse_wy = mouse_w.y - tdy;
+                    let threshold = HOVER_RADIUS / self.camera.zoom;
+                    let mut best_dist = threshold;
+                    let mut best_idx = None;
+                    for (i, &(nx, ny)) in td.curve_world_verts.iter().enumerate() {
+                        let dx = nx - mouse_wx;
+                        let dy = ny - mouse_wy;
+                        let dist = (dx * dx + dy * dy).sqrt();
+                        if dist < best_dist {
+                            best_dist = dist;
+                            best_idx = Some(i);
+                        }
+                    }
+                    if let Some(idx) = best_idx {
+                        self.hovered_terrain_node = Some((td.object_index, idx));
+                    }
+                }
+
+                for (i, &pt) in screen_pts.iter().enumerate() {
+                    let is_hovered = self.hovered_terrain_node == Some((td.object_index, i));
+                    let tex_idx = td.node_textures.get(i).copied().unwrap_or(0);
+                    let base_color = if tex_idx == 1 {
+                        egui::Color32::from_rgb(0x99, 0x66, 0x33) // brown = outline/splat1
+                    } else {
+                        egui::Color32::from_rgb(0x70, 0xB0, 0x30) // green = grass/splat0
+                    };
+                    let fill = if is_hovered {
+                        egui::Color32::WHITE
+                    } else {
+                        base_color
+                    };
+                    let r = if is_hovered {
+                        NODE_RADIUS + 2.0
+                    } else {
+                        NODE_RADIUS
+                    };
+                    let node_rect = egui::Rect::from_center_size(pt, egui::vec2(r * 2.0, r * 2.0));
+                    painter.rect_filled(node_rect, 1.0, fill);
+                    painter.rect_stroke(
+                        node_rect,
+                        1.0,
+                        egui::Stroke::new(1.0, egui::Color32::BLACK),
+                        egui::StrokeKind::Outside,
+                    );
                 }
             }
         }

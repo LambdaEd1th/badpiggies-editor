@@ -10,6 +10,7 @@ mod log_buffer;
 mod parser;
 mod renderer;
 mod sprite_db;
+mod terrain_gen;
 mod types;
 
 use app::EditorApp;

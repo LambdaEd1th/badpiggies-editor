@@ -372,18 +372,17 @@ pub fn parse_position_serializer_overrides(raw: &str, child_order: &[String]) ->
         let content = line.trim();
         if let Some(rest) = content.strip_prefix("Element ") {
             // Flush previous element
-            if let Some(idx) = current_element {
-                if idx < child_order.len() && !child_order[idx].is_empty() {
+            if let Some(idx) = current_element
+                && idx < child_order.len() && !child_order[idx].is_empty() {
                     result
                         .groups
                         .insert(child_order[idx].clone(), current_pos);
                 }
-            }
             current_element = rest.trim().parse::<usize>().ok();
             current_pos = [None, None, None];
-        } else if let Some(rest) = content.strip_prefix("Float ") {
-            if let Some((axis, val_str)) = rest.split_once('=') {
-                if let Ok(val) = val_str.trim().parse::<f32>() {
+        } else if let Some(rest) = content.strip_prefix("Float ")
+            && let Some((axis, val_str)) = rest.split_once('=')
+                && let Ok(val) = val_str.trim().parse::<f32>() {
                     match axis.trim() {
                         "x" => current_pos[0] = Some(val),
                         "y" => current_pos[1] = Some(val),
@@ -391,17 +390,14 @@ pub fn parse_position_serializer_overrides(raw: &str, child_order: &[String]) ->
                         _ => {}
                     }
                 }
-            }
-        }
     }
     // Flush last element
-    if let Some(idx) = current_element {
-        if idx < child_order.len() && !child_order[idx].is_empty() {
+    if let Some(idx) = current_element
+        && idx < child_order.len() && !child_order[idx].is_empty() {
             result
                 .groups
                 .insert(child_order[idx].clone(), current_pos);
         }
-    }
 
     result
 }

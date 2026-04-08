@@ -1100,15 +1100,14 @@ impl LevelRenderer {
         self.camera_limits = parse_camera_limits(level);
 
         // Build GPU fan-triangulated meshes for dark overlay stencil pass
-        if self.dark_level && !self.lit_area_polygons.is_empty() {
-            if let Some(device) = &self.wgpu_device {
+        if self.dark_level && !self.lit_area_polygons.is_empty()
+            && let Some(device) = &self.wgpu_device {
                 let pairs = self.lit_area_polygons.iter().map(|la| {
                     (la.border_vertices.as_slice(), la.vertices.as_slice())
                 });
                 self.dark_gpu_meshes =
                     Some(Arc::new(dark_shader::build_dark_gpu_meshes(device, pairs)));
             }
-        }
 
         // Fit camera to level bounds
         self.fit_to_level();
@@ -2782,16 +2781,14 @@ impl LevelRenderer {
                     self.dark_overlay_ring = ring_mesh;
                     self.dark_overlay_key = key;
                 }
-                if let Some(ref mesh) = self.dark_overlay_mesh {
-                    if !mesh.vertices.is_empty() {
+                if let Some(ref mesh) = self.dark_overlay_mesh
+                    && !mesh.vertices.is_empty() {
                         painter.add(egui::Shape::mesh(mesh.clone()));
                     }
-                }
-                if let Some(ref mesh) = self.dark_overlay_ring {
-                    if !mesh.vertices.is_empty() {
+                if let Some(ref mesh) = self.dark_overlay_ring
+                    && !mesh.vertices.is_empty() {
                         painter.add(egui::Shape::mesh(mesh.clone()));
                     }
-                }
             }
         }
 
@@ -2962,8 +2959,8 @@ impl LevelRenderer {
         }
 
         // Level bounds border (drawn on top of everything)
-        if self.show_level_bounds {
-            if let Some([tl_x, tl_y, w, h]) = self.camera_limits {
+        if self.show_level_bounds
+            && let Some([tl_x, tl_y, w, h]) = self.camera_limits {
                 let min_x = tl_x;
                 let max_x = tl_x + w;
                 let min_y = tl_y - h;
@@ -2994,7 +2991,6 @@ impl LevelRenderer {
                     );
                 }
             }
-        }
 
         // Zoom + theme info
         let theme_label = self
@@ -3228,10 +3224,10 @@ fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
 /// Returns `[topLeft.x, topLeft.y, size.x, size.y]` or `None` if not overridden.
 fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
     for obj in &level.objects {
-        if let LevelObject::Prefab(p) = obj {
-            if p.name == "LevelManager" {
-                if let Some(ref od) = p.override_data {
-                    if let Some(pos) = od.raw_text.find("m_cameraLimits") {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "LevelManager"
+                && let Some(ref od) = p.override_data
+                    && let Some(pos) = od.raw_text.find("m_cameraLimits") {
                         let after = &od.raw_text[pos..];
                         // Parse topLeft x, y and size x, y
                         // Format: "Float x = V" / "Float y = V" in order: tl.x, tl.y, sz.x, sz.y
@@ -3266,9 +3262,6 @@ fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
                             return Some(vals);
                         }
                     }
-                }
-            }
-        }
     }
     None
 }
@@ -3283,36 +3276,30 @@ fn parse_dark_level_data(
     lit_areas.clear();
 
     for obj in &level.objects {
-        match obj {
-            LevelObject::Prefab(p) => {
-                // Check LevelManager for m_darkLevel
-                if p.name == "LevelManager" {
-                    if let Some(ref od) = p.override_data {
-                        if let Some(pos) = od.raw_text.find("m_darkLevel") {
-                            let after = &od.raw_text[pos..];
-                            if let Some(eq) = after.find("= ") {
-                                let val = after[eq + 2..].trim_start();
-                                if val.starts_with("True") || val.starts_with("true") {
-                                    *dark_level = true;
-                                }
+        if let LevelObject::Prefab(p) = obj {
+            // Check LevelManager for m_darkLevel
+            if p.name == "LevelManager"
+                && let Some(ref od) = p.override_data
+                    && let Some(pos) = od.raw_text.find("m_darkLevel") {
+                        let after = &od.raw_text[pos..];
+                        if let Some(eq) = after.find("= ") {
+                            let val = after[eq + 2..].trim_start();
+                            if val.starts_with("True") || val.starts_with("true") {
+                                *dark_level = true;
                             }
                         }
                     }
-                }
 
-                // Parse LitArea bezier curves
-                if p.name == "LitArea" {
-                    if let Some(polygon) = parse_lit_area_bezier(p) {
-                        lit_areas.push(polygon);
-                    }
-                }
-
-                // Parse point light sources (LitCrystal, LitMushroom)
-                if let Some(polygon) = parse_point_light(p) {
+            // Parse LitArea bezier curves
+            if p.name == "LitArea"
+                && let Some(polygon) = parse_lit_area_bezier(p) {
                     lit_areas.push(polygon);
                 }
+
+            // Parse point light sources (LitCrystal, LitMushroom)
+            if let Some(polygon) = parse_point_light(p) {
+                lit_areas.push(polygon);
             }
-            _ => {}
         }
     }
 }
@@ -3608,7 +3595,7 @@ fn build_dark_overlay_meshes(
     if lit_areas.is_empty() {
         let mut m = egui::Mesh::default();
         let uv = egui::pos2(0.0, 0.0);
-        emit_quad(&mut m, rect.left(), rect.right(), rect.left(), rect.right(), rect.top(), rect.bottom(), dark_color, uv);
+        emit_quad(&mut m, Trapezoid { left_top: rect.left(), right_top: rect.right(), left_bot: rect.left(), right_bot: rect.right(), y_top: rect.top(), y_bot: rect.bottom() }, dark_color, uv);
         return (m, None);
     }
 
@@ -3643,14 +3630,14 @@ fn build_dark_overlay_meshes(
     if border_polys.is_empty() {
         let mut m = egui::Mesh::default();
         let uv = egui::pos2(0.0, 0.0);
-        emit_quad(&mut m, rect.left(), rect.right(), rect.left(), rect.right(), rect.top(), rect.bottom(), dark_color, uv);
+        emit_quad(&mut m, Trapezoid { left_top: rect.left(), right_top: rect.right(), left_bot: rect.left(), right_bot: rect.right(), y_top: rect.top(), y_bot: rect.bottom() }, dark_color, uv);
         return (m, None);
     }
 
     let mut dark_mesh = build_scanline_complement_mesh(rect, &border_polys, dark_color);
     if dark_mesh.vertices.is_empty() {
         let uv = egui::pos2(0.0, 0.0);
-        emit_quad(&mut dark_mesh, rect.left(), rect.right(), rect.left(), rect.right(), rect.top(), rect.bottom(), dark_color, uv);
+        emit_quad(&mut dark_mesh, Trapezoid { left_top: rect.left(), right_top: rect.right(), left_bot: rect.left(), right_bot: rect.right(), y_top: rect.top(), y_bot: rect.bottom() }, dark_color, uv);
     }
 
     let ring_mesh = if !inner_polys.is_empty() {
@@ -3703,14 +3690,14 @@ fn build_scanline_complement_mesh(
                     let x_rt = top_xs[i].min(rect.right());
                     let x_rb = bot_xs[i].min(rect.right());
                     if x_rt - prev_top > 0.5 || x_rb - prev_bot > 0.5 {
-                        emit_quad(&mut mesh, prev_top, x_rt, prev_bot, x_rb, y_top, y_bot, color, uv);
+                        emit_quad(&mut mesh, Trapezoid { left_top: prev_top, right_top: x_rt, left_bot: prev_bot, right_bot: x_rb, y_top, y_bot }, color, uv);
                     }
                 }
                 prev_top = top_xs[i].max(rect.left());
                 prev_bot = bot_xs[i].max(rect.left());
             }
-            if count % 2 == 0 && (rect.right() - prev_top > 0.5 || rect.right() - prev_bot > 0.5) {
-                emit_quad(&mut mesh, prev_top, rect.right(), prev_bot, rect.right(), y_top, y_bot, color, uv);
+            if count.is_multiple_of(2) && (rect.right() - prev_top > 0.5 || rect.right() - prev_bot > 0.5) {
+                emit_quad(&mut mesh, Trapezoid { left_top: prev_top, right_top: rect.right(), left_bot: prev_bot, right_bot: rect.right(), y_top, y_bot }, color, uv);
             }
         } else {
             let y_mid = (y_top + y_bot) * 0.5;
@@ -3719,12 +3706,12 @@ fn build_scanline_complement_mesh(
             for (i, &x) in mid_xs.iter().enumerate() {
                 let x = x.clamp(rect.left(), rect.right());
                 if i % 2 == 0 && x - prev_x > 0.5 {
-                    emit_quad(&mut mesh, prev_x, x, prev_x, x, y_top, y_bot, color, uv);
+                    emit_quad(&mut mesh, Trapezoid { left_top: prev_x, right_top: x, left_bot: prev_x, right_bot: x, y_top, y_bot }, color, uv);
                 }
                 prev_x = x.max(rect.left());
             }
-            if mid_xs.len() % 2 == 0 && rect.right() - prev_x > 0.5 {
-                emit_quad(&mut mesh, prev_x, rect.right(), prev_x, rect.right(), y_top, y_bot, color, uv);
+            if mid_xs.len().is_multiple_of(2) && rect.right() - prev_x > 0.5 {
+                emit_quad(&mut mesh, Trapezoid { left_top: prev_x, right_top: rect.right(), left_bot: prev_x, right_bot: rect.right(), y_top, y_bot }, color, uv);
             }
         }
     }
@@ -3806,7 +3793,7 @@ fn build_scanline_ring_mesh(
             let in_outer = is_point_in_polys(mid_x, mid_y, outer_polys);
             let in_inner = is_point_in_polys(mid_x, mid_y, inner_polys);
             if in_outer && !in_inner && (x_top - prev_top > 0.5 || x_bot - prev_bot > 0.5) {
-                emit_quad(&mut mesh, prev_top, x_top, prev_bot, x_bot, y_top, y_bot, color, uv);
+                emit_quad(&mut mesh, Trapezoid { left_top: prev_top, right_top: x_top, left_bot: prev_bot, right_bot: x_bot, y_top, y_bot }, color, uv);
             }
             prev_top = x_top;
             prev_bot = x_bot;
@@ -3834,19 +3821,27 @@ fn is_point_in_polys(px: f32, py: f32, polys: &[Vec<egui::Pos2>]) -> bool {
     crossings % 2 == 1
 }
 
+/// Trapezoid defined by top/bottom edge X-ranges and Y values.
+struct Trapezoid {
+    left_top: f32,
+    right_top: f32,
+    left_bot: f32,
+    right_bot: f32,
+    y_top: f32,
+    y_bot: f32,
+}
+
 /// Emit a trapezoid quad into the mesh.
 fn emit_quad(
     mesh: &mut egui::Mesh,
-    left_top: f32, right_top: f32,
-    left_bot: f32, right_bot: f32,
-    y_top: f32, y_bot: f32,
+    t: Trapezoid,
     color: egui::Color32, uv: egui::Pos2,
 ) {
     let base = mesh.vertices.len() as u32;
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(left_top, y_top), uv, color });
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(right_top, y_top), uv, color });
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(right_bot, y_bot), uv, color });
-    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(left_bot, y_bot), uv, color });
+    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.left_top, t.y_top), uv, color });
+    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.right_top, t.y_top), uv, color });
+    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.right_bot, t.y_bot), uv, color });
+    mesh.vertices.push(egui::epaint::Vertex { pos: egui::pos2(t.left_bot, t.y_bot), uv, color });
     mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 

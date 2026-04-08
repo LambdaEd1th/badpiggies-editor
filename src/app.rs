@@ -665,11 +665,10 @@ impl eframe::App for EditorApp {
         }
 
         // Cmd+W / Ctrl+W — close tab (only when multiple tabs open)
-        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::W)) {
-            if self.tabs.len() > 1 {
+        if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::W))
+            && self.tabs.len() > 1 {
                 self.close_tab(self.active_tab);
             }
-        }
 
         // Cmd+T / Ctrl+T — new empty tab
         if ctx.input(|i| i.modifiers.command && i.key_pressed(egui::Key::T)) {
@@ -1399,11 +1398,10 @@ impl eframe::App for EditorApp {
                             .auto_shrink(false)
                             .show(ui, |ui| {
                             for &root_idx in &level.roots {
-                                if let Some(dr) = show_object_tree(ui, level, root_idx, &mut new_selection, 0) {
-                                    if drop_action.is_none() {
+                                if let Some(dr) = show_object_tree(ui, level, root_idx, &mut new_selection, 0)
+                                    && drop_action.is_none() {
                                         drop_action = Some(dr);
                                     }
-                                }
                             }
                         });
                     }
@@ -1490,9 +1488,9 @@ impl eframe::App for EditorApp {
                     tab.selected = Some(idx);
                 }
                 // Pick up drag result — update object position
-                if let Some((idx, delta)) = tab.renderer.drag_result.take() {
-                    if let Some(ref mut level) = tab.level {
-                        if idx < level.objects.len() {
+                if let Some((idx, delta)) = tab.renderer.drag_result.take()
+                    && let Some(ref mut level) = tab.level
+                        && idx < level.objects.len() {
                             // Snapshot pre-drag state for undo
                             tab.history.undo.push(Snapshot {
                                 level: level.clone(),
@@ -1518,8 +1516,6 @@ impl eframe::App for EditorApp {
                             tab.renderer.set_level(level);
                             tab.renderer.camera = cam;
                         }
-                    }
-                }
             } else {
                 let rect = ui.available_rect_before_wrap();
                 let is_dark = ui.visuals().dark_mode;
@@ -1649,7 +1645,7 @@ fn selectable_label_draggable(ui: &mut egui::Ui, selected: bool, text: &str) -> 
         if selected || response.hovered() || response.highlighted() {
             let r = rect.expand(visuals.expansion);
             ui.painter()
-                .rect(r, visuals.rounding(), visuals.bg_fill, visuals.bg_stroke, egui::StrokeKind::Inside);
+                .rect(r, visuals.corner_radius, visuals.bg_fill, visuals.bg_stroke, egui::StrokeKind::Inside);
         }
         ui.painter().galley(text_pos, galley, visuals.text_color());
     }
@@ -1699,33 +1695,30 @@ fn show_object_tree(
                             // Draw line above
                             let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
                             ui.painter().hline(header_rect.x_range(), header_rect.top(), stroke);
-                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>() {
-                                if payload.0 != idx {
+                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>()
+                                && payload.0 != idx {
                                     drop_result = Some((payload.0, DropPosition::Before(idx)));
                                 }
-                            }
                         }
                     } else if frac > 0.75 {
                         if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
                             // Draw line below
                             let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
                             ui.painter().hline(header_rect.x_range(), header_rect.bottom(), stroke);
-                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>() {
-                                if payload.0 != idx {
+                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>()
+                                && payload.0 != idx {
                                     drop_result = Some((payload.0, DropPosition::After(idx)));
                                 }
-                            }
                         }
                     } else {
                         // Middle = drop into parent
                         if let Some(_payload) = header_res.inner.dnd_hover_payload::<DndPayload>() {
                             let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
                             ui.painter().rect_stroke(header_rect, 2.0, stroke, egui::StrokeKind::Outside);
-                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>() {
-                                if payload.0 != idx {
+                            if let Some(payload) = header_res.inner.dnd_release_payload::<DndPayload>()
+                                && payload.0 != idx {
                                     drop_result = Some((payload.0, DropPosition::IntoParent(idx)));
                                 }
-                            }
                         }
                     }
                 }
@@ -1734,11 +1727,10 @@ fn show_object_tree(
             // Show children
             state.show_body_indented(&header_res.response, ui, |ui| {
                 for &child in &parent.children {
-                    if let Some(dr) = show_object_tree(ui, level, child, selected, depth + 1) {
-                        if drop_result.is_none() {
+                    if let Some(dr) = show_object_tree(ui, level, child, selected, depth + 1)
+                        && drop_result.is_none() {
                             drop_result = Some(dr);
                         }
-                    }
                 }
             });
             state.store(ui.ctx());
@@ -1768,11 +1760,10 @@ fn show_object_tree(
                         let y = if frac < 0.5 { r.top() } else { r.bottom() };
                         ui.painter().hline(r.x_range(), y, stroke);
                     }
-                    if let Some(payload) = label_res.dnd_release_payload::<DndPayload>() {
-                        if payload.0 != idx {
+                    if let Some(payload) = label_res.dnd_release_payload::<DndPayload>()
+                        && payload.0 != idx {
                             drop_result = Some((payload.0, pos));
                         }
-                    }
                 }
             }
         }

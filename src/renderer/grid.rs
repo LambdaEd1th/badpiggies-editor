@@ -156,10 +156,7 @@ pub fn draw_construction_grid(
             ctx,
             "GridCellLight_raw",
             &atlas_path,
-            uv.x,
-            uv.y,
-            uv.w,
-            uv.h,
+            [uv.x, uv.y, uv.w, uv.h],
         )
     } else {
         None

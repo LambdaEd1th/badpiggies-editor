@@ -1328,6 +1328,14 @@ impl eframe::App for EditorApp {
                         if resp.clicked() {
                             self.active_tab = i;
                         }
+                        // "×" close button right after the tab label
+                        if self.tabs.len() > 1 {
+                            let close_btn = ui.small_button("×");
+                            if close_btn.clicked() {
+                                close_idx = Some(i);
+                            }
+                        }
+                        ui.add_space(4.0);
                         // Middle-click to close tab
                         if resp.middle_clicked() {
                             close_idx = Some(i);

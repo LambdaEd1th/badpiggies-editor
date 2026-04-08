@@ -165,5 +165,11 @@ pub fn get_sprite_info(name: &str) -> Option<&'static SpriteInfo> {
         }
     }
 
+    // Common runtime/prefab alias: "Bird_Black" -> "Bird_Black_01"
+    let suffixed = format!("{name}_01");
+    if let Some(s) = db.get(&suffixed) {
+        return Some(s);
+    }
+
     None
 }

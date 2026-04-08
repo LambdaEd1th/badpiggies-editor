@@ -606,6 +606,7 @@ impl TextureCache {
     /// original alpha.  This is needed when egui's multiplicative blending
     /// (`vertex_color × texture`) cannot reproduce the game's shader which
     /// replaces texture RGB with the material color.
+    #[allow(dead_code)]
     pub fn load_sprite_white_alpha(
         &mut self,
         ctx: &egui::Context,
@@ -641,6 +642,44 @@ impl TextureCache {
                     egui::Color32::from_rgba_premultiplied(a, a, a, a)
                 }
             })
+            .collect();
+        let color_image = egui::ColorImage::new(size, pixels);
+        let handle = ctx.load_texture(key, color_image, egui::TextureOptions::LINEAR);
+        let id = handle.id();
+        self.textures.insert(key.to_string(), handle);
+        Some(id)
+    }
+
+    /// Load a sprite region cropped from its atlas, keeping original RGBA pixels.
+    ///
+    /// This matches Unity's `tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)`,
+    /// i.e. the texture passes through unmodified.
+    pub fn load_sprite_crop(
+        &mut self,
+        ctx: &egui::Context,
+        key: &str,
+        atlas_path: &str,
+        uv_x: f32,
+        uv_y: f32,
+        uv_w: f32,
+        uv_h: f32,
+    ) -> Option<egui::TextureId> {
+        if let Some(handle) = self.textures.get(key) {
+            return Some(handle.id());
+        }
+        let data = read_asset(atlas_path)?;
+        let img = image::load_from_memory(&data).ok()?.to_rgba8();
+        let (aw, ah) = (img.width(), img.height());
+        // UV → pixel coords (Unity V=0 at bottom)
+        let px0 = (uv_x * aw as f32) as u32;
+        let py0 = ((1.0 - uv_y - uv_h) * ah as f32) as u32;
+        let pw = (uv_w * aw as f32) as u32;
+        let ph = (uv_h * ah as f32) as u32;
+        let crop = image::imageops::crop_imm(&img, px0, py0, pw, ph).to_image();
+        let size = [crop.width() as usize, crop.height() as usize];
+        let pixels: Vec<egui::Color32> = crop
+            .pixels()
+            .map(|p| egui::Color32::from_rgba_unmultiplied(p.0[0], p.0[1], p.0[2], p.0[3]))
             .collect();
         let color_image = egui::ColorImage::new(size, pixels);
         let handle = ctx.load_texture(key, color_image, egui::TextureOptions::LINEAR);

@@ -2221,8 +2221,9 @@ impl LevelRenderer {
                 const ZZZ_U1: f32 = 7.0 / 8.0; // 0.875
                 const ZZZ_V0: f32 = 1.0 - 6.0 / 8.0; // 0.25
                 const ZZZ_V1: f32 = 1.0 - 5.0 / 8.0; // 0.375
-                let hw = sz;
-                let hh = sz;
+                // Unity startSize is diameter; half-extent = size / 2
+                let hw = sz * 0.5;
+                let hh = sz * 0.5;
                 let tint = egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
                 let mut mesh = egui::Mesh::with_texture(tex_id);
                 let cos_r = p.rot.cos();
@@ -2691,7 +2692,8 @@ impl LevelRenderer {
             } else {
                 255
             };
-            let hw = sz * self.camera.zoom;
+            // Unity startSize is diameter; half-extent = size / 2
+            let hw = sz * self.camera.zoom * 0.5;
             let hh = hw;
             if let Some(tex_id) = fan_tex {
                 // UV: col=3, row=0 from top → in 8×8 grid: u=3/8, v=7/8 (Unity), v_flip = 1/8..2/8 (egui)

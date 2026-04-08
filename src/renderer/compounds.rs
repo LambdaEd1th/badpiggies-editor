@@ -333,7 +333,7 @@ const BIRD_FACES: &[BirdFaceData] = &[
         offset_x: -0.06 - 40.0 / 768.0,
         offset_y: -0.15 + 20.0 / 768.0,
     },
-    // Bird_Blue: face pivot (0, 0), body pivot (0, 0)
+    // Bird_Blue: face localPos (-0.094269, 0.004068), face pivot (0,0), body pivot (0,0)
     BirdFaceData {
         name_prefix: "Bird_Blue",
         uv: UvRect {
@@ -344,10 +344,10 @@ const BIRD_FACES: &[BirdFaceData] = &[
         },
         world_w: 16.0 * SCALE,
         world_h: 12.0 * SCALE,
-        offset_x: -0.06,
-        offset_y: -0.15,
+        offset_x: -0.0942688,
+        offset_y: 0.00406751,
     },
-    // Bird_Yellow: face pivot (0, 40/768), body pivot (0, 0)
+    // Bird_Yellow: face localPos (-0.175139, -0.266569), face pivot (0, 40/768), body pivot (0,0)
     BirdFaceData {
         name_prefix: "Bird_Yellow",
         uv: UvRect {
@@ -358,8 +358,22 @@ const BIRD_FACES: &[BirdFaceData] = &[
         },
         world_w: 25.0 * SCALE,
         world_h: 14.0 * SCALE,
-        offset_x: -0.06,
-        offset_y: -0.15 + 40.0 / 768.0,
+        offset_x: -0.175139,
+        offset_y: -0.2665691 + 40.0 / 768.0,
+    },
+    // Bird_Black: face localPos (-0.043033, -0.009248), face pivot (0,0), body pivot (0,0)
+    BirdFaceData {
+        name_prefix: "Bird_Black",
+        uv: UvRect {
+            x: 0.7895508,
+            y: 0.6162109,
+            w: 0.03613281,
+            h: 0.02148438,
+        },
+        world_w: 29.0 * SCALE,
+        world_h: 17.0 * SCALE,
+        offset_x: -0.04303312,
+        offset_y: -0.00924778,
     },
 ];
 

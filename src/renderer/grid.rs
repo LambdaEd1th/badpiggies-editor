@@ -1,7 +1,12 @@
 //! Construction grid — parse and render the placement grid overlay.
 //!
 //! Parses `m_constructionGridRows` from LevelManager override data and renders
-//! each available cell using the GridCellLight sprite texture (dark overlay).
+//! each available cell using the GridCellLight sprite from IngameAtlas.png.
+//!
+//! Unity rendering: shader `_Custom/Unlit_ColorTransparent_Geometry` applies
+//! `tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)` and standard
+//! alpha blending (`Blend SrcAlpha OneMinusSrcAlpha`).  The sprite's own RGBA
+//! pixels determine the final visual — GridCellLight is RGBA≈(48,48,48,64).
 
 use eframe::egui;
 
@@ -24,15 +29,12 @@ pub struct ConstructionGrid {
     pub grid_height: i32,
     /// Left-most column offset relative to base.
     pub x_min: i32,
-    /// True if the level overrides m_gridCellPrefab (GridCellLight = white grid).
-    pub light_grid: bool,
 }
 
 /// Try to parse the construction grid from level data.
 /// Looks for LevelManager override data and LevelStart position.
 pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     let mut lm_override: Option<&str> = None;
-    let mut light_grid = false;
     let mut level_start_pos = Vec3 {
         x: 0.0,
         y: 0.0,
@@ -60,11 +62,6 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     }
 
     let text = lm_override?;
-
-    // Check if m_gridCellPrefab is overridden (GridCellLight = white grid for dark/ep6 levels)
-    if text.contains("m_gridCellPrefab") {
-        light_grid = true;
-    }
 
     // Find m_constructionGridRows array and its size
     let size_pattern = "m_constructionGridRows";
@@ -122,18 +119,17 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
         grid_width,
         grid_height,
         x_min,
-        light_grid,
     })
 }
 
-/// Draw the construction grid using the GridCellLight sprite texture.
+/// Draw the construction grid matching Unity's rendering.
 ///
-/// The game renders grid cells as the GridCell/GridCellLight sprite with a
-/// material color tint.  The custom shader replaces texture RGB with the
-/// material color and uses texture alpha as mask.
+/// Unity shader: `output = tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)`,
+/// blend mode `Blend SrcAlpha OneMinusSrcAlpha`.  The sprite texture's own RGBA
+/// values determine the final appearance — GridCellLight is a rounded-corner square
+/// filled with RGBA≈(48,48,48,64), producing a subtle dark overlay.
 ///
-/// Grid cell world size: 103×104 px × prefabScale(0.3) × 20/768 ≈ 0.805 × 0.813
-/// (half-extent ≈ 0.402 × 0.406)
+/// Grid cell world size: sprite_px × prefabScale(0.3) × 10/768
 pub fn draw_construction_grid(
     painter: &egui::Painter,
     grid: &ConstructionGrid,
@@ -143,50 +139,40 @@ pub fn draw_construction_grid(
     tex_cache: &mut TextureCache,
     ctx: &egui::Context,
 ) {
-    // Look up the appropriate sprite.
-    let sprite_name = if grid.light_grid { "GridCellLight" } else { "GridCell" };
-    let sprite = sprite_db::get_sprite_info(sprite_name);
+    // Load the GridCellLight sprite directly from IngameAtlas.png, preserving
+    // original RGBA pixels.  This matches Unity's `tex2D * _Color(1,1,1,1)`.
+    //
+    // NOTE: GridCell (on Ingame_Characters_Sheet_01) has mesh-based UVs that
+    // can't be represented as a simple rect crop, so we use GridCellLight for
+    // both grid variants.  GridCellLight RGBA≈(48,48,48,64) naturally pulls
+    // any background toward gray — darkening light backgrounds and slightly
+    // lightening dark ones.
+    let sprite = sprite_db::get_sprite_info("GridCellLight");
 
-    // For light grids, we use a pre-processed texture with RGB replaced by white,
-    // so egui's multiplicative blending produces the correct white overlay.
-    // For dark grids, the original atlas texture works fine (black RGB).
-    let (tex_id, uv_min, uv_max) = if grid.light_grid {
-        if let Some(s) = sprite {
-            let uv = &s.uv;
-            let atlas_path = format!("sprites/{}", s.atlas);
-            let tid = tex_cache.load_sprite_white_alpha(
-                ctx,
-                "GridCellLight_white",
-                &atlas_path,
-                uv.x,
-                uv.y,
-                uv.w,
-                uv.h,
-            );
-            // Cropped texture → full UV range
-            (tid, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
-        } else {
-            (None, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
-        }
+    let tex_id = if let Some(s) = sprite {
+        let uv = &s.uv;
+        let atlas_path = format!("sprites/{}", s.atlas);
+        tex_cache.load_sprite_crop(
+            ctx,
+            "GridCellLight_raw",
+            &atlas_path,
+            uv.x,
+            uv.y,
+            uv.w,
+            uv.h,
+        )
     } else {
-        let tid = sprite.and_then(|s| tex_cache.get(&s.atlas));
-        let (uv0, uv1) = if let Some(s) = sprite {
-            let uv = &s.uv;
-            (
-                egui::pos2(uv.x, 1.0 - uv.y - uv.h),
-                egui::pos2(uv.x + uv.w, 1.0 - uv.y),
-            )
-        } else {
-            (egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0))
-        };
-        (tid, uv0, uv1)
+        None
     };
+    let uv_min = egui::pos2(0.0, 0.0);
+    let uv_max = egui::pos2(1.0, 1.0);
 
-    // Cell half-extents: GridCell prefab scale = 0.3
-    // pixelW(103) × 0.3 × 10/768, pixelH(104) × 0.3 × 10/768
-    let half_w = 103.0 * 0.3 * 10.0 / 768.0; // ≈ 0.4023
-    let half_h = 104.0 * 0.3 * 10.0 / 768.0; // ≈ 0.4063
+    // Cell half-extents: GridCellLight is 104×105 px, prefab scale = 0.3
+    let half_w = 104.0 * 0.3 * 10.0 / 768.0;
+    let half_h = 105.0 * 0.3 * 10.0 / 768.0;
 
+    // Vertex tint = white → passes texture through unmodified,
+    // matching Unity's `_Color = (1,1,1,1)`.
     let tint = egui::Color32::from_rgba_premultiplied(255, 255, 255, 255);
 
     for row in 0..grid.grid_height {
@@ -218,12 +204,8 @@ pub fn draw_construction_grid(
                 mesh.add_rect_with_uv(cell_rect, uv_rect, tint);
                 painter.add(egui::Shape::mesh(mesh));
             } else {
-                // Fallback: semi-transparent rectangle
-                let fallback = if grid.light_grid {
-                    egui::Color32::from_rgba_unmultiplied(255, 255, 255, 64)
-                } else {
-                    egui::Color32::from_rgba_premultiplied(0, 0, 0, 40)
-                };
+                // Fallback: approximate GridCellLight's visual — RGBA(48,48,48,64)
+                let fallback = egui::Color32::from_rgba_unmultiplied(48, 48, 48, 64);
                 painter.rect_filled(cell_rect, 0.0, fallback);
             }
         }

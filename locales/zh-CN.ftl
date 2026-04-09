@@ -23,6 +23,7 @@ menu_grid = 网格
 menu_physics_ground = 物理地面
 menu_level_bounds = 关卡边界
 menu_dark_overlay = 暗层覆盖
+menu_terrain_tris = 地形三角剖分
 menu_language = 语言
 menu_help = 帮助
 menu_shortcuts = 说明

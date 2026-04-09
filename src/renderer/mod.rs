@@ -228,6 +228,8 @@ pub struct LevelRenderer {
     camera_limits: Option<[f32; 4]>,
     /// Whether to show the level bounds border.
     pub show_level_bounds: bool,
+    /// Whether to show terrain fill triangulation wireframe.
+    pub show_terrain_tris: bool,
     /// Pre-computed lit area polygons (world-space vertices for each LitArea).
     lit_area_polygons: Vec<LitAreaPolygon>,
     /// Fan state machines for propeller animation.
@@ -660,6 +662,7 @@ impl LevelRenderer {
             show_dark_overlay: true,
             camera_limits: None,
             show_level_bounds: false,
+            show_terrain_tris: false,
             lit_area_polygons: Vec::new(),
             fan_emitters: Vec::new(),
             fan_particles: Vec::new(),
@@ -733,6 +736,7 @@ impl LevelRenderer {
             show_dark_overlay: true,
             camera_limits: None,
             show_level_bounds: self.show_level_bounds,
+            show_terrain_tris: self.show_terrain_tris,
             lit_area_polygons: Vec::new(),
             fan_emitters: Vec::new(),
             fan_particles: Vec::new(),
@@ -2178,6 +2182,42 @@ impl LevelRenderer {
                     &self.tex_cache,
                     &mut self.terrain_scratch_mesh,
                 );
+            }
+        }
+
+        // Terrain triangulation wireframe overlay
+        if self.show_terrain_tris {
+            let tri_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 128, 160));
+            for td in self.terrain_data.iter() {
+                if let Some(ref fill) = td.fill_mesh {
+                    let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
+                    let verts = &fill.vertices;
+                    let indices = &fill.indices;
+                    let tri_count = indices.len() / 3;
+                    for t in 0..tri_count {
+                        let i0 = indices[t * 3] as usize;
+                        let i1 = indices[t * 3 + 1] as usize;
+                        let i2 = indices[t * 3 + 2] as usize;
+                        if i0 >= verts.len() || i1 >= verts.len() || i2 >= verts.len() {
+                            continue;
+                        }
+                        let p0 = self.camera.world_to_screen(
+                            Vec2 { x: verts[i0].pos.x + tdx, y: verts[i0].pos.y + tdy },
+                            canvas_center,
+                        );
+                        let p1 = self.camera.world_to_screen(
+                            Vec2 { x: verts[i1].pos.x + tdx, y: verts[i1].pos.y + tdy },
+                            canvas_center,
+                        );
+                        let p2 = self.camera.world_to_screen(
+                            Vec2 { x: verts[i2].pos.x + tdx, y: verts[i2].pos.y + tdy },
+                            canvas_center,
+                        );
+                        painter.line_segment([p0, p1], tri_stroke);
+                        painter.line_segment([p1, p2], tri_stroke);
+                        painter.line_segment([p2, p0], tri_stroke);
+                    }
+                }
             }
         }
 

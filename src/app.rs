@@ -1205,6 +1205,13 @@ impl eframe::App for EditorApp {
                             self.tabs[self.active_tab].renderer.show_dark_overlay = v;
                         }
                     }
+                    {
+                        let mut v = self.tabs[self.active_tab].renderer.show_terrain_tris;
+                        if ui.checkbox(&mut v, t.get("menu_terrain_tris")).clicked() {
+                            ui.close();
+                            self.tabs[self.active_tab].renderer.show_terrain_tris = v;
+                        }
+                    }
                     ui.separator();
                     ui.menu_button(t.get("menu_language"), |ui| {
                         for &lang in Language::ALL {

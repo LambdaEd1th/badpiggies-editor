@@ -108,6 +108,11 @@ prop_byte_count = Byte Count:
 prop_child_count = Child Count:
 prop_fill_offset_x = Fill Offset X:
 prop_fill_offset_y = Fill Offset Y:
+prop_curve_tex = Curve Texture { $idx }
+prop_strip_width = Strip Width:
+prop_fade_threshold = Fade Threshold:
+prop_terrain_closed = Closed Loop:
+add_terrain = Attach Terrain Data
 
 # Status messages
 status_welcome = Open a .bytes level file to start editing

@@ -983,7 +983,7 @@ impl LevelRenderer {
         // Build GPU vertex/index buffers for terrain fill meshes
         self.fill_gpu_meshes = Vec::new();
         if let Some(ref device) = self.wgpu_device {
-            for td in &self.terrain_data {
+            for (_fi, td) in self.terrain_data.iter().enumerate() {
                 if let Some(ref fill) = td.fill_mesh {
                     let vertices: Vec<fill_shader::FillVertex> = fill
                         .vertices

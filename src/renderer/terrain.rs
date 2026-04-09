@@ -232,7 +232,25 @@ fn build_fill_mesh(td: &TerrainData, offset: Vec3) -> Option<egui::Mesh> {
 
     // Add indices
     for &idx in indices {
+        let i = idx as usize;
+        if idx < 0 || i >= verts.len() {
+            log::error!(
+                "build_fill_mesh: index {} out of bounds (verts={}), skipping triangle",
+                idx,
+                verts.len()
+            );
+            continue;
+        }
         mesh.indices.push(idx as u32);
+    }
+
+    // Validate mesh
+    if !mesh.is_valid() {
+        log::error!(
+            "build_fill_mesh: egui mesh INVALID! verts={} indices={}",
+            mesh.vertices.len(),
+            mesh.indices.len()
+        );
     }
 
     Some(mesh)

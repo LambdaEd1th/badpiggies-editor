@@ -326,6 +326,7 @@ fn read_terrain(reader: &mut BinaryReader) -> io::Result<TerrainData> {
         control_texture_count,
         control_texture_data,
         has_collider,
+        fill_boundary: None,
     })
 }
 

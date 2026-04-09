@@ -108,6 +108,11 @@ prop_byte_count = 字节数:
 prop_child_count = 子对象数:
 prop_fill_offset_x = 填充偏移 X:
 prop_fill_offset_y = 填充偏移 Y:
+prop_curve_tex = 曲线纹理 { $idx }
+prop_strip_width = 条带宽度:
+prop_fade_threshold = 淡入阈值:
+prop_terrain_closed = 闭合曲线:
+add_terrain = 附加地形数据
 
 # 状态消息
 status_welcome = 打开一个 .bytes 关卡文件开始编辑

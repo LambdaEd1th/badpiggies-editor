@@ -60,6 +60,14 @@ impl I18n {
         self.format_with(key, &args)
     }
 
+    /// Format a message with a single `$idx` argument.
+    pub fn fmt_idx(&self, key: &str, idx: usize) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("idx", idx as i64);
+        self.format_with(key, &args)
+    }
+
     /// Format a two-argument message with `$path` and `$error`.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn fmt_path_error(&self, key: &str, path: &str, error: &str) -> String {

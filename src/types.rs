@@ -98,6 +98,11 @@ pub struct TerrainData {
     pub control_texture_count: i32,
     pub control_texture_data: Option<Vec<u8>>,
     pub has_collider: bool,
+    /// Cached fill boundary rect `[min_x, min_y, max_x, max_y]`.
+    /// Computed once from the original fill mesh on first load, then only expanded
+    /// (never shrunk) when nodes are dragged outside the current boundary.
+    #[serde(default)]
+    pub fill_boundary: Option<[f32; 4]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

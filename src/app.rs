@@ -2105,6 +2105,124 @@ fn show_properties_editable(
                         .add(egui::DragValue::new(&mut td.fill_texture_tile_offset_y).speed(0.01))
                         .changed();
                 });
+
+                // Closed loop toggle
+                let nodes = crate::terrain_gen::extract_curve_nodes(td);
+                let is_closed = nodes.len() >= 2
+                    && crate::terrain_gen::is_closed_loop(&nodes);
+                let mut closed_val = is_closed;
+                ui.horizontal(|ui| {
+                    ui.label(t.get("prop_terrain_closed"));
+                    if ui.checkbox(&mut closed_val, "").changed() {
+                        let mut nodes = nodes.clone();
+                        if closed_val && !is_closed && nodes.len() >= 2 {
+                            // Close: append copy of first node
+                            nodes.push(crate::terrain_gen::CurveNode {
+                                position: nodes[0].position,
+                                texture: nodes[0].texture,
+                            });
+                        } else if !closed_val && is_closed && nodes.len() >= 3 {
+                            // Open: remove last node (the duplicate)
+                            nodes.pop();
+                        }
+                        crate::terrain_gen::regenerate_terrain(td, &nodes);
+                        changed = true;
+                    }
+                });
+
+                // Curve textures (strip width / fade threshold)
+                for ct_i in 0..td.curve_textures.len() {
+                    ui.horizontal(|ui| {
+                        ui.label(t.fmt_idx("prop_curve_tex", ct_i));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(format!("  {}",t.get("prop_strip_width")));
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut td.curve_textures[ct_i].size.y)
+                                    .speed(0.01)
+                                    .range(0.01..=5.0),
+                            )
+                            .changed()
+                        {
+                            // Regenerate curve mesh with updated strip widths
+                            let nodes = crate::terrain_gen::extract_curve_nodes(td);
+                            crate::terrain_gen::regenerate_terrain(td, &nodes);
+                            changed = true;
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(format!("  {}", t.get("prop_fade_threshold")));
+                        changed |= ui
+                            .add(
+                                egui::DragValue::new(&mut td.curve_textures[ct_i].fade_threshold)
+                                    .speed(0.01)
+                                    .range(0.0..=1.0),
+                            )
+                            .changed();
+                    });
+                }
+            }
+
+            // If no terrain data, offer to create one
+            if p.terrain_data.is_none() && p.data_type == DataType::None {
+                ui.separator();
+                if ui.button(t.get("add_terrain")).clicked() {
+                    p.data_type = DataType::Terrain;
+                    // Create a default terrain: simple 4-node open curve
+                    let default_nodes = vec![
+                        crate::terrain_gen::CurveNode {
+                            position: Vec2 { x: -5.0, y: 0.0 },
+                            texture: 0,
+                        },
+                        crate::terrain_gen::CurveNode {
+                            position: Vec2 { x: -1.5, y: 0.5 },
+                            texture: 0,
+                        },
+                        crate::terrain_gen::CurveNode {
+                            position: Vec2 { x: 1.5, y: 0.5 },
+                            texture: 0,
+                        },
+                        crate::terrain_gen::CurveNode {
+                            position: Vec2 { x: 5.0, y: 0.0 },
+                            texture: 0,
+                        },
+                    ];
+                    let mut td = TerrainData {
+                        fill_texture_tile_offset_x: 0.0,
+                        fill_texture_tile_offset_y: 0.0,
+                        fill_mesh: TerrainMesh::default(),
+                        fill_color: Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 1.0,
+                        },
+                        fill_texture_index: 0,
+                        curve_mesh: TerrainMesh::default(),
+                        curve_textures: vec![
+                            CurveTexture {
+                                texture_index: 0,
+                                size: Vec2 { x: 0.1, y: 0.5 },
+                                fixed_angle: false,
+                                fade_threshold: 0.5,
+                            },
+                            CurveTexture {
+                                texture_index: 1,
+                                size: Vec2 { x: 0.1, y: 0.1 },
+                                fixed_angle: false,
+                                fade_threshold: 0.0,
+                            },
+                        ],
+                        control_texture_count: 0,
+                        control_texture_data: None,
+                        has_collider: true,
+                        fill_boundary: None,
+                    };
+                    crate::terrain_gen::regenerate_terrain(&mut td, &default_nodes);
+                    p.terrain_data = Some(Box::new(td));
+                    changed = true;
+                }
             }
 
             if let Some(ref mut od) = p.override_data {

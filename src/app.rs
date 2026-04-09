@@ -5,6 +5,8 @@ use eframe::egui;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 
+use std::collections::BTreeSet;
+
 use crate::locale::{I18n, Language};
 use crate::parser;
 use crate::renderer::LevelRenderer;
@@ -21,7 +23,7 @@ const UNDO_MAX: usize = 100;
 /// A snapshot of the editor state for undo/redo.
 struct Snapshot {
     level: LevelData,
-    selected: Option<ObjectIndex>,
+    selected: BTreeSet<ObjectIndex>,
 }
 
 /// Undo/redo history stack.
@@ -33,9 +35,8 @@ struct UndoStack {
 /// Clipboard contents for copy/cut/paste.
 #[derive(Clone)]
 struct Clipboard {
-    /// Cloned objects forming a self-contained subtree.
-    /// objects[0] is always the root of the copied subtree.
-    objects: Vec<LevelObject>,
+    /// Each entry is a cloned subtree (objects[0] is root of that subtree).
+    subtrees: Vec<Vec<LevelObject>>,
 }
 
 /// Per-tab editor state (each tab is an independent level editor).
@@ -44,18 +45,20 @@ struct Tab {
     level: Option<LevelData>,
     /// File name of the loaded level.
     file_name: Option<String>,
-    /// Currently selected object index.
-    selected: Option<ObjectIndex>,
+    /// Currently selected object indices.
+    selected: BTreeSet<ObjectIndex>,
     /// Canvas renderer state (owns per-level caches; shares GPU pipelines via Arc).
     renderer: LevelRenderer,
     /// Status message.
     status: String,
-    /// Pending delete confirmation: (object_index, object_name).
-    pending_delete: Option<(ObjectIndex, String)>,
+    /// Pending delete confirmation: (object_indices, display_label).
+    pending_delete: Option<(Vec<ObjectIndex>, String)>,
     /// Undo/redo history.
     history: UndoStack,
     /// Whether properties were changed in the previous frame (for undo coalescing).
     props_changed_prev: bool,
+    /// Anchor for Shift+click range selection in the object tree.
+    select_anchor: Option<ObjectIndex>,
 }
 
 impl Tab {
@@ -63,7 +66,7 @@ impl Tab {
         Self {
             level: None,
             file_name: None,
-            selected: None,
+            selected: BTreeSet::new(),
             renderer,
             status: welcome_status,
             pending_delete: None,
@@ -72,6 +75,7 @@ impl Tab {
                 redo: Vec::new(),
             },
             props_changed_prev: false,
+            select_anchor: None,
         }
     }
 
@@ -91,7 +95,7 @@ impl Tab {
                 self.renderer.set_level(&level);
                 self.level = Some(level);
                 self.file_name = Some(name);
-                self.selected = None;
+                self.selected.clear();
                 self.history.undo.clear();
                 self.history.redo.clear();
                 self.status = i18n.fmt_status_loaded(obj_count, root_count);
@@ -119,7 +123,7 @@ impl Tab {
                 self.renderer.set_level(&level);
                 self.level = Some(level);
                 self.file_name = Some(name);
-                self.selected = None;
+                self.selected.clear();
                 self.history.undo.clear();
                 self.history.redo.clear();
                 self.status = i18n.fmt_status_loaded(obj_count, root_count);
@@ -147,11 +151,12 @@ impl Tab {
     }
 
     /// Determine the target parent for a paste operation.
+    /// Uses the first selected object to find the parent.
     fn paste_target_parent(
         level: &LevelData,
-        selected: Option<ObjectIndex>,
+        selected: &BTreeSet<ObjectIndex>,
     ) -> Option<ObjectIndex> {
-        let sel = selected?;
+        let &sel = selected.iter().next()?;
         if sel >= level.objects.len() {
             return None;
         }
@@ -196,7 +201,7 @@ impl LevelData {
     /// Deep-clone the subtree rooted at `root_idx` into a self-contained
     /// `Clipboard`.  All internal parent/children indices are remapped to
     /// be relative to the cloned vec (root is always index 0).
-    fn clone_subtree(&self, root_idx: ObjectIndex) -> Clipboard {
+    fn clone_subtree(&self, root_idx: ObjectIndex) -> Vec<LevelObject> {
         // Collect all indices in the subtree (BFS).
         let mut indices = Vec::new();
         let mut queue = std::collections::VecDeque::new();
@@ -216,7 +221,7 @@ impl LevelData {
             .map(|(new, &old)| (old, new))
             .collect();
         // Clone and remap.
-        let objects: Vec<LevelObject> = indices
+        indices
             .iter()
             .map(|&old_idx| {
                 let mut obj = self.objects[old_idx].clone();
@@ -235,17 +240,16 @@ impl LevelData {
                 }
                 obj
             })
-            .collect();
-        Clipboard { objects }
+            .collect()
     }
 
-    /// Paste a clipboard subtree into the level.  All objects are appended to
+    /// Paste a subtree (Vec<LevelObject>) into the level.  All objects are appended to
     /// the arena.  If `parent_idx` is `Some`, the pasted root becomes a child
     /// of that parent; otherwise it becomes a new root-level object.
     /// Returns the index of the pasted root.
-    fn paste_subtree(&mut self, clip: &Clipboard, parent_idx: Option<ObjectIndex>) -> ObjectIndex {
+    fn paste_subtree(&mut self, subtree: &[LevelObject], parent_idx: Option<ObjectIndex>) -> ObjectIndex {
         let base = self.objects.len();
-        for (i, obj) in clip.objects.iter().enumerate() {
+        for (i, obj) in subtree.iter().enumerate() {
             let mut obj = obj.clone();
             match &mut obj {
                 LevelObject::Prefab(p) => {
@@ -370,7 +374,7 @@ impl EditorApp {
         if let Some(ref level) = tab.level {
             tab.history.undo.push(Snapshot {
                 level: level.clone(),
-                selected: tab.selected,
+                selected: tab.selected.clone(),
             });
             if tab.history.undo.len() > UNDO_MAX {
                 tab.history.undo.remove(0);
@@ -386,7 +390,7 @@ impl EditorApp {
             if let Some(ref level) = tab.level {
                 tab.history.redo.push(Snapshot {
                     level: level.clone(),
-                    selected: tab.selected,
+                    selected: tab.selected.clone(),
                 });
             }
             tab.selected = snapshot.selected;
@@ -404,7 +408,7 @@ impl EditorApp {
             if let Some(ref level) = tab.level {
                 tab.history.undo.push(Snapshot {
                     level: level.clone(),
-                    selected: tab.selected,
+                    selected: tab.selected.clone(),
                 });
             }
             tab.selected = snapshot.selected;
@@ -415,38 +419,60 @@ impl EditorApp {
         }
     }
 
-    /// Copy the selected object (and its subtree) to the clipboard.
+    /// Copy all selected objects (and their subtrees) to the clipboard.
     fn copy_selected(&mut self) {
         let tab = &self.tabs[self.active_tab];
-        if let Some(sel) = tab.selected
-            && let Some(ref level) = tab.level
-            && sel < level.objects.len()
-        {
-            self.clipboard = Some(level.clone_subtree(sel));
+        if tab.selected.is_empty() {
+            return;
+        }
+        if let Some(ref level) = tab.level {
+            let subtrees: Vec<Vec<LevelObject>> = tab
+                .selected
+                .iter()
+                .filter(|&&sel| sel < level.objects.len())
+                .map(|&sel| level.clone_subtree(sel))
+                .collect();
+            if !subtrees.is_empty() {
+                self.clipboard = Some(Clipboard { subtrees });
+            }
         }
     }
 
-    /// Cut the selected object: copy then delete.
+    /// Cut all selected objects: copy then delete.
     fn cut_selected(&mut self) {
         let tab = &mut self.tabs[self.active_tab];
-        if let Some(sel) = tab.selected
-            && let Some(ref level) = tab.level
-            && sel < level.objects.len()
-        {
-            self.clipboard = Some(level.clone_subtree(sel));
-            // push_undo inline (can't call self method while borrowing tab)
+        if tab.selected.is_empty() {
+            return;
+        }
+        if let Some(ref level) = tab.level {
+            let subtrees: Vec<Vec<LevelObject>> = tab
+                .selected
+                .iter()
+                .filter(|&&sel| sel < level.objects.len())
+                .map(|&sel| level.clone_subtree(sel))
+                .collect();
+            if subtrees.is_empty() {
+                return;
+            }
+            self.clipboard = Some(Clipboard { subtrees });
+            // push_undo inline
             let undo_snap = Snapshot {
                 level: level.clone(),
-                selected: tab.selected,
+                selected: tab.selected.clone(),
             };
             tab.history.undo.push(undo_snap);
             if tab.history.undo.len() > UNDO_MAX {
                 tab.history.undo.remove(0);
             }
             tab.history.redo.clear();
+            // Delete in reverse order to keep indices valid
+            let mut to_delete: Vec<ObjectIndex> = tab.selected.iter().copied().collect();
+            to_delete.sort_unstable_by(|a, b| b.cmp(a));
             if let Some(ref mut level) = tab.level {
-                level.delete_object(sel);
-                tab.selected = None;
+                for idx in to_delete {
+                    level.delete_object(idx);
+                }
+                tab.selected.clear();
                 let cam = tab.renderer.camera.clone();
                 tab.renderer.set_level(level);
                 tab.renderer.camera = cam;
@@ -464,13 +490,13 @@ impl EditorApp {
         if tab.level.is_none() {
             return;
         }
-        let target = Tab::paste_target_parent(tab.level.as_ref().unwrap(), tab.selected);
+        let target = Tab::paste_target_parent(tab.level.as_ref().unwrap(), &tab.selected);
         // push_undo inline
         {
             let level = tab.level.as_ref().unwrap();
             tab.history.undo.push(Snapshot {
                 level: level.clone(),
-                selected: tab.selected,
+                selected: tab.selected.clone(),
             });
             if tab.history.undo.len() > UNDO_MAX {
                 tab.history.undo.remove(0);
@@ -478,61 +504,74 @@ impl EditorApp {
             tab.history.redo.clear();
         }
         let level = tab.level.as_mut().unwrap();
-        let new_root = level.paste_subtree(&clip, target);
-        match &mut level.objects[new_root] {
-            LevelObject::Prefab(p) => {
-                p.position.x += 1.0;
-                p.position.y -= 1.0;
+        tab.selected.clear();
+        for subtree in &clip.subtrees {
+            let new_root = level.paste_subtree(subtree, target);
+            match &mut level.objects[new_root] {
+                LevelObject::Prefab(p) => {
+                    p.position.x += 1.0;
+                    p.position.y -= 1.0;
+                }
+                LevelObject::Parent(p) => {
+                    p.position.x += 1.0;
+                    p.position.y -= 1.0;
+                }
             }
-            LevelObject::Parent(p) => {
-                p.position.x += 1.0;
-                p.position.y -= 1.0;
-            }
+            tab.selected.insert(new_root);
         }
-        tab.selected = Some(new_root);
         let cam = tab.renderer.camera.clone();
         tab.renderer.set_level(level);
         tab.renderer.camera = cam;
     }
 
-    /// Duplicate the selected object in-place (copy + paste in one step).
+    /// Duplicate all selected objects in-place.
     fn duplicate_selected(&mut self) {
         let tab = &mut self.tabs[self.active_tab];
-        let sel = match tab.selected {
-            Some(s) => s,
-            None => return,
-        };
-        if tab.level.is_none() {
+        if tab.selected.is_empty() || tab.level.is_none() {
             return;
         }
         let level_ref = tab.level.as_ref().unwrap();
-        let clip = level_ref.clone_subtree(sel);
-        let target = match &level_ref.objects[sel] {
-            LevelObject::Prefab(p) => p.parent,
-            LevelObject::Parent(p) => p.parent,
-        };
+        let items: Vec<(Vec<LevelObject>, Option<ObjectIndex>)> = tab
+            .selected
+            .iter()
+            .filter(|&&s| s < level_ref.objects.len())
+            .map(|&sel| {
+                let subtree = level_ref.clone_subtree(sel);
+                let target = match &level_ref.objects[sel] {
+                    LevelObject::Prefab(p) => p.parent,
+                    LevelObject::Parent(p) => p.parent,
+                };
+                (subtree, target)
+            })
+            .collect();
+        if items.is_empty() {
+            return;
+        }
         // push_undo inline
         tab.history.undo.push(Snapshot {
             level: level_ref.clone(),
-            selected: tab.selected,
+            selected: tab.selected.clone(),
         });
         if tab.history.undo.len() > UNDO_MAX {
             tab.history.undo.remove(0);
         }
         tab.history.redo.clear();
         let level = tab.level.as_mut().unwrap();
-        let new_root = level.paste_subtree(&clip, target);
-        match &mut level.objects[new_root] {
-            LevelObject::Prefab(p) => {
-                p.position.x += 1.0;
-                p.position.y -= 1.0;
+        tab.selected.clear();
+        for (subtree, target) in &items {
+            let new_root = level.paste_subtree(subtree, *target);
+            match &mut level.objects[new_root] {
+                LevelObject::Prefab(p) => {
+                    p.position.x += 1.0;
+                    p.position.y -= 1.0;
+                }
+                LevelObject::Parent(p) => {
+                    p.position.x += 1.0;
+                    p.position.y -= 1.0;
+                }
             }
-            LevelObject::Parent(p) => {
-                p.position.x += 1.0;
-                p.position.y -= 1.0;
-            }
+            tab.selected.insert(new_root);
         }
-        tab.selected = Some(new_root);
         let cam = tab.renderer.camera.clone();
         tab.renderer.set_level(level);
         tab.renderer.camera = cam;
@@ -577,7 +616,7 @@ impl EditorApp {
             let tab = &mut self.tabs[0];
             tab.level = None;
             tab.file_name = None;
-            tab.selected = None;
+            tab.selected.clear();
             tab.history.undo.clear();
             tab.history.redo.clear();
             tab.status = self.lang.i18n().get("status_welcome");
@@ -681,9 +720,8 @@ impl eframe::App for EditorApp {
             self.duplicate_selected();
         }
 
-        // Cmd+W / Ctrl+W — close tab (only when multiple tabs open)
+        // Cmd+W / Ctrl+W — close tab
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::W)))
-            && self.tabs.len() > 1
         {
             self.close_tab(self.active_tab);
         }
@@ -700,7 +738,7 @@ impl eframe::App for EditorApp {
         // Handle Delete / Backspace key — queue confirmation dialog
         // Only when no text widget has focus (avoid intercepting text editing)
         // Skip if hovering a terrain node (renderer handles node deletion instead)
-        if let Some(sel) = self.tabs[self.active_tab].selected {
+        if !self.tabs[self.active_tab].selected.is_empty() {
             let delete_pressed = !ctx.egui_wants_keyboard_input()
                 && ctx.input_mut(|i| {
                     i.consume_key(Modifiers::NONE, Key::Delete)
@@ -711,8 +749,14 @@ impl eframe::App for EditorApp {
                 && self.tabs[self.active_tab].pending_delete.is_none()
                 && let Some(ref level) = self.tabs[self.active_tab].level
             {
-                let name = level.objects[sel].name().to_string();
-                self.tabs[self.active_tab].pending_delete = Some((sel, name));
+                let indices: Vec<ObjectIndex> =
+                    self.tabs[self.active_tab].selected.iter().copied().collect();
+                let label = if indices.len() == 1 {
+                    level.objects[indices[0]].name().to_string()
+                } else {
+                    format!("{} objects", indices.len())
+                };
+                self.tabs[self.active_tab].pending_delete = Some((indices, label));
             }
         }
     }
@@ -782,7 +826,7 @@ impl eframe::App for EditorApp {
         });
 
         // Delete confirmation dialog
-        if let Some((del_idx, ref del_name)) = self.tabs[self.active_tab].pending_delete.clone() {
+        if let Some((ref del_indices, ref del_name)) = self.tabs[self.active_tab].pending_delete.clone() {
             let mut action = 0u8; // 0=pending, 1=confirm, 2=cancel
             egui::Window::new(t.get("win_confirm_delete"))
                 .collapsible(false)
@@ -805,8 +849,13 @@ impl eframe::App for EditorApp {
                     self.push_undo();
                     let tab = &mut self.tabs[self.active_tab];
                     if let Some(ref mut level) = tab.level {
-                        level.delete_object(del_idx);
-                        tab.selected = None;
+                        // Delete in reverse index order to keep indices valid
+                        let mut sorted: Vec<ObjectIndex> = del_indices.clone();
+                        sorted.sort_unstable_by(|a, b| b.cmp(a));
+                        for idx in sorted {
+                            level.delete_object(idx);
+                        }
+                        tab.selected.clear();
                         let cam = tab.renderer.camera.clone();
                         tab.renderer.set_level(level);
                         tab.renderer.camera = cam;
@@ -1073,7 +1122,7 @@ impl eframe::App for EditorApp {
                         self.redo();
                     }
                     ui.separator();
-                    let has_sel = self.tabs[self.active_tab].selected.is_some()
+                    let has_sel = !self.tabs[self.active_tab].selected.is_empty()
                         && self.tabs[self.active_tab].level.is_some();
                     let has_clip = self.clipboard.is_some()
                         && self.tabs[self.active_tab].level.is_some();
@@ -1130,11 +1179,17 @@ impl eframe::App for EditorApp {
                         .clicked()
                     {
                         ui.close();
-                        if let Some(sel) = self.tabs[self.active_tab].selected
+                        if !self.tabs[self.active_tab].selected.is_empty()
                             && let Some(ref level) = self.tabs[self.active_tab].level
                         {
-                            let name = level.objects[sel].name().to_string();
-                            self.tabs[self.active_tab].pending_delete = Some((sel, name));
+                            let indices: Vec<ObjectIndex> =
+                                self.tabs[self.active_tab].selected.iter().copied().collect();
+                            let label = if indices.len() == 1 {
+                                level.objects[indices[0]].name().to_string()
+                            } else {
+                                format!("{} objects", indices.len())
+                            };
+                            self.tabs[self.active_tab].pending_delete = Some((indices, label));
                         }
                     }
                     ui.separator();
@@ -1433,7 +1488,7 @@ impl eframe::App for EditorApp {
                                     }));
                                 }
                                 level.roots.push(new_idx);
-                                tab.selected = Some(new_idx);
+                                tab.selected = BTreeSet::from([new_idx]);
                                 let cam = tab.renderer.camera.clone();
                                 tab.renderer.set_level(level);
                                 tab.renderer.camera = cam;
@@ -1453,22 +1508,51 @@ impl eframe::App for EditorApp {
 
         // ── Tab bar ──
         {
+            /// Drag-and-drop payload for tab reordering.
+            struct TabDndPayload(usize);
+
             egui::Panel::top("tab_bar").show_inside(ui, |ui| {
                 ui.horizontal(|ui| {
                     let mut close_idx: Option<usize> = None;
+                    let mut tab_swap: Option<(usize, usize)> = None;
                     for i in 0..self.tabs.len() {
                         let title = self.tabs[i].title();
                         let is_active = i == self.active_tab;
-                        let resp = ui.selectable_label(is_active, &title);
+
+                        // Allocate a draggable selectable label
+                        let resp = selectable_label_draggable(ui, is_active, &title);
                         if resp.clicked() {
                             self.active_tab = i;
                         }
-                        // "×" close button right after the tab label
-                        if self.tabs.len() > 1 {
-                            let close_btn = ui.small_button("×");
-                            if close_btn.clicked() {
-                                close_idx = Some(i);
+                        if resp.dragged() {
+                            resp.dnd_set_drag_payload(TabDndPayload(i));
+                        }
+
+                        // Drop target: reorder tabs
+                        if let Some(_payload) = resp.dnd_hover_payload::<TabDndPayload>() {
+                            let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
+                            let mid_x = resp.rect.center().x;
+                            let hover_right = ui.input(|inp| {
+                                inp.pointer.hover_pos().map_or(false, |p| p.x > mid_x)
+                            });
+                            let x = if hover_right { resp.rect.right() } else { resp.rect.left() };
+                            ui.painter().vline(x, resp.rect.y_range(), stroke);
+                        }
+                        if let Some(payload) = resp.dnd_release_payload::<TabDndPayload>() {
+                            if payload.0 != i {
+                                let mid_x = resp.rect.center().x;
+                                let drop_right = ui.input(|inp| {
+                                    inp.pointer.hover_pos().map_or(false, |p| p.x > mid_x)
+                                });
+                                let target = if drop_right { i + 1 } else { i };
+                                tab_swap = Some((payload.0, target));
                             }
+                        }
+
+                        // "×" close button right after the tab label
+                        let close_btn = ui.small_button("×");
+                        if close_btn.clicked() {
+                            close_idx = Some(i);
                         }
                         ui.add_space(4.0);
                         // Middle-click to close tab
@@ -1482,6 +1566,24 @@ impl eframe::App for EditorApp {
                                 ui.close();
                             }
                         });
+                    }
+                    // Apply tab reorder (to = insertion index, 0..=len)
+                    if let Some((from, to)) = tab_swap {
+                        // After removing `from`, the effective insertion index shifts
+                        let insert_at = if from < to { (to - 1).min(self.tabs.len() - 1) } else { to };
+                        if insert_at != from {
+                            let tab = self.tabs.remove(from);
+                            let insert_at = if from < to { (to - 1).min(self.tabs.len()) } else { to };
+                            self.tabs.insert(insert_at, tab);
+                            // Update active_tab to follow
+                            if self.active_tab == from {
+                                self.active_tab = insert_at;
+                            } else if from < self.active_tab && self.active_tab <= insert_at {
+                                self.active_tab -= 1;
+                            } else if insert_at <= self.active_tab && self.active_tab < from {
+                                self.active_tab += 1;
+                            }
+                        }
                     }
                     if let Some(idx) = close_idx {
                         self.close_tab(idx);
@@ -1529,22 +1631,67 @@ impl eframe::App for EditorApp {
                     ui.separator();
 
                     let mut drop_action: Option<(ObjectIndex, DropPosition)> = None;
-                    let mut new_selection = self.tabs[self.active_tab].selected;
+                    let mut tree_clicked: Option<ObjectIndex> = None;
+                    let sel_snapshot = self.tabs[self.active_tab].selected.clone();
                     if let Some(ref level) = self.tabs[self.active_tab].level {
                         egui::ScrollArea::vertical()
                             .auto_shrink(false)
                             .show(ui, |ui| {
                                 for &root_idx in &level.roots {
-                                    if let Some(dr) =
-                                        show_object_tree(ui, level, root_idx, &mut new_selection, 0)
-                                        && drop_action.is_none()
-                                    {
-                                        drop_action = Some(dr);
+                                    let (dr, cl) =
+                                        show_object_tree(ui, level, root_idx, &sel_snapshot, 0);
+                                    if dr.is_some() && drop_action.is_none() {
+                                        drop_action = dr;
+                                    }
+                                    if cl.is_some() && tree_clicked.is_none() {
+                                        tree_clicked = cl;
                                     }
                                 }
                             });
                     }
-                    self.tabs[self.active_tab].selected = new_selection;
+                    // Handle click selection (plain / Cmd / Shift)
+                    if let Some(clicked_idx) = tree_clicked {
+                        let tab = &mut self.tabs[self.active_tab];
+                        let modifiers = ui.input(|i| i.modifiers);
+                        if modifiers.shift {
+                            // Shift+click: range select from anchor to clicked_idx
+                            if let (Some(anchor), Some(level)) =
+                                (tab.select_anchor, &tab.level)
+                            {
+                                let mut flat = Vec::new();
+                                for &root in &level.roots {
+                                    collect_tree_order(level, root, &mut flat);
+                                }
+                                let a_pos = flat.iter().position(|&i| i == anchor);
+                                let b_pos = flat.iter().position(|&i| i == clicked_idx);
+                                if let (Some(a), Some(b)) = (a_pos, b_pos) {
+                                    let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+                                    if !modifiers.command {
+                                        tab.selected.clear();
+                                    }
+                                    for &obj_idx in &flat[lo..=hi] {
+                                        tab.selected.insert(obj_idx);
+                                    }
+                                }
+                            } else {
+                                // No anchor yet — behave like plain click
+                                tab.selected = BTreeSet::from([clicked_idx]);
+                                tab.select_anchor = Some(clicked_idx);
+                            }
+                        } else if modifiers.command {
+                            // Cmd+click: toggle
+                            if tab.selected.contains(&clicked_idx) {
+                                tab.selected.remove(&clicked_idx);
+                            } else {
+                                tab.selected.insert(clicked_idx);
+                            }
+                            tab.select_anchor = Some(clicked_idx);
+                        } else {
+                            // Plain click: replace selection
+                            tab.selected = BTreeSet::from([clicked_idx]);
+                            tab.select_anchor = Some(clicked_idx);
+                        }
+                    }
                     // Handle drop action outside the immutable borrow of level
                     if let Some((source_idx, drop_pos)) = drop_action {
                         self.push_undo();
@@ -1552,7 +1699,7 @@ impl eframe::App for EditorApp {
                         if let Some(ref mut level) = tab.level {
                             let new_sel = level.move_object(source_idx, drop_pos);
                             if let Some(ns) = new_sel {
-                                tab.selected = Some(ns);
+                                tab.selected = BTreeSet::from([ns]);
                             }
                             let cam = tab.renderer.camera.clone();
                             tab.renderer.set_level(level);
@@ -1577,8 +1724,13 @@ impl eframe::App for EditorApp {
                     ui.separator();
 
                     let tab = &mut self.tabs[self.active_tab];
-                    let sel = tab.selected;
-                    if let (Some(level), Some(sel)) = (&mut tab.level, sel) {
+                    // Show properties only for single selection
+                    let single_sel = if tab.selected.len() == 1 {
+                        Some(*tab.selected.iter().next().unwrap())
+                    } else {
+                        None
+                    };
+                    if let (Some(level), Some(sel)) = (&mut tab.level, single_sel) {
                         if sel < level.objects.len() {
                             // Clone the object before editing so we can snapshot pre-state
                             let pre_obj = if !tab.props_changed_prev {
@@ -1594,7 +1746,7 @@ impl eframe::App for EditorApp {
                                     level_snapshot.objects[sel] = obj_backup;
                                     tab.history.undo.push(Snapshot {
                                         level: level_snapshot,
-                                        selected: tab.selected,
+                                        selected: tab.selected.clone(),
                                     });
                                     if tab.history.undo.len() > UNDO_MAX {
                                         tab.history.undo.remove(0);
@@ -1620,11 +1772,21 @@ impl eframe::App for EditorApp {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             let tab = &mut self.tabs[self.active_tab];
             if tab.level.is_some() {
-                let sel = tab.selected;
-                tab.renderer.show(ui, sel, t);
+                let sel = tab.selected.clone();
+                tab.renderer.show(ui, &sel, t);
                 // Pick up click-to-select from renderer
                 if let Some(idx) = tab.renderer.clicked_object {
-                    tab.selected = Some(idx);
+                    if tab.renderer.clicked_with_cmd {
+                        // Cmd+click: toggle selection
+                        if tab.selected.contains(&idx) {
+                            tab.selected.remove(&idx);
+                        } else {
+                            tab.selected.insert(idx);
+                        }
+                    } else {
+                        // Plain click: replace selection
+                        tab.selected = BTreeSet::from([idx]);
+                    }
                 }
                 // Pick up drag result — update object position
                 if let Some((idx, delta)) = tab.renderer.drag_result.take()
@@ -1634,21 +1796,39 @@ impl eframe::App for EditorApp {
                     // Snapshot pre-drag state for undo
                     tab.history.undo.push(Snapshot {
                         level: level.clone(),
-                        selected: tab.selected,
+                        selected: tab.selected.clone(),
                     });
                     if tab.history.undo.len() > UNDO_MAX {
                         tab.history.undo.remove(0);
                     }
                     tab.history.redo.clear();
 
-                    match &mut level.objects[idx] {
-                        LevelObject::Prefab(p) => {
-                            p.position.x += delta.x;
-                            p.position.y += delta.y;
+                    // Apply delta to ALL selected objects (batch move)
+                    for &sel_idx in &tab.selected {
+                        if sel_idx < level.objects.len() {
+                            match &mut level.objects[sel_idx] {
+                                LevelObject::Prefab(p) => {
+                                    p.position.x += delta.x;
+                                    p.position.y += delta.y;
+                                }
+                                LevelObject::Parent(p) => {
+                                    p.position.x += delta.x;
+                                    p.position.y += delta.y;
+                                }
+                            }
                         }
-                        LevelObject::Parent(p) => {
-                            p.position.x += delta.x;
-                            p.position.y += delta.y;
+                    }
+                    // Also move the dragged object if not already selected
+                    if !tab.selected.contains(&idx) {
+                        match &mut level.objects[idx] {
+                            LevelObject::Prefab(p) => {
+                                p.position.x += delta.x;
+                                p.position.y += delta.y;
+                            }
+                            LevelObject::Parent(p) => {
+                                p.position.x += delta.x;
+                                p.position.y += delta.y;
+                            }
                         }
                     }
                     // Rebuild draw data but preserve camera position/zoom
@@ -1664,7 +1844,7 @@ impl eframe::App for EditorApp {
                     // Snapshot pre-drag state for undo (before mutation)
                     tab.history.undo.push(Snapshot {
                         level: level.clone(),
-                        selected: tab.selected,
+                        selected: tab.selected.clone(),
                     });
                     if tab.history.undo.len() > UNDO_MAX {
                         tab.history.undo.remove(0);
@@ -1701,7 +1881,7 @@ impl eframe::App for EditorApp {
                         // Push undo before mutation
                         tab.history.undo.push(Snapshot {
                             level: level.clone(),
-                            selected: tab.selected,
+                            selected: tab.selected.clone(),
                         });
                         if tab.history.undo.len() > UNDO_MAX {
                             tab.history.undo.remove(0);
@@ -1896,12 +2076,13 @@ fn show_object_tree(
     ui: &mut egui::Ui,
     level: &LevelData,
     idx: ObjectIndex,
-    selected: &mut Option<ObjectIndex>,
+    selected: &BTreeSet<ObjectIndex>,
     depth: usize,
-) -> Option<(ObjectIndex, DropPosition)> {
+) -> (Option<(ObjectIndex, DropPosition)>, Option<ObjectIndex>) {
     let obj = &level.objects[idx];
-    let is_selected = *selected == Some(idx);
+    let is_selected = selected.contains(&idx);
     let mut drop_result: Option<(ObjectIndex, DropPosition)> = None;
+    let mut clicked: Option<ObjectIndex> = None;
 
     match obj {
         LevelObject::Parent(parent) => {
@@ -1914,7 +2095,7 @@ fn show_object_tree(
             let header_res = ui.horizontal(|ui| {
                 let label_res = selectable_label_draggable(ui, is_selected, &parent.name);
                 if label_res.clicked() {
-                    *selected = Some(idx);
+                    clicked = Some(idx);
                 }
                 if label_res.dragged() {
                     label_res.dnd_set_drag_payload(DndPayload(idx));
@@ -1980,10 +2161,12 @@ fn show_object_tree(
             // Show children
             state.show_body_indented(&header_res.response, ui, |ui| {
                 for &child in &parent.children {
-                    if let Some(dr) = show_object_tree(ui, level, child, selected, depth + 1)
-                        && drop_result.is_none()
-                    {
-                        drop_result = Some(dr);
+                    let (dr, cl) = show_object_tree(ui, level, child, selected, depth + 1);
+                    if dr.is_some() && drop_result.is_none() {
+                        drop_result = dr;
+                    }
+                    if cl.is_some() && clicked.is_none() {
+                        clicked = cl;
                     }
                 }
             });
@@ -1993,7 +2176,7 @@ fn show_object_tree(
             let label = format!("{} [{}]", prefab.name, prefab.prefab_index);
             let label_res = selectable_label_draggable(ui, is_selected, &label);
             if label_res.clicked() {
-                *selected = Some(idx);
+                clicked = Some(idx);
             }
             if label_res.dragged() {
                 label_res.dnd_set_drag_payload(DndPayload(idx));
@@ -2023,7 +2206,17 @@ fn show_object_tree(
             }
         }
     }
-    drop_result
+    (drop_result, clicked)
+}
+
+/// Collect all object indices in tree display order (depth-first).
+fn collect_tree_order(level: &LevelData, idx: ObjectIndex, out: &mut Vec<ObjectIndex>) {
+    out.push(idx);
+    if let LevelObject::Parent(p) = &level.objects[idx] {
+        for &child in &p.children {
+            collect_tree_order(level, child, out);
+        }
+    }
 }
 
 /// Show editable properties. Returns true if anything changed.
@@ -2582,7 +2775,7 @@ fn show_override_tree(
                     let color = override_type_color(&node.node_type);
                     ui.colored_label(color, &node.node_type);
 
-                    if ui.small_button(t.get("btn_delete")).clicked() {
+                    if ui.small_button("×").clicked() {
                         to_delete = Some(i);
                     }
 
@@ -2614,7 +2807,7 @@ fn show_override_tree(
 
                 let color = override_type_color(&node.node_type);
                 ui.colored_label(color, &node.node_type);
-                if ui.small_button(t.get("btn_delete")).clicked() {
+                if ui.small_button("×").clicked() {
                     to_delete = Some(i);
                 }
 
@@ -2657,7 +2850,7 @@ fn show_override_tree(
                 }
                 let color = override_type_color(&node.node_type);
                 ui.colored_label(color, &node.node_type);
-                if ui.small_button(t.get("btn_delete")).clicked() {
+                if ui.small_button("×").clicked() {
                     to_delete = Some(i);
                 }
 

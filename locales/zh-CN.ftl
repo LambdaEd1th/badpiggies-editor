@@ -39,7 +39,6 @@ win_add_object = 添加对象
 # 按钮
 btn_ok = 确定
 btn_cancel = 取消
-btn_delete = 删除
 btn_confirm = 确认
 btn_add = + 添加
 btn_visual = 可视化

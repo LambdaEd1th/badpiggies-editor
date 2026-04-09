@@ -12,6 +12,7 @@ pub mod sprite_shader;
 pub mod sprites;
 pub mod terrain;
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use eframe::egui;
@@ -197,6 +198,8 @@ pub struct LevelRenderer {
     panning: bool,
     /// Object index clicked this frame (if any).
     pub clicked_object: Option<ObjectIndex>,
+    /// Whether the click had Cmd/Ctrl held.
+    pub clicked_with_cmd: bool,
     /// Current mouse position in world coordinates (if hovering canvas).
     pub mouse_world: Option<Vec2>,
     /// Elapsed time for animations (seconds).
@@ -647,6 +650,7 @@ impl LevelRenderer {
             asset_base: None,
             panning: false,
             clicked_object: None,
+            clicked_with_cmd: false,
             mouse_world: None,
             time: 0.0,
             dragging: None,
@@ -721,6 +725,7 @@ impl LevelRenderer {
             asset_base: self.asset_base.clone(),
             panning: false,
             clicked_object: None,
+            clicked_with_cmd: false,
             mouse_world: None,
             time: 0.0,
             dragging: None,
@@ -1262,16 +1267,18 @@ impl LevelRenderer {
         }
     }
 
-    fn hit_test(&self, pos: Vec2, selected: Option<ObjectIndex>) -> Option<ObjectIndex> {
+    fn hit_test(&self, pos: Vec2, selected: &BTreeSet<ObjectIndex>) -> Option<ObjectIndex> {
         let mut best: Option<(ObjectIndex, f32)> = None;
         for sprite in self.sprite_data.iter().rev() {
             // Allow terrain through only if it's the currently selected object
-            if sprite.is_terrain && selected != Some(sprite.index) {
+            if sprite.is_terrain && !selected.contains(&sprite.index) {
                 continue;
             }
             // Skip objects that are hidden (not rendered) unless selected or parent is selected
-            let is_selected = selected == Some(sprite.index)
-                || (sprite.is_hidden && sprite.parent.is_some() && selected == sprite.parent);
+            let is_selected = selected.contains(&sprite.index)
+                || (sprite.is_hidden
+                    && sprite.parent.is_some()
+                    && sprite.parent.map_or(false, |p| selected.contains(&p)));
             if !is_selected && sprite.is_hidden {
                 continue;
             }
@@ -1344,7 +1351,7 @@ impl LevelRenderer {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
-        selected: Option<ObjectIndex>,
+        selected: &BTreeSet<ObjectIndex>,
         tr: &'static crate::locale::I18n,
     ) {
         let available = ui.available_size();
@@ -1881,6 +1888,7 @@ impl LevelRenderer {
         {
             let click_world = self.camera.screen_to_world(click_pos, canvas_center);
             self.clicked_object = self.hit_test(click_world, selected);
+            self.clicked_with_cmd = ui.input(|i| i.modifiers.command);
         }
 
         // Delete terrain node: Delete/Backspace while hovering a node (min 3 nodes)
@@ -1922,7 +1930,7 @@ impl LevelRenderer {
             let mut best: Option<(ObjectIndex, usize, f32, f32)> = None;
             let threshold = 12.0 / self.camera.zoom; // 12 screen-px
             for td in self.terrain_data.iter() {
-                if selected == Some(td.object_index) && td.curve_world_verts.len() >= 2 {
+                if selected.contains(&td.object_index) && td.curve_world_verts.len() >= 2 {
                     let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
                     for seg in 0..td.curve_world_verts.len() - 1 {
                         let (ax, ay) = td.curve_world_verts[seg];
@@ -2224,7 +2232,7 @@ impl LevelRenderer {
         // Selection outlines and node handles for terrain
         self.hovered_terrain_node = None;
         for td in self.terrain_data.iter() {
-            if selected == Some(td.object_index) && td.curve_world_verts.len() >= 2 {
+            if selected.contains(&td.object_index) && td.curve_world_verts.len() >= 2 {
                 let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
                 let screen_pts: Vec<egui::Pos2> = td
                     .curve_world_verts
@@ -2625,8 +2633,10 @@ impl LevelRenderer {
         }
         let mut deferred_birds: Vec<DeferredBird> = Vec::new();
         for (si, sprite) in self.sprite_data.iter().enumerate() {
-            let is_sel = selected == Some(sprite.index)
-                || (sprite.is_hidden && sprite.parent.is_some() && selected == sprite.parent);
+            let is_sel = selected.contains(&sprite.index)
+                || (sprite.is_hidden
+                    && sprite.parent.is_some()
+                    && sprite.parent.map_or(false, |p| selected.contains(&p)));
 
             // Early world-space frustum cull — skip all rendering work for off-screen sprites.
             // Use generous margin (2 world units) to account for compound sub-sprites, rotation, etc.

@@ -39,7 +39,6 @@ win_add_object = Add Object
 # Buttons
 btn_ok = OK
 btn_cancel = Cancel
-btn_delete = Delete
 btn_confirm = Confirm
 btn_add = + Add
 btn_visual = Visual

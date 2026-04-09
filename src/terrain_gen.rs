@@ -661,17 +661,16 @@ fn infer_boundary_from_fill_mesh(fill_verts: &[Vec2]) -> [f32; 4] {
     }
 }
 
-/// Expand boundary to include all node positions (with a small margin).
+/// Expand boundary to include all node positions.
 /// The boundary never shrinks — only grows when nodes move outside.
 fn expand_boundary_for_nodes(boundary: [f32; 4], nodes: &[CurveNode]) -> [f32; 4] {
     let [mut min_x, mut min_y, mut max_x, mut max_y] = boundary;
-    let margin = 0.5;
 
     for n in nodes {
-        min_x = min_x.min(n.position.x - margin);
-        min_y = min_y.min(n.position.y - margin);
-        max_x = max_x.max(n.position.x + margin);
-        max_y = max_y.max(n.position.y + margin);
+        min_x = min_x.min(n.position.x);
+        min_y = min_y.min(n.position.y);
+        max_x = max_x.max(n.position.x);
+        max_y = max_y.max(n.position.y);
     }
 
     [min_x, min_y, max_x, max_y]

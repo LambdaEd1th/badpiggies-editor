@@ -11,15 +11,7 @@ use super::EditorApp;
 /// Drag-and-drop payload for the object tree.
 struct DndPayload(ObjectIndex);
 
-/// Where to drop an item in the tree.
-pub enum DropPosition {
-    /// Insert before `target` in its parent's children list (or in roots).
-    Before(ObjectIndex),
-    /// Insert after `target` in its parent's children list (or in roots).
-    After(ObjectIndex),
-    /// Insert as the last child of a Parent object.
-    IntoParent(ObjectIndex),
-}
+use crate::types::DropPosition;
 
 impl EditorApp {
     /// Render the left object tree panel.
@@ -59,9 +51,7 @@ impl EditorApp {
                     let tab = &mut self.tabs[self.active_tab];
                     let modifiers = ui.input(|i| i.modifiers);
                     if modifiers.shift {
-                        if let (Some(anchor), Some(level)) =
-                            (tab.select_anchor, &tab.level)
-                        {
+                        if let (Some(anchor), Some(level)) = (tab.select_anchor, &tab.level) {
                             let mut flat = Vec::new();
                             for &root in &level.roots {
                                 collect_tree_order(level, root, &mut flat);

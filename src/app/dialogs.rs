@@ -1,8 +1,9 @@
-//! Dialog windows — delete confirmation, add object, shortcuts, about.
+//! Dialog windows — delete confirmation, add object, shortcuts, about, tools.
 
 use eframe::egui;
 
 use crate::locale::I18n;
+use crate::renderer::CursorMode;
 use crate::types::*;
 
 use super::EditorApp;
@@ -56,12 +57,46 @@ impl EditorApp {
         }
     }
 
+    /// Tool mode selector window.
+    pub(super) fn render_tool_window(&mut self, ctx: &egui::Context, t: &'static I18n) {
+        if !self.show_tools {
+            return;
+        }
+        egui::Window::new(t.get("tool_window_title"))
+            .collapsible(false)
+            .movable(true)
+            .resizable(false)
+            .open(&mut self.show_tools)
+            .default_pos([8.0, 80.0])
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    let modes = [
+                        (CursorMode::Select, "tool_select", "V"),
+                        (CursorMode::BoxSelect, "tool_box_select", "M"),
+                        (CursorMode::DrawTerrain, "tool_draw_terrain", "P"),
+                        (CursorMode::Pan, "tool_pan", "H"),
+                    ];
+                    for (mode, key, shortcut) in &modes {
+                        let label = format!("{} ({})", t.get(key), shortcut);
+                        if ui
+                            .selectable_label(self.cursor_mode == *mode, label)
+                            .clicked()
+                        {
+                            self.cursor_mode = *mode;
+                        }
+                    }
+                });
+            });
+    }
+
     /// Shortcuts help window.
     pub(super) fn render_shortcuts_window(&mut self, ctx: &egui::Context) {
         if !self.show_shortcuts {
             return;
         }
         let t = self.t();
+
+        // Add tool mode shortcuts to the shortcuts window
         egui::Window::new(t.get("win_shortcuts"))
             .collapsible(false)
             .movable(true)
@@ -74,6 +109,14 @@ impl EditorApp {
                         ui.strong(t.get("shortcuts_key"));
                         ui.strong(t.get("shortcuts_action"));
                         ui.end_row();
+
+                        // ── Mouse ──
+                        ui.separator();
+                        ui.separator();
+                        ui.end_row();
+                        ui.strong(t.get("shortcuts_section_mouse"));
+                        ui.label("");
+                        ui.end_row();
                         ui.label(t.get("shortcuts_scroll"));
                         ui.label(t.get("shortcuts_zoom"));
                         ui.end_row();
@@ -82,6 +125,20 @@ impl EditorApp {
                         ui.end_row();
                         ui.label(t.get("shortcuts_click"));
                         ui.label(t.get("shortcuts_select"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_cmd_click"));
+                        ui.label(t.get("shortcuts_cmd_click_action"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_shift_click"));
+                        ui.label(t.get("shortcuts_shift_click_action"));
+                        ui.end_row();
+
+                        // ── Keyboard Shortcuts ──
+                        ui.separator();
+                        ui.separator();
+                        ui.end_row();
+                        ui.strong(t.get("shortcuts_section_keyboard"));
+                        ui.label("");
                         ui.end_row();
                         ui.label(t.get("shortcuts_b_key"));
                         ui.label(t.get("shortcuts_toggle_bg"));
@@ -106,6 +163,49 @@ impl EditorApp {
                         ui.end_row();
                         ui.label(t.get("shortcuts_delete"));
                         ui.label(t.get("shortcuts_delete_action"));
+                        ui.end_row();
+
+                        // ── Tool Modes ──
+                        ui.separator();
+                        ui.separator();
+                        ui.end_row();
+                        ui.strong(t.get("shortcuts_section_tools"));
+                        ui.label("");
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_tool_select"));
+                        ui.label(t.get("tool_select"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_tool_box_select"));
+                        ui.label(t.get("tool_box_select"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_tool_draw_terrain"));
+                        ui.label(t.get("tool_draw_terrain"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_tool_pan"));
+                        ui.label(t.get("tool_pan"));
+                        ui.end_row();
+
+                        // ── Terrain Editing ──
+                        ui.separator();
+                        ui.separator();
+                        ui.end_row();
+                        ui.strong(t.get("shortcuts_section_terrain"));
+                        ui.label("");
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_terrain_select"));
+                        ui.label(t.get("shortcuts_terrain_select_action"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_terrain_drag"));
+                        ui.label(t.get("shortcuts_terrain_drag_action"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_terrain_dblclick"));
+                        ui.label(t.get("shortcuts_terrain_dblclick_action"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_terrain_delete"));
+                        ui.label(t.get("shortcuts_terrain_delete_action"));
+                        ui.end_row();
+                        ui.label(t.get("shortcuts_terrain_rclick"));
+                        ui.label(t.get("shortcuts_terrain_rclick_action"));
                         ui.end_row();
                     });
             });
@@ -234,6 +334,58 @@ impl EditorApp {
             });
         if !open {
             self.show_add_dialog = false;
+        }
+    }
+}
+
+/// Update (or create) `m_cameraLimits` in the LevelManager override data.
+pub(super) fn update_camera_limits_in_level(level: &mut LevelData, vals: [f32; 4]) {
+    // Find LevelManager with override data
+    for obj in level.objects.iter_mut() {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "LevelManager"
+            && let Some(ref mut od) = p.override_data
+        {
+            if let Some(pos) = od.raw_text.find("m_cameraLimits") {
+                // Replace existing float values in-place
+                let mut result = od.raw_text[..pos].to_string();
+                let after = &od.raw_text[pos..];
+                let mut remaining = after;
+                let mut val_idx = 0;
+                while val_idx < 4 {
+                    let fx = remaining.find("Float x = ");
+                    let fy = remaining.find("Float y = ");
+                    let fp = match (fx, fy) {
+                        (Some(a), Some(b)) => Some(a.min(b)),
+                        (Some(a), None) => Some(a),
+                        (None, Some(b)) => Some(b),
+                        (None, None) => None,
+                    };
+                    if let Some(fp) = fp {
+                        let eq = &remaining[fp..];
+                        if let Some(eq_pos) = eq.find("= ") {
+                            let before_num = &remaining[..fp + eq_pos + 2];
+                            result.push_str(before_num);
+                            let num_start = &eq[eq_pos + 2..];
+                            let end = num_start
+                                .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                                .unwrap_or(num_start.len());
+                            // Write new value
+                            result.push_str(&format!("{}", vals[val_idx]));
+                            remaining = &num_start[end..];
+                            val_idx += 1;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                result.push_str(remaining);
+                od.raw_bytes = result.as_bytes().to_vec();
+                od.raw_text = result;
+            }
+            return;
         }
     }
 }

@@ -47,12 +47,18 @@ btn_text = Text
 # Shortcuts window
 shortcuts_key = Shortcut
 shortcuts_action = Action
+shortcuts_section_mouse = Mouse
 shortcuts_scroll = Scroll Wheel
 shortcuts_zoom = Zoom View
 shortcuts_drag = Drag (empty area)
 shortcuts_pan = Pan View
 shortcuts_click = Click Object
 shortcuts_select = Select Object
+shortcuts_cmd_click = ⌘+Click / Ctrl+Click
+shortcuts_cmd_click_action = Toggle Selection
+shortcuts_shift_click = Shift+Click
+shortcuts_shift_click_action = Range Select
+shortcuts_section_keyboard = Keyboard Shortcuts
 shortcuts_b_key = B
 shortcuts_toggle_bg = Toggle Background
 shortcuts_undo = ⌘Z / Ctrl+Z
@@ -69,6 +75,17 @@ shortcuts_duplicate = ⌘D / Ctrl+D
 shortcuts_duplicate_action = Duplicate Object
 shortcuts_delete = Delete / Backspace
 shortcuts_delete_action = Delete Object
+shortcuts_section_terrain = Terrain Editing
+shortcuts_terrain_select = Click Terrain
+shortcuts_terrain_select_action = Show Curve Nodes
+shortcuts_terrain_drag = Drag Node
+shortcuts_terrain_drag_action = Move Curve Node
+shortcuts_terrain_dblclick = Double-click Segment
+shortcuts_terrain_dblclick_action = Insert New Node
+shortcuts_terrain_delete = Delete / Backspace on Node
+shortcuts_terrain_delete_action = Delete Node (min 3)
+shortcuts_terrain_rclick = Right-click Node
+shortcuts_terrain_rclick_action = Toggle Node Texture
 
 # About window
 about_built_with = Built with eframe / egui / wgpu
@@ -144,3 +161,25 @@ menu_close_tab = Close Tab
 hud_zoom = Zoom
 hud_theme = Theme
 hud_unknown_theme = Unknown
+
+# Tool modes
+tool_select = Select
+tool_box_select = Box Select
+tool_draw_terrain = Draw Terrain
+tool_pan = Pan
+tool_window_title = Tools
+
+# Tool mode shortcuts
+shortcuts_section_tools = Tool Modes
+shortcuts_tool_select = V
+shortcuts_tool_box_select = M
+shortcuts_tool_draw_terrain = P
+shortcuts_tool_pan = H
+
+# Level bounds editor
+menu_edit_level_bounds = Edit Level Bounds…
+win_level_bounds = Level Bounds
+bounds_pos_x = Position X:
+bounds_pos_y = Position Y:
+bounds_size_w = Width:
+bounds_size_h = Height:

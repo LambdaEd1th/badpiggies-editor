@@ -4,6 +4,7 @@
 mod app;
 mod assets;
 mod bg_data;
+mod level_ops;
 mod level_refs;
 mod locale;
 mod log_buffer;

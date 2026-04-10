@@ -45,14 +45,20 @@ btn_visual = 可视化
 btn_text = 文本
 
 # 快捷键窗口
-shortcuts_key = 快捷键
+shortcuts_key = 操作
 shortcuts_action = 功能
+shortcuts_section_mouse = 鼠标操作
 shortcuts_scroll = 滚轮
 shortcuts_zoom = 缩放视图
 shortcuts_drag = 拖拽（空白处）
 shortcuts_pan = 平移视图
 shortcuts_click = 点击对象
 shortcuts_select = 选中对象
+shortcuts_cmd_click = ⌘+点击 / Ctrl+点击
+shortcuts_cmd_click_action = 切换选中
+shortcuts_shift_click = Shift+点击
+shortcuts_shift_click_action = 范围选择
+shortcuts_section_keyboard = 键盘快捷键
 shortcuts_b_key = B
 shortcuts_toggle_bg = 切换背景显示
 shortcuts_undo = ⌘Z / Ctrl+Z
@@ -69,6 +75,17 @@ shortcuts_duplicate = ⌘D / Ctrl+D
 shortcuts_duplicate_action = 复制并粘贴
 shortcuts_delete = Delete / Backspace
 shortcuts_delete_action = 删除对象
+shortcuts_section_terrain = 地形编辑
+shortcuts_terrain_select = 点击地形
+shortcuts_terrain_select_action = 显示曲线节点
+shortcuts_terrain_drag = 拖拽节点
+shortcuts_terrain_drag_action = 移动曲线节点
+shortcuts_terrain_dblclick = 双击线段
+shortcuts_terrain_dblclick_action = 插入新节点
+shortcuts_terrain_delete = 在节点上按 Delete / Backspace
+shortcuts_terrain_delete_action = 删除节点（最少3个）
+shortcuts_terrain_rclick = 右键点击节点
+shortcuts_terrain_rclick_action = 切换节点纹理
 
 # 关于窗口
 about_built_with = 基于 eframe / egui / wgpu 构建
@@ -144,3 +161,25 @@ menu_close_tab = 关闭标签页
 hud_zoom = 缩放
 hud_theme = 主题
 hud_unknown_theme = 未检测
+
+# 工具模式
+tool_select = 选择
+tool_box_select = 框选
+tool_draw_terrain = 绘制地形
+tool_pan = 平移
+tool_window_title = 工具
+
+# 工具模式快捷键
+shortcuts_section_tools = 工具模式
+shortcuts_tool_select = V
+shortcuts_tool_box_select = M
+shortcuts_tool_draw_terrain = P
+shortcuts_tool_pan = H
+
+# 关卡边界编辑器
+menu_edit_level_bounds = 编辑关卡边界…
+win_level_bounds = 关卡边界
+bounds_pos_x = 位置 X:
+bounds_pos_y = 位置 Y:
+bounds_size_w = 宽度:
+bounds_size_h = 高度:

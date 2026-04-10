@@ -6,8 +6,6 @@ mod menu;
 mod properties;
 mod tree;
 
-pub use tree::DropPosition;
-
 use eframe::egui;
 
 #[cfg(target_arch = "wasm32")]
@@ -18,6 +16,7 @@ use std::collections::BTreeSet;
 use crate::locale::{I18n, Language};
 use crate::parser;
 use crate::renderer::LevelRenderer;
+use crate::renderer::CursorMode;
 use crate::types::*;
 
 #[cfg(target_arch = "wasm32")]
@@ -203,6 +202,10 @@ pub struct EditorApp {
     gpu_backend: String,
     /// Current UI language.
     lang: Language,
+    /// Active cursor/tool mode.
+    cursor_mode: CursorMode,
+    /// Whether the tool panel is visible.
+    show_tools: bool,
 }
 
 impl LevelData {
@@ -255,7 +258,11 @@ impl LevelData {
     /// the arena.  If `parent_idx` is `Some`, the pasted root becomes a child
     /// of that parent; otherwise it becomes a new root-level object.
     /// Returns the index of the pasted root.
-    fn paste_subtree(&mut self, subtree: &[LevelObject], parent_idx: Option<ObjectIndex>) -> ObjectIndex {
+    fn paste_subtree(
+        &mut self,
+        subtree: &[LevelObject],
+        parent_idx: Option<ObjectIndex>,
+    ) -> ObjectIndex {
         let base = self.objects.len();
         for (i, obj) in subtree.iter().enumerate() {
             let mut obj = obj.clone();
@@ -340,6 +347,8 @@ impl EditorApp {
             clipboard: None,
             gpu_backend,
             lang,
+            cursor_mode: CursorMode::default(),
+            show_tools: false,
         }
     }
 
@@ -451,6 +460,22 @@ impl eframe::App for EditorApp {
                 !self.tabs[self.active_tab].renderer.show_bg;
         }
 
+        // Tool mode shortcuts (V/M/P/H) — only when no text widget has focus
+        if !ctx.egui_wants_keyboard_input() {
+            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::V)) {
+                self.cursor_mode = CursorMode::Select;
+            }
+            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::M)) {
+                self.cursor_mode = CursorMode::BoxSelect;
+            }
+            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::P)) {
+                self.cursor_mode = CursorMode::DrawTerrain;
+            }
+            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::H)) {
+                self.cursor_mode = CursorMode::Pan;
+            }
+        }
+
         // Cmd+Shift+Z / Ctrl+Shift+Z — redo
         if ctx.input_mut(|i| {
             i.consume_shortcut(&KeyboardShortcut::new(
@@ -472,48 +497,54 @@ impl eframe::App for EditorApp {
         }
 
         // Cmd+C / Ctrl+C — copy
-        if ctx.input_mut(|i| {
-            let mut found = false;
-            i.events.retain(|e| {
-                if matches!(e, egui::Event::Copy) && !found {
-                    found = true;
-                    false
-                } else {
-                    true
-                }
-            });
-            found
-        }) {
+        if !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| {
+                let mut found = false;
+                i.events.retain(|e| {
+                    if matches!(e, egui::Event::Copy) && !found {
+                        found = true;
+                        false
+                    } else {
+                        true
+                    }
+                });
+                found
+            })
+        {
             self.copy_selected();
         }
         // Cmd+X / Ctrl+X — cut
-        if ctx.input_mut(|i| {
-            let mut found = false;
-            i.events.retain(|e| {
-                if matches!(e, egui::Event::Cut) && !found {
-                    found = true;
-                    false
-                } else {
-                    true
-                }
-            });
-            found
-        }) {
+        if !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| {
+                let mut found = false;
+                i.events.retain(|e| {
+                    if matches!(e, egui::Event::Cut) && !found {
+                        found = true;
+                        false
+                    } else {
+                        true
+                    }
+                });
+                found
+            })
+        {
             self.cut_selected();
         }
         // Cmd+V / Ctrl+V — paste
-        if ctx.input_mut(|i| {
-            let mut found = false;
-            i.events.retain(|e| {
-                if matches!(e, egui::Event::Paste(_)) && !found {
-                    found = true;
-                    false
-                } else {
-                    true
-                }
-            });
-            found
-        }) {
+        if !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| {
+                let mut found = false;
+                i.events.retain(|e| {
+                    if matches!(e, egui::Event::Paste(_)) && !found {
+                        found = true;
+                        false
+                    } else {
+                        true
+                    }
+                });
+                found
+            })
+        {
             self.paste();
         }
         // Cmd+D / Ctrl+D — duplicate
@@ -545,12 +576,18 @@ impl eframe::App for EditorApp {
                         || i.consume_key(Modifiers::NONE, Key::Backspace)
                 });
             if delete_pressed
-                && self.tabs[self.active_tab].renderer.hovered_terrain_node.is_none()
+                && self.tabs[self.active_tab]
+                    .renderer
+                    .hovered_terrain_node
+                    .is_none()
                 && self.tabs[self.active_tab].pending_delete.is_none()
                 && let Some(ref level) = self.tabs[self.active_tab].level
             {
-                let indices: Vec<ObjectIndex> =
-                    self.tabs[self.active_tab].selected.iter().copied().collect();
+                let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+                    .selected
+                    .iter()
+                    .copied()
+                    .collect();
                 let label = if indices.len() == 1 {
                     level.objects[indices[0]].name().to_string()
                 } else {
@@ -570,6 +607,7 @@ impl eframe::App for EditorApp {
         self.render_menu_bar(ui, &ctx, t);
         self.render_shortcuts_window(&ctx);
         self.render_about_window(&ctx);
+        self.render_tool_window(&ctx, t);
         self.render_add_obj_dialog(&ctx, t);
         self.render_tab_bar(ui, t, &ctx);
 
@@ -626,10 +664,13 @@ impl EditorApp {
                     if let Some(_payload) = resp.dnd_hover_payload::<TabDndPayload>() {
                         let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
                         let mid_x = resp.rect.center().x;
-                        let hover_right = ui.input(|inp| {
-                            inp.pointer.hover_pos().map_or(false, |p| p.x > mid_x)
-                        });
-                        let x = if hover_right { resp.rect.right() } else { resp.rect.left() };
+                        let hover_right =
+                            ui.input(|inp| inp.pointer.hover_pos().map_or(false, |p| p.x > mid_x));
+                        let x = if hover_right {
+                            resp.rect.right()
+                        } else {
+                            resp.rect.left()
+                        };
                         ui.painter().vline(x, resp.rect.y_range(), stroke);
                     }
                     if let Some(payload) = resp.dnd_release_payload::<TabDndPayload>() {
@@ -660,10 +701,18 @@ impl EditorApp {
                 }
                 // Apply tab reorder
                 if let Some((from, to)) = tab_swap {
-                    let insert_at = if from < to { (to - 1).min(self.tabs.len() - 1) } else { to };
+                    let insert_at = if from < to {
+                        (to - 1).min(self.tabs.len() - 1)
+                    } else {
+                        to
+                    };
                     if insert_at != from {
                         let tab = self.tabs.remove(from);
-                        let insert_at = if from < to { (to - 1).min(self.tabs.len()) } else { to };
+                        let insert_at = if from < to {
+                            (to - 1).min(self.tabs.len())
+                        } else {
+                            to
+                        };
                         self.tabs.insert(insert_at, tab);
                         if self.active_tab == from {
                             self.active_tab = insert_at;
@@ -680,8 +729,7 @@ impl EditorApp {
                 // "+" button to add a new empty tab
                 if ui.button("+").clicked() {
                     let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
-                    let new_tab =
-                        Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+                    let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
                     self.tabs.push(new_tab);
                     self.active_tab = self.tabs.len() - 1;
                 }
@@ -692,11 +740,12 @@ impl EditorApp {
     /// Render the central canvas panel.
     fn render_canvas(&mut self, ui: &mut egui::Ui) {
         let t = self.t();
+        let cursor_mode = self.cursor_mode;
         egui::CentralPanel::default().show_inside(ui, |ui| {
             let tab = &mut self.tabs[self.active_tab];
             if tab.level.is_some() {
                 let sel = tab.selected.clone();
-                tab.renderer.show(ui, &sel, t);
+                tab.renderer.show(ui, &sel, cursor_mode, t);
                 // Pick up click-to-select from renderer
                 if let Some(idx) = tab.renderer.clicked_object {
                     if tab.renderer.clicked_with_cmd {
@@ -817,10 +866,7 @@ impl EditorApp {
                                     ..
                                 } => {
                                     let insert_idx = (after_node + 1).min(nodes.len());
-                                    let tex = nodes
-                                        .get(after_node)
-                                        .map(|n| n.texture)
-                                        .unwrap_or(0);
+                                    let tex = nodes.get(after_node).map(|n| n.texture).unwrap_or(0);
                                     nodes.insert(
                                         insert_idx,
                                         crate::terrain_gen::CurveNode {
@@ -842,6 +888,114 @@ impl EditorApp {
                         tab.renderer.set_level(level);
                         tab.renderer.camera = cam;
                     }
+                }
+                // Pick up box-selection result — replace selection
+                if let Some(result) = tab.renderer.box_select_result.take() {
+                    tab.selected = result.indices;
+                }
+                // Pick up bounds drag result — write back to LevelManager override data
+                if let Some(result) = tab.renderer.bounds_drag_result.take()
+                    && let Some(ref mut level) = tab.level
+                {
+                    tab.history.undo.push(Snapshot {
+                        level: level.clone(),
+                        selected: tab.selected.clone(),
+                    });
+                    if tab.history.undo.len() > UNDO_MAX {
+                        tab.history.undo.remove(0);
+                    }
+                    tab.history.redo.clear();
+                    dialogs::update_camera_limits_in_level(level, result.new_limits);
+                }
+                // Pick up terrain draw result — create new terrain object
+                if let Some(result) = tab.renderer.draw_terrain_result.take()
+                    && let Some(ref mut level) = tab.level
+                    && result.points.len() >= 2
+                {
+                    tab.history.undo.push(Snapshot {
+                        level: level.clone(),
+                        selected: tab.selected.clone(),
+                    });
+                    if tab.history.undo.len() > UNDO_MAX {
+                        tab.history.undo.remove(0);
+                    }
+                    tab.history.redo.clear();
+
+                    // Create a new terrain Prefab from drawn points
+                    let center = {
+                        let mut cx = 0.0f32;
+                        let mut cy = 0.0f32;
+                        for p in &result.points {
+                            cx += p.x;
+                            cy += p.y;
+                        }
+                        let n = result.points.len() as f32;
+                        Vec2 { x: cx / n, y: cy / n }
+                    };
+                    // Default texture = 1 (splat1)
+                    let local_nodes: Vec<crate::terrain_gen::CurveNode> = result
+                        .points
+                        .iter()
+                        .map(|p| crate::terrain_gen::CurveNode {
+                            position: Vec2 {
+                                x: p.x - center.x,
+                                y: p.y - center.y,
+                            },
+                            texture: 1,
+                        })
+                        .collect();
+                    let mut td = TerrainData {
+                        fill_texture_tile_offset_x: 0.0,
+                        fill_texture_tile_offset_y: 0.0,
+                        fill_mesh: TerrainMesh::default(),
+                        fill_color: Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 },
+                        fill_texture_index: 0,
+                        curve_mesh: TerrainMesh::default(),
+                        curve_textures: vec![
+                            CurveTexture {
+                                texture_index: 0,
+                                size: Vec2 { x: 1.0, y: 0.5 },
+                                fixed_angle: false,
+                                fade_threshold: 0.0,
+                            },
+                            CurveTexture {
+                                texture_index: 1,
+                                size: Vec2 { x: 1.0, y: 0.1 },
+                                fixed_angle: false,
+                                fade_threshold: 0.0,
+                            },
+                        ],
+                        control_texture_count: 0,
+                        control_texture_data: None,
+                        has_collider: true,
+                        fill_boundary: None,
+                    };
+                    crate::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
+                    let new_obj = LevelObject::Prefab(PrefabInstance {
+                        name: "Terrain".to_string(),
+                        prefab_index: -1,
+                        position: Vec3 {
+                            x: center.x,
+                            y: center.y,
+                            z: 0.0,
+                        },
+                        rotation: Vec3::default(),
+                        scale: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
+                        parent: None,
+                        data_type: DataType::Terrain,
+                        terrain_data: Some(Box::new(td)),
+                        override_data: None,
+                    });
+                    let new_idx = level.objects.len();
+                    level.objects.push(new_obj);
+                    level.roots.push(new_idx);
+                    tab.selected = std::collections::BTreeSet::from([new_idx]);
+
+                    let cam = tab.renderer.camera.clone();
+                    tab.renderer.set_level(level);
+                    tab.renderer.camera = cam;
+                    let label = if result.closed { "Terrain (closed)" } else { "Terrain" };
+                    tab.status = t.fmt1("status_added", label);
                 }
             } else {
                 let rect = ui.available_rect_before_wrap();

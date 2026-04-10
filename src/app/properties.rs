@@ -67,11 +67,7 @@ impl EditorApp {
 }
 
 /// Show editable properties. Returns true if anything changed.
-fn show_properties_editable(
-    ui: &mut egui::Ui,
-    obj: &mut LevelObject,
-    t: &'static I18n,
-) -> bool {
+fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'static I18n) -> bool {
     let mut changed = false;
     match obj {
         LevelObject::Prefab(p) => {
@@ -80,7 +76,12 @@ fn show_properties_editable(
                 ui.label(t.get("prop_name"));
                 changed |= ui.text_edit_singleline(&mut p.name).changed();
             });
-            ui.label(format!("{} {}", t.get("prop_prefab_index"), p.prefab_index));
+            ui.horizontal(|ui| {
+                ui.label(t.get("prop_prefab_index"));
+                changed |= ui
+                    .add(egui::DragValue::new(&mut p.prefab_index).range(i16::MIN..=i16::MAX))
+                    .changed();
+            });
             ui.separator();
 
             ui.label(t.get("prop_position"));
@@ -155,8 +156,7 @@ fn show_properties_editable(
 
                 // Closed loop toggle
                 let nodes = crate::terrain_gen::extract_curve_nodes(td);
-                let is_closed = nodes.len() >= 2
-                    && crate::terrain_gen::is_closed_loop(&nodes);
+                let is_closed = nodes.len() >= 2 && crate::terrain_gen::is_closed_loop(&nodes);
                 let mut closed_val = is_closed;
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_terrain_closed"));
@@ -181,7 +181,7 @@ fn show_properties_editable(
                         ui.label(t.fmt_idx("prop_curve_tex", ct_i));
                     });
                     ui.horizontal(|ui| {
-                        ui.label(format!("  {}",t.get("prop_strip_width")));
+                        ui.label(format!("  {}", t.get("prop_strip_width")));
                         if ui
                             .add(
                                 egui::DragValue::new(&mut td.curve_textures[ct_i].size.y)

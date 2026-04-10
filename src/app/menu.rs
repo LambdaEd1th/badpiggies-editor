@@ -133,8 +133,7 @@ impl EditorApp {
                     {
                         match std::fs::write(&path, data) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status =
-                                    t.get("status_exported");
+                                self.tabs[self.active_tab].status = t.get("status_exported");
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -152,8 +151,7 @@ impl EditorApp {
                             .unwrap_or_else(|| "level.bytes".to_string());
                         match export_bytes_wasm(&file_name, data) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status =
-                                    t.get("status_exported");
+                                self.tabs[self.active_tab].status = t.get("status_exported");
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -180,8 +178,7 @@ impl EditorApp {
                     {
                         match std::fs::write(&path, text.as_bytes()) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status =
-                                    t.get("status_exported");
+                                self.tabs[self.active_tab].status = t.get("status_exported");
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -200,8 +197,7 @@ impl EditorApp {
                             .unwrap_or_else(|| "level.yaml".to_string());
                         match export_bytes_wasm(&file_name, text.into_bytes()) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status =
-                                    t.get("status_exported");
+                                self.tabs[self.active_tab].status = t.get("status_exported");
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -228,8 +224,7 @@ impl EditorApp {
                     {
                         match std::fs::write(&path, text.as_bytes()) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status =
-                                    t.get("status_exported");
+                                self.tabs[self.active_tab].status = t.get("status_exported");
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -248,8 +243,7 @@ impl EditorApp {
                             .unwrap_or_else(|| "level.toml".to_string());
                         match export_bytes_wasm(&file_name, text.into_bytes()) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status =
-                                    t.get("status_exported");
+                                self.tabs[self.active_tab].status = t.get("status_exported");
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -285,8 +279,7 @@ impl EditorApp {
             ui.separator();
             let has_sel = !self.tabs[self.active_tab].selected.is_empty()
                 && self.tabs[self.active_tab].level.is_some();
-            let has_clip = self.clipboard.is_some()
-                && self.tabs[self.active_tab].level.is_some();
+            let has_clip = self.clipboard.is_some() && self.tabs[self.active_tab].level.is_some();
             let copy_shortcut = if is_mac { "⌘+C" } else { "Ctrl+C" };
             let cut_shortcut = if is_mac { "⌘+X" } else { "Ctrl+X" };
             let paste_shortcut = if is_mac { "⌘+V" } else { "Ctrl+V" };
@@ -343,8 +336,11 @@ impl EditorApp {
                 if !self.tabs[self.active_tab].selected.is_empty()
                     && let Some(ref level) = self.tabs[self.active_tab].level
                 {
-                    let indices: Vec<ObjectIndex> =
-                        self.tabs[self.active_tab].selected.iter().copied().collect();
+                    let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+                        .selected
+                        .iter()
+                        .copied()
+                        .collect();
                     let label = if indices.len() == 1 {
                         level.objects[indices[0]].name().to_string()
                     } else {
@@ -386,6 +382,13 @@ impl EditorApp {
                 if ui.checkbox(&mut v, t.get("menu_properties")).clicked() {
                     ui.close();
                     self.show_properties = v;
+                }
+            }
+            {
+                let mut v = self.show_tools;
+                if ui.checkbox(&mut v, t.get("tool_window_title")).clicked() {
+                    ui.close();
+                    self.show_tools = v;
                 }
             }
             ui.separator();
@@ -469,12 +472,10 @@ impl EditorApp {
                         let (y, mo, d) = super::civil_from_days(days as i64);
                         format!("{:04}{:02}{:02}_{:02}{:02}{:02}.log", y, mo, d, h, m, s)
                     };
-                    if let Some(path) =
-                        rfd::FileDialog::new().set_file_name(&log_name).save_file()
+                    if let Some(path) = rfd::FileDialog::new().set_file_name(&log_name).save_file()
                     {
                         if let Err(e) = std::fs::write(&path, &content) {
-                            self.tabs[self.active_tab].status =
-                                format!("Log export error: {e}");
+                            self.tabs[self.active_tab].status = format!("Log export error: {e}");
                         } else {
                             self.tabs[self.active_tab].status =
                                 format!("Log exported: {}", path.display());
@@ -484,8 +485,7 @@ impl EditorApp {
                 #[cfg(target_arch = "wasm32")]
                 {
                     if let Err(e) = export_bytes_wasm("editor.log", content.into_bytes()) {
-                        self.tabs[self.active_tab].status =
-                            format!("Log export error: {e}");
+                        self.tabs[self.active_tab].status = format!("Log export error: {e}");
                     }
                 }
             }

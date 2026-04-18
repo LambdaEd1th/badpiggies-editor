@@ -6,7 +6,10 @@ use crate::assets;
 use crate::types::{ObjectIndex, Vec2};
 
 use super::terrain;
-use super::{Camera, CursorMode, DragState, LevelRenderer, NodeDragResult, NodeDragState, NodeEditAction, BoundsHandle, BoundsDragState};
+use super::{
+    BoundsDragState, BoundsHandle, Camera, CursorMode, DragState, LevelRenderer, NodeDragResult,
+    NodeDragState, NodeEditAction,
+};
 
 /// Point-in-triangle test using barycentric coordinates (sign of cross products).
 fn point_in_triangle(p: egui::Pos2, a: egui::Pos2, b: egui::Pos2, c: egui::Pos2) -> bool {
@@ -20,7 +23,14 @@ fn point_in_triangle(p: egui::Pos2, a: egui::Pos2, b: egui::Pos2, c: egui::Pos2)
 
 /// Distance from point (px,py) to segment (ax,ay)→(bx,by).
 /// Returns (distance, t) where t ∈ [0,1] is the projection parameter.
-pub(super) fn point_to_segment_dist(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> (f32, f32) {
+pub(super) fn point_to_segment_dist(
+    px: f32,
+    py: f32,
+    ax: f32,
+    ay: f32,
+    bx: f32,
+    by: f32,
+) -> (f32, f32) {
     let dx = bx - ax;
     let dy = by - ay;
     let len_sq = dx * dx + dy * dy;
@@ -71,7 +81,11 @@ impl LevelRenderer {
         }
     }
 
-    pub(super) fn hit_test(&self, pos: Vec2, selected: &BTreeSet<ObjectIndex>) -> Option<ObjectIndex> {
+    pub(super) fn hit_test(
+        &self,
+        pos: Vec2,
+        selected: &BTreeSet<ObjectIndex>,
+    ) -> Option<ObjectIndex> {
         let mut best: Option<(ObjectIndex, f32)> = None;
         for sprite in self.sprite_data.iter().rev() {
             // Allow terrain through only if it's the currently selected object
@@ -179,7 +193,15 @@ impl LevelRenderer {
 
         match cursor_mode {
             CursorMode::Select => {
-                self.handle_select_mode(ui, response, canvas_center, rect, selected, is_shift, is_alt);
+                self.handle_select_mode(
+                    ui,
+                    response,
+                    canvas_center,
+                    rect,
+                    selected,
+                    is_shift,
+                    is_alt,
+                );
             }
             CursorMode::BoxSelect => {
                 self.handle_box_select_mode(ui, response, canvas_center, rect, is_shift, is_alt);
@@ -563,9 +585,7 @@ impl LevelRenderer {
         }
 
         // Enter — finish as open curve
-        if self.draw_terrain_active
-            && ui.input(|i| i.key_pressed(egui::Key::Enter))
-        {
+        if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             self.draw_terrain_active = false;
             if self.draw_terrain_points.len() >= 2 {
                 self.draw_terrain_result = Some(super::DrawTerrainResult {
@@ -578,9 +598,7 @@ impl LevelRenderer {
         }
 
         // Escape — cancel drawing
-        if self.draw_terrain_active
-            && ui.input(|i| i.key_pressed(egui::Key::Escape))
-        {
+        if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.draw_terrain_active = false;
             self.draw_terrain_points.clear();
         }
@@ -589,12 +607,7 @@ impl LevelRenderer {
     }
 
     /// Pan-only mode: all primary drags pan the view.
-    fn handle_pan_mode(
-        &mut self,
-        response: &egui::Response,
-        _is_shift: bool,
-        _is_alt: bool,
-    ) {
+    fn handle_pan_mode(&mut self, response: &egui::Response, _is_shift: bool, _is_alt: bool) {
         if response.dragged_by(egui::PointerButton::Primary)
             || response.dragged_by(egui::PointerButton::Middle)
         {
@@ -657,11 +670,7 @@ impl LevelRenderer {
 
     /// Handle level-bounds drag interaction. Returns `true` if a bounds drag
     /// is active or was just started (caller should skip normal mode handling).
-    fn handle_bounds_drag(
-        &mut self,
-        response: &egui::Response,
-        canvas_center: egui::Vec2,
-    ) -> bool {
+    fn handle_bounds_drag(&mut self, response: &egui::Response, canvas_center: egui::Vec2) -> bool {
         // Check if bounds are visible and exist
         if !self.show_level_bounds {
             self.bounds_hovered_handle = None;
@@ -679,12 +688,14 @@ impl LevelRenderer {
 
         // Compute screen-space rectangle for the bounds
         let [tl_x, tl_y, w, h] = limits;
-        let p_tl = self.camera.world_to_screen(
-            Vec2 { x: tl_x, y: tl_y },
-            canvas_center,
-        );
+        let p_tl = self
+            .camera
+            .world_to_screen(Vec2 { x: tl_x, y: tl_y }, canvas_center);
         let p_br = self.camera.world_to_screen(
-            Vec2 { x: tl_x + w, y: tl_y - h },
+            Vec2 {
+                x: tl_x + w,
+                y: tl_y - h,
+            },
             canvas_center,
         );
 
@@ -702,16 +713,17 @@ impl LevelRenderer {
                             let nw = (ow - dx).max(1.0);
                             [otl_x + ow - nw, otl_y, nw, oh]
                         }
-                        BoundsHandle::Right => {
-                            [otl_x, otl_y, (ow + dx).max(1.0), oh]
-                        }
+                        BoundsHandle::Right => [otl_x, otl_y, (ow + dx).max(1.0), oh],
                         BoundsHandle::Top => {
                             let nh = (oh + dy).max(1.0);
-                            [otl_x, otl_y + dy - (nh - oh - dy), nh.max(1.0).min(oh + dy).max(1.0), oh]
+                            [
+                                otl_x,
+                                otl_y + dy - (nh - oh - dy),
+                                nh.max(1.0).min(oh + dy).max(1.0),
+                                oh,
+                            ]
                         }
-                        BoundsHandle::Bottom => {
-                            [otl_x, otl_y, ow, (oh - dy).max(1.0)]
-                        }
+                        BoundsHandle::Bottom => [otl_x, otl_y, ow, (oh - dy).max(1.0)],
                         _ => {
                             // Compute for corner handles
                             self.compute_corner_drag(drag.handle, otl_x, otl_y, ow, oh, dx, dy)
@@ -784,16 +796,32 @@ impl LevelRenderer {
         let in_y = pointer.y >= top - threshold && pointer.y <= bottom + threshold;
 
         // Corners first (more specific)
-        if near_left && near_top { return Some(BoundsHandle::TopLeft); }
-        if near_right && near_top { return Some(BoundsHandle::TopRight); }
-        if near_left && near_bottom { return Some(BoundsHandle::BottomLeft); }
-        if near_right && near_bottom { return Some(BoundsHandle::BottomRight); }
+        if near_left && near_top {
+            return Some(BoundsHandle::TopLeft);
+        }
+        if near_right && near_top {
+            return Some(BoundsHandle::TopRight);
+        }
+        if near_left && near_bottom {
+            return Some(BoundsHandle::BottomLeft);
+        }
+        if near_right && near_bottom {
+            return Some(BoundsHandle::BottomRight);
+        }
 
         // Edges
-        if near_left && in_y { return Some(BoundsHandle::Left); }
-        if near_right && in_y { return Some(BoundsHandle::Right); }
-        if near_top && in_x { return Some(BoundsHandle::Top); }
-        if near_bottom && in_x { return Some(BoundsHandle::Bottom); }
+        if near_left && in_y {
+            return Some(BoundsHandle::Left);
+        }
+        if near_right && in_y {
+            return Some(BoundsHandle::Right);
+        }
+        if near_top && in_x {
+            return Some(BoundsHandle::Top);
+        }
+        if near_bottom && in_x {
+            return Some(BoundsHandle::Bottom);
+        }
 
         // Interior → move
         if pointer.x > left + threshold
@@ -811,8 +839,12 @@ impl LevelRenderer {
     fn compute_corner_drag(
         &self,
         handle: BoundsHandle,
-        tl_x: f32, tl_y: f32, w: f32, h: f32,
-        dx: f32, dy: f32,
+        tl_x: f32,
+        tl_y: f32,
+        w: f32,
+        h: f32,
+        dx: f32,
+        dy: f32,
     ) -> [f32; 4] {
         match handle {
             BoundsHandle::TopLeft => {

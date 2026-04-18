@@ -412,11 +412,28 @@ pub(super) fn draw_zzz_particles(
             let br = rot(hw, hh);
             let bl = rot(-hw, hh);
             let i = mesh.vertices.len() as u32;
-            mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(ZZZ_U0, ZZZ_V0), color: tint });
-            mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(ZZZ_U1, ZZZ_V0), color: tint });
-            mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(ZZZ_U1, ZZZ_V1), color: tint });
-            mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(ZZZ_U0, ZZZ_V1), color: tint });
-            mesh.indices.extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: tl,
+                uv: egui::pos2(ZZZ_U0, ZZZ_V0),
+                color: tint,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: tr,
+                uv: egui::pos2(ZZZ_U1, ZZZ_V0),
+                color: tint,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: br,
+                uv: egui::pos2(ZZZ_U1, ZZZ_V1),
+                color: tint,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: bl,
+                uv: egui::pos2(ZZZ_U0, ZZZ_V1),
+                color: tint,
+            });
+            mesh.indices
+                .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
             painter.add(egui::Shape::mesh(mesh));
         }
     }
@@ -474,11 +491,28 @@ pub(super) fn draw_fan_particles(
             let bl = rot(-hw, hh);
             let mut mesh = egui::Mesh::with_texture(tex_id);
             let i = mesh.vertices.len() as u32;
-            mesh.vertices.push(egui::epaint::Vertex { pos: tl, uv: egui::pos2(u0, v0), color });
-            mesh.vertices.push(egui::epaint::Vertex { pos: tr, uv: egui::pos2(u1, v0), color });
-            mesh.vertices.push(egui::epaint::Vertex { pos: br, uv: egui::pos2(u1, v1), color });
-            mesh.vertices.push(egui::epaint::Vertex { pos: bl, uv: egui::pos2(u0, v1), color });
-            mesh.indices.extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: tl,
+                uv: egui::pos2(u0, v0),
+                color,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: tr,
+                uv: egui::pos2(u1, v0),
+                color,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: br,
+                uv: egui::pos2(u1, v1),
+                color,
+            });
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: bl,
+                uv: egui::pos2(u0, v1),
+                color,
+            });
+            mesh.indices
+                .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
             painter.add(egui::Shape::mesh(mesh));
         } else {
             let puff_color = egui::Color32::from_rgba_unmultiplied(220, 230, 245, alpha);
@@ -537,10 +571,26 @@ pub(super) fn draw_wind_particles(
         let color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, a);
 
         let mut mesh = egui::Mesh::with_texture(leaf_tex);
-        mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt(-hw, -hh), uv: egui::pos2(u0, v0), color });
-        mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt(hw, -hh), uv: egui::pos2(u1, v0), color });
-        mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt(hw, hh), uv: egui::pos2(u1, v1), color });
-        mesh.vertices.push(egui::epaint::Vertex { pos: rot_pt(-hw, hh), uv: egui::pos2(u0, v1), color });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: rot_pt(-hw, -hh),
+            uv: egui::pos2(u0, v0),
+            color,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: rot_pt(hw, -hh),
+            uv: egui::pos2(u1, v0),
+            color,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: rot_pt(hw, hh),
+            uv: egui::pos2(u1, v1),
+            color,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: rot_pt(-hw, hh),
+            uv: egui::pos2(u0, v1),
+            color,
+        });
         mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
         painter.add(egui::Shape::mesh(mesh));
     }

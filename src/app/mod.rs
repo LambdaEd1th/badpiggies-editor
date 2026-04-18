@@ -4,6 +4,9 @@ mod actions;
 mod dialogs;
 mod menu;
 mod properties;
+mod save_tables;
+pub(crate) mod save_viewer;
+mod save_xml;
 mod tree;
 
 use eframe::egui;
@@ -15,13 +18,14 @@ use std::collections::BTreeSet;
 
 use crate::locale::{I18n, Language};
 use crate::parser;
-use crate::renderer::LevelRenderer;
 use crate::renderer::CursorMode;
+use crate::renderer::LevelRenderer;
 use crate::types::*;
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static WASM_OPEN_RESULT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
+    static WASM_OPEN_XML_SAVE: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Maximum number of undo snapshots to keep.
@@ -66,6 +70,8 @@ struct Tab {
     props_changed_prev: bool,
     /// Anchor for Shift+click range selection in the object tree.
     select_anchor: Option<ObjectIndex>,
+    /// Save file viewer data (if this tab is viewing a save file).
+    pub(super) save_view: Option<save_viewer::SaveViewerData>,
 }
 
 impl Tab {
@@ -83,14 +89,20 @@ impl Tab {
             },
             props_changed_prev: false,
             select_anchor: None,
+            save_view: None,
         }
     }
 
     /// Display name for the tab.
-    fn title(&self) -> String {
+    fn title(&self, fallback: &str) -> String {
         self.file_name
             .clone()
-            .unwrap_or_else(|| "(untitled)".to_string())
+            .unwrap_or_else(|| fallback.to_string())
+    }
+
+    /// Whether this tab is a save file viewer (not a level editor).
+    fn is_save_tab(&self) -> bool {
+        self.save_view.is_some()
     }
 
     fn load_level(&mut self, name: String, data: Vec<u8>, i18n: &I18n) {
@@ -392,6 +404,9 @@ impl EditorApp {
             if let Some((name, data)) = WASM_OPEN_RESULT.with(|q| q.borrow_mut().take()) {
                 self.pending_file = Some((name, data));
             }
+            if let Some((name, data)) = WASM_OPEN_XML_SAVE.with(|q| q.borrow_mut().take()) {
+                self.load_xml_into_tab(name, data);
+            }
             if let Some((name, data)) = self.pending_file.take() {
                 if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
                     if let Ok(text) = String::from_utf8(data) {
@@ -452,8 +467,11 @@ impl eframe::App for EditorApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         use egui::{Key, KeyboardShortcut, Modifiers};
 
+        let is_save_tab = self.tabs[self.active_tab].is_save_tab();
+
         // B key — toggle background visibility (only when no text widget has focus)
-        if !ctx.egui_wants_keyboard_input()
+        if !is_save_tab
+            && !ctx.egui_wants_keyboard_input()
             && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::B))
         {
             self.tabs[self.active_tab].renderer.show_bg =
@@ -461,7 +479,7 @@ impl eframe::App for EditorApp {
         }
 
         // Tool mode shortcuts (V/M/P/H) — only when no text widget has focus
-        if !ctx.egui_wants_keyboard_input() {
+        if !is_save_tab && !ctx.egui_wants_keyboard_input() {
             if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::V)) {
                 self.cursor_mode = CursorMode::Select;
             }
@@ -483,21 +501,64 @@ impl eframe::App for EditorApp {
                 Key::Z,
             ))
         }) {
-            self.redo();
+            if is_save_tab {
+                if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
+                    sv.redo();
+                }
+            } else {
+                self.redo();
+            }
         }
         // Cmd+Z / Ctrl+Z — undo
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z)))
         {
-            self.undo();
+            if is_save_tab {
+                if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
+                    sv.undo();
+                }
+            } else {
+                self.undo();
+            }
         }
         // Ctrl+Y — redo (alternative)
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Y)))
         {
-            self.redo();
+            if is_save_tab {
+                if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
+                    sv.redo();
+                }
+            } else {
+                self.redo();
+            }
+        }
+
+        // Save tab: Cmd+A — select all entries
+        if is_save_tab
+            && !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| {
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::A))
+            })
+        {
+            if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
+                sv.select_all();
+            }
+        }
+        // Save tab: Delete/Backspace — delete selected entries
+        if is_save_tab
+            && !ctx.egui_wants_keyboard_input()
+            && ctx.input_mut(|i| {
+                i.consume_key(Modifiers::NONE, Key::Delete)
+                    || i.consume_key(Modifiers::NONE, Key::Backspace)
+            })
+        {
+            if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
+                sv.delete_selected();
+            }
         }
 
         // Cmd+C / Ctrl+C — copy
-        if !ctx.egui_wants_keyboard_input()
+        if !is_save_tab
+            && !ctx.egui_wants_keyboard_input()
             && ctx.input_mut(|i| {
                 let mut found = false;
                 i.events.retain(|e| {
@@ -514,7 +575,8 @@ impl eframe::App for EditorApp {
             self.copy_selected();
         }
         // Cmd+X / Ctrl+X — cut
-        if !ctx.egui_wants_keyboard_input()
+        if !is_save_tab
+            && !ctx.egui_wants_keyboard_input()
             && ctx.input_mut(|i| {
                 let mut found = false;
                 i.events.retain(|e| {
@@ -531,7 +593,8 @@ impl eframe::App for EditorApp {
             self.cut_selected();
         }
         // Cmd+V / Ctrl+V — paste
-        if !ctx.egui_wants_keyboard_input()
+        if !is_save_tab
+            && !ctx.egui_wants_keyboard_input()
             && ctx.input_mut(|i| {
                 let mut found = false;
                 i.events.retain(|e| {
@@ -548,7 +611,10 @@ impl eframe::App for EditorApp {
             self.paste();
         }
         // Cmd+D / Ctrl+D — duplicate
-        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::D)))
+        if !is_save_tab
+            && ctx.input_mut(|i| {
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::D))
+            })
         {
             self.duplicate_selected();
         }
@@ -569,17 +635,19 @@ impl eframe::App for EditorApp {
         }
 
         // Handle Delete / Backspace key — queue confirmation dialog
-        if !self.tabs[self.active_tab].selected.is_empty() {
+        if !is_save_tab
+            && !self.tabs[self.active_tab].selected.is_empty()
+            && self.tabs[self.active_tab]
+                .renderer
+                .hovered_terrain_node
+                .is_none()
+        {
             let delete_pressed = !ctx.egui_wants_keyboard_input()
                 && ctx.input_mut(|i| {
                     i.consume_key(Modifiers::NONE, Key::Delete)
                         || i.consume_key(Modifiers::NONE, Key::Backspace)
                 });
             if delete_pressed
-                && self.tabs[self.active_tab]
-                    .renderer
-                    .hovered_terrain_node
-                    .is_none()
                 && self.tabs[self.active_tab].pending_delete.is_none()
                 && let Some(ref level) = self.tabs[self.active_tab].level
             {
@@ -602,6 +670,20 @@ impl eframe::App for EditorApp {
         let ctx = ui.ctx().clone();
         let t = self.t();
 
+        // Update OS window title with GPU backend info
+        {
+            let tab_title = self.tabs[self.active_tab].title(&t.get("tab_untitled"));
+            let title = if self.gpu_backend.is_empty() {
+                format!("Bad Piggies Editor — {tab_title}")
+            } else {
+                format!(
+                    "Bad Piggies Editor — {tab_title} [{backend}]",
+                    backend = self.gpu_backend
+                )
+            };
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+        }
+
         self.handle_file_input(ui, &ctx);
         self.render_delete_confirm(&ctx, t);
         self.render_menu_bar(ui, &ctx, t);
@@ -620,10 +702,6 @@ impl eframe::App for EditorApp {
                     ui.label(format!("X: {:.2}  Y: {:.2}", mw.x, mw.y));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if !self.gpu_backend.is_empty() {
-                        ui.label(&self.gpu_backend);
-                        ui.separator();
-                    }
                     if let Some(ref name) = self.tabs[self.active_tab].file_name {
                         ui.label(name);
                     }
@@ -631,9 +709,16 @@ impl eframe::App for EditorApp {
             });
         });
 
-        self.render_tree_panel(ui);
-        self.render_properties_panel(ui);
+        if !self.tabs[self.active_tab].is_save_tab() && self.tabs[self.active_tab].level.is_some() {
+            self.render_tree_panel(ui);
+            self.render_properties_panel(ui);
+        }
         self.render_canvas(ui);
+
+        // Contraption preview floating window
+        if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
+            sv.render_contraption_preview(&ctx, t);
+        }
     }
 }
 
@@ -649,7 +734,7 @@ impl EditorApp {
                 let mut close_idx: Option<usize> = None;
                 let mut tab_swap: Option<(usize, usize)> = None;
                 for i in 0..self.tabs.len() {
-                    let title = self.tabs[i].title();
+                    let title = self.tabs[i].title(&t.get("tab_untitled"));
                     let is_active = i == self.active_tab;
 
                     let resp = tree::selectable_label_draggable(ui, is_active, &title);
@@ -741,40 +826,58 @@ impl EditorApp {
     fn render_canvas(&mut self, ui: &mut egui::Ui) {
         let t = self.t();
         let cursor_mode = self.cursor_mode;
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-            let tab = &mut self.tabs[self.active_tab];
-            if tab.level.is_some() {
-                let sel = tab.selected.clone();
-                tab.renderer.show(ui, &sel, cursor_mode, t);
-                // Pick up click-to-select from renderer
-                if let Some(idx) = tab.renderer.clicked_object {
-                    if tab.renderer.clicked_with_cmd {
-                        if tab.selected.contains(&idx) {
-                            tab.selected.remove(&idx);
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(ref mut sv) = tab.save_view {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                sv.render_save_panels(ui, t);
+            });
+        } else {
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                if tab.level.is_some() {
+                    let sel = tab.selected.clone();
+                    tab.renderer.show(ui, &sel, cursor_mode, t);
+                    // Pick up click-to-select from renderer
+                    if let Some(idx) = tab.renderer.clicked_object {
+                        if tab.renderer.clicked_with_cmd {
+                            if tab.selected.contains(&idx) {
+                                tab.selected.remove(&idx);
+                            } else {
+                                tab.selected.insert(idx);
+                            }
                         } else {
-                            tab.selected.insert(idx);
+                            tab.selected = BTreeSet::from([idx]);
                         }
-                    } else {
-                        tab.selected = BTreeSet::from([idx]);
                     }
-                }
-                // Pick up drag result — update object position
-                if let Some((idx, delta)) = tab.renderer.drag_result.take()
-                    && let Some(ref mut level) = tab.level
-                    && idx < level.objects.len()
-                {
-                    tab.history.undo.push(Snapshot {
-                        level: level.clone(),
-                        selected: tab.selected.clone(),
-                    });
-                    if tab.history.undo.len() > UNDO_MAX {
-                        tab.history.undo.remove(0);
-                    }
-                    tab.history.redo.clear();
+                    // Pick up drag result — update object position
+                    if let Some((idx, delta)) = tab.renderer.drag_result.take()
+                        && let Some(ref mut level) = tab.level
+                        && idx < level.objects.len()
+                    {
+                        tab.history.undo.push(Snapshot {
+                            level: level.clone(),
+                            selected: tab.selected.clone(),
+                        });
+                        if tab.history.undo.len() > UNDO_MAX {
+                            tab.history.undo.remove(0);
+                        }
+                        tab.history.redo.clear();
 
-                    for &sel_idx in &tab.selected {
-                        if sel_idx < level.objects.len() {
-                            match &mut level.objects[sel_idx] {
+                        for &sel_idx in &tab.selected {
+                            if sel_idx < level.objects.len() {
+                                match &mut level.objects[sel_idx] {
+                                    LevelObject::Prefab(p) => {
+                                        p.position.x += delta.x;
+                                        p.position.y += delta.y;
+                                    }
+                                    LevelObject::Parent(p) => {
+                                        p.position.x += delta.x;
+                                        p.position.y += delta.y;
+                                    }
+                                }
+                            }
+                        }
+                        if !tab.selected.contains(&idx) {
+                            match &mut level.objects[idx] {
                                 LevelObject::Prefab(p) => {
                                     p.position.x += delta.x;
                                     p.position.y += delta.y;
@@ -785,62 +888,15 @@ impl EditorApp {
                                 }
                             }
                         }
+                        let cam = tab.renderer.camera.clone();
+                        tab.renderer.set_level(level);
+                        tab.renderer.camera = cam;
                     }
-                    if !tab.selected.contains(&idx) {
-                        match &mut level.objects[idx] {
-                            LevelObject::Prefab(p) => {
-                                p.position.x += delta.x;
-                                p.position.y += delta.y;
-                            }
-                            LevelObject::Parent(p) => {
-                                p.position.x += delta.x;
-                                p.position.y += delta.y;
-                            }
-                        }
-                    }
-                    let cam = tab.renderer.camera.clone();
-                    tab.renderer.set_level(level);
-                    tab.renderer.camera = cam;
-                }
-                // Pick up terrain node drag result
-                if let Some(result) = tab.renderer.node_drag_result.take()
-                    && let Some(ref mut level) = tab.level
-                    && result.object_index < level.objects.len()
-                {
-                    tab.history.undo.push(Snapshot {
-                        level: level.clone(),
-                        selected: tab.selected.clone(),
-                    });
-                    if tab.history.undo.len() > UNDO_MAX {
-                        tab.history.undo.remove(0);
-                    }
-                    tab.history.redo.clear();
-
-                    if let LevelObject::Prefab(ref mut p) = level.objects[result.object_index]
-                        && let Some(ref mut td) = p.terrain_data
+                    // Pick up terrain node drag result
+                    if let Some(result) = tab.renderer.node_drag_result.take()
+                        && let Some(ref mut level) = tab.level
+                        && result.object_index < level.objects.len()
                     {
-                        let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
-                        if result.node_index < nodes.len() {
-                            nodes[result.node_index].position = result.new_local_pos;
-                            crate::terrain_gen::regenerate_terrain(td, &nodes);
-                        }
-                    }
-
-                    let cam = tab.renderer.camera.clone();
-                    tab.renderer.set_level(level);
-                    tab.renderer.camera = cam;
-                }
-                // Pick up terrain node edit action (add / delete)
-                if let Some(action) = tab.renderer.node_edit_action.take()
-                    && let Some(ref mut level) = tab.level
-                {
-                    use crate::renderer::NodeEditAction;
-                    let obj_idx = match &action {
-                        NodeEditAction::Delete { object_index, .. }
-                        | NodeEditAction::Insert { object_index, .. }
-                        | NodeEditAction::ToggleTexture { object_index, .. } => *object_index,
-                    };
-                    if obj_idx < level.objects.len() {
                         tab.history.undo.push(Snapshot {
                             level: level.clone(),
                             selected: tab.selected.clone(),
@@ -850,201 +906,255 @@ impl EditorApp {
                         }
                         tab.history.redo.clear();
 
-                        if let LevelObject::Prefab(ref mut p) = level.objects[obj_idx]
+                        if let LevelObject::Prefab(ref mut p) = level.objects[result.object_index]
                             && let Some(ref mut td) = p.terrain_data
                         {
                             let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
-                            match action {
-                                NodeEditAction::Delete { node_index, .. } => {
-                                    if node_index < nodes.len() && nodes.len() > 2 {
-                                        nodes.remove(node_index);
-                                    }
-                                }
-                                NodeEditAction::Insert {
-                                    after_node,
-                                    local_pos,
-                                    ..
-                                } => {
-                                    let insert_idx = (after_node + 1).min(nodes.len());
-                                    let tex = nodes.get(after_node).map(|n| n.texture).unwrap_or(0);
-                                    nodes.insert(
-                                        insert_idx,
-                                        crate::terrain_gen::CurveNode {
-                                            position: local_pos,
-                                            texture: tex,
-                                        },
-                                    );
-                                }
-                                NodeEditAction::ToggleTexture { node_index, .. } => {
-                                    if let Some(node) = nodes.get_mut(node_index) {
-                                        node.texture = if node.texture == 0 { 1 } else { 0 };
-                                    }
-                                }
+                            if result.node_index < nodes.len() {
+                                nodes[result.node_index].position = result.new_local_pos;
+                                crate::terrain_gen::regenerate_terrain(td, &nodes);
                             }
-                            crate::terrain_gen::regenerate_terrain(td, &nodes);
                         }
 
                         let cam = tab.renderer.camera.clone();
                         tab.renderer.set_level(level);
                         tab.renderer.camera = cam;
                     }
-                }
-                // Pick up box-selection result — replace selection
-                if let Some(result) = tab.renderer.box_select_result.take() {
-                    tab.selected = result.indices;
-                }
-                // Pick up bounds drag result — write back to LevelManager override data
-                if let Some(result) = tab.renderer.bounds_drag_result.take()
-                    && let Some(ref mut level) = tab.level
-                {
-                    tab.history.undo.push(Snapshot {
-                        level: level.clone(),
-                        selected: tab.selected.clone(),
-                    });
-                    if tab.history.undo.len() > UNDO_MAX {
-                        tab.history.undo.remove(0);
-                    }
-                    tab.history.redo.clear();
-                    dialogs::update_camera_limits_in_level(level, result.new_limits);
-                }
-                // Pick up terrain draw result — create new terrain object
-                if let Some(result) = tab.renderer.draw_terrain_result.take()
-                    && let Some(ref mut level) = tab.level
-                    && result.points.len() >= 2
-                {
-                    tab.history.undo.push(Snapshot {
-                        level: level.clone(),
-                        selected: tab.selected.clone(),
-                    });
-                    if tab.history.undo.len() > UNDO_MAX {
-                        tab.history.undo.remove(0);
-                    }
-                    tab.history.redo.clear();
-
-                    // Create a new terrain Prefab from drawn points
-                    let center = {
-                        let mut cx = 0.0f32;
-                        let mut cy = 0.0f32;
-                        for p in &result.points {
-                            cx += p.x;
-                            cy += p.y;
-                        }
-                        let n = result.points.len() as f32;
-                        Vec2 { x: cx / n, y: cy / n }
-                    };
-                    // Default texture = 1 (splat1)
-                    let local_nodes: Vec<crate::terrain_gen::CurveNode> = result
-                        .points
-                        .iter()
-                        .map(|p| crate::terrain_gen::CurveNode {
-                            position: Vec2 {
-                                x: p.x - center.x,
-                                y: p.y - center.y,
-                            },
-                            texture: 1,
-                        })
-                        .collect();
-                    let mut td = TerrainData {
-                        fill_texture_tile_offset_x: 0.0,
-                        fill_texture_tile_offset_y: 0.0,
-                        fill_mesh: TerrainMesh::default(),
-                        fill_color: Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 },
-                        fill_texture_index: 0,
-                        curve_mesh: TerrainMesh::default(),
-                        curve_textures: vec![
-                            CurveTexture {
-                                texture_index: 0,
-                                size: Vec2 { x: 1.0, y: 0.5 },
-                                fixed_angle: false,
-                                fade_threshold: 0.0,
-                            },
-                            CurveTexture {
-                                texture_index: 1,
-                                size: Vec2 { x: 1.0, y: 0.1 },
-                                fixed_angle: false,
-                                fade_threshold: 0.0,
-                            },
-                        ],
-                        control_texture_count: 0,
-                        control_texture_data: None,
-                        has_collider: true,
-                        fill_boundary: None,
-                    };
-                    crate::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
-                    let new_obj = LevelObject::Prefab(PrefabInstance {
-                        name: "Terrain".to_string(),
-                        prefab_index: -1,
-                        position: Vec3 {
-                            x: center.x,
-                            y: center.y,
-                            z: 0.0,
-                        },
-                        rotation: Vec3::default(),
-                        scale: Vec3 { x: 1.0, y: 1.0, z: 1.0 },
-                        parent: None,
-                        data_type: DataType::Terrain,
-                        terrain_data: Some(Box::new(td)),
-                        override_data: None,
-                    });
-                    let new_idx = level.objects.len();
-                    level.objects.push(new_obj);
-                    level.roots.push(new_idx);
-                    tab.selected = std::collections::BTreeSet::from([new_idx]);
-
-                    let cam = tab.renderer.camera.clone();
-                    tab.renderer.set_level(level);
-                    tab.renderer.camera = cam;
-                    let label = if result.closed { "Terrain (closed)" } else { "Terrain" };
-                    tab.status = t.fmt1("status_added", label);
-                }
-            } else {
-                let rect = ui.available_rect_before_wrap();
-                let is_dark = ui.visuals().dark_mode;
-                let icon_tint = if is_dark {
-                    egui::Color32::from_gray(160)
-                } else {
-                    egui::Color32::from_gray(80)
-                };
-                let hint_color = if is_dark {
-                    egui::Color32::from_gray(180)
-                } else {
-                    egui::Color32::from_gray(100)
-                };
-                let sub_color = if is_dark {
-                    egui::Color32::from_gray(140)
-                } else {
-                    egui::Color32::from_gray(120)
-                };
-                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-                    ui.with_layout(
-                        egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                        |ui| {
-                            ui.vertical_centered(|ui| {
-                                let center_y = rect.center().y - 40.0;
-                                ui.add_space((center_y - rect.top()).max(0.0));
-
-                                ui.add(
-                                    egui::Image::from_bytes(
-                                        "bytes://drop-icon.svg",
-                                        include_bytes!("../../assets/drop-icon.svg"),
-                                    )
-                                    .fit_to_exact_size(egui::Vec2::splat(48.0))
-                                    .tint(icon_tint),
-                                );
-
-                                ui.add_space(4.0);
-                                ui.label(
-                                    egui::RichText::new(t.get("panel_drop_hint")).color(hint_color),
-                                );
-                                ui.label(
-                                    egui::RichText::new(t.get("panel_open_hint")).color(sub_color),
-                                );
+                    // Pick up terrain node edit action (add / delete)
+                    if let Some(action) = tab.renderer.node_edit_action.take()
+                        && let Some(ref mut level) = tab.level
+                    {
+                        use crate::renderer::NodeEditAction;
+                        let obj_idx = match &action {
+                            NodeEditAction::Delete { object_index, .. }
+                            | NodeEditAction::Insert { object_index, .. }
+                            | NodeEditAction::ToggleTexture { object_index, .. } => *object_index,
+                        };
+                        if obj_idx < level.objects.len() {
+                            tab.history.undo.push(Snapshot {
+                                level: level.clone(),
+                                selected: tab.selected.clone(),
                             });
-                        },
-                    );
-                });
-            }
-        });
+                            if tab.history.undo.len() > UNDO_MAX {
+                                tab.history.undo.remove(0);
+                            }
+                            tab.history.redo.clear();
+
+                            if let LevelObject::Prefab(ref mut p) = level.objects[obj_idx]
+                                && let Some(ref mut td) = p.terrain_data
+                            {
+                                let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
+                                match action {
+                                    NodeEditAction::Delete { node_index, .. } => {
+                                        if node_index < nodes.len() && nodes.len() > 2 {
+                                            nodes.remove(node_index);
+                                        }
+                                    }
+                                    NodeEditAction::Insert {
+                                        after_node,
+                                        local_pos,
+                                        ..
+                                    } => {
+                                        let insert_idx = (after_node + 1).min(nodes.len());
+                                        let tex =
+                                            nodes.get(after_node).map(|n| n.texture).unwrap_or(0);
+                                        nodes.insert(
+                                            insert_idx,
+                                            crate::terrain_gen::CurveNode {
+                                                position: local_pos,
+                                                texture: tex,
+                                            },
+                                        );
+                                    }
+                                    NodeEditAction::ToggleTexture { node_index, .. } => {
+                                        if let Some(node) = nodes.get_mut(node_index) {
+                                            node.texture = if node.texture == 0 { 1 } else { 0 };
+                                        }
+                                    }
+                                }
+                                crate::terrain_gen::regenerate_terrain(td, &nodes);
+                            }
+
+                            let cam = tab.renderer.camera.clone();
+                            tab.renderer.set_level(level);
+                            tab.renderer.camera = cam;
+                        }
+                    }
+                    // Pick up box-selection result — replace selection
+                    if let Some(result) = tab.renderer.box_select_result.take() {
+                        tab.selected = result.indices;
+                    }
+                    // Pick up bounds drag result — write back to LevelManager override data
+                    if let Some(result) = tab.renderer.bounds_drag_result.take()
+                        && let Some(ref mut level) = tab.level
+                    {
+                        tab.history.undo.push(Snapshot {
+                            level: level.clone(),
+                            selected: tab.selected.clone(),
+                        });
+                        if tab.history.undo.len() > UNDO_MAX {
+                            tab.history.undo.remove(0);
+                        }
+                        tab.history.redo.clear();
+                        dialogs::update_camera_limits_in_level(level, result.new_limits);
+                    }
+                    // Pick up terrain draw result — create new terrain object
+                    if let Some(result) = tab.renderer.draw_terrain_result.take()
+                        && let Some(ref mut level) = tab.level
+                        && result.points.len() >= 2
+                    {
+                        tab.history.undo.push(Snapshot {
+                            level: level.clone(),
+                            selected: tab.selected.clone(),
+                        });
+                        if tab.history.undo.len() > UNDO_MAX {
+                            tab.history.undo.remove(0);
+                        }
+                        tab.history.redo.clear();
+
+                        // Create a new terrain Prefab from drawn points
+                        let center = {
+                            let mut cx = 0.0f32;
+                            let mut cy = 0.0f32;
+                            for p in &result.points {
+                                cx += p.x;
+                                cy += p.y;
+                            }
+                            let n = result.points.len() as f32;
+                            Vec2 {
+                                x: cx / n,
+                                y: cy / n,
+                            }
+                        };
+                        // Default texture = 1 (splat1)
+                        let local_nodes: Vec<crate::terrain_gen::CurveNode> = result
+                            .points
+                            .iter()
+                            .map(|p| crate::terrain_gen::CurveNode {
+                                position: Vec2 {
+                                    x: p.x - center.x,
+                                    y: p.y - center.y,
+                                },
+                                texture: 1,
+                            })
+                            .collect();
+                        let mut td = TerrainData {
+                            fill_texture_tile_offset_x: 0.0,
+                            fill_texture_tile_offset_y: 0.0,
+                            fill_mesh: TerrainMesh::default(),
+                            fill_color: Color {
+                                r: 1.0,
+                                g: 1.0,
+                                b: 1.0,
+                                a: 1.0,
+                            },
+                            fill_texture_index: 0,
+                            curve_mesh: TerrainMesh::default(),
+                            curve_textures: vec![
+                                CurveTexture {
+                                    texture_index: 0,
+                                    size: Vec2 { x: 1.0, y: 0.5 },
+                                    fixed_angle: false,
+                                    fade_threshold: 0.0,
+                                },
+                                CurveTexture {
+                                    texture_index: 1,
+                                    size: Vec2 { x: 1.0, y: 0.1 },
+                                    fixed_angle: false,
+                                    fade_threshold: 0.0,
+                                },
+                            ],
+                            control_texture_count: 0,
+                            control_texture_data: None,
+                            has_collider: true,
+                            fill_boundary: None,
+                        };
+                        crate::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
+                        let new_obj = LevelObject::Prefab(PrefabInstance {
+                            name: "Terrain".to_string(),
+                            prefab_index: -1,
+                            position: Vec3 {
+                                x: center.x,
+                                y: center.y,
+                                z: 0.0,
+                            },
+                            rotation: Vec3::default(),
+                            scale: Vec3 {
+                                x: 1.0,
+                                y: 1.0,
+                                z: 1.0,
+                            },
+                            parent: None,
+                            data_type: DataType::Terrain,
+                            terrain_data: Some(Box::new(td)),
+                            override_data: None,
+                        });
+                        let new_idx = level.objects.len();
+                        level.objects.push(new_obj);
+                        level.roots.push(new_idx);
+                        tab.selected = std::collections::BTreeSet::from([new_idx]);
+
+                        let cam = tab.renderer.camera.clone();
+                        tab.renderer.set_level(level);
+                        tab.renderer.camera = cam;
+                        let label = if result.closed {
+                            "Terrain (closed)"
+                        } else {
+                            "Terrain"
+                        };
+                        tab.status = t.fmt1("status_added", label);
+                    }
+                } else {
+                    let rect = ui.available_rect_before_wrap();
+                    let is_dark = ui.visuals().dark_mode;
+                    let icon_tint = if is_dark {
+                        egui::Color32::from_gray(160)
+                    } else {
+                        egui::Color32::from_gray(80)
+                    };
+                    let hint_color = if is_dark {
+                        egui::Color32::from_gray(180)
+                    } else {
+                        egui::Color32::from_gray(100)
+                    };
+                    let sub_color = if is_dark {
+                        egui::Color32::from_gray(140)
+                    } else {
+                        egui::Color32::from_gray(120)
+                    };
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                        ui.with_layout(
+                            egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                            |ui| {
+                                ui.vertical_centered(|ui| {
+                                    let center_y = rect.center().y - 40.0;
+                                    ui.add_space((center_y - rect.top()).max(0.0));
+
+                                    ui.add(
+                                        egui::Image::from_bytes(
+                                            "bytes://drop-icon.svg",
+                                            include_bytes!("../../assets/drop-icon.svg"),
+                                        )
+                                        .fit_to_exact_size(egui::Vec2::splat(48.0))
+                                        .tint(icon_tint),
+                                    );
+
+                                    ui.add_space(4.0);
+                                    ui.label(
+                                        egui::RichText::new(t.get("panel_drop_hint"))
+                                            .color(hint_color),
+                                    );
+                                    ui.label(
+                                        egui::RichText::new(t.get("panel_open_hint"))
+                                            .color(sub_color),
+                                    );
+                                });
+                            },
+                        );
+                    });
+                }
+            });
+        }
     }
 }
 
@@ -1066,6 +1176,7 @@ fn configure_cjk_fonts(ctx: &egui::Context) {
     if let Some(list) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
         list.push("cjk".into());
     }
+
     ctx.set_fonts(fonts);
 }
 

@@ -218,7 +218,7 @@ impl EditorApp {
     pub(super) fn load_level_into_tab(&mut self, name: String, data: Vec<u8>) {
         let i18n = self.lang.i18n();
         let tab = &self.tabs[self.active_tab];
-        if tab.level.is_some() {
+        if tab.level.is_some() || tab.save_view.is_some() {
             let new_renderer = tab.renderer.clone_for_new_tab();
             let mut new_tab = Tab::new(new_renderer, String::new());
             new_tab.load_level(name, data, i18n);
@@ -233,7 +233,7 @@ impl EditorApp {
     pub(super) fn load_level_text_into_tab(&mut self, name: String, text: &str) {
         let i18n = self.lang.i18n();
         let tab = &self.tabs[self.active_tab];
-        if tab.level.is_some() {
+        if tab.level.is_some() || tab.save_view.is_some() {
             let new_renderer = tab.renderer.clone_for_new_tab();
             let mut new_tab = Tab::new(new_renderer, String::new());
             new_tab.load_level_text(name, text, i18n);
@@ -244,11 +244,50 @@ impl EditorApp {
         }
     }
 
+    /// Load a save file into the active tab (or a new tab if active tab already has content).
+    pub(super) fn load_save_into_tab(&mut self, name: String, data: Vec<u8>) {
+        let (sv, status) = super::save_viewer::SaveViewerData::load(&name, &data);
+        let tab = &self.tabs[self.active_tab];
+        let is_empty = tab.level.is_none() && tab.save_view.is_none();
+        if is_empty {
+            self.tabs[self.active_tab].save_view = Some(sv);
+            self.tabs[self.active_tab].file_name = Some(name);
+            self.tabs[self.active_tab].status = status;
+        } else {
+            let new_renderer = tab.renderer.clone_for_new_tab();
+            let mut new_tab = Tab::new(new_renderer, status);
+            new_tab.save_view = Some(sv);
+            new_tab.file_name = Some(name);
+            self.tabs.push(new_tab);
+            self.active_tab = self.tabs.len() - 1;
+        }
+    }
+
+    /// Load a decrypted XML save file into the active tab (or a new tab).
+    pub(super) fn load_xml_into_tab(&mut self, name: String, data: Vec<u8>) {
+        let (sv, status) = super::save_viewer::SaveViewerData::load_xml(&name, &data);
+        let tab = &self.tabs[self.active_tab];
+        let is_empty = tab.level.is_none() && tab.save_view.is_none();
+        if is_empty {
+            self.tabs[self.active_tab].save_view = Some(sv);
+            self.tabs[self.active_tab].file_name = Some(name);
+            self.tabs[self.active_tab].status = status;
+        } else {
+            let new_renderer = tab.renderer.clone_for_new_tab();
+            let mut new_tab = Tab::new(new_renderer, status);
+            new_tab.save_view = Some(sv);
+            new_tab.file_name = Some(name);
+            self.tabs.push(new_tab);
+            self.active_tab = self.tabs.len() - 1;
+        }
+    }
+
     /// Close tab at index. Returns false if last tab was closed (app keeps at least 1 tab).
     pub(super) fn close_tab(&mut self, idx: usize) {
         if self.tabs.len() <= 1 {
             let tab = &mut self.tabs[0];
             tab.level = None;
+            tab.save_view = None;
             tab.file_name = None;
             tab.selected.clear();
             tab.history.undo.clear();

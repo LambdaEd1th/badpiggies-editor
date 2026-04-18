@@ -243,7 +243,10 @@ impl LevelRenderer {
                 if is_hovered || is_dragging {
                     let hs = 4.0; // half-size of handle square
                     let handle_fill = egui::Color32::from_rgba_unmultiplied(255, 200, 0, 200);
-                    let handle_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(180, 140, 0, 255));
+                    let handle_stroke = egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgba_unmultiplied(180, 140, 0, 255),
+                    );
                     let cx = (bounds_rect.left() + bounds_rect.right()) / 2.0;
                     let cy = (bounds_rect.top() + bounds_rect.bottom()) / 2.0;
                     // Corners
@@ -344,30 +347,21 @@ impl LevelRenderer {
             if let Some(ref tex_name) = td.fill_texture
                 && self.tex_cache.get(tex_name).is_none()
             {
-                self.tex_cache.load_texture_repeat(
-                    ctx,
-                    &format!("ground/{}", tex_name),
-                    tex_name,
-                );
+                self.tex_cache
+                    .load_texture_repeat(ctx, &format!("ground/{}", tex_name), tex_name);
             }
             // Splat textures for CPU-textured edge fallback
             if let Some(ref tex_name) = td.edge_splat0
                 && self.tex_cache.get(tex_name).is_none()
             {
-                self.tex_cache.load_texture_repeat(
-                    ctx,
-                    &format!("ground/{}", tex_name),
-                    tex_name,
-                );
+                self.tex_cache
+                    .load_texture_repeat(ctx, &format!("ground/{}", tex_name), tex_name);
             }
             if let Some(ref tex_name) = td.edge_splat1
                 && self.tex_cache.get(tex_name).is_none()
             {
-                self.tex_cache.load_texture_repeat(
-                    ctx,
-                    &format!("ground/{}", tex_name),
-                    tex_name,
-                );
+                self.tex_cache
+                    .load_texture_repeat(ctx, &format!("ground/{}", tex_name), tex_name);
             }
         }
         // Goal flag texture (props/ subdir) — repeat wrap + flip V for UV scroll
@@ -380,11 +374,8 @@ impl LevelRenderer {
         }
         // Glow/starburst particle atlas
         if self.tex_cache.get(GLOW_ATLAS).is_none() {
-            self.tex_cache.load_texture(
-                ctx,
-                &format!("particles/{}", GLOW_ATLAS),
-                GLOW_ATLAS,
-            );
+            self.tex_cache
+                .load_texture(ctx, &format!("particles/{}", GLOW_ATLAS), GLOW_ATLAS);
         }
     }
 
@@ -476,10 +467,7 @@ impl LevelRenderer {
 
                     // Draw lines between placed points
                     for pair in points.windows(2) {
-                        painter.line_segment(
-                            [pair[0], pair[1]],
-                            egui::Stroke::new(2.0, color),
-                        );
+                        painter.line_segment([pair[0], pair[1]], egui::Stroke::new(2.0, color));
                     }
 
                     // Draw dots at each placed point
@@ -489,11 +477,7 @@ impl LevelRenderer {
 
                     // Highlight first point when closeable (≥3 points)
                     if points.len() >= 3 {
-                        painter.circle_stroke(
-                            points[0],
-                            8.0,
-                            egui::Stroke::new(2.0, close_color),
-                        );
+                        painter.circle_stroke(points[0], 8.0, egui::Stroke::new(2.0, close_color));
                     }
 
                     // Draw preview line from last point to mouse cursor
@@ -502,10 +486,7 @@ impl LevelRenderer {
                     {
                         let dash_color = egui::Color32::from_rgba_unmultiplied(100, 220, 100, 140);
                         if let Some(&last) = points.last() {
-                            painter.line_segment(
-                                [last, mouse],
-                                egui::Stroke::new(1.0, dash_color),
-                            );
+                            painter.line_segment([last, mouse], egui::Stroke::new(1.0, dash_color));
                         }
 
                         // If near first point and ≥3 points, show closing preview
@@ -514,8 +495,11 @@ impl LevelRenderer {
                             let dx = mouse.x - first_screen.x;
                             let dy = mouse.y - first_screen.y;
                             if dx * dx + dy * dy < 12.0 * 12.0 {
-                                painter.circle_filled(first_screen, 8.0,
-                                    egui::Color32::from_rgba_unmultiplied(255, 200, 60, 80));
+                                painter.circle_filled(
+                                    first_screen,
+                                    8.0,
+                                    egui::Color32::from_rgba_unmultiplied(255, 200, 60, 80),
+                                );
                             }
                         }
                     }

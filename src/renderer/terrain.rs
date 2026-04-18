@@ -9,7 +9,7 @@ use eframe::egui;
 use crate::assets;
 use crate::types::*;
 
-use super::{edge_shader, fill_shader, Camera, LevelRenderer};
+use super::{Camera, LevelRenderer, edge_shader, fill_shader};
 use edge_shader::EdgeVertex;
 
 /// Terrain edge default colors when no splat pixel data is available.

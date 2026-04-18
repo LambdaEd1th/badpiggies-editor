@@ -95,6 +95,17 @@ impl EditorApp {
             return;
         }
         let t = self.t();
+        let is_mac = cfg!(target_os = "macos");
+
+        // Platform-aware shortcut key labels
+        let cmd_click = if is_mac { "Cmd+Click" } else { "Ctrl+Click" };
+        let undo_key = if is_mac { "Cmd+Z" } else { "Ctrl+Z" };
+        let redo_key = if is_mac { "Shift+Cmd+Z" } else { "Ctrl+Y" };
+        let copy_key = if is_mac { "Cmd+C" } else { "Ctrl+C" };
+        let cut_key = if is_mac { "Cmd+X" } else { "Ctrl+X" };
+        let paste_key = if is_mac { "Cmd+V" } else { "Ctrl+V" };
+        let dup_key = if is_mac { "Cmd+D" } else { "Ctrl+D" };
+        let delete_key = if is_mac { "Delete" } else { "Delete" };
 
         // Add tool mode shortcuts to the shortcuts window
         egui::Window::new(t.get("win_shortcuts"))
@@ -126,7 +137,7 @@ impl EditorApp {
                         ui.label(t.get("shortcuts_click"));
                         ui.label(t.get("shortcuts_select"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_cmd_click"));
+                        ui.label(cmd_click);
                         ui.label(t.get("shortcuts_cmd_click_action"));
                         ui.end_row();
                         ui.label(t.get("shortcuts_shift_click"));
@@ -143,25 +154,25 @@ impl EditorApp {
                         ui.label(t.get("shortcuts_b_key"));
                         ui.label(t.get("shortcuts_toggle_bg"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_undo"));
+                        ui.label(undo_key);
                         ui.label(t.get("shortcuts_undo_action"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_redo"));
+                        ui.label(redo_key);
                         ui.label(t.get("shortcuts_redo_action"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_copy"));
+                        ui.label(copy_key);
                         ui.label(t.get("shortcuts_copy_action"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_cut"));
+                        ui.label(cut_key);
                         ui.label(t.get("shortcuts_cut_action"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_paste"));
+                        ui.label(paste_key);
                         ui.label(t.get("shortcuts_paste_action"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_duplicate"));
+                        ui.label(dup_key);
                         ui.label(t.get("shortcuts_duplicate_action"));
                         ui.end_row();
-                        ui.label(t.get("shortcuts_delete"));
+                        ui.label(delete_key);
                         ui.label(t.get("shortcuts_delete_action"));
                         ui.end_row();
 

@@ -740,9 +740,7 @@ impl LevelRenderer {
         canvas_center: egui::Vec2,
         rect: egui::Rect,
     ) {
-        if let (Some(resources), Some(gpu_meshes)) =
-            (&self.dark_resources, &self.dark_gpu_meshes)
-        {
+        if let (Some(resources), Some(gpu_meshes)) = (&self.dark_resources, &self.dark_gpu_meshes) {
             painter.add(dark_shader::make_dark_callback(
                 rect,
                 resources.clone(),

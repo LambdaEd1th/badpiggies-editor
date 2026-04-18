@@ -4,8 +4,8 @@ use eframe::egui;
 
 use crate::types::*;
 
-use super::sprites::SpriteDrawData;
 use super::Camera;
+use super::sprites::SpriteDrawData;
 
 /// 33 vertices as (x, y) pairs — pre-transformed from Unity GoalSprite mesh.
 /// World-space offsets from GoalArea position. Range: X [-0.65, 0.65], Y [-1.32, 1.32].

@@ -4,12 +4,16 @@
 mod app;
 mod assets;
 mod bg_data;
+mod crypto;
+mod icon_db;
+mod level_db;
 mod level_ops;
 mod level_refs;
 mod locale;
 mod log_buffer;
 mod parser;
 mod renderer;
+mod save_parser;
 mod sprite_db;
 mod terrain_gen;
 mod types;
@@ -63,8 +67,9 @@ fn get_screen_size_80pct() -> (f32, f32) {
 // ── CLI ──────────────────────────────────────────────
 #[cfg(not(target_arch = "wasm32"))]
 mod cli {
+    use crate::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
     use crate::locale::Language;
-    use clap::{Parser, Subcommand};
+    use clap::{Parser, Subcommand, ValueEnum};
     use std::path::PathBuf;
 
     #[derive(Parser)]
@@ -72,6 +77,23 @@ mod cli {
     pub struct Cli {
         #[command(subcommand)]
         pub command: Option<Command>,
+    }
+
+    #[derive(Clone, ValueEnum)]
+    pub enum SaveType {
+        Progress,
+        Contraption,
+        Achievements,
+    }
+
+    impl SaveType {
+        fn into_file_type(self) -> SaveFileType {
+            match self {
+                Self::Progress => SaveFileType::Progress,
+                Self::Contraption => SaveFileType::Contraption,
+                Self::Achievements => SaveFileType::Achievements,
+            }
+        }
     }
 
     #[derive(Subcommand)]
@@ -83,9 +105,64 @@ mod cli {
             /// Output file (.bytes, .yaml, .yml, .toml)
             output: PathBuf,
         },
+        /// Decrypt a Bad Piggies save file to XML
+        Decrypt {
+            /// Input save file (Progress.dat, *.contraption, Achievements.xml)
+            input: PathBuf,
+            /// Output XML file (defaults to stdout if omitted)
+            #[arg(short, long)]
+            output: Option<PathBuf>,
+            /// Save file type (auto-detected from input filename if omitted)
+            #[arg(short = 't', long = "type")]
+            save_type: Option<SaveType>,
+        },
+        /// Encrypt an XML file back to Bad Piggies save format
+        Encrypt {
+            /// Input XML file
+            input: PathBuf,
+            /// Output save file (Progress.dat, *.contraption, Achievements.xml)
+            output: PathBuf,
+            /// Save file type (auto-detected from output filename if omitted)
+            #[arg(short = 't', long = "type")]
+            save_type: Option<SaveType>,
+        },
     }
 
-    pub fn run_convert(input: PathBuf, output: PathBuf) -> Result<(), String> {
+    /// Resolve a SaveFileType from an explicit flag or by detecting from a filename.
+    fn resolve_type(
+        explicit: Option<SaveType>,
+        path: &std::path::Path,
+        role: &str,
+    ) -> Result<SaveFileType, String> {
+        if let Some(st) = explicit {
+            return Ok(st.into_file_type());
+        }
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        SaveFileType::detect(name).ok_or_else(|| {
+            format!(
+                "Cannot detect save file type from {role} filename \"{name}\". \
+                 Use --type progress|contraption|achievements"
+            )
+        })
+    }
+
+    pub fn run(cmd: Command) -> Result<(), String> {
+        match cmd {
+            Command::Convert { input, output } => run_convert(input, output),
+            Command::Decrypt {
+                input,
+                output,
+                save_type,
+            } => run_decrypt(input, output, save_type),
+            Command::Encrypt {
+                input,
+                output,
+                save_type,
+            } => run_encrypt(input, output, save_type),
+        }
+    }
+
+    fn run_convert(input: PathBuf, output: PathBuf) -> Result<(), String> {
         let t = Language::from_system().i18n();
 
         let ext_in = input
@@ -102,7 +179,6 @@ mod cli {
         let display_in = input.display().to_string();
         let display_out = output.display().to_string();
 
-        // Parse input
         let level = match ext_in.as_str() {
             "bytes" => {
                 let data = std::fs::read(&input)
@@ -125,7 +201,6 @@ mod cli {
             _ => return Err(t.fmt1("cli_unsupported_input", &ext_in)),
         };
 
-        // Serialize output
         let output_data: Vec<u8> = match ext_out.as_str() {
             "bytes" => crate::parser::serialize_level(&level),
             "yaml" | "yml" => serde_yaml::to_string(&level)
@@ -149,7 +224,60 @@ mod cli {
                 level.roots.len()
             ),
         );
+        Ok(())
+    }
 
+    fn run_decrypt(
+        input: PathBuf,
+        output: Option<PathBuf>,
+        save_type: Option<SaveType>,
+    ) -> Result<(), String> {
+        let file_type = resolve_type(save_type, &input, "input")?;
+
+        let data = std::fs::read(&input)
+            .map_err(|e| format!("Failed to read {}: {e}", input.display()))?;
+        let xml = decrypt_save_file(&file_type, &data)?;
+
+        if let Some(ref out) = output {
+            std::fs::write(out, &xml)
+                .map_err(|e| format!("Failed to write {}: {e}", out.display()))?;
+            eprintln!(
+                "Decrypted {} ({}) -> {} ({} bytes)",
+                input.display(),
+                file_type.label(),
+                out.display(),
+                xml.len()
+            );
+        } else {
+            use std::io::Write;
+            std::io::stdout()
+                .write_all(&xml)
+                .map_err(|e| format!("Failed to write to stdout: {e}"))?;
+        }
+        Ok(())
+    }
+
+    fn run_encrypt(
+        input: PathBuf,
+        output: PathBuf,
+        save_type: Option<SaveType>,
+    ) -> Result<(), String> {
+        let file_type = resolve_type(save_type, &output, "output")?;
+
+        let xml = std::fs::read(&input)
+            .map_err(|e| format!("Failed to read {}: {e}", input.display()))?;
+        let encrypted = encrypt_save_file(&file_type, &xml);
+
+        std::fs::write(&output, &encrypted)
+            .map_err(|e| format!("Failed to write {}: {e}", output.display()))?;
+
+        eprintln!(
+            "Encrypted {} -> {} ({}, {} bytes)",
+            input.display(),
+            output.display(),
+            file_type.label(),
+            encrypted.len()
+        );
         Ok(())
     }
 }
@@ -161,20 +289,16 @@ fn main() -> eframe::Result<()> {
 
     let cli = cli::Cli::parse();
     if let Some(cmd) = cli.command {
-        match cmd {
-            cli::Command::Convert { input, output } => {
-                if let Err(e) = cli::run_convert(input, output) {
-                    let t = locale::Language::from_system().i18n();
-                    eprintln!("{}", t.fmt1("cli_error_prefix", &e));
-                    std::process::exit(1);
-                }
-                return Ok(());
-            }
+        if let Err(e) = cli::run(cmd) {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
         }
+        return Ok(());
     }
 
     let inner = env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
+        .filter_module("egui::context", log::LevelFilter::Error)
         .build();
     log_buffer::init(Box::new(inner), log::LevelFilter::Debug);
 

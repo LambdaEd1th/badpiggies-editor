@@ -12,8 +12,8 @@ use crate::sprite_db;
 use crate::types::*;
 
 use super::compounds;
-use super::{background, opaque_shader, sprite_shader};
 use super::{Camera, CompoundTransform, DrawCtx, LevelRenderer};
+use super::{background, opaque_shader, sprite_shader};
 
 // ── BirdSleep2.anim hermite keyframes (t, value, inSlope, outSlope) ──
 pub const BIRD_SLEEP_DURATION: f32 = 4.0;
@@ -810,8 +810,7 @@ impl LevelRenderer {
 
             // Bird face: defer if GPU-rendered so faces draw after batch callback
             if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-                let bt =
-                    ((t as f32 + sprite.bird_phase) % BIRD_SLEEP_DURATION).max(0.0);
+                let bt = ((t as f32 + sprite.bird_phase) % BIRD_SLEEP_DURATION).max(0.0);
                 let breath_y = background::hermite(BIRD_SLEEP_POS_Y, bt);
                 let breath_sx = background::hermite(BIRD_SLEEP_SCALE_X, bt);
                 let breath_sy = background::hermite(BIRD_SLEEP_SCALE_Y, bt);
@@ -918,8 +917,7 @@ impl LevelRenderer {
 
             // Flush remaining draws
             if !pending_opaque.is_empty()
-                && let (Some(resources), Some(batch)) =
-                    (&self.opaque_resources, &self.opaque_batch)
+                && let (Some(resources), Some(batch)) = (&self.opaque_resources, &self.opaque_batch)
             {
                 painter.add(opaque_shader::make_opaque_batch_callback(
                     rect,

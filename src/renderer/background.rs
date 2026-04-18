@@ -922,8 +922,12 @@ impl LevelRenderer {
         rect: egui::Rect,
         z_range: (f32, f32),
     ) {
-        let Some(theme_name) = self.bg_theme else { return };
-        let Some(ref cache) = self.bg_layer_cache else { return };
+        let Some(theme_name) = self.bg_theme else {
+            return;
+        };
+        let Some(ref cache) = self.bg_layer_cache else {
+            return;
+        };
         let mut gpu = match (&self.bg_resources, &self.wgpu_device, &self.wgpu_queue) {
             (Some(r), Some(d), Some(q)) => Some(BgGpuState {
                 resources: r.clone(),

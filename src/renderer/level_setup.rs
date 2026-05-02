@@ -625,17 +625,11 @@ impl LevelRenderer {
         self.camera_limits = parse_camera_limits(level);
 
         // Build GPU fan-triangulated meshes for dark overlay stencil pass
-        if self.dark_level
-            && !self.lit_area_polygons.is_empty()
-            && let Some(device) = &self.wgpu_device
-        {
-            let pairs = self
-                .lit_area_polygons
-                .iter()
-                .map(|la| (la.border_vertices.as_slice(), la.vertices.as_slice()));
-            self.dark_gpu_meshes =
-                Some(Arc::new(dark_shader::build_dark_gpu_meshes(device, pairs)));
-        }
+        // The GPU stencil path still uses global parity across all lit polygons,
+        // which produces false dark rings when light areas overlap. Prefer the
+        // CPU union mesh path until the GPU implementation is rewritten for true
+        // polygon unions.
+        self.dark_gpu_meshes = None;
 
         // Fit camera to level bounds
         self.fit_to_level();

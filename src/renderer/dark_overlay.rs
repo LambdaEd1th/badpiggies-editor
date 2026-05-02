@@ -12,9 +12,14 @@ pub(super) struct LitAreaPolygon {
     /// World-space polygon vertices (closed loop) — the lit area boundary.
     pub vertices: Vec<(f32, f32)>,
     /// World-space polygon vertices for the outer border ring.
-    /// The border region is between `vertices` and `border_vertices`.
+    /// Empty means this light has no separate dark border region.
     pub border_vertices: Vec<(f32, f32)>,
+    /// Alpha used when drawing the border ring approximation.
+    pub border_alpha: u8,
 }
+
+const LIT_AREA_BORDER_ALPHA: u8 = 80;
+const POINT_LIGHT_BORDER_ALPHA: u8 = 40;
 
 /// Trapezoid defined by top/bottom edge X-ranges and Y values.
 struct Trapezoid {
@@ -214,6 +219,7 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     Some(LitAreaPolygon {
         vertices: polygon,
         border_vertices,
+        border_alpha: LIT_AREA_BORDER_ALPHA,
     })
 }
 
@@ -271,7 +277,9 @@ fn expand_polygon(polygon: &[(f32, f32)], width: f32) -> Vec<(f32, f32)> {
 /// Parse a PointLightSource-bearing prefab into a circular polygon.
 /// Returns None if the prefab is not a known light source type.
 fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
-    // Default (size, borderWidth) from prefab data
+    // Default (size, borderWidth) from prefab data. Unity draws point-light
+    // borders as a separate feathered light mesh. In the editor we approximate
+    // that transition as a lighter dark-overlay penumbra.
     let (default_size, default_border) = if prefab.name.starts_with("LitCrystal") {
         (2.0f32, 0.5f32)
     } else if prefab.name.starts_with("LitMushroom") {
@@ -315,20 +323,29 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         default_size
     };
 
-    // Generate circle polygons: inner (light) and outer (border)
-    let border_width = default_border;
+    let border_width = prefab
+        .override_data
+        .as_ref()
+        .and_then(|od| parse_next_float(&od.raw_text, "Float borderWidth = "))
+        .unwrap_or(default_border);
     let segments = 64;
     let cx = prefab.position.x;
     let cy = prefab.position.y;
     let mut vertices = Vec::with_capacity(segments);
-    let mut border_vertices = Vec::with_capacity(segments);
+    let mut border_vertices = if border_width > 0.0 {
+        Vec::with_capacity(segments)
+    } else {
+        Vec::new()
+    };
     let outer_size = size + border_width;
     for i in 0..segments {
         let angle = 2.0 * std::f32::consts::PI * (i as f32) / (segments as f32);
         let cos_a = angle.cos();
         let sin_a = angle.sin();
         vertices.push((cx + size * cos_a, cy + size * sin_a));
-        border_vertices.push((cx + outer_size * cos_a, cy + outer_size * sin_a));
+        if border_width > 0.0 {
+            border_vertices.push((cx + outer_size * cos_a, cy + outer_size * sin_a));
+        }
     }
 
     log::info!(
@@ -344,6 +361,7 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     Some(LitAreaPolygon {
         vertices,
         border_vertices,
+        border_alpha: POINT_LIGHT_BORDER_ALPHA,
     })
 }
 
@@ -356,7 +374,10 @@ pub(super) fn build_dark_overlay_meshes(
     lit_areas: &[LitAreaPolygon],
 ) -> (egui::Mesh, Option<egui::Mesh>) {
     let dark_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200);
-    let border_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 80);
+    let lit_area_border_color =
+        egui::Color32::from_rgba_unmultiplied(0, 0, 0, LIT_AREA_BORDER_ALPHA);
+    let point_light_border_color =
+        egui::Color32::from_rgba_unmultiplied(0, 0, 0, POINT_LIGHT_BORDER_ALPHA);
 
     if lit_areas.is_empty() {
         let mut m = egui::Mesh::default();
@@ -381,11 +402,15 @@ pub(super) fn build_dark_overlay_meshes(
         camera.world_to_screen(Vec2 { x: wx, y: wy }, canvas_center)
     };
 
-    let border_polys: Vec<Vec<egui::Pos2>> = lit_areas
+    let hole_polys: Vec<Vec<egui::Pos2>> = lit_areas
         .iter()
         .filter_map(|la| {
-            let pts: Vec<egui::Pos2> = la
-                .border_vertices
+            let source = if la.border_vertices.len() >= 3 {
+                &la.border_vertices
+            } else {
+                &la.vertices
+            };
+            let pts: Vec<egui::Pos2> = source
                 .iter()
                 .map(|&(wx, wy)| to_screen(wx, wy))
                 .collect();
@@ -393,19 +418,38 @@ pub(super) fn build_dark_overlay_meshes(
         })
         .collect();
 
-    let inner_polys: Vec<Vec<egui::Pos2>> = lit_areas
-        .iter()
-        .filter_map(|la| {
-            let pts: Vec<egui::Pos2> = la
-                .vertices
+    struct ScreenLitArea {
+        hole: Vec<egui::Pos2>,
+        inner: Vec<egui::Pos2>,
+        border_alpha: u8,
+    }
+
+    let mut screen_lit_areas = Vec::with_capacity(lit_areas.len());
+    for la in lit_areas {
+        let inner: Vec<egui::Pos2> = la
+            .vertices
+            .iter()
+            .map(|&(wx, wy)| to_screen(wx, wy))
+            .collect();
+        if inner.len() < 3 {
+            continue;
+        }
+        let hole = if la.border_vertices.len() >= 3 {
+            la.border_vertices
                 .iter()
                 .map(|&(wx, wy)| to_screen(wx, wy))
-                .collect();
-            if pts.len() >= 3 { Some(pts) } else { None }
-        })
-        .collect();
+                .collect()
+        } else {
+            inner.clone()
+        };
+        screen_lit_areas.push(ScreenLitArea {
+            hole,
+            inner,
+            border_alpha: la.border_alpha,
+        });
+    }
 
-    if border_polys.is_empty() {
+    if hole_polys.is_empty() {
         let mut m = egui::Mesh::default();
         let uv = egui::pos2(0.0, 0.0);
         emit_quad(
@@ -424,7 +468,7 @@ pub(super) fn build_dark_overlay_meshes(
         return (m, None);
     }
 
-    let mut dark_mesh = build_scanline_complement_mesh(rect, &border_polys, dark_color);
+    let mut dark_mesh = build_scanline_complement_mesh(rect, &hole_polys, dark_color);
     if dark_mesh.vertices.is_empty() {
         let uv = egui::pos2(0.0, 0.0);
         emit_quad(
@@ -442,9 +486,40 @@ pub(super) fn build_dark_overlay_meshes(
         );
     }
 
-    let ring_mesh = if !inner_polys.is_empty() {
-        let m = build_scanline_ring_mesh(rect, &border_polys, &inner_polys, border_color);
-        if m.vertices.is_empty() { None } else { Some(m) }
+    let ring_mesh = if screen_lit_areas
+        .iter()
+        .any(|area| area.hole.len() >= 3 && area.hole != area.inner)
+    {
+        let mut combined = egui::Mesh::default();
+        for (index, area) in screen_lit_areas.iter().enumerate() {
+            if area.hole == area.inner {
+                continue;
+            }
+            let color = if area.border_alpha == POINT_LIGHT_BORDER_ALPHA {
+                point_light_border_color
+            } else {
+                lit_area_border_color
+            };
+            let mut exclusion_polys = Vec::with_capacity(screen_lit_areas.len());
+            for (other_index, other) in screen_lit_areas.iter().enumerate() {
+                if other_index != index {
+                    exclusion_polys.push(other.hole.clone());
+                }
+            }
+            exclusion_polys.push(area.inner.clone());
+            let part = build_scanline_ring_mesh(
+                rect,
+                std::slice::from_ref(&area.hole),
+                &exclusion_polys,
+                color,
+            );
+            append_mesh(&mut combined, part);
+        }
+        if combined.vertices.is_empty() {
+            None
+        } else {
+            Some(combined)
+        }
     } else {
         None
     };
@@ -480,67 +555,27 @@ fn build_scanline_complement_mesh(
             continue;
         }
         let eps = (y_bot - y_top).min(1.0) * 0.01;
-        let top_xs = find_poly_x_intersections(y_top + eps, polys);
-        let bot_xs = find_poly_x_intersections(y_bot - eps, polys);
+        let top_dark = complement_intervals(
+            rect.left(),
+            rect.right(),
+            &merged_poly_intervals(y_top + eps, polys),
+        );
+        let bot_dark = complement_intervals(
+            rect.left(),
+            rect.right(),
+            &merged_poly_intervals(y_bot - eps, polys),
+        );
 
-        if top_xs.len() == bot_xs.len() {
-            let count = top_xs.len();
-            let mut prev_top = rect.left();
-            let mut prev_bot = rect.left();
-            for i in 0..count {
-                if i % 2 == 0 {
-                    let x_rt = top_xs[i].min(rect.right());
-                    let x_rb = bot_xs[i].min(rect.right());
-                    if x_rt - prev_top > 0.5 || x_rb - prev_bot > 0.5 {
-                        emit_quad(
-                            &mut mesh,
-                            Trapezoid {
-                                left_top: prev_top,
-                                right_top: x_rt,
-                                left_bot: prev_bot,
-                                right_bot: x_rb,
-                                y_top,
-                                y_bot,
-                            },
-                            color,
-                            uv,
-                        );
-                    }
-                }
-                prev_top = top_xs[i].max(rect.left());
-                prev_bot = bot_xs[i].max(rect.left());
-            }
-            if count.is_multiple_of(2)
-                && (rect.right() - prev_top > 0.5 || rect.right() - prev_bot > 0.5)
-            {
-                emit_quad(
-                    &mut mesh,
-                    Trapezoid {
-                        left_top: prev_top,
-                        right_top: rect.right(),
-                        left_bot: prev_bot,
-                        right_bot: rect.right(),
-                        y_top,
-                        y_bot,
-                    },
-                    color,
-                    uv,
-                );
-            }
-        } else {
-            let y_mid = (y_top + y_bot) * 0.5;
-            let mid_xs = find_poly_x_intersections(y_mid, polys);
-            let mut prev_x = rect.left();
-            for (i, &x) in mid_xs.iter().enumerate() {
-                let x = x.clamp(rect.left(), rect.right());
-                if i % 2 == 0 && x - prev_x > 0.5 {
+        if top_dark.len() == bot_dark.len() {
+            for (top, bot) in top_dark.iter().zip(bot_dark.iter()) {
+                if top.1 - top.0 > 0.5 || bot.1 - bot.0 > 0.5 {
                     emit_quad(
                         &mut mesh,
                         Trapezoid {
-                            left_top: prev_x,
-                            right_top: x,
-                            left_bot: prev_x,
-                            right_bot: x,
+                            left_top: top.0,
+                            right_top: top.1,
+                            left_bot: bot.0,
+                            right_bot: bot.1,
                             y_top,
                             y_bot,
                         },
@@ -548,16 +583,22 @@ fn build_scanline_complement_mesh(
                         uv,
                     );
                 }
-                prev_x = x.max(rect.left());
             }
-            if mid_xs.len().is_multiple_of(2) && rect.right() - prev_x > 0.5 {
+        } else {
+            let y_mid = (y_top + y_bot) * 0.5;
+            let mid_dark = complement_intervals(
+                rect.left(),
+                rect.right(),
+                &merged_poly_intervals(y_mid, polys),
+            );
+            for interval in mid_dark {
                 emit_quad(
                     &mut mesh,
                     Trapezoid {
-                        left_top: prev_x,
-                        right_top: rect.right(),
-                        left_bot: prev_x,
-                        right_bot: rect.right(),
+                        left_top: interval.0,
+                        right_top: interval.1,
+                        left_bot: interval.0,
+                        right_bot: interval.1,
                         y_top,
                         y_bot,
                     },
@@ -602,56 +643,47 @@ fn build_scanline_ring_mesh(
         }
         let eps = (y_bot - y_top).min(1.0) * 0.01;
 
-        // Get intersections from both polygon sets
-        let outer_top = find_poly_x_intersections(y_top + eps, outer_polys);
-        let outer_bot = find_poly_x_intersections(y_bot - eps, outer_polys);
-        let inner_top = find_poly_x_intersections(y_top + eps, inner_polys);
-        let inner_bot = find_poly_x_intersections(y_bot - eps, inner_polys);
+        let top_ring = subtract_intervals(
+            &merged_poly_intervals(y_top + eps, outer_polys),
+            &merged_poly_intervals(y_top + eps, inner_polys),
+        );
+        let bot_ring = subtract_intervals(
+            &merged_poly_intervals(y_bot - eps, outer_polys),
+            &merged_poly_intervals(y_bot - eps, inner_polys),
+        );
 
-        // Merge inner intersections into outer to create ring segments
-        // Inside outer but outside inner = border ring
-        if outer_top.len() != outer_bot.len() || inner_top.len() != inner_bot.len() {
-            continue;
-        }
-
-        // Combine all X coords and classify each interval
-        let mut all_top: Vec<f32> = Vec::new();
-        all_top.extend_from_slice(&outer_top);
-        all_top.extend_from_slice(&inner_top);
-        all_top.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        all_top.dedup_by(|a, b| (*a - *b).abs() < 0.1);
-
-        let mut all_bot: Vec<f32> = Vec::new();
-        all_bot.extend_from_slice(&outer_bot);
-        all_bot.extend_from_slice(&inner_bot);
-        all_bot.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        all_bot.dedup_by(|a, b| (*a - *b).abs() < 0.1);
-
-        if all_top.len() != all_bot.len() {
-            continue;
-        }
-
-        let count = all_top.len();
-        let mut prev_top = rect.left();
-        let mut prev_bot = rect.left();
-        for i in 0..count {
-            let x_top = all_top[i].clamp(rect.left(), rect.right());
-            let x_bot = all_bot[i].clamp(rect.left(), rect.right());
-            // Sample midpoint of the interval to check if inside ring
-            let mid_x_top = (prev_top + x_top) * 0.5;
-            let mid_x_bot = (prev_bot + x_bot) * 0.5;
-            let mid_y = (y_top + y_bot) * 0.5;
-            let mid_x = (mid_x_top + mid_x_bot) * 0.5;
-            let in_outer = is_point_in_polys(mid_x, mid_y, outer_polys);
-            let in_inner = is_point_in_polys(mid_x, mid_y, inner_polys);
-            if in_outer && !in_inner && (x_top - prev_top > 0.5 || x_bot - prev_bot > 0.5) {
+        if top_ring.len() == bot_ring.len() {
+            for (top, bot) in top_ring.iter().zip(bot_ring.iter()) {
+                if top.1 - top.0 > 0.5 || bot.1 - bot.0 > 0.5 {
+                    emit_quad(
+                        &mut mesh,
+                        Trapezoid {
+                            left_top: top.0,
+                            right_top: top.1,
+                            left_bot: bot.0,
+                            right_bot: bot.1,
+                            y_top,
+                            y_bot,
+                        },
+                        color,
+                        uv,
+                    );
+                }
+            }
+        } else {
+            let y_mid = (y_top + y_bot) * 0.5;
+            let mid_ring = subtract_intervals(
+                &merged_poly_intervals(y_mid, outer_polys),
+                &merged_poly_intervals(y_mid, inner_polys),
+            );
+            for interval in mid_ring {
                 emit_quad(
                     &mut mesh,
                     Trapezoid {
-                        left_top: prev_top,
-                        right_top: x_top,
-                        left_bot: prev_bot,
-                        right_bot: x_bot,
+                        left_top: interval.0,
+                        right_top: interval.1,
+                        left_bot: interval.0,
+                        right_bot: interval.1,
                         y_top,
                         y_bot,
                     },
@@ -659,30 +691,9 @@ fn build_scanline_ring_mesh(
                     uv,
                 );
             }
-            prev_top = x_top;
-            prev_bot = x_bot;
         }
     }
     mesh
-}
-
-/// Check if a point is inside any of the polygons (ray-casting even-odd rule).
-fn is_point_in_polys(px: f32, py: f32, polys: &[Vec<egui::Pos2>]) -> bool {
-    let mut crossings = 0;
-    for poly in polys {
-        let n = poly.len();
-        for i in 0..n {
-            let j = (i + 1) % n;
-            let (y1, y2) = (poly[i].y, poly[j].y);
-            if (y1 < py && y2 >= py) || (y2 < py && y1 >= py) {
-                let t = (py - y1) / (y2 - y1);
-                if poly[i].x + t * (poly[j].x - poly[i].x) < px {
-                    crossings += 1;
-                }
-            }
-        }
-    }
-    crossings % 2 == 1
 }
 
 /// Emit a trapezoid quad into the mesh.
@@ -712,23 +723,113 @@ fn emit_quad(mesh: &mut egui::Mesh, t: Trapezoid, color: egui::Color32, uv: egui
         .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 
-/// Find X intersections of all polygon edges with a horizontal line at the given Y.
-/// Returns sorted X values. Used for even-odd scanline fill.
-fn find_poly_x_intersections(y: f32, polys: &[Vec<egui::Pos2>]) -> Vec<f32> {
+fn append_mesh(dst: &mut egui::Mesh, src: egui::Mesh) {
+    let base = dst.vertices.len() as u32;
+    dst.vertices.extend(src.vertices);
+    dst.indices
+        .extend(src.indices.into_iter().map(|index| index + base));
+}
+
+fn polygon_intervals_at_y(y: f32, poly: &[egui::Pos2]) -> Vec<(f32, f32)> {
     let mut xs = Vec::new();
-    for poly in polys {
-        let n = poly.len();
-        for i in 0..n {
-            let j = (i + 1) % n;
-            let (y1, y2) = (poly[i].y, poly[j].y);
-            if (y1 < y && y2 >= y) || (y2 < y && y1 >= y) {
-                let t = (y - y1) / (y2 - y1);
-                xs.push(poly[i].x + t * (poly[j].x - poly[i].x));
-            }
+    let n = poly.len();
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let (y1, y2) = (poly[i].y, poly[j].y);
+        if (y1 < y && y2 >= y) || (y2 < y && y1 >= y) {
+            let t = (y - y1) / (y2 - y1);
+            xs.push(poly[i].x + t * (poly[j].x - poly[i].x));
         }
     }
     xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    xs
+
+    let mut intervals = Vec::new();
+    let mut i = 0;
+    while i + 1 < xs.len() {
+        let left = xs[i];
+        let right = xs[i + 1];
+        if right - left > 0.1 {
+            intervals.push((left, right));
+        }
+        i += 2;
+    }
+    intervals
+}
+
+fn merge_intervals(mut intervals: Vec<(f32, f32)>) -> Vec<(f32, f32)> {
+    if intervals.is_empty() {
+        return intervals;
+    }
+    intervals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+    let mut merged = Vec::with_capacity(intervals.len());
+    let mut current = intervals[0];
+    for interval in intervals.into_iter().skip(1) {
+        if interval.0 <= current.1 + 0.1 {
+            current.1 = current.1.max(interval.1);
+        } else {
+            merged.push(current);
+            current = interval;
+        }
+    }
+    merged.push(current);
+    merged
+}
+
+fn merged_poly_intervals(y: f32, polys: &[Vec<egui::Pos2>]) -> Vec<(f32, f32)> {
+    let mut intervals = Vec::new();
+    for poly in polys {
+        intervals.extend(polygon_intervals_at_y(y, poly));
+    }
+    merge_intervals(intervals)
+}
+
+fn complement_intervals(left: f32, right: f32, intervals: &[(f32, f32)]) -> Vec<(f32, f32)> {
+    let mut result = Vec::new();
+    let mut cursor = left;
+    for &(start, end) in intervals {
+        let start = start.clamp(left, right);
+        let end = end.clamp(left, right);
+        if start > cursor + 0.1 {
+            result.push((cursor, start));
+        }
+        cursor = cursor.max(end);
+    }
+    if right > cursor + 0.1 {
+        result.push((cursor, right));
+    }
+    result
+}
+
+fn subtract_intervals(outer: &[(f32, f32)], inner: &[(f32, f32)]) -> Vec<(f32, f32)> {
+    let mut result = Vec::new();
+    let mut inner_index = 0;
+
+    for &(outer_start, outer_end) in outer {
+        let mut cursor = outer_start;
+        while inner_index < inner.len() && inner[inner_index].1 <= cursor + 0.1 {
+            inner_index += 1;
+        }
+
+        let mut j = inner_index;
+        while j < inner.len() && inner[j].0 < outer_end - 0.1 {
+            let (inner_start, inner_end) = inner[j];
+            if inner_start > cursor + 0.1 {
+                result.push((cursor, inner_start.min(outer_end)));
+            }
+            cursor = cursor.max(inner_end);
+            if cursor >= outer_end - 0.1 {
+                break;
+            }
+            j += 1;
+        }
+
+        if outer_end > cursor + 0.1 {
+            result.push((cursor, outer_end));
+        }
+    }
+
+    result
 }
 
 // ── Dark overlay draw method (extracted from show()) ──

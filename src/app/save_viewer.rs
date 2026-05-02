@@ -9,7 +9,9 @@ use crate::assets::TextureCache;
 
 use crate::crypto::{self, SaveFileType};
 use crate::locale::I18n;
+use crate::renderer::{sprite_shader, LevelRenderer};
 use crate::save_parser::*;
+use crate::sprite_db::UvRect;
 
 /// Compiled filter — either a regex or a plain substring.
 pub(super) enum Filter {
@@ -91,6 +93,12 @@ pub struct SaveViewerData {
     pub(super) scroll_to_xml_entry: Option<usize>,
     /// Currently highlighted XML line (0-indexed), set when clicking a structured entry.
     pub(super) highlighted_xml_line: Option<usize>,
+    /// Whether the XML context menu is currently open.
+    pub(super) xml_context_menu_open: bool,
+    /// Fixed screen position for the XML context menu.
+    pub(super) xml_context_menu_pos: Option<egui::Pos2>,
+    /// Ignore the right-button release that immediately follows opening the XML context menu.
+    pub(super) xml_context_menu_wait_for_release: bool,
     /// Show the contraption preview floating window.
     pub show_preview: bool,
     /// Texture cache for atlas textures used in the contraption preview.
@@ -135,6 +143,9 @@ impl SaveViewerData {
                     xml_editing_snapshot: None,
                     scroll_to_xml_entry: None,
                     highlighted_xml_line: None,
+                    xml_context_menu_open: false,
+                    xml_context_menu_pos: None,
+                    xml_context_menu_wait_for_release: false,
                     show_preview: false,
                     preview_tex_cache: TextureCache::new(),
                     level_name: None,
@@ -176,6 +187,9 @@ impl SaveViewerData {
                         xml_editing_snapshot: None,
                         scroll_to_xml_entry: None,
                         highlighted_xml_line: None,
+                        xml_context_menu_open: false,
+                        xml_context_menu_pos: None,
+                        xml_context_menu_wait_for_release: false,
                         show_preview: is_contraption,
                         preview_tex_cache: TextureCache::new(),
                         level_name: level_name.clone(),
@@ -202,6 +216,9 @@ impl SaveViewerData {
                     xml_editing_snapshot: None,
                     scroll_to_xml_entry: None,
                     highlighted_xml_line: None,
+                    xml_context_menu_open: false,
+                    xml_context_menu_pos: None,
+                    xml_context_menu_wait_for_release: false,
                     show_preview: false,
                     preview_tex_cache: TextureCache::new(),
                     level_name,
@@ -251,6 +268,9 @@ impl SaveViewerData {
                 xml_editing_snapshot: None,
                 scroll_to_xml_entry: None,
                 highlighted_xml_line: None,
+                xml_context_menu_open: false,
+                xml_context_menu_pos: None,
+                xml_context_menu_wait_for_release: false,
                 show_preview: is_contraption,
                 preview_tex_cache: TextureCache::new(),
                 level_name: resolve_level_name(file_name),
@@ -310,6 +330,49 @@ impl SaveViewerData {
 
     pub fn can_redo(&self) -> bool {
         !self.redo_stack.is_empty()
+    }
+
+    pub(super) fn xml_entry_line(&self, entry_idx: usize) -> usize {
+        let line_offset = match self.file_type {
+            Some(SaveFileType::Contraption) => 3,
+            _ => 2,
+        };
+        entry_idx + line_offset
+    }
+
+    pub(super) fn parse_current_xml(&mut self) {
+        if let Some(ft) = self.file_type.clone() {
+            self.push_undo();
+            match parse_save_data(&ft, self.xml_text.as_bytes()) {
+                Ok(data) => {
+                    self.data = Some(data);
+                    self.error = None;
+                }
+                Err(error) => {
+                    self.error = Some(error);
+                }
+            }
+        }
+    }
+
+    pub(super) fn render_view_toggles_menu(&mut self, ui: &mut egui::Ui, t: &'static I18n) {
+        let mut show_structured = self.show_table;
+        if ui
+            .checkbox(&mut show_structured, t.get("save_viewer_structured"))
+            .clicked()
+        {
+            self.show_table = show_structured;
+        }
+
+        if matches!(self.file_type, Some(SaveFileType::Contraption)) {
+            let mut show_preview = self.show_preview;
+            if ui
+                .checkbox(&mut show_preview, t.get("contraption_preview_title"))
+                .clicked()
+            {
+                self.show_preview = show_preview;
+            }
+        }
     }
 
     /// Re-parse structured data from current xml_text.
@@ -434,18 +497,7 @@ impl SaveViewerData {
                     .add_enabled(can_parse, egui::Button::new(t.get("save_editor_parse_xml")))
                     .clicked()
                 {
-                    if let Some(ft) = self.file_type.clone() {
-                        self.push_undo();
-                        match parse_save_data(&ft, self.xml_text.as_bytes()) {
-                            Ok(d) => {
-                                self.data = Some(d);
-                                self.error = None;
-                            }
-                            Err(e) => {
-                                self.error = Some(e);
-                            }
-                        }
-                    }
+                    self.parse_current_xml();
                 }
                 ui.separator();
                 ui.label(t.get("save_viewer_filter"));
@@ -473,6 +525,7 @@ impl SaveViewerData {
         let default_right = available.x * (1.0 - self.split_ratio);
         let old_last_clicked = self.last_clicked;
         if self.show_table {
+            let xml_entry_line_offset = self.xml_entry_line(0);
             let data = &mut self.data;
             let selected = &mut self.selected;
             let last_clicked = &mut self.last_clicked;
@@ -490,6 +543,9 @@ impl SaveViewerData {
                                 entries,
                                 selected,
                                 last_clicked,
+                                &mut self.scroll_to_xml_entry,
+                                &mut self.highlighted_xml_line,
+                                xml_entry_line_offset,
                                 t,
                             );
                         }
@@ -500,6 +556,9 @@ impl SaveViewerData {
                                 parts,
                                 selected,
                                 last_clicked,
+                                &mut self.scroll_to_xml_entry,
+                                &mut self.highlighted_xml_line,
+                                xml_entry_line_offset,
                                 t,
                             );
                         }
@@ -510,6 +569,9 @@ impl SaveViewerData {
                                 entries,
                                 selected,
                                 last_clicked,
+                                &mut self.scroll_to_xml_entry,
+                                &mut self.highlighted_xml_line,
+                                xml_entry_line_offset,
                                 t,
                             );
                         }
@@ -523,7 +585,7 @@ impl SaveViewerData {
         if self.last_clicked != old_last_clicked {
             if let Some(entry_idx) = self.last_clicked {
                 self.scroll_to_xml_entry = Some(entry_idx);
-                self.highlighted_xml_line = Some(entry_idx + 2);
+                self.highlighted_xml_line = Some(self.xml_entry_line(entry_idx));
             }
         }
 
@@ -547,7 +609,12 @@ impl SaveViewerData {
     }
 
     /// Render the contraption preview floating window (if applicable and enabled).
-    pub fn render_contraption_preview(&mut self, ctx: &egui::Context, t: &'static I18n) {
+    pub fn render_contraption_preview(
+        &mut self,
+        ctx: &egui::Context,
+        t: &'static I18n,
+        renderer: &mut LevelRenderer,
+    ) {
         if !self.show_preview {
             return;
         }
@@ -562,10 +629,11 @@ impl SaveViewerData {
         let mut open = self.show_preview;
         egui::Window::new(t.get("contraption_preview_title"))
             .open(&mut open)
-            .default_size([400.0, 400.0])
+            .default_size([520.0, 560.0])
+            .min_size([460.0, 500.0])
             .resizable(true)
             .show(ctx, |ui| {
-                render_contraption_canvas(ui, parts, &mut self.preview_tex_cache);
+                render_contraption_canvas(ui, parts, &mut self.preview_tex_cache, renderer);
             });
         self.show_preview = open;
     }
@@ -744,6 +812,7 @@ fn render_contraption_canvas(
     ui: &mut egui::Ui,
     parts: &[ContraptionPart],
     tex_cache: &mut TextureCache,
+    renderer: &mut LevelRenderer,
 ) {
     use crate::icon_db;
 
@@ -775,27 +844,115 @@ fn render_contraption_canvas(
         response.rect.center().y - total_h * 0.5,
     );
 
-    // Draw grid lines
-    let grid_line_color = ui
-        .visuals()
-        .widgets
-        .noninteractive
-        .bg_stroke
-        .color
-        .linear_multiply(0.3);
-    for gx in 0..=(grid_w as i32) {
-        let x = origin.x + gx as f32 * scaled_cell;
-        painter.line_segment(
-            [egui::pos2(x, origin.y), egui::pos2(x, origin.y + total_h)],
-            egui::Stroke::new(1.0, grid_line_color),
-        );
-    }
-    for gy in 0..=(grid_h as i32) {
-        let y = origin.y + gy as f32 * scaled_cell;
-        painter.line_segment(
-            [egui::pos2(origin.x, y), egui::pos2(origin.x + total_w, y)],
-            egui::Stroke::new(1.0, grid_line_color),
-        );
+    let gpu_resources = renderer.preview_sprite_resources();
+    let mut gpu_draws: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
+
+    let draw_line_grid = || {
+        let grid_line_color = ui
+            .visuals()
+            .widgets
+            .noninteractive
+            .bg_stroke
+            .color
+            .linear_multiply(0.3);
+        for gx in 0..=(grid_w as i32) {
+            let x = origin.x + gx as f32 * scaled_cell;
+            painter.line_segment(
+                [egui::pos2(x, origin.y), egui::pos2(x, origin.y + total_h)],
+                egui::Stroke::new(1.0, grid_line_color),
+            );
+        }
+        for gy in 0..=(grid_h as i32) {
+            let y = origin.y + gy as f32 * scaled_cell;
+            painter.line_segment(
+                [egui::pos2(origin.x, y), egui::pos2(origin.x + total_w, y)],
+                egui::Stroke::new(1.0, grid_line_color),
+            );
+        }
+    };
+
+    // Reuse the same GridCellLight sprite the level editor uses for the
+    // construction grid, instead of drawing a synthetic line grid.
+    if let Some(sprite) = crate::sprite_db::get_sprite_info("GridCellLight") {
+        // Unity confirmation:
+        // GridCellLight prefab localScale = 0.3
+        // Sprite.CreateMesh uses half-extents = width * 10 / 768, so final
+        // full world size is width * 20 / 768 * localScale.
+        // From sprites.bytes: GridCellLight width=104, height=105.
+        let grid_sprite_w = scaled_cell * (104.0 * 0.3 * 20.0 / 768.0);
+        let grid_sprite_h = scaled_cell * (105.0 * 0.3 * 20.0 / 768.0);
+        if gpu_resources.is_some()
+            && let Some(atlas) = renderer.preview_sprite_atlas(&sprite.atlas)
+        {
+            let (uv_min, uv_max) = sprite_shader::compute_uvs(
+                &sprite.uv,
+                atlas.width as f32,
+                atlas.height as f32,
+                false,
+                false,
+            );
+
+            for gx in 0..(grid_w as i32) {
+                for gy in 0..(grid_h as i32) {
+                    let center = egui::pos2(
+                        origin.x + (gx as f32 + 0.5) * scaled_cell,
+                        origin.y + (gy as f32 + 0.5) * scaled_cell,
+                    );
+                    gpu_draws.push(sprite_shader::SpriteBatchDraw {
+                        atlas: atlas.clone(),
+                        slot: gpu_draws.len() as u32,
+                        uniforms: sprite_shader::SpriteUniforms {
+                            screen_size: [response.rect.width(), response.rect.height()],
+                            camera_center: [0.0, 0.0],
+                            zoom: 1.0,
+                            rotation: 0.0,
+                            world_center: [
+                                center.x - response.rect.center().x,
+                                response.rect.center().y - center.y,
+                            ],
+                            half_size: [grid_sprite_w * 0.5, grid_sprite_h * 0.5],
+                            uv_min,
+                            uv_max,
+                            mode: 0.0,
+                            shine_center: 0.0,
+                            tint_color: [1.0, 1.0, 1.0, 1.0],
+                        },
+                    });
+                }
+            }
+        } else {
+            let atlas_path = format!("sprites/{}", sprite.atlas);
+            let tex_id = tex_cache.load_sprite_crop(
+                ui.ctx(),
+                "save_viewer_grid_cell_light_raw",
+                &atlas_path,
+                [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
+            );
+            if let Some(tex_id) = tex_id {
+                let uv_rect =
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                let tint = egui::Color32::WHITE;
+                for gx in 0..(grid_w as i32) {
+                    for gy in 0..(grid_h as i32) {
+                        let center = egui::pos2(
+                            origin.x + (gx as f32 + 0.5) * scaled_cell,
+                            origin.y + (gy as f32 + 0.5) * scaled_cell,
+                        );
+                        let cell_rect = egui::Rect::from_center_size(
+                            center,
+                            egui::vec2(grid_sprite_w, grid_sprite_h),
+                        );
+                        let mut mesh = egui::Mesh::with_texture(tex_id);
+                        mesh.add_rect_with_uv(cell_rect, uv_rect, tint);
+                        painter.add(egui::Shape::mesh(mesh));
+                    }
+                }
+            } else {
+                draw_line_grid();
+            }
+        }
+    } else {
+        draw_line_grid();
     }
 
     // Sort parts by Z depth for correct draw order (back-to-front).
@@ -869,12 +1026,6 @@ fn render_contraption_canvas(
             origin.y + (gy + 0.5) * scaled_cell,
         );
 
-        let atlas_path = format!("sprites/{}", layer.atlas);
-        let tex_id = match tex_cache.load_texture(ui.ctx(), &atlas_path, &layer.atlas) {
-            Some(id) => id,
-            None => continue,
-        };
-
         let fixed_scale = scaled_cell;
 
         // v0..v3 order from TOML: BL, TL, TR, BR
@@ -916,28 +1067,121 @@ fn render_contraption_canvas(
             )
         };
 
-        // UV: Unity V=0 at bottom, egui V=0 at top.
-        let y_top = 1.0 - layer.uv_y - layer.uv_h;
-        let uv_bl = egui::pos2(layer.uv_x, y_top + layer.uv_h);
-        let uv_tl = egui::pos2(layer.uv_x, y_top);
-        let uv_tr = egui::pos2(layer.uv_x + layer.uv_w, y_top);
-        let uv_br = egui::pos2(layer.uv_x + layer.uv_w, y_top + layer.uv_h);
+        let screen_positions = [
+            to_screen(verts[0].0, verts[0].1),
+            to_screen(verts[1].0, verts[1].1),
+            to_screen(verts[2].0, verts[2].1),
+            to_screen(verts[3].0, verts[3].1),
+        ];
 
-        let mesh = part_icon_mesh_quad(
-            tex_id,
-            [
-                to_screen(verts[0].0, verts[0].1),
-                to_screen(verts[1].0, verts[1].1),
-                to_screen(verts[2].0, verts[2].1),
-                to_screen(verts[3].0, verts[3].1),
-            ],
-            [uv_bl, uv_tl, uv_tr, uv_br],
+        // Match the main sprite_shader path: Unity V-flip + half-texel inset to
+        // avoid atlas bleeding. Geometry flip/rotation is already applied to
+        // vertices above, so UV flip flags stay false here.
+        let uv_rect = UvRect {
+            x: layer.uv_x,
+            y: layer.uv_y,
+            w: layer.uv_w,
+            h: layer.uv_h,
+        };
+
+        if gpu_resources.is_some()
+            && let Some(atlas) = renderer.preview_sprite_atlas(&layer.atlas)
+        {
+            let to_shader_space = |p: egui::Pos2| -> [f32; 2] {
+                [
+                    p.x - response.rect.center().x,
+                    response.rect.center().y - p.y,
+                ]
+            };
+            let bl = to_shader_space(screen_positions[0]);
+            let tl = to_shader_space(screen_positions[1]);
+            let tr = to_shader_space(screen_positions[2]);
+            let br = to_shader_space(screen_positions[3]);
+
+            let center = [
+                (bl[0] + tl[0] + tr[0] + br[0]) * 0.25,
+                (bl[1] + tl[1] + tr[1] + br[1]) * 0.25,
+            ];
+            let mut x_axis = [br[0] - bl[0], br[1] - bl[1]];
+            let y_axis = [tl[0] - bl[0], tl[1] - bl[1]];
+
+            let mut flip_x = false;
+            let det = x_axis[0] * y_axis[1] - x_axis[1] * y_axis[0];
+            if det < 0.0 {
+                x_axis = [-x_axis[0], -x_axis[1]];
+                flip_x = true;
+            }
+
+            let half_w = x_axis[0].hypot(x_axis[1]) * 0.5;
+            let half_h = y_axis[0].hypot(y_axis[1]) * 0.5;
+            if half_w > 0.0 && half_h > 0.0 {
+                let rotation = x_axis[1].atan2(x_axis[0]);
+                let (uv_min, uv_max) = sprite_shader::compute_uvs(
+                    &uv_rect,
+                    atlas.width as f32,
+                    atlas.height as f32,
+                    flip_x,
+                    false,
+                );
+                gpu_draws.push(sprite_shader::SpriteBatchDraw {
+                    atlas,
+                    slot: gpu_draws.len() as u32,
+                    uniforms: sprite_shader::SpriteUniforms {
+                        screen_size: [response.rect.width(), response.rect.height()],
+                        camera_center: [0.0, 0.0],
+                        zoom: 1.0,
+                        rotation,
+                        world_center: center,
+                        half_size: [half_w, half_h],
+                        uv_min,
+                        uv_max,
+                        mode: 0.0,
+                        shine_center: 0.0,
+                        tint_color: [1.0, 1.0, 1.0, 1.0],
+                    },
+                });
+                continue;
+            }
+        }
+
+        let atlas_path = format!("sprites/{}", layer.atlas);
+        let tex_id = match tex_cache.load_texture(ui.ctx(), &atlas_path, &layer.atlas) {
+            Some(id) => id,
+            None => continue,
+        };
+        let [atlas_w, atlas_h] = match tex_cache.texture_size(&layer.atlas) {
+            Some(size) => size,
+            None => continue,
+        };
+        let (uv_min, uv_max) = sprite_shader::compute_uvs(
+            &uv_rect,
+            atlas_w as f32,
+            atlas_h as f32,
+            false,
+            false,
         );
+        let uv_bl = egui::pos2(uv_min[0], uv_max[1]);
+        let uv_tl = egui::pos2(uv_min[0], uv_min[1]);
+        let uv_tr = egui::pos2(uv_max[0], uv_min[1]);
+        let uv_br = egui::pos2(uv_max[0], uv_max[1]);
+
+        let mesh = part_icon_mesh_quad(tex_id, screen_positions, [uv_bl, uv_tl, uv_tr, uv_br]);
         painter.add(egui::Shape::mesh(mesh));
+    }
+
+    if let Some(resources) = gpu_resources
+        && !gpu_draws.is_empty()
+    {
+        painter.add(sprite_shader::make_sprite_batch_callback(
+            response.rect,
+            resources,
+            gpu_draws,
+        ));
     }
 
     // Tooltips (based on grid cell hover)
     if let Some(pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+        let mut hovered_parts: Vec<String> = Vec::new();
         for part in parts {
             let gx = (part.x - min_x) as f32;
             let gy = (max_y - part.y) as f32;
@@ -947,20 +1191,25 @@ fn render_contraption_canvas(
             );
             if cell_rect.contains(pos) {
                 let name = part_type_name(part.part_type);
-                egui::Tooltip::always_open(
-                    ui.ctx().clone(),
-                    ui.layer_id(),
-                    ui.id().with("part_tip"),
-                    egui::PopupAnchor::Pointer,
-                )
-                .show(|ui| {
-                    ui.label(format!(
-                        "{name} ({}, {})\nrot={} flipped={}",
-                        part.x, part.y, part.rot, part.flipped
-                    ));
-                });
-                break;
+                hovered_parts.push(format!(
+                    "{name} ({}, {})  rot={} flipped={}",
+                    part.x, part.y, part.rot, part.flipped
+                ));
             }
+        }
+
+        if !hovered_parts.is_empty() {
+            egui::Tooltip::always_open(
+                ui.ctx().clone(),
+                ui.layer_id(),
+                ui.id().with("part_tip"),
+                egui::PopupAnchor::Pointer,
+            )
+            .show(|ui| {
+                for line in &hovered_parts {
+                    ui.label(line);
+                }
+            });
         }
     }
 }

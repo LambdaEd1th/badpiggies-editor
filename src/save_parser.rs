@@ -210,20 +210,21 @@ pub fn serialize_progress_xml(entries: &[ProgressEntry]) -> String {
 
 /// Serialize Contraption parts to XML.
 pub fn serialize_contraption_xml(parts: &[ContraptionPart]) -> String {
-    let mut xml =
-        String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<ContraptionDataset>\n");
+    let mut xml = String::from(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<ContraptionDataset xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n  <ContraptionDatasetList>\n",
+    );
     for part in parts {
         xml.push_str(&format!(
-            "  <ContraptionDatasetUnit x=\"{}\" y=\"{}\" partType=\"{}\" customPartIndex=\"{}\" rot=\"{}\" flipped=\"{}\" />\n",
+            "    <ContraptionDatasetUnit x=\"{}\" y=\"{}\" partType=\"{}\" customPartIndex=\"{}\" rot=\"{}\" flipped=\"{}\" />\n",
             part.x,
             part.y,
             part.part_type,
             part.custom_part_index,
             part.rot,
-            if part.flipped { "True" } else { "False" },
+            if part.flipped { "true" } else { "false" },
         ));
     }
-    xml.push_str("</ContraptionDataset>");
+    xml.push_str("  </ContraptionDatasetList>\n</ContraptionDataset>");
     xml
 }
 
@@ -249,5 +250,45 @@ pub fn serialize_save_data(data: &SaveData) -> String {
         SaveData::Progress(entries) => serialize_progress_xml(entries),
         SaveData::Contraption(parts) => serialize_contraption_xml(parts),
         SaveData::Achievements(entries) => serialize_achievements_xml(entries),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ContraptionPart, serialize_contraption_xml};
+
+    #[test]
+    fn serialize_contraption_xml_preserves_dataset_wrapper_layout() {
+        let xml = serialize_contraption_xml(&[
+            ContraptionPart {
+                x: 0,
+                y: 1,
+                part_type: 10,
+                custom_part_index: 0,
+                rot: 0,
+                flipped: false,
+            },
+            ContraptionPart {
+                x: -2,
+                y: 3,
+                part_type: 14,
+                custom_part_index: 0,
+                rot: 0,
+                flipped: true,
+            },
+        ]);
+
+        assert_eq!(
+            xml,
+            concat!(
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n",
+                "<ContraptionDataset xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n",
+                "  <ContraptionDatasetList>\n",
+                "    <ContraptionDatasetUnit x=\"0\" y=\"1\" partType=\"10\" customPartIndex=\"0\" rot=\"0\" flipped=\"false\" />\n",
+                "    <ContraptionDatasetUnit x=\"-2\" y=\"3\" partType=\"14\" customPartIndex=\"0\" rot=\"0\" flipped=\"true\" />\n",
+                "  </ContraptionDatasetList>\n",
+                "</ContraptionDataset>"
+            )
+        );
     }
 }

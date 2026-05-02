@@ -14,6 +14,9 @@ menu_cut = Cut
 menu_paste = Paste
 menu_duplicate = Duplicate
 menu_delete = Delete
+menu_clear_selection = Clear Selection
+menu_expand_all = Expand All
+menu_collapse_all = Collapse All
 menu_add_object = Add Object…
 menu_view = View
 menu_fit_view = Fit to View
@@ -78,7 +81,7 @@ shortcuts_terrain_dblclick_action = Insert New Node
 shortcuts_terrain_delete = Delete / Backspace on Node
 shortcuts_terrain_delete_action = Delete Node (min 3)
 shortcuts_terrain_rclick = Right-click Node
-shortcuts_terrain_rclick_action = Toggle Node Texture
+shortcuts_terrain_rclick_action = Open Node Menu
 
 # About window
 about_built_with = Built with eframe / egui / wgpu
@@ -212,4 +215,6 @@ menu_select_all = Select All
 save_edit_deselect_all = Deselect All
 save_edit_delete_selected = Delete Selected
 save_edit_duplicate_selected = Duplicate Selected
+save_viewer_reveal_xml = Reveal in XML
+context_toggle_node_texture = Toggle Node Texture
 contraption_preview_title = Contraption Preview

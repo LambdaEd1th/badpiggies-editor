@@ -388,6 +388,27 @@ impl LevelRenderer {
         self.dark_level
     }
 
+    /// Shared transparent sprite shader resources, if the current backend has wgpu.
+    pub fn preview_sprite_resources(&self) -> Option<Arc<sprite_shader::SpriteResources>> {
+        self.sprite_resources.clone()
+    }
+
+    /// Load or fetch a GPU sprite atlas for save preview rendering.
+    pub fn preview_sprite_atlas(
+        &mut self,
+        filename: &str,
+    ) -> Option<Arc<sprite_shader::SpriteAtlasGpu>> {
+        let (Some(resources), Some(device), Some(queue)) = (
+            self.sprite_resources.as_ref(),
+            self.wgpu_device.as_ref(),
+            self.wgpu_queue.as_ref(),
+        ) else {
+            return None;
+        };
+        self.sprite_atlas_cache
+            .get_or_load(device, queue, resources, filename)
+    }
+
     /// Show the level canvas. Returns the index of a newly-clicked object, if any.
     pub fn show(
         &mut self,
@@ -544,5 +565,78 @@ impl LevelRenderer {
 
         // Lazy-load atlas textures (only attempt once per atlas)
         self.lazy_load_textures(ui.ctx());
+
+        let hovered_node = self.hovered_terrain_node;
+        let hovered_node_can_delete = hovered_node.and_then(|(object_index, node_index)| {
+            self.terrain_data
+                .iter()
+                .find(|terrain| terrain.object_index == object_index)
+                .map(|terrain| (object_index, node_index, terrain.curve_world_verts.len() > 2))
+        });
+        response.context_menu(|ui| {
+            if ui.button(tr.get("menu_fit_view")).clicked() {
+                self.fit_to_level();
+                ui.close();
+            }
+            ui.separator();
+
+            let mut show_bg = self.show_bg;
+            if ui.checkbox(&mut show_bg, tr.get("menu_background")).clicked() {
+                self.show_bg = show_bg;
+                ui.close();
+            }
+            let mut show_grid = self.show_grid;
+            if ui.checkbox(&mut show_grid, tr.get("menu_grid")).clicked() {
+                self.show_grid = show_grid;
+                ui.close();
+            }
+            let mut show_ground = self.show_ground;
+            if ui
+                .checkbox(&mut show_ground, tr.get("menu_physics_ground"))
+                .clicked()
+            {
+                self.show_ground = show_ground;
+                ui.close();
+            }
+            let mut show_level_bounds = self.show_level_bounds;
+            if ui
+                .checkbox(&mut show_level_bounds, tr.get("menu_level_bounds"))
+                .clicked()
+            {
+                self.show_level_bounds = show_level_bounds;
+                ui.close();
+            }
+            if self.dark_level {
+                let mut show_dark_overlay = self.show_dark_overlay;
+                if ui
+                    .checkbox(&mut show_dark_overlay, tr.get("menu_dark_overlay"))
+                    .clicked()
+                {
+                    self.show_dark_overlay = show_dark_overlay;
+                    ui.close();
+                }
+            }
+
+            if let Some((object_index, node_index, can_delete)) = hovered_node_can_delete {
+                ui.separator();
+                if ui.button(tr.get("context_toggle_node_texture")).clicked() {
+                    self.node_edit_action = Some(NodeEditAction::ToggleTexture {
+                        object_index,
+                        node_index,
+                    });
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(can_delete, egui::Button::new(tr.get("menu_delete")))
+                    .clicked()
+                {
+                    self.node_edit_action = Some(NodeEditAction::Delete {
+                        object_index,
+                        node_index,
+                    });
+                    ui.close();
+                }
+            }
+        });
     }
 }

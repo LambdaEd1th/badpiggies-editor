@@ -8,6 +8,28 @@ use crate::types::*;
 
 use super::EditorApp;
 
+fn tool_mode_icon(mode: CursorMode) -> egui::Image<'static> {
+    match mode {
+        CursorMode::Select => egui::Image::from_bytes(
+            "bytes://tool-select.svg",
+            include_bytes!("../../assets/tool-select.svg"),
+        ),
+        CursorMode::BoxSelect => egui::Image::from_bytes(
+            "bytes://tool-box-select.svg",
+            include_bytes!("../../assets/tool-box-select.svg"),
+        ),
+        CursorMode::DrawTerrain => egui::Image::from_bytes(
+            "bytes://tool-draw-terrain.svg",
+            include_bytes!("../../assets/tool-draw-terrain.svg"),
+        ),
+        CursorMode::Pan => egui::Image::from_bytes(
+            "bytes://tool-pan.svg",
+            include_bytes!("../../assets/tool-pan.svg"),
+        ),
+    }
+    .fit_to_exact_size(egui::vec2(22.0, 22.0))
+}
+
 impl EditorApp {
     /// Delete confirmation dialog.
     pub(super) fn render_delete_confirm(&mut self, ctx: &egui::Context, t: &'static I18n) {
@@ -69,7 +91,8 @@ impl EditorApp {
             .open(&mut self.show_tools)
             .default_pos([8.0, 80.0])
             .show(ctx, |ui| {
-                ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
+                ui.vertical_centered(|ui| {
                     let modes = [
                         (CursorMode::Select, "tool_select", "V"),
                         (CursorMode::BoxSelect, "tool_box_select", "M"),
@@ -77,11 +100,16 @@ impl EditorApp {
                         (CursorMode::Pan, "tool_pan", "H"),
                     ];
                     for (mode, key, shortcut) in &modes {
-                        let label = format!("{} ({})", t.get(key), shortcut);
-                        if ui
-                            .selectable_label(self.cursor_mode == *mode, label)
-                            .clicked()
-                        {
+                        let tooltip = format!("{} ({})", t.get(key), shortcut);
+                        let response = ui.add(
+                            egui::Button::image(tool_mode_icon(*mode))
+                                .selected(self.cursor_mode == *mode)
+                                .frame(true)
+                                .min_size(egui::vec2(40.0, 40.0))
+                                .image_tint_follows_text_color(true),
+                        );
+                        let response = response.on_hover_text(tooltip);
+                        if response.clicked() {
                             self.cursor_mode = *mode;
                         }
                     }

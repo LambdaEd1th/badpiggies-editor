@@ -15,6 +15,9 @@ pub(super) fn edit_progress(
     entries: &mut Vec<ProgressEntry>,
     selected: &mut HashSet<usize>,
     last_clicked: &mut Option<usize>,
+    scroll_to_xml_entry: &mut Option<usize>,
+    highlighted_xml_line: &mut Option<usize>,
+    xml_entry_line_offset: usize,
     t: &'static I18n,
 ) -> bool {
     let filtered_indices: Vec<usize> = entries
@@ -28,6 +31,7 @@ pub(super) fn edit_progress(
 
     let mut changed = false;
     let mut to_delete: Vec<usize> = Vec::new();
+    let mut duplicate_selected = false;
 
     // Reserve bottom area for add button
     let mut add_clicked = false;
@@ -126,10 +130,62 @@ pub(super) fn edit_progress(
                         &filtered_indices,
                     );
                 }
+                if resp.secondary_clicked() && !selected.contains(&idx) {
+                    selected.clear();
+                    selected.insert(idx);
+                    *last_clicked = Some(idx);
+                }
+                resp.context_menu(|ui| {
+                    if ui.button(t.get("save_viewer_reveal_xml")).clicked() {
+                        *scroll_to_xml_entry = Some(idx);
+                        *highlighted_xml_line = Some(idx + xml_entry_line_offset);
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui.button(t.get("menu_select_all")).clicked() {
+                        selected.clear();
+                        selected.extend(filtered_indices.iter().copied());
+                        ui.close();
+                    }
+                    if ui.button(t.get("save_edit_deselect_all")).clicked() {
+                        selected.clear();
+                        *last_clicked = None;
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(t.get("save_edit_duplicate_selected")),
+                        )
+                        .clicked()
+                    {
+                        duplicate_selected = true;
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(t.get("save_edit_delete_selected")),
+                        )
+                        .clicked()
+                    {
+                        to_delete.extend(selected.iter().copied());
+                        ui.close();
+                    }
+                });
             });
         });
 
+    if duplicate_selected {
+        duplicate_indices(entries, selected);
+        selected.clear();
+        *last_clicked = None;
+        changed = true;
+    }
+
     to_delete.sort_unstable();
+    to_delete.dedup();
     for idx in to_delete.into_iter().rev() {
         entries.remove(idx);
         changed = true;
@@ -153,6 +209,9 @@ pub(super) fn edit_contraption(
     parts: &mut Vec<ContraptionPart>,
     selected: &mut HashSet<usize>,
     last_clicked: &mut Option<usize>,
+    scroll_to_xml_entry: &mut Option<usize>,
+    highlighted_xml_line: &mut Option<usize>,
+    xml_entry_line_offset: usize,
     t: &'static I18n,
 ) -> bool {
     ui.label(format!(
@@ -185,6 +244,7 @@ pub(super) fn edit_contraption(
 
     let mut changed = false;
     let mut to_delete: Vec<usize> = Vec::new();
+    let mut duplicate_selected = false;
 
     // Reserve bottom area for add button
     let mut add_clicked = false;
@@ -307,10 +367,62 @@ pub(super) fn edit_contraption(
                         &filtered_indices,
                     );
                 }
+                if resp.secondary_clicked() && !selected.contains(&idx) {
+                    selected.clear();
+                    selected.insert(idx);
+                    *last_clicked = Some(idx);
+                }
+                resp.context_menu(|ui| {
+                    if ui.button(t.get("save_viewer_reveal_xml")).clicked() {
+                        *scroll_to_xml_entry = Some(idx);
+                        *highlighted_xml_line = Some(idx + xml_entry_line_offset);
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui.button(t.get("menu_select_all")).clicked() {
+                        selected.clear();
+                        selected.extend(filtered_indices.iter().copied());
+                        ui.close();
+                    }
+                    if ui.button(t.get("save_edit_deselect_all")).clicked() {
+                        selected.clear();
+                        *last_clicked = None;
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(t.get("save_edit_duplicate_selected")),
+                        )
+                        .clicked()
+                    {
+                        duplicate_selected = true;
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(t.get("save_edit_delete_selected")),
+                        )
+                        .clicked()
+                    {
+                        to_delete.extend(selected.iter().copied());
+                        ui.close();
+                    }
+                });
             });
         });
 
+    if duplicate_selected {
+        duplicate_indices(parts, selected);
+        selected.clear();
+        *last_clicked = None;
+        changed = true;
+    }
+
     to_delete.sort_unstable();
+    to_delete.dedup();
     for idx in to_delete.into_iter().rev() {
         parts.remove(idx);
         changed = true;
@@ -337,6 +449,9 @@ pub(super) fn edit_achievements(
     entries: &mut Vec<AchievementEntry>,
     selected: &mut HashSet<usize>,
     last_clicked: &mut Option<usize>,
+    scroll_to_xml_entry: &mut Option<usize>,
+    highlighted_xml_line: &mut Option<usize>,
+    xml_entry_line_offset: usize,
     t: &'static I18n,
 ) -> bool {
     let completed_count = entries.iter().filter(|e| e.completed).count();
@@ -356,6 +471,7 @@ pub(super) fn edit_achievements(
 
     let mut changed = false;
     let mut to_delete: Vec<usize> = Vec::new();
+    let mut duplicate_selected = false;
 
     // Reserve bottom area for add button
     let mut add_clicked = false;
@@ -445,10 +561,62 @@ pub(super) fn edit_achievements(
                         &filtered_indices,
                     );
                 }
+                if resp.secondary_clicked() && !selected.contains(&idx) {
+                    selected.clear();
+                    selected.insert(idx);
+                    *last_clicked = Some(idx);
+                }
+                resp.context_menu(|ui| {
+                    if ui.button(t.get("save_viewer_reveal_xml")).clicked() {
+                        *scroll_to_xml_entry = Some(idx);
+                        *highlighted_xml_line = Some(idx + xml_entry_line_offset);
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui.button(t.get("menu_select_all")).clicked() {
+                        selected.clear();
+                        selected.extend(filtered_indices.iter().copied());
+                        ui.close();
+                    }
+                    if ui.button(t.get("save_edit_deselect_all")).clicked() {
+                        selected.clear();
+                        *last_clicked = None;
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(t.get("save_edit_duplicate_selected")),
+                        )
+                        .clicked()
+                    {
+                        duplicate_selected = true;
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(
+                            !selected.is_empty(),
+                            egui::Button::new(t.get("save_edit_delete_selected")),
+                        )
+                        .clicked()
+                    {
+                        to_delete.extend(selected.iter().copied());
+                        ui.close();
+                    }
+                });
             });
         });
 
+    if duplicate_selected {
+        duplicate_indices(entries, selected);
+        selected.clear();
+        *last_clicked = None;
+        changed = true;
+    }
+
     to_delete.sort_unstable();
+    to_delete.dedup();
     for idx in to_delete.into_iter().rev() {
         entries.remove(idx);
         changed = true;

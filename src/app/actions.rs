@@ -5,6 +5,144 @@ use crate::types::*;
 use super::{Clipboard, EditorApp, Snapshot, Tab, UNDO_MAX};
 
 impl EditorApp {
+    fn valid_object_indices(level: &LevelData, indices: &[ObjectIndex]) -> Vec<ObjectIndex> {
+        let mut valid: Vec<ObjectIndex> = indices
+            .iter()
+            .copied()
+            .filter(|&idx| idx < level.objects.len())
+            .collect();
+        valid.sort_unstable();
+        valid.dedup();
+        valid
+    }
+
+    pub(super) fn copy_objects(&mut self, indices: &[ObjectIndex]) {
+        let tab = &self.tabs[self.active_tab];
+        let Some(level) = &tab.level else {
+            return;
+        };
+        let valid = Self::valid_object_indices(level, indices);
+        if valid.is_empty() {
+            return;
+        }
+        let subtrees: Vec<Vec<LevelObject>> = valid
+            .into_iter()
+            .map(|index| level.clone_subtree(index))
+            .collect();
+        if !subtrees.is_empty() {
+            self.clipboard = Some(Clipboard { subtrees });
+        }
+    }
+
+    pub(super) fn cut_objects(&mut self, indices: &[ObjectIndex]) {
+        let tab = &mut self.tabs[self.active_tab];
+        let Some(level) = &tab.level else {
+            return;
+        };
+        let valid = Self::valid_object_indices(level, indices);
+        if valid.is_empty() {
+            return;
+        }
+
+        let subtrees: Vec<Vec<LevelObject>> = valid
+            .iter()
+            .copied()
+            .map(|index| level.clone_subtree(index))
+            .collect();
+        self.clipboard = Some(Clipboard { subtrees });
+
+        tab.history.undo.push(Snapshot {
+            level: level.clone(),
+            selected: tab.selected.clone(),
+        });
+        if tab.history.undo.len() > UNDO_MAX {
+            tab.history.undo.remove(0);
+        }
+        tab.history.redo.clear();
+
+        if let Some(level) = &mut tab.level {
+            for index in valid.into_iter().rev() {
+                level.delete_object(index);
+            }
+            tab.selected.clear();
+            let cam = tab.renderer.camera.clone();
+            tab.renderer.set_level(level);
+            tab.renderer.camera = cam;
+        }
+    }
+
+    pub(super) fn duplicate_objects(&mut self, indices: &[ObjectIndex]) {
+        let tab = &mut self.tabs[self.active_tab];
+        let Some(level_ref) = tab.level.as_ref() else {
+            return;
+        };
+        let valid = Self::valid_object_indices(level_ref, indices);
+        if valid.is_empty() {
+            return;
+        }
+
+        let items: Vec<(Vec<LevelObject>, Option<ObjectIndex>)> = valid
+            .into_iter()
+            .map(|sel| {
+                let subtree = level_ref.clone_subtree(sel);
+                let target = match &level_ref.objects[sel] {
+                    LevelObject::Prefab(prefab) => prefab.parent,
+                    LevelObject::Parent(parent) => parent.parent,
+                };
+                (subtree, target)
+            })
+            .collect();
+        if items.is_empty() {
+            return;
+        }
+
+        tab.history.undo.push(Snapshot {
+            level: level_ref.clone(),
+            selected: tab.selected.clone(),
+        });
+        if tab.history.undo.len() > UNDO_MAX {
+            tab.history.undo.remove(0);
+        }
+        tab.history.redo.clear();
+
+        let level = tab.level.as_mut().unwrap();
+        tab.selected.clear();
+        for (subtree, target) in &items {
+            let new_root = level.paste_subtree(subtree, *target);
+            match &mut level.objects[new_root] {
+                LevelObject::Prefab(prefab) => {
+                    prefab.position.x += 1.0;
+                    prefab.position.y -= 1.0;
+                }
+                LevelObject::Parent(parent) => {
+                    parent.position.x += 1.0;
+                    parent.position.y -= 1.0;
+                }
+            }
+            tab.selected.insert(new_root);
+        }
+        let cam = tab.renderer.camera.clone();
+        tab.renderer.set_level(level);
+        tab.renderer.camera = cam;
+    }
+
+    pub(super) fn request_delete_objects(&mut self, indices: &[ObjectIndex]) {
+        let tab = &mut self.tabs[self.active_tab];
+        let Some(level) = &tab.level else {
+            return;
+        };
+        let valid = Self::valid_object_indices(level, indices);
+        if valid.is_empty() {
+            return;
+        }
+        let label = if valid.len() == 1 {
+            level.objects[valid[0]].name().to_string()
+        } else {
+            format!("{} objects", valid.len())
+        };
+        tab.pending_delete = Some((valid, label));
+    }
+
     /// Snapshot current state onto the undo stack (call before mutation).
     pub(super) fn push_undo(&mut self) {
         let tab = &mut self.tabs[self.active_tab];
@@ -58,63 +196,14 @@ impl EditorApp {
 
     /// Copy all selected objects (and their subtrees) to the clipboard.
     pub(super) fn copy_selected(&mut self) {
-        let tab = &self.tabs[self.active_tab];
-        if tab.selected.is_empty() {
-            return;
-        }
-        if let Some(ref level) = tab.level {
-            let subtrees: Vec<Vec<LevelObject>> = tab
-                .selected
-                .iter()
-                .filter(|&&sel| sel < level.objects.len())
-                .map(|&sel| level.clone_subtree(sel))
-                .collect();
-            if !subtrees.is_empty() {
-                self.clipboard = Some(Clipboard { subtrees });
-            }
-        }
+        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab].selected.iter().copied().collect();
+        self.copy_objects(&indices);
     }
 
     /// Cut all selected objects: copy then delete.
     pub(super) fn cut_selected(&mut self) {
-        let tab = &mut self.tabs[self.active_tab];
-        if tab.selected.is_empty() {
-            return;
-        }
-        if let Some(ref level) = tab.level {
-            let subtrees: Vec<Vec<LevelObject>> = tab
-                .selected
-                .iter()
-                .filter(|&&sel| sel < level.objects.len())
-                .map(|&sel| level.clone_subtree(sel))
-                .collect();
-            if subtrees.is_empty() {
-                return;
-            }
-            self.clipboard = Some(Clipboard { subtrees });
-            // push_undo inline
-            let undo_snap = Snapshot {
-                level: level.clone(),
-                selected: tab.selected.clone(),
-            };
-            tab.history.undo.push(undo_snap);
-            if tab.history.undo.len() > UNDO_MAX {
-                tab.history.undo.remove(0);
-            }
-            tab.history.redo.clear();
-            // Delete in reverse order to keep indices valid
-            let mut to_delete: Vec<ObjectIndex> = tab.selected.iter().copied().collect();
-            to_delete.sort_unstable_by(|a, b| b.cmp(a));
-            if let Some(ref mut level) = tab.level {
-                for idx in to_delete {
-                    level.delete_object(idx);
-                }
-                tab.selected.clear();
-                let cam = tab.renderer.camera.clone();
-                tab.renderer.set_level(level);
-                tab.renderer.camera = cam;
-            }
-        }
+        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab].selected.iter().copied().collect();
+        self.cut_objects(&indices);
     }
 
     /// Paste from the clipboard, offset slightly from the original position.
@@ -163,55 +252,8 @@ impl EditorApp {
 
     /// Duplicate all selected objects in-place.
     pub(super) fn duplicate_selected(&mut self) {
-        let tab = &mut self.tabs[self.active_tab];
-        if tab.selected.is_empty() || tab.level.is_none() {
-            return;
-        }
-        let level_ref = tab.level.as_ref().unwrap();
-        let items: Vec<(Vec<LevelObject>, Option<ObjectIndex>)> = tab
-            .selected
-            .iter()
-            .filter(|&&s| s < level_ref.objects.len())
-            .map(|&sel| {
-                let subtree = level_ref.clone_subtree(sel);
-                let target = match &level_ref.objects[sel] {
-                    LevelObject::Prefab(p) => p.parent,
-                    LevelObject::Parent(p) => p.parent,
-                };
-                (subtree, target)
-            })
-            .collect();
-        if items.is_empty() {
-            return;
-        }
-        // push_undo inline
-        tab.history.undo.push(Snapshot {
-            level: level_ref.clone(),
-            selected: tab.selected.clone(),
-        });
-        if tab.history.undo.len() > UNDO_MAX {
-            tab.history.undo.remove(0);
-        }
-        tab.history.redo.clear();
-        let level = tab.level.as_mut().unwrap();
-        tab.selected.clear();
-        for (subtree, target) in &items {
-            let new_root = level.paste_subtree(subtree, *target);
-            match &mut level.objects[new_root] {
-                LevelObject::Prefab(p) => {
-                    p.position.x += 1.0;
-                    p.position.y -= 1.0;
-                }
-                LevelObject::Parent(p) => {
-                    p.position.x += 1.0;
-                    p.position.y -= 1.0;
-                }
-            }
-            tab.selected.insert(new_root);
-        }
-        let cam = tab.renderer.camera.clone();
-        tab.renderer.set_level(level);
-        tab.renderer.camera = cam;
+        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab].selected.iter().copied().collect();
+        self.duplicate_objects(&indices);
     }
 
     /// Load a level into the active tab (or a new tab if active tab already has a level).

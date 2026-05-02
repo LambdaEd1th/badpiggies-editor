@@ -397,16 +397,6 @@ impl LevelRenderer {
             }
         }
 
-        // Toggle terrain node texture: right-click on a hovered node
-        if response.secondary_clicked()
-            && let Some((obj_idx, node_idx)) = self.hovered_terrain_node
-        {
-            self.node_edit_action = Some(NodeEditAction::ToggleTexture {
-                object_index: obj_idx,
-                node_index: node_idx,
-            });
-        }
-
         // Insert terrain node: double-click on a terrain curve segment
         if response.double_clicked()
             && !self.panning

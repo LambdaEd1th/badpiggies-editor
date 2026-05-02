@@ -716,8 +716,9 @@ impl eframe::App for EditorApp {
         self.render_canvas(ui);
 
         // Contraption preview floating window
-        if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
-            sv.render_contraption_preview(&ctx, t);
+        let tab = &mut self.tabs[self.active_tab];
+        if let Some(ref mut sv) = tab.save_view {
+            sv.render_contraption_preview(&ctx, t, &mut tab.renderer);
         }
     }
 }

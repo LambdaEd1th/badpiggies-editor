@@ -448,6 +448,7 @@ impl DarkOffscreen {
 
 // ── Fan triangulation: polygon → GPU vertex/index data ──
 
+#[allow(dead_code)]
 pub fn build_dark_gpu_meshes<'a>(
     device: &wgpu::Device,
     pairs: impl Iterator<Item = (&'a [(f32, f32)], &'a [(f32, f32)])>,
@@ -518,6 +519,7 @@ pub fn build_dark_gpu_meshes<'a>(
 ///
 /// Combined with stencil Invert, this implements correct even-odd fill
 /// for arbitrary (convex or concave) polygons.
+#[allow(dead_code)]
 fn fan_triangulate(polygon: &[(f32, f32)], verts: &mut Vec<[f32; 2]>, idxs: &mut Vec<u32>) {
     let n = polygon.len();
     if n < 3 {

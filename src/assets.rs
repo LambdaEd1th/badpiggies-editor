@@ -106,10 +106,7 @@ fn terrain_splat0_map() -> &'static HashMap<&'static str, &'static str> {
             // Dark variants with different Splat0 than their base
             ("e2dTerrainDark_MM", "Ground_Grass_Texture.png"),
             ("e2dTerrainDark_MM_CaveSand", "Ground_Grass_Texture.png"),
-            (
-                "e2dTerrainDark_MM_rock",
-                "Ground_Rocks_Outline_Texture_06.png",
-            ),
+            ("e2dTerrainDark_MM_rock", "Border_Maya_Cave.png"),
         ])
     })
 }
@@ -148,7 +145,7 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
             ),
             ("e2dTerrainDark_MM", "Border_Maya_Cave.png"),
             ("e2dTerrainDark_MM_CaveSand", "Border_Maya_Cave.png"),
-            ("e2dTerrainDark_MM_rock", "Border_Maya_Cave.png"),
+                ("e2dTerrainDark_MM_rock", "Border.png"),
         ])
     })
 }
@@ -409,7 +406,10 @@ pub fn props_tint_color(theme: Option<&str>) -> [f32; 4] {
 /// GenericPropsNight / GenericPropsMorning2 at runtime in Unity.
 pub fn skip_props_tint(name: &str) -> bool {
     name.starts_with("Crystal_")
-        || name.starts_with("Glow_")
+    || name == "Glow"
+    || name.starts_with("Glow_")
+    || name.starts_with("GoalArea")
+    || name.starts_with("GoalSprite")
         || name.starts_with("Lit")
         || name.starts_with("Secret_")
         || name.starts_with("Star_")

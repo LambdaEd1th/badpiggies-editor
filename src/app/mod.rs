@@ -56,6 +56,8 @@ struct Tab {
     level: Option<LevelData>,
     /// File name of the loaded level.
     file_name: Option<String>,
+    /// Native path of the loaded source file, if available.
+    source_path: Option<String>,
     /// Currently selected object indices.
     selected: BTreeSet<ObjectIndex>,
     /// Canvas renderer state (owns per-level caches; shares GPU pipelines via Arc).
@@ -79,6 +81,7 @@ impl Tab {
         Self {
             level: None,
             file_name: None,
+            source_path: None,
             selected: BTreeSet::new(),
             renderer,
             status: welcome_status,
@@ -105,7 +108,7 @@ impl Tab {
         self.save_view.is_some()
     }
 
-    fn load_level(&mut self, name: String, data: Vec<u8>, i18n: &I18n) {
+    fn load_level(&mut self, name: String, data: Vec<u8>, i18n: &I18n, source_path: Option<String>) {
         match parser::parse_level(data) {
             Ok(level) => {
                 let obj_count = level.objects.len();
@@ -114,6 +117,7 @@ impl Tab {
                 self.renderer.set_level(&level);
                 self.level = Some(level);
                 self.file_name = Some(name);
+                self.source_path = source_path;
                 self.selected.clear();
                 self.history.undo.clear();
                 self.history.redo.clear();
@@ -125,7 +129,13 @@ impl Tab {
         }
     }
 
-    fn load_level_text(&mut self, name: String, text: &str, i18n: &I18n) {
+    fn load_level_text(
+        &mut self,
+        name: String,
+        text: &str,
+        i18n: &I18n,
+        source_path: Option<String>,
+    ) {
         let result: Result<LevelData, String> = if name.ends_with(".yaml") || name.ends_with(".yml")
         {
             serde_yaml::from_str(text).map_err(|e| e.to_string())
@@ -142,6 +152,7 @@ impl Tab {
                 self.renderer.set_level(&level);
                 self.level = Some(level);
                 self.file_name = Some(name);
+                self.source_path = source_path;
                 self.selected.clear();
                 self.history.undo.clear();
                 self.history.redo.clear();
@@ -195,8 +206,12 @@ pub struct EditorApp {
     /// Add-object dialog state.
     show_add_dialog: bool,
     add_obj_is_parent: bool,
+    add_obj_data_type: DataType,
     add_obj_name: String,
     add_obj_prefab_index: i16,
+    add_obj_position: Vec3,
+    add_obj_rotation: Vec3,
+    add_obj_scale: Vec3,
     /// Pending file data from drag-and-drop or file picker.
     #[cfg(target_arch = "wasm32")]
     pending_file: Option<(String, Vec<u8>)>,
@@ -348,8 +363,16 @@ impl EditorApp {
             active_tab: 0,
             show_add_dialog: false,
             add_obj_is_parent: false,
+            add_obj_data_type: DataType::None,
             add_obj_name: String::new(),
             add_obj_prefab_index: 0,
+            add_obj_position: Vec3::default(),
+            add_obj_rotation: Vec3::default(),
+            add_obj_scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
             #[cfg(target_arch = "wasm32")]
             pending_file: None,
             show_object_tree: true,
@@ -362,6 +385,21 @@ impl EditorApp {
             cursor_mode: CursorMode::default(),
             show_tools: false,
         }
+    }
+
+    pub(super) fn prepare_add_object_dialog(&mut self) {
+        self.add_obj_is_parent = false;
+        self.add_obj_data_type = DataType::None;
+        self.add_obj_name.clear();
+        self.add_obj_prefab_index = 0;
+        self.add_obj_position = Vec3::default();
+        self.add_obj_rotation = Vec3::default();
+        self.add_obj_scale = Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        };
+        self.show_add_dialog = true;
     }
 
     /// Returns the current language's translations.
@@ -410,12 +448,12 @@ impl EditorApp {
             if let Some((name, data)) = self.pending_file.take() {
                 if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
                     if let Ok(text) = String::from_utf8(data) {
-                        self.load_level_text_into_tab(name, &text);
+                        self.load_level_text_into_tab(name, &text, None);
                     } else {
                         self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
                     }
                 } else {
-                    self.load_level_into_tab(name, data);
+                    self.load_level_into_tab(name, data, None);
                 }
             }
         }
@@ -423,8 +461,8 @@ impl EditorApp {
         // Handle dropped files
         ctx.input(|i| {
             for file in &i.raw.dropped_files {
-                let file_data: Option<(String, Vec<u8>)> = if let Some(ref bytes) = file.bytes {
-                    Some((file.name.clone(), bytes.to_vec()))
+                let file_data: Option<(String, Vec<u8>, Option<String>)> = if let Some(ref bytes) = file.bytes {
+                    Some((file.name.clone(), bytes.to_vec(), None))
                 } else if let Some(ref path) = file.path {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
@@ -433,7 +471,7 @@ impl EditorApp {
                                 .file_name()
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| file.name.clone());
-                            (name, data)
+                            (name, data, Some(path.to_string_lossy().into_owned()))
                         })
                     }
                     #[cfg(target_arch = "wasm32")]
@@ -445,17 +483,17 @@ impl EditorApp {
                     None
                 };
 
-                if let Some((name, data)) = file_data {
+                if let Some((name, data, source_path)) = file_data {
                     if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml")
                     {
                         match String::from_utf8(data) {
-                            Ok(text) => self.load_level_text_into_tab(name, &text),
+                            Ok(text) => self.load_level_text_into_tab(name, &text, source_path),
                             Err(_) => {
                                 self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string()
                             }
                         }
                     } else {
-                        self.load_level_into_tab(name, data);
+                        self.load_level_into_tab(name, data, source_path);
                     }
                 }
             }
@@ -827,17 +865,26 @@ impl EditorApp {
     fn render_canvas(&mut self, ui: &mut egui::Ui) {
         let t = self.t();
         let cursor_mode = self.cursor_mode;
-        let tab = &mut self.tabs[self.active_tab];
-        if let Some(ref mut sv) = tab.save_view {
+        let active_tab = self.active_tab;
+        let has_clipboard = self.clipboard.is_some();
+        if let Some(ref mut sv) = self.tabs[active_tab].save_view {
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 sv.render_save_panels(ui, t);
             });
         } else {
+            let mut canvas_context_action = None;
+            let mut canvas_context_selected_object = None;
             egui::CentralPanel::default().show_inside(ui, |ui| {
+                let tab = &mut self.tabs[active_tab];
                 if tab.level.is_some() {
                     let sel = tab.selected.clone();
-                    tab.renderer.show(ui, &sel, cursor_mode, t);
+                    tab.renderer.show(ui, &sel, cursor_mode, t, has_clipboard);
+                    canvas_context_action = tab.renderer.context_action.take();
+                    canvas_context_selected_object = tab.renderer.context_selected_object.take();
                     // Pick up click-to-select from renderer
+                    if let Some(idx) = canvas_context_selected_object {
+                        tab.selected = BTreeSet::from([idx]);
+                    }
                     if let Some(idx) = tab.renderer.clicked_object {
                         if tab.renderer.clicked_with_cmd {
                             if tab.selected.contains(&idx) {
@@ -848,6 +895,8 @@ impl EditorApp {
                         } else {
                             tab.selected = BTreeSet::from([idx]);
                         }
+                    } else if tab.renderer.clicked_empty && !tab.renderer.clicked_with_cmd {
+                        tab.selected.clear();
                     }
                     // Pick up drag result — update object position
                     if let Some((idx, delta)) = tab.renderer.drag_result.take()
@@ -1155,6 +1204,29 @@ impl EditorApp {
                     });
                 }
             });
+
+            if let Some(action) = canvas_context_action {
+                match action {
+                    crate::renderer::CanvasContextAction::Copy(indices) => {
+                        self.copy_objects(&indices);
+                    }
+                    crate::renderer::CanvasContextAction::Cut(indices) => {
+                        self.cut_objects(&indices);
+                    }
+                    crate::renderer::CanvasContextAction::Paste {
+                        context_indices,
+                        world_pos,
+                    } => {
+                        self.paste_with_context(&context_indices, world_pos);
+                    }
+                    crate::renderer::CanvasContextAction::Duplicate(indices) => {
+                        self.duplicate_objects(&indices);
+                    }
+                    crate::renderer::CanvasContextAction::Delete(indices) => {
+                        self.request_delete_objects(&indices);
+                    }
+                }
+            }
         }
     }
 }

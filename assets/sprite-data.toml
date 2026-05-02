@@ -1956,7 +1956,7 @@ width = 103
 height = 104
 scaleX = 1
 scaleY = 1
-atlas = "Ingame_Characters_Sheet_01.png"
+atlas = "IngameAtlas2.png"
 
 [runtime.GridCellLight]
 width = 104

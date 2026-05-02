@@ -92,6 +92,14 @@ about_version_prefix = Version:
 add_type = Type:
 add_name = Name:
 add_prefab_index = Prefab Index:
+add_kind_prefab = Prefab
+add_kind_parent = Parent
+add_data_type = Data Type:
+add_data_type_none = None
+add_data_type_terrain = Terrain
+add_data_type_prefab_overrides = PrefabOverrides
+add_data_type_terrain_help = Terrain creates default terrain data and keeps the prefab index you selected.
+add_data_type_prefab_overrides_help = PrefabOverrides creates an empty override payload that you can edit later in the properties panel.
 
 # Panels
 panel_object_list = Object List

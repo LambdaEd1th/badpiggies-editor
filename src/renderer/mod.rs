@@ -221,6 +221,17 @@ pub struct BoundsDragResult {
     pub new_limits: [f32; 4],
 }
 
+pub enum CanvasContextAction {
+    Copy(Vec<ObjectIndex>),
+    Cut(Vec<ObjectIndex>),
+    Paste {
+        context_indices: Vec<ObjectIndex>,
+        world_pos: Option<Vec2>,
+    },
+    Duplicate(Vec<ObjectIndex>),
+    Delete(Vec<ObjectIndex>),
+}
+
 /// Renderer state for drawing levels.
 pub struct LevelRenderer {
     pub camera: Camera,
@@ -269,6 +280,16 @@ pub struct LevelRenderer {
     pub node_edit_action: Option<NodeEditAction>,
     /// Completed box-selection result.
     pub box_select_result: Option<BoxSelectResult>,
+    /// Object-oriented context-menu action requested this frame.
+    pub context_action: Option<CanvasContextAction>,
+    /// Object that should become selected due to a viewport context-menu click.
+    pub context_selected_object: Option<ObjectIndex>,
+    /// World position where the current canvas context menu was opened.
+    context_menu_world_pos: Option<Vec2>,
+    /// Object selection snapshot for the current canvas context menu.
+    context_menu_indices: Vec<ObjectIndex>,
+    /// Terrain node snapshot for the current canvas context menu.
+    context_menu_node: Option<(ObjectIndex, usize)>,
     /// Active box-selection start position (screen coords).
     box_select_start: Option<egui::Pos2>,
     /// Completed freehand terrain draw result.
@@ -369,6 +390,8 @@ pub struct LevelRenderer {
     pub hovered_terrain_node: Option<(ObjectIndex, usize)>,
     /// Reusable scratch mesh buffer for terrain CPU transform (avoids per-frame allocation).
     terrain_scratch_mesh: egui::Mesh,
+    /// True when the user clicked the canvas without hitting any object.
+    pub clicked_empty: bool,
     /// Cached dark overlay mesh (layer 1: dark complement).
     dark_overlay_mesh: Option<egui::Mesh>,
     /// Cached dark overlay border ring mesh (layer 2).
@@ -416,11 +439,14 @@ impl LevelRenderer {
         selected: &BTreeSet<ObjectIndex>,
         cursor_mode: CursorMode,
         tr: &'static crate::locale::I18n,
+        has_clipboard: bool,
     ) {
         let available = ui.available_size();
         let (response, painter) = ui.allocate_painter(available, egui::Sense::click_and_drag());
         let rect = response.rect;
         let canvas_center = rect.center().to_vec2();
+        self.context_action = None;
+        self.context_selected_object = None;
 
         // Advance animation time (use stable_dt = measured frame interval, not predicted)
         self.time += ui.input(|i| i.stable_dt as f64);
@@ -567,57 +593,107 @@ impl LevelRenderer {
         self.lazy_load_textures(ui.ctx());
 
         let hovered_node = self.hovered_terrain_node;
-        let hovered_node_can_delete = hovered_node.and_then(|(object_index, node_index)| {
-            self.terrain_data
-                .iter()
-                .find(|terrain| terrain.object_index == object_index)
-                .map(|terrain| (object_index, node_index, terrain.curve_world_verts.len() > 2))
-        });
+        let terrain_node_can_delete = |node: Option<(ObjectIndex, usize)>| {
+            node.and_then(|(object_index, node_index)| {
+                self.terrain_data
+                    .iter()
+                    .find(|terrain| terrain.object_index == object_index)
+                    .map(|terrain| (object_index, node_index, terrain.curve_world_verts.len() > 2))
+            })
+        };
+        let context_menu_node_can_delete = terrain_node_can_delete(self.context_menu_node);
+        if response.secondary_clicked() {
+            let hovered_node_can_delete = terrain_node_can_delete(hovered_node);
+            let context_world = response
+                .interact_pointer_pos()
+                .map(|pointer| self.camera.screen_to_world(pointer, canvas_center));
+            let context_object = context_world
+                .and_then(|world| self.hit_test(world, selected))
+                .or_else(|| hovered_node.map(|(object_index, _)| object_index));
+            self.context_menu_world_pos = context_world;
+            self.context_menu_indices = context_object
+                .map(|index| {
+                    if selected.contains(&index) {
+                        selected.iter().copied().collect()
+                    } else {
+                        vec![index]
+                    }
+                })
+                .unwrap_or_else(|| selected.iter().copied().collect());
+            self.context_menu_node = hovered_node_can_delete.map(|(object_index, node_index, _)| {
+                (object_index, node_index)
+            });
+            if let Some(index) = context_object
+                && !selected.contains(&index)
+            {
+                self.context_selected_object = Some(index);
+            }
+        }
+        let context_world = self.context_menu_world_pos;
+        let context_indices = self.context_menu_indices.clone();
+        let has_context_selection = !context_indices.is_empty();
+        let is_mac = cfg!(target_os = "macos");
+        let copy_shortcut = if is_mac { "Cmd+C" } else { "Ctrl+C" };
+        let cut_shortcut = if is_mac { "Cmd+X" } else { "Ctrl+X" };
+        let paste_shortcut = if is_mac { "Cmd+V" } else { "Ctrl+V" };
+        let dup_shortcut = if is_mac { "Cmd+D" } else { "Ctrl+D" };
         response.context_menu(|ui| {
-            if ui.button(tr.get("menu_fit_view")).clicked() {
-                self.fit_to_level();
-                ui.close();
-            }
-            ui.separator();
-
-            let mut show_bg = self.show_bg;
-            if ui.checkbox(&mut show_bg, tr.get("menu_background")).clicked() {
-                self.show_bg = show_bg;
-                ui.close();
-            }
-            let mut show_grid = self.show_grid;
-            if ui.checkbox(&mut show_grid, tr.get("menu_grid")).clicked() {
-                self.show_grid = show_grid;
-                ui.close();
-            }
-            let mut show_ground = self.show_ground;
             if ui
-                .checkbox(&mut show_ground, tr.get("menu_physics_ground"))
+                .add_enabled(
+                    has_context_selection,
+                    egui::Button::new(tr.get("menu_copy")).shortcut_text(copy_shortcut),
+                )
                 .clicked()
             {
-                self.show_ground = show_ground;
+                self.context_action = Some(CanvasContextAction::Copy(context_indices.clone()));
                 ui.close();
             }
-            let mut show_level_bounds = self.show_level_bounds;
             if ui
-                .checkbox(&mut show_level_bounds, tr.get("menu_level_bounds"))
+                .add_enabled(
+                    has_context_selection,
+                    egui::Button::new(tr.get("menu_cut")).shortcut_text(cut_shortcut),
+                )
                 .clicked()
             {
-                self.show_level_bounds = show_level_bounds;
+                self.context_action = Some(CanvasContextAction::Cut(context_indices.clone()));
                 ui.close();
             }
-            if self.dark_level {
-                let mut show_dark_overlay = self.show_dark_overlay;
-                if ui
-                    .checkbox(&mut show_dark_overlay, tr.get("menu_dark_overlay"))
-                    .clicked()
-                {
-                    self.show_dark_overlay = show_dark_overlay;
-                    ui.close();
-                }
+            if ui
+                .add_enabled(
+                    has_clipboard,
+                    egui::Button::new(tr.get("menu_paste")).shortcut_text(paste_shortcut),
+                )
+                .clicked()
+            {
+                self.context_action = Some(CanvasContextAction::Paste {
+                    context_indices: context_indices.clone(),
+                    world_pos: context_world,
+                });
+                ui.close();
+            }
+            if ui
+                .add_enabled(
+                    has_context_selection,
+                    egui::Button::new(tr.get("menu_duplicate")).shortcut_text(dup_shortcut),
+                )
+                .clicked()
+            {
+                self.context_action =
+                    Some(CanvasContextAction::Duplicate(context_indices.clone()));
+                ui.close();
+            }
+            if ui
+                .add_enabled(
+                    has_context_selection,
+                    egui::Button::new(tr.get("menu_delete")).shortcut_text("Del"),
+                )
+                .clicked()
+            {
+                self.context_action = Some(CanvasContextAction::Delete(context_indices.clone()));
+                ui.close();
             }
 
-            if let Some((object_index, node_index, can_delete)) = hovered_node_can_delete {
+            if let Some((object_index, node_index, can_delete)) = context_menu_node_can_delete {
                 ui.separator();
                 if ui.button(tr.get("context_toggle_node_texture")).clicked() {
                     self.node_edit_action = Some(NodeEditAction::ToggleTexture {
@@ -636,6 +712,12 @@ impl LevelRenderer {
                     });
                     ui.close();
                 }
+            }
+
+            ui.separator();
+            if ui.button(tr.get("menu_fit_view")).clicked() {
+                self.fit_to_level();
+                ui.close();
             }
         });
     }

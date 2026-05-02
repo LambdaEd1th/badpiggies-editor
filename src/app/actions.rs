@@ -5,6 +5,24 @@ use crate::types::*;
 use super::{Clipboard, EditorApp, Snapshot, Tab, UNDO_MAX};
 
 impl EditorApp {
+    fn clipboard_root_anchor(clipboard: &Clipboard) -> Option<Vec2> {
+        let mut sum_x = 0.0f32;
+        let mut sum_y = 0.0f32;
+        let mut count = 0usize;
+        for subtree in &clipboard.subtrees {
+            if let Some(root) = subtree.first() {
+                let pos = root.position();
+                sum_x += pos.x;
+                sum_y += pos.y;
+                count += 1;
+            }
+        }
+        (count > 0).then(|| Vec2 {
+            x: sum_x / count as f32,
+            y: sum_y / count as f32,
+        })
+    }
+
     fn valid_object_indices(level: &LevelData, indices: &[ObjectIndex]) -> Vec<ObjectIndex> {
         let mut valid: Vec<ObjectIndex> = indices
             .iter()
@@ -206,17 +224,36 @@ impl EditorApp {
         self.cut_objects(&indices);
     }
 
-    /// Paste from the clipboard, offset slightly from the original position.
     pub(super) fn paste(&mut self) {
+        self.paste_with_context(&[], None);
+    }
+
+    /// Paste from the clipboard, optionally using a specific context target and world position.
+    pub(super) fn paste_with_context(
+        &mut self,
+        context_indices: &[ObjectIndex],
+        world_pos: Option<Vec2>,
+    ) {
         let clip = match self.clipboard.clone() {
             Some(c) => c,
             None => return,
         };
+        let world_delta = world_pos.and_then(|target| {
+            Self::clipboard_root_anchor(&clip).map(|anchor| Vec2 {
+                x: target.x - anchor.x,
+                y: target.y - anchor.y,
+            })
+        });
         let tab = &mut self.tabs[self.active_tab];
         if tab.level.is_none() {
             return;
         }
-        let target = Tab::paste_target_parent(tab.level.as_ref().unwrap(), &tab.selected);
+        let target_selection = if context_indices.is_empty() {
+            tab.selected.clone()
+        } else {
+            context_indices.iter().copied().collect()
+        };
+        let target = Tab::paste_target_parent(tab.level.as_ref().unwrap(), &target_selection);
         // push_undo inline
         {
             let level = tab.level.as_ref().unwrap();
@@ -235,12 +272,22 @@ impl EditorApp {
             let new_root = level.paste_subtree(subtree, target);
             match &mut level.objects[new_root] {
                 LevelObject::Prefab(p) => {
-                    p.position.x += 1.0;
-                    p.position.y -= 1.0;
+                    if let Some(delta) = world_delta {
+                        p.position.x += delta.x;
+                        p.position.y += delta.y;
+                    } else {
+                        p.position.x += 1.0;
+                        p.position.y -= 1.0;
+                    }
                 }
                 LevelObject::Parent(p) => {
-                    p.position.x += 1.0;
-                    p.position.y -= 1.0;
+                    if let Some(delta) = world_delta {
+                        p.position.x += delta.x;
+                        p.position.y += delta.y;
+                    } else {
+                        p.position.x += 1.0;
+                        p.position.y -= 1.0;
+                    }
                 }
             }
             tab.selected.insert(new_root);
@@ -257,32 +304,42 @@ impl EditorApp {
     }
 
     /// Load a level into the active tab (or a new tab if active tab already has a level).
-    pub(super) fn load_level_into_tab(&mut self, name: String, data: Vec<u8>) {
+    pub(super) fn load_level_into_tab(
+        &mut self,
+        name: String,
+        data: Vec<u8>,
+        source_path: Option<String>,
+    ) {
         let i18n = self.lang.i18n();
         let tab = &self.tabs[self.active_tab];
         if tab.level.is_some() || tab.save_view.is_some() {
             let new_renderer = tab.renderer.clone_for_new_tab();
             let mut new_tab = Tab::new(new_renderer, String::new());
-            new_tab.load_level(name, data, i18n);
+            new_tab.load_level(name, data, i18n, source_path);
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
         } else {
-            self.tabs[self.active_tab].load_level(name, data, i18n);
+            self.tabs[self.active_tab].load_level(name, data, i18n, source_path);
         }
     }
 
     /// Load a text-format level into the active tab (or new tab).
-    pub(super) fn load_level_text_into_tab(&mut self, name: String, text: &str) {
+    pub(super) fn load_level_text_into_tab(
+        &mut self,
+        name: String,
+        text: &str,
+        source_path: Option<String>,
+    ) {
         let i18n = self.lang.i18n();
         let tab = &self.tabs[self.active_tab];
         if tab.level.is_some() || tab.save_view.is_some() {
             let new_renderer = tab.renderer.clone_for_new_tab();
             let mut new_tab = Tab::new(new_renderer, String::new());
-            new_tab.load_level_text(name, text, i18n);
+            new_tab.load_level_text(name, text, i18n, source_path);
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
         } else {
-            self.tabs[self.active_tab].load_level_text(name, text, i18n);
+            self.tabs[self.active_tab].load_level_text(name, text, i18n, source_path);
         }
     }
 

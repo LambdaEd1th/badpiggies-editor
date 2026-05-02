@@ -5,7 +5,13 @@ use eframe::egui;
 use crate::locale::I18n;
 use crate::types::*;
 
-use super::{EditorApp, Snapshot, UNDO_MAX};
+use super::{
+    dialogs::{
+        build_default_terrain_data, current_level_prefab_options,
+        render_prefab_index_picker, PrefabOption,
+    },
+    EditorApp, Snapshot, UNDO_MAX,
+};
 
 impl EditorApp {
     /// Render the right properties panel.
@@ -25,6 +31,11 @@ impl EditorApp {
                 ui.separator();
 
                 let tab = &mut self.tabs[self.active_tab];
+                let prefab_options = current_level_prefab_options(
+                    tab.level.as_ref(),
+                    tab.file_name.as_deref(),
+                    tab.source_path.as_deref(),
+                );
                 let single_sel = if tab.selected.len() == 1 {
                     Some(*tab.selected.iter().next().unwrap())
                 } else {
@@ -37,7 +48,8 @@ impl EditorApp {
                         } else {
                             None
                         };
-                        let changed = show_properties_editable(ui, &mut level.objects[sel], t);
+                        let changed =
+                            show_properties_editable(ui, &mut level.objects[sel], &prefab_options, t);
                         if changed {
                             if let Some(obj_backup) = pre_obj {
                                 let mut level_snapshot = level.clone();
@@ -67,7 +79,12 @@ impl EditorApp {
 }
 
 /// Show editable properties. Returns true if anything changed.
-fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'static I18n) -> bool {
+fn show_properties_editable(
+    ui: &mut egui::Ui,
+    obj: &mut LevelObject,
+    prefab_options: &[PrefabOption],
+    t: &'static I18n,
+) -> bool {
     let mut changed = false;
     match obj {
         LevelObject::Prefab(p) => {
@@ -78,9 +95,12 @@ fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'stati
             });
             ui.horizontal(|ui| {
                 ui.label(t.get("prop_prefab_index"));
-                changed |= ui
-                    .add(egui::DragValue::new(&mut p.prefab_index).range(i16::MIN..=i16::MAX))
-                    .changed();
+                changed |= render_prefab_index_picker(
+                    ui,
+                    "properties_prefab_index",
+                    &mut p.prefab_index,
+                    prefab_options,
+                );
             });
             ui.separator();
 
@@ -94,7 +114,29 @@ fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'stati
             changed |= edit_vec3(ui, "p_scl", &mut p.scale);
 
             ui.separator();
-            ui.label(format!("{} {:?}", t.get("prop_data_type"), p.data_type));
+            ui.horizontal(|ui| {
+                ui.label(t.get("prop_data_type"));
+                let mut data_type = p.data_type;
+                egui::ComboBox::from_id_salt("properties_data_type")
+                    .selected_text(data_type_label(data_type))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut data_type, DataType::None, data_type_label(DataType::None));
+                        ui.selectable_value(
+                            &mut data_type,
+                            DataType::Terrain,
+                            data_type_label(DataType::Terrain),
+                        );
+                        ui.selectable_value(
+                            &mut data_type,
+                            DataType::PrefabOverrides,
+                            data_type_label(DataType::PrefabOverrides),
+                        );
+                    });
+                if data_type != p.data_type {
+                    apply_data_type_change(p, data_type);
+                    changed = true;
+                }
+            });
 
             if let Some(ref mut td) = p.terrain_data {
                 ui.separator();
@@ -208,66 +250,6 @@ fn show_properties_editable(ui: &mut egui::Ui, obj: &mut LevelObject, t: &'stati
                 }
             }
 
-            // If no terrain data, offer to create one
-            if p.terrain_data.is_none() && p.data_type == DataType::None {
-                ui.separator();
-                if ui.button(t.get("add_terrain")).clicked() {
-                    p.data_type = DataType::Terrain;
-                    let default_nodes = vec![
-                        crate::terrain_gen::CurveNode {
-                            position: Vec2 { x: -5.0, y: 0.0 },
-                            texture: 0,
-                        },
-                        crate::terrain_gen::CurveNode {
-                            position: Vec2 { x: -1.5, y: 0.5 },
-                            texture: 0,
-                        },
-                        crate::terrain_gen::CurveNode {
-                            position: Vec2 { x: 1.5, y: 0.5 },
-                            texture: 0,
-                        },
-                        crate::terrain_gen::CurveNode {
-                            position: Vec2 { x: 5.0, y: 0.0 },
-                            texture: 0,
-                        },
-                    ];
-                    let mut td = TerrainData {
-                        fill_texture_tile_offset_x: 0.0,
-                        fill_texture_tile_offset_y: 0.0,
-                        fill_mesh: TerrainMesh::default(),
-                        fill_color: Color {
-                            r: 1.0,
-                            g: 1.0,
-                            b: 1.0,
-                            a: 1.0,
-                        },
-                        fill_texture_index: 0,
-                        curve_mesh: TerrainMesh::default(),
-                        curve_textures: vec![
-                            CurveTexture {
-                                texture_index: 0,
-                                size: Vec2 { x: 0.1, y: 0.5 },
-                                fixed_angle: false,
-                                fade_threshold: 0.5,
-                            },
-                            CurveTexture {
-                                texture_index: 1,
-                                size: Vec2 { x: 0.1, y: 0.1 },
-                                fixed_angle: false,
-                                fade_threshold: 0.0,
-                            },
-                        ],
-                        control_texture_count: 0,
-                        control_texture_data: None,
-                        has_collider: true,
-                        fill_boundary: None,
-                    };
-                    crate::terrain_gen::regenerate_terrain(&mut td, &default_nodes);
-                    p.terrain_data = Some(Box::new(td));
-                    changed = true;
-                }
-            }
-
             if let Some(ref mut od) = p.override_data {
                 ui.separator();
 
@@ -351,6 +333,39 @@ fn edit_vec3(ui: &mut egui::Ui, id_prefix: &str, v: &mut Vec3) -> bool {
     changed
 }
 
+fn data_type_label(data_type: DataType) -> &'static str {
+    match data_type {
+        DataType::None => "None",
+        DataType::Terrain => "Terrain",
+        DataType::PrefabOverrides => "PrefabOverrides",
+    }
+}
+
+fn apply_data_type_change(prefab: &mut PrefabInstance, data_type: DataType) {
+    prefab.data_type = data_type;
+    match data_type {
+        DataType::None => {
+            prefab.terrain_data = None;
+            prefab.override_data = None;
+        }
+        DataType::Terrain => {
+            if prefab.terrain_data.is_none() {
+                prefab.terrain_data = Some(Box::new(build_default_terrain_data()));
+            }
+            prefab.override_data = None;
+        }
+        DataType::PrefabOverrides => {
+            prefab.terrain_data = None;
+            if prefab.override_data.is_none() {
+                prefab.override_data = Some(PrefabOverrideData {
+                    raw_text: String::new(),
+                    raw_bytes: Vec::new(),
+                });
+            }
+        }
+    }
+}
+
 // ── Override tree data structures and editor ──
 
 /// A node in the parsed override tree.
@@ -423,6 +438,7 @@ fn parse_override_range(
 }
 
 fn parse_override_line(trimmed: &str) -> (String, String, Option<String>) {
+    let trimmed = trimmed.trim_start_matches('\u{feff}');
     if let Some(eq_pos) = trimmed.find(" = ").or_else(|| {
         if trimmed.ends_with(" =") {
             Some(trimmed.len() - 2)

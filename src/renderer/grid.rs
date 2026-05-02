@@ -1,12 +1,14 @@
 //! Construction grid — parse and render the placement grid overlay.
 //!
 //! Parses `m_constructionGridRows` from LevelManager override data and renders
-//! each available cell using the GridCellLight sprite from IngameAtlas.png.
+//! each available cell using the same prefab semantics as Unity:
+//! default `ConstructionUI` uses `GridCell`, while an explicit
+//! `m_gridCellPrefab` ObjectReference override switches to `GridCellLight`.
 //!
 //! Unity rendering: shader `_Custom/Unlit_ColorTransparent_Geometry` applies
 //! `tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)` and standard
-//! alpha blending (`Blend SrcAlpha OneMinusSrcAlpha`).  The sprite's own RGBA
-//! pixels determine the final visual — GridCellLight is RGBA≈(48,48,48,64).
+//! alpha blending (`Blend SrcAlpha OneMinusSrcAlpha`). The sprite's own RGBA
+//! pixels determine the final visual.
 
 use eframe::egui;
 
@@ -15,6 +17,51 @@ use crate::sprite_db;
 use crate::types::*;
 
 use super::Camera;
+
+const GRID_PREFAB_LOCAL_SCALE: f32 = 0.3;
+const WORLD_SCALE: f32 = 10.0 / 768.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConstructionGridCellStyle {
+    Default,
+    Light,
+}
+
+impl ConstructionGridCellStyle {
+    fn sprite_name(self) -> &'static str {
+        match self {
+            Self::Default => "GridCell",
+            Self::Light => "GridCellLight",
+        }
+    }
+
+    fn texture_cache_key(self) -> &'static str {
+        match self {
+            Self::Default => "GridCell_raw",
+            Self::Light => "GridCellLight_raw",
+        }
+    }
+
+    fn half_extents(self) -> (f32, f32) {
+        match self {
+            Self::Default => (
+                103.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
+                104.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
+            ),
+            Self::Light => (
+                104.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
+                105.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
+            ),
+        }
+    }
+
+    fn fallback_color(self) -> egui::Color32 {
+        match self {
+            Self::Default => egui::Color32::from_rgba_unmultiplied(126, 133, 148, 112),
+            Self::Light => egui::Color32::from_rgba_unmultiplied(48, 48, 48, 64),
+        }
+    }
+}
 
 /// Parsed construction grid.
 pub struct ConstructionGrid {
@@ -29,6 +76,18 @@ pub struct ConstructionGrid {
     pub grid_height: i32,
     /// Left-most column offset relative to base.
     pub x_min: i32,
+    /// Which cell prefab Unity would use for this level.
+    pub cell_style: ConstructionGridCellStyle,
+}
+
+fn parse_grid_cell_style(text: &str) -> ConstructionGridCellStyle {
+    for line in text.lines() {
+        let trimmed = line.trim_start_matches('\t').trim();
+        if trimmed.starts_with("ObjectReference m_gridCellPrefab = ") {
+            return ConstructionGridCellStyle::Light;
+        }
+    }
+    ConstructionGridCellStyle::Default
 }
 
 /// Try to parse the construction grid from level data.
@@ -62,6 +121,8 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     }
 
     let text = lm_override?;
+
+    let cell_style = parse_grid_cell_style(text);
 
     // Find m_constructionGridRows array and its size
     let size_pattern = "m_constructionGridRows";
@@ -119,6 +180,7 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
         grid_width,
         grid_height,
         x_min,
+        cell_style,
     })
 }
 
@@ -126,10 +188,7 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
 ///
 /// Unity shader: `output = tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)`,
 /// blend mode `Blend SrcAlpha OneMinusSrcAlpha`.  The sprite texture's own RGBA
-/// values determine the final appearance — GridCellLight is a rounded-corner square
-/// filled with RGBA≈(48,48,48,64), producing a subtle dark overlay.
-///
-/// Grid cell world size: sprite_px × prefabScale(0.3) × 10/768
+/// values determine the final appearance.
 pub fn draw_construction_grid(
     painter: &egui::Painter,
     grid: &ConstructionGrid,
@@ -139,22 +198,15 @@ pub fn draw_construction_grid(
     tex_cache: &mut TextureCache,
     ctx: &egui::Context,
 ) {
-    // Load the GridCellLight sprite directly from IngameAtlas.png, preserving
-    // original RGBA pixels.  This matches Unity's `tex2D * _Color(1,1,1,1)`.
-    //
-    // NOTE: GridCell (on Ingame_Characters_Sheet_01) has mesh-based UVs that
-    // can't be represented as a simple rect crop, so we use GridCellLight for
-    // both grid variants.  GridCellLight RGBA≈(48,48,48,64) naturally pulls
-    // any background toward gray — darkening light backgrounds and slightly
-    // lightening dark ones.
-    let sprite = sprite_db::get_sprite_info("GridCellLight");
+    let style = grid.cell_style;
+    let sprite = sprite_db::get_sprite_info(style.sprite_name());
 
     let tex_id = if let Some(s) = sprite {
         let uv = &s.uv;
         let atlas_path = format!("sprites/{}", s.atlas);
         tex_cache.load_sprite_crop(
             ctx,
-            "GridCellLight_raw",
+            style.texture_cache_key(),
             &atlas_path,
             [uv.x, uv.y, uv.w, uv.h],
         )
@@ -164,9 +216,7 @@ pub fn draw_construction_grid(
     let uv_min = egui::pos2(0.0, 0.0);
     let uv_max = egui::pos2(1.0, 1.0);
 
-    // Cell half-extents: GridCellLight is 104×105 px, prefab scale = 0.3
-    let half_w = 104.0 * 0.3 * 10.0 / 768.0;
-    let half_h = 105.0 * 0.3 * 10.0 / 768.0;
+    let (half_w, half_h) = style.half_extents();
 
     // Vertex tint = white → passes texture through unmodified,
     // matching Unity's `_Color = (1,1,1,1)`.
@@ -201,9 +251,7 @@ pub fn draw_construction_grid(
                 mesh.add_rect_with_uv(cell_rect, uv_rect, tint);
                 painter.add(egui::Shape::mesh(mesh));
             } else {
-                // Fallback: approximate GridCellLight's visual — RGBA(48,48,48,64)
-                let fallback = egui::Color32::from_rgba_unmultiplied(48, 48, 48, 64);
-                painter.rect_filled(cell_rect, 0.0, fallback);
+                painter.rect_filled(cell_rect, 0.0, style.fallback_color());
             }
         }
     }

@@ -178,6 +178,7 @@ impl LevelRenderer {
         let is_shift = ui.input(|i| i.modifiers.shift);
         let is_alt = ui.input(|i| i.modifiers.alt);
         self.clicked_object = None;
+        self.clicked_empty = false;
         self.drag_result = None;
         self.node_drag_result = None;
         self.node_edit_action = None;
@@ -379,6 +380,7 @@ impl LevelRenderer {
         {
             let click_world = self.camera.screen_to_world(click_pos, canvas_center);
             self.clicked_object = self.hit_test(click_world, selected);
+            self.clicked_empty = self.clicked_object.is_none();
             self.clicked_with_cmd = ui.input(|i| i.modifiers.command);
         }
 

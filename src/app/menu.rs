@@ -46,7 +46,11 @@ impl EditorApp {
                                     .file_name()
                                     .map(|n| n.to_string_lossy().into_owned())
                                     .unwrap_or_default();
-                                self.load_level_into_tab(name, data);
+                                self.load_level_into_tab(
+                                    name,
+                                    data,
+                                    Some(path.to_string_lossy().into_owned()),
+                                );
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -88,7 +92,11 @@ impl EditorApp {
                             .unwrap_or_default();
                         match std::fs::read_to_string(&path) {
                             Ok(text) => {
-                                self.load_level_text_into_tab(name, &text);
+                                self.load_level_text_into_tab(
+                                    name,
+                                    &text,
+                                    Some(path.to_string_lossy().into_owned()),
+                                );
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
@@ -562,10 +570,7 @@ impl EditorApp {
             ui.separator();
             if ui.button(t.get("menu_add_object")).clicked() {
                 ui.close();
-                self.add_obj_name = "NewObject".into();
-                self.add_obj_prefab_index = 0;
-                self.add_obj_is_parent = false;
-                self.show_add_dialog = true;
+                self.prepare_add_object_dialog();
             }
         });
     }

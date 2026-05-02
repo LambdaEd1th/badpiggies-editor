@@ -871,16 +871,16 @@ fn render_contraption_canvas(
         }
     };
 
-    // Reuse the same GridCellLight sprite the level editor uses for the
-    // construction grid, instead of drawing a synthetic line grid.
-    if let Some(sprite) = crate::sprite_db::get_sprite_info("GridCellLight") {
+    // Match the editor's default ConstructionUI behavior: use GridCell unless
+    // a level explicitly overrides m_gridCellPrefab.
+    if let Some(sprite) = crate::sprite_db::get_sprite_info("GridCell") {
         // Unity confirmation:
-        // GridCellLight prefab localScale = 0.3
+        // GridCell prefab localScale = 0.3
         // Sprite.CreateMesh uses half-extents = width * 10 / 768, so final
         // full world size is width * 20 / 768 * localScale.
-        // From sprites.bytes: GridCellLight width=104, height=105.
-        let grid_sprite_w = scaled_cell * (104.0 * 0.3 * 20.0 / 768.0);
-        let grid_sprite_h = scaled_cell * (105.0 * 0.3 * 20.0 / 768.0);
+        // From sprites.bytes: GridCell width=103, height=104.
+        let grid_sprite_w = scaled_cell * (103.0 * 0.3 * 20.0 / 768.0);
+        let grid_sprite_h = scaled_cell * (104.0 * 0.3 * 20.0 / 768.0);
         if gpu_resources.is_some()
             && let Some(atlas) = renderer.preview_sprite_atlas(&sprite.atlas)
         {
@@ -924,7 +924,7 @@ fn render_contraption_canvas(
             let atlas_path = format!("sprites/{}", sprite.atlas);
             let tex_id = tex_cache.load_sprite_crop(
                 ui.ctx(),
-                "save_viewer_grid_cell_light_raw",
+                "save_viewer_grid_cell_raw",
                 &atlas_path,
                 [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
             );

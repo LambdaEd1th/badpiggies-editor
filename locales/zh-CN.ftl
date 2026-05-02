@@ -92,6 +92,14 @@ about_version_prefix = 版本：
 add_type = 类型:
 add_name = 名称:
 add_prefab_index = 预制体索引:
+add_kind_prefab = 预制体
+add_kind_parent = 父对象
+add_data_type = 数据类型:
+add_data_type_none = None
+add_data_type_terrain = Terrain
+add_data_type_prefab_overrides = PrefabOverrides
+add_data_type_terrain_help = Terrain 会创建默认地形数据，并保留你选择的预制体索引。
+add_data_type_prefab_overrides_help = PrefabOverrides 会创建一个空的覆盖数据，后续可在属性面板里编辑。
 
 # 面板
 panel_object_list = 对象列表

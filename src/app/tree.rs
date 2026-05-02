@@ -26,6 +26,8 @@ enum TreeBlankAction {
     ClearSelection,
 }
 
+const OBJECT_TREE_TAIL_BLANK_HEIGHT: f32 = 48.0;
+
 use crate::types::DropPosition;
 
 fn tree_collapse_id(idx: ObjectIndex) -> egui::Id {
@@ -60,6 +62,48 @@ fn set_tree_expanded_all(ctx: &egui::Context, level: &LevelData, expanded: bool)
     }
 }
 
+fn handle_tree_blank_response(
+    response: &egui::Response,
+    can_paste: bool,
+    has_selection: bool,
+    t: &'static crate::locale::I18n,
+    blank_action: &mut Option<TreeBlankAction>,
+) {
+    if response.clicked() {
+        *blank_action = Some(TreeBlankAction::ClearSelection);
+    }
+    response.context_menu(|ui| {
+        if ui.button(t.get("menu_add_object")).clicked() {
+            *blank_action = Some(TreeBlankAction::AddObject);
+            ui.close();
+        }
+        if ui
+            .add_enabled(can_paste, egui::Button::new(t.get("menu_paste")))
+            .clicked()
+        {
+            *blank_action = Some(TreeBlankAction::Paste);
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(t.get("menu_expand_all")).clicked() {
+            *blank_action = Some(TreeBlankAction::ExpandAll);
+            ui.close();
+        }
+        if ui.button(t.get("menu_collapse_all")).clicked() {
+            *blank_action = Some(TreeBlankAction::CollapseAll);
+            ui.close();
+        }
+        ui.separator();
+        if ui
+            .add_enabled(has_selection, egui::Button::new(t.get("menu_clear_selection")))
+            .clicked()
+        {
+            *blank_action = Some(TreeBlankAction::ClearSelection);
+            ui.close();
+        }
+    });
+}
+
 impl EditorApp {
     /// Render the left object tree panel.
     pub(super) fn render_tree_panel(&mut self, ui: &mut egui::Ui) {
@@ -78,6 +122,8 @@ impl EditorApp {
                 let mut tree_clicked: Option<ObjectIndex> = None;
                 let mut context_action: Option<TreeContextAction> = None;
                 let mut blank_action: Option<TreeBlankAction> = None;
+                let can_paste = self.clipboard.is_some();
+                let has_selection = !self.tabs[self.active_tab].selected.is_empty();
                 let sel_snapshot = self.tabs[self.active_tab].selected.clone();
                 if let Some(ref level) = self.tabs[self.active_tab].level {
                     let scroll_output = egui::ScrollArea::vertical()
@@ -96,6 +142,21 @@ impl EditorApp {
                                     context_action = action;
                                 }
                             }
+
+                            let (_tail_blank_rect, tail_blank_response) = ui.allocate_exact_size(
+                                egui::vec2(
+                                    ui.available_width().max(1.0),
+                                    OBJECT_TREE_TAIL_BLANK_HEIGHT,
+                                ),
+                                egui::Sense::click(),
+                            );
+                            handle_tree_blank_response(
+                                &tail_blank_response,
+                                can_paste,
+                                has_selection,
+                                t,
+                                &mut blank_action,
+                            );
                         });
 
                     let blank_top = (scroll_output.inner_rect.top()
@@ -112,45 +173,13 @@ impl EditorApp {
                             ui.id().with("object_tree_blank_menu"),
                             egui::Sense::click(),
                         );
-                        if blank_response.clicked() {
-                            blank_action = Some(TreeBlankAction::ClearSelection);
-                        }
-                        blank_response.context_menu(|ui| {
-                            if ui.button(t.get("menu_add_object")).clicked() {
-                                blank_action = Some(TreeBlankAction::AddObject);
-                                ui.close();
-                            }
-                            if ui
-                                .add_enabled(
-                                    self.clipboard.is_some(),
-                                    egui::Button::new(t.get("menu_paste")),
-                                )
-                                .clicked()
-                            {
-                                blank_action = Some(TreeBlankAction::Paste);
-                                ui.close();
-                            }
-                            ui.separator();
-                            if ui.button(t.get("menu_expand_all")).clicked() {
-                                blank_action = Some(TreeBlankAction::ExpandAll);
-                                ui.close();
-                            }
-                            if ui.button(t.get("menu_collapse_all")).clicked() {
-                                blank_action = Some(TreeBlankAction::CollapseAll);
-                                ui.close();
-                            }
-                            ui.separator();
-                            if ui
-                                .add_enabled(
-                                    !self.tabs[self.active_tab].selected.is_empty(),
-                                    egui::Button::new(t.get("menu_clear_selection")),
-                                )
-                                .clicked()
-                            {
-                                blank_action = Some(TreeBlankAction::ClearSelection);
-                                ui.close();
-                            }
-                        });
+                        handle_tree_blank_response(
+                            &blank_response,
+                            can_paste,
+                            has_selection,
+                            t,
+                            &mut blank_action,
+                        );
                     }
                 }
                 // Handle click selection (plain / Cmd / Shift)
@@ -217,10 +246,7 @@ impl EditorApp {
                 if let Some(action) = blank_action {
                     match action {
                         TreeBlankAction::AddObject => {
-                            self.add_obj_name = "NewObject".into();
-                            self.add_obj_prefab_index = 0;
-                            self.add_obj_is_parent = false;
-                            self.show_add_dialog = true;
+                            self.prepare_add_object_dialog();
                         }
                         TreeBlankAction::Paste => self.paste(),
                         TreeBlankAction::ExpandAll => {

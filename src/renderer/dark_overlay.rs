@@ -5,6 +5,7 @@ use eframe::egui;
 use crate::types::*;
 
 use super::dark_shader;
+use super::grid::ConstructionGrid;
 use super::{Camera, LevelRenderer};
 
 /// A pre-computed lit area polygon from a LitArea prefab's bezier curve.
@@ -19,7 +20,10 @@ pub(super) struct LitAreaPolygon {
 }
 
 const LIT_AREA_BORDER_ALPHA: u8 = 80;
-const POINT_LIGHT_BORDER_ALPHA: u8 = 40;
+// Unity's depth-mask border material darkens the scene to roughly 68.6% of
+// the original color (`DepthMaskTransparent.mat` _Color ~= 0.686), which is
+// visually closest to a black overlay with alpha ~= 80.
+const POINT_LIGHT_BORDER_ALPHA: u8 = 80;
 
 /// Trapezoid defined by top/bottom edge X-ranges and Y values.
 struct Trapezoid {
@@ -274,6 +278,41 @@ fn expand_polygon(polygon: &[(f32, f32)], width: f32) -> Vec<(f32, f32)> {
     result
 }
 
+fn build_point_light_polygon(cx: f32, cy: f32, size: f32, border_width: f32) -> LitAreaPolygon {
+    let segments = 64;
+    let mut vertices = Vec::with_capacity(segments);
+    let mut border_vertices = if border_width > 0.0 {
+        Vec::with_capacity(segments)
+    } else {
+        Vec::new()
+    };
+    let outer_size = size + border_width;
+    for i in 0..segments {
+        let angle = 2.0 * std::f32::consts::PI * (i as f32) / (segments as f32);
+        let cos_a = angle.cos();
+        let sin_a = angle.sin();
+        vertices.push((cx + size * cos_a, cy + size * sin_a));
+        if border_width > 0.0 {
+            border_vertices.push((cx + outer_size * cos_a, cy + outer_size * sin_a));
+        }
+    }
+    LitAreaPolygon {
+        vertices,
+        border_vertices,
+        border_alpha: POINT_LIGHT_BORDER_ALPHA,
+    }
+}
+
+pub(super) fn construction_grid_start_light(grid: &ConstructionGrid) -> LitAreaPolygon {
+    let mut cx = grid.base_x;
+    let cy = grid.base_y + 0.5 * grid.grid_height as f32 - 0.5;
+    if grid.grid_width % 2 == 0 {
+        cx += 0.5;
+    }
+    let size = 1.0 + 0.5 * grid.grid_width.max(grid.grid_height) as f32;
+    build_point_light_polygon(cx, cy, size, 0.5)
+}
+
 /// Parse a PointLightSource-bearing prefab into a circular polygon.
 /// Returns None if the prefab is not a known light source type.
 fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
@@ -328,41 +367,19 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         .as_ref()
         .and_then(|od| parse_next_float(&od.raw_text, "Float borderWidth = "))
         .unwrap_or(default_border);
-    let segments = 64;
     let cx = prefab.position.x;
     let cy = prefab.position.y;
-    let mut vertices = Vec::with_capacity(segments);
-    let mut border_vertices = if border_width > 0.0 {
-        Vec::with_capacity(segments)
-    } else {
-        Vec::new()
-    };
-    let outer_size = size + border_width;
-    for i in 0..segments {
-        let angle = 2.0 * std::f32::consts::PI * (i as f32) / (segments as f32);
-        let cos_a = angle.cos();
-        let sin_a = angle.sin();
-        vertices.push((cx + size * cos_a, cy + size * sin_a));
-        if border_width > 0.0 {
-            border_vertices.push((cx + outer_size * cos_a, cy + outer_size * sin_a));
-        }
-    }
 
     log::info!(
-        "{} at ({:.1}, {:.1}): size={:.2}, border={:.2} → {} vertex circle",
+        "{} at ({:.1}, {:.1}): size={:.2}, border={:.2} → 64 vertex circle",
         prefab.name,
         cx,
         cy,
         size,
-        border_width,
-        segments
+        border_width
     );
 
-    Some(LitAreaPolygon {
-        vertices,
-        border_vertices,
-        border_alpha: POINT_LIGHT_BORDER_ALPHA,
-    })
+    Some(build_point_light_polygon(cx, cy, size, border_width))
 }
 
 /// Build dark overlay meshes (complement + ring) without drawing.

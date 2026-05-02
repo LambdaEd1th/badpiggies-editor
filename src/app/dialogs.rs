@@ -1,12 +1,21 @@
 //! Dialog windows — delete confirmation, add object, shortcuts, about, tools.
 
 use eframe::egui;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::locale::I18n;
 use crate::renderer::CursorMode;
 use crate::types::*;
 
 use super::EditorApp;
+
+#[derive(Clone)]
+pub(super) struct PrefabOption {
+    pub(super) index: i16,
+    pub(super) label: String,
+}
 
 fn tool_mode_icon(mode: CursorMode) -> egui::Image<'static> {
     match mode {
@@ -28,6 +37,325 @@ fn tool_mode_icon(mode: CursorMode) -> egui::Image<'static> {
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))
+}
+
+fn render_vec3_row(ui: &mut egui::Ui, label: &str, value: &mut Vec3) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        ui.add(egui::DragValue::new(&mut value.x).speed(0.1).prefix("x: "));
+        ui.add(egui::DragValue::new(&mut value.y).speed(0.1).prefix("y: "));
+        ui.add(egui::DragValue::new(&mut value.z).speed(0.1).prefix("z: "));
+    });
+}
+
+fn add_prefab_default_name(data_type: DataType) -> &'static str {
+    match data_type {
+        DataType::Terrain => "Terrain",
+        _ => "NewObject",
+    }
+}
+
+fn add_data_type_key(data_type: DataType) -> &'static str {
+    match data_type {
+        DataType::None => "add_data_type_none",
+        DataType::Terrain => "add_data_type_terrain",
+        DataType::PrefabOverrides => "add_data_type_prefab_overrides",
+    }
+}
+
+pub(super) fn render_prefab_index_picker(
+    ui: &mut egui::Ui,
+    combo_id: &str,
+    prefab_index: &mut i16,
+    prefab_options: &[PrefabOption],
+) -> bool {
+    let mut changed = false;
+
+    if prefab_options.is_empty() {
+        return ui
+            .add(egui::DragValue::new(prefab_index).range(i16::MIN..=i16::MAX))
+            .changed();
+    }
+
+    let selected_text = prefab_options
+        .iter()
+        .find(|option| option.index == *prefab_index)
+        .map(|option| option.label.clone())
+        .unwrap_or_else(|| format!("#{prefab_index}"));
+    let combo_width = (ui.available_width() - 72.0).max(140.0);
+
+    egui::ComboBox::from_id_salt(combo_id)
+        .width(combo_width)
+        .selected_text(selected_text)
+        .show_ui(ui, |ui| {
+            for option in prefab_options {
+                changed |= ui
+                    .selectable_value(prefab_index, option.index, option.label.as_str())
+                    .changed();
+            }
+        });
+
+    changed
+        |= ui
+            .add(
+                egui::DragValue::new(prefab_index)
+                    .range(i16::MIN..=i16::MAX)
+                    .speed(1),
+            )
+            .changed();
+    changed
+}
+
+fn make_override_data(raw_text: String) -> PrefabOverrideData {
+    PrefabOverrideData {
+        raw_bytes: raw_text.as_bytes().to_vec(),
+        raw_text,
+    }
+}
+
+pub(super) fn build_default_terrain_data() -> TerrainData {
+    let default_nodes = vec![
+        crate::terrain_gen::CurveNode {
+            position: Vec2 { x: -5.0, y: 0.0 },
+            texture: 0,
+        },
+        crate::terrain_gen::CurveNode {
+            position: Vec2 { x: -1.5, y: 0.5 },
+            texture: 0,
+        },
+        crate::terrain_gen::CurveNode {
+            position: Vec2 { x: 1.5, y: 0.5 },
+            texture: 0,
+        },
+        crate::terrain_gen::CurveNode {
+            position: Vec2 { x: 5.0, y: 0.0 },
+            texture: 0,
+        },
+    ];
+    let mut td = TerrainData {
+        fill_texture_tile_offset_x: 0.0,
+        fill_texture_tile_offset_y: 0.0,
+        fill_mesh: TerrainMesh::default(),
+        fill_color: Color {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        },
+        fill_texture_index: 0,
+        curve_mesh: TerrainMesh::default(),
+        curve_textures: vec![
+            CurveTexture {
+                texture_index: 0,
+                size: Vec2 { x: 0.1, y: 0.5 },
+                fixed_angle: false,
+                fade_threshold: 0.5,
+            },
+            CurveTexture {
+                texture_index: 1,
+                size: Vec2 { x: 0.1, y: 0.1 },
+                fixed_angle: false,
+                fade_threshold: 0.0,
+            },
+        ],
+        control_texture_count: 0,
+        control_texture_data: None,
+        has_collider: true,
+        fill_boundary: None,
+    };
+    crate::terrain_gen::regenerate_terrain(&mut td, &default_nodes);
+    td
+}
+
+fn loader_file_name_for_level(file_name: &str) -> Option<String> {
+    let lower = file_name.to_ascii_lowercase();
+    let stem = lower
+        .strip_suffix(".bytes")
+        .or_else(|| lower.strip_suffix(".yaml"))
+        .or_else(|| lower.strip_suffix(".yml"))
+        .or_else(|| lower.strip_suffix(".toml"))
+        .unwrap_or(&lower);
+    let stem = stem.strip_suffix("_data").unwrap_or(stem);
+    (!stem.is_empty()).then(|| format!("{stem}_loader.prefab"))
+}
+
+fn repo_levels_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
+        .join("Assets/Resources/levels")
+}
+
+fn collect_matching_loaders(dir: &Path, target_name: &str, matches: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_matching_loaders(&path, target_name, matches);
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case(target_name) {
+            matches.push(path);
+        }
+    }
+}
+
+fn loader_search_hint(source_path: Option<&str>) -> Option<String> {
+    let lower = source_path?.to_ascii_lowercase();
+    [
+        "episode_1",
+        "episode_2",
+        "episode_3",
+        "episode_4",
+        "episode_5",
+        "episode_6",
+        "episode_sandbox",
+        "sandbox",
+    ]
+    .into_iter()
+    .find(|hint| lower.contains(hint))
+    .map(str::to_string)
+}
+
+fn resolve_loader_prefab_path(file_name: Option<&str>, source_path: Option<&str>) -> Option<PathBuf> {
+    let target_name = loader_file_name_for_level(file_name?)?;
+    if let Some(source_path) = source_path {
+        let source = Path::new(source_path);
+        if let Some(parent) = source.parent() {
+            let sibling = parent.join(&target_name);
+            if sibling.is_file() {
+                return Some(sibling);
+            }
+        }
+    }
+
+    let levels_dir = repo_levels_dir();
+    if !levels_dir.is_dir() {
+        return None;
+    }
+
+    let mut matches = Vec::new();
+    collect_matching_loaders(&levels_dir, &target_name, &mut matches);
+    match matches.len() {
+        0 => None,
+        1 => matches.into_iter().next(),
+        _ => {
+            let hint = loader_search_hint(source_path);
+            if let Some(hint) = hint
+                && let Some(path) = matches
+                    .iter()
+                    .find(|path| path.to_string_lossy().to_ascii_lowercase().contains(&hint))
+            {
+                return Some(path.clone());
+            }
+            matches.into_iter().next()
+        }
+    }
+}
+
+fn parse_loader_prefab_count(loader_path: &Path) -> Option<i16> {
+    let text = fs::read_to_string(loader_path).ok()?;
+    let mut in_prefabs = false;
+    let mut base_indent = 0usize;
+    let mut count = 0usize;
+
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        let indent = line.len().saturating_sub(trimmed.len());
+        if !in_prefabs {
+            if trimmed == "m_prefabs:" {
+                in_prefabs = true;
+                base_indent = indent;
+            }
+            continue;
+        }
+        if trimmed.is_empty() {
+            continue;
+        }
+        if indent <= base_indent {
+            break;
+        }
+        if trimmed.starts_with("- ") {
+            count += 1;
+        }
+    }
+
+    i16::try_from(count).ok().filter(|count| *count > 0)
+}
+
+fn build_used_prefab_labels(level: &LevelData) -> BTreeMap<i16, String> {
+    let mut labels: BTreeMap<i16, BTreeMap<String, usize>> = BTreeMap::new();
+    for object in &level.objects {
+        let LevelObject::Prefab(prefab) = object else {
+            continue;
+        };
+        if prefab.prefab_index < 0 {
+            continue;
+        }
+        *labels
+            .entry(prefab.prefab_index)
+            .or_default()
+            .entry(prefab.name.clone())
+            .or_default() += 1;
+    }
+
+    labels
+        .into_iter()
+        .map(|(index, names)| {
+            let mut names: Vec<(String, usize)> = names.into_iter().collect();
+            names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            let primary = names[0].0.clone();
+            let extra = names.len().saturating_sub(1);
+            let label = if extra > 0 {
+                format!("#{index} {primary} (+{extra})")
+            } else {
+                format!("#{index} {primary}")
+            };
+            (index, label)
+        })
+        .collect()
+}
+
+pub(super) fn current_level_prefab_options(
+    level: Option<&LevelData>,
+    file_name: Option<&str>,
+    source_path: Option<&str>,
+) -> Vec<PrefabOption> {
+    let used_labels = level.map(build_used_prefab_labels).unwrap_or_default();
+    let level_key = file_name.map(crate::level_refs::level_key_from_filename);
+    let loader_count = resolve_loader_prefab_path(file_name, source_path)
+        .as_deref()
+        .and_then(parse_loader_prefab_count);
+    let max_index = used_labels.keys().next_back().copied();
+    let count = loader_count.or_else(|| max_index.map(|idx| idx + 1));
+
+    if let Some(count) = count {
+        return (0..count)
+            .map(|index| {
+                let label = used_labels
+                    .get(&index)
+                    .cloned()
+                    .or_else(|| {
+                        level_key
+                            .as_deref()
+                            .and_then(|key| crate::level_refs::get_prefab_override(key, index))
+                            .map(|name| format!("#{index} {name}"))
+                    })
+                    .unwrap_or_else(|| format!("#{index}"));
+                PrefabOption { index, label }
+            })
+            .collect();
+    }
+
+    used_labels
+        .into_iter()
+        .map(|(index, label)| PrefabOption { index, label })
+        .collect()
 }
 
 impl EditorApp {
@@ -84,15 +412,21 @@ impl EditorApp {
         if !self.show_tools {
             return;
         }
+        let button_size = egui::vec2(40.0, 40.0);
+        let button_spacing = 6.0;
+        let button_count = 4.0;
+        let window_width = button_size.x * button_count + button_spacing * (button_count - 1.0);
         egui::Window::new(t.get("tool_window_title"))
-            .collapsible(false)
+            .collapsible(true)
             .movable(true)
             .resizable(false)
             .open(&mut self.show_tools)
             .default_pos([8.0, 80.0])
+            .fixed_size(egui::vec2(window_width + 16.0, button_size.y + 16.0))
             .show(ctx, |ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                ui.vertical_centered(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(button_spacing, 0.0);
+                ui.set_width(window_width);
+                ui.horizontal(|ui| {
                     let modes = [
                         (CursorMode::Select, "tool_select", "V"),
                         (CursorMode::BoxSelect, "tool_box_select", "M"),
@@ -105,7 +439,7 @@ impl EditorApp {
                             egui::Button::image(tool_mode_icon(*mode))
                                 .selected(self.cursor_mode == *mode)
                                 .frame(true)
-                                .min_size(egui::vec2(40.0, 40.0))
+                                .min_size(button_size)
                                 .image_tint_follows_text_color(true),
                         );
                         let response = response.on_hover_text(tooltip);
@@ -285,6 +619,14 @@ impl EditorApp {
         if !self.show_add_dialog {
             return;
         }
+        let prefab_options = {
+            let tab = &self.tabs[self.active_tab];
+            current_level_prefab_options(
+                tab.level.as_ref(),
+                tab.file_name.as_deref(),
+                tab.source_path.as_deref(),
+            )
+        };
         let mut open = true;
         egui::Window::new(t.get("win_add_object"))
             .collapsible(false)
@@ -292,68 +634,115 @@ impl EditorApp {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .open(&mut open)
             .show(ctx, |ui| {
+                let previous_data_type = self.add_obj_data_type;
                 ui.horizontal(|ui| {
                     ui.label(t.get("add_type"));
-                    ui.radio_value(&mut self.add_obj_is_parent, false, "Prefab");
-                    ui.radio_value(&mut self.add_obj_is_parent, true, "Parent");
+                    ui.radio_value(&mut self.add_obj_is_parent, false, t.get("add_kind_prefab"));
+                    ui.radio_value(&mut self.add_obj_is_parent, true, t.get("add_kind_parent"));
+                    if !self.add_obj_is_parent {
+                        ui.separator();
+                        ui.label(t.get("add_data_type"));
+                        egui::ComboBox::from_id_salt("add_object_data_type")
+                            .selected_text(t.get(add_data_type_key(self.add_obj_data_type)))
+                            .show_ui(ui, |ui| {
+                                for data_type in [
+                                    DataType::None,
+                                    DataType::Terrain,
+                                    DataType::PrefabOverrides,
+                                ] {
+                                    ui.selectable_value(
+                                        &mut self.add_obj_data_type,
+                                        data_type,
+                                        t.get(add_data_type_key(data_type)),
+                                    );
+                                }
+                            });
+                    }
                 });
+                if !self.add_obj_is_parent
+                    && self.add_obj_data_type != previous_data_type
+                    && (self.add_obj_name.is_empty()
+                        || self.add_obj_name == add_prefab_default_name(previous_data_type))
+                {
+                    self.add_obj_name = add_prefab_default_name(self.add_obj_data_type).to_string();
+                }
                 ui.horizontal(|ui| {
                     ui.label(t.get("add_name"));
-                    ui.text_edit_singleline(&mut self.add_obj_name);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.add_obj_name)
+                            .hint_text(if self.add_obj_is_parent {
+                                "NewObject"
+                            } else {
+                                add_prefab_default_name(self.add_obj_data_type)
+                            }),
+                    );
                 });
                 if !self.add_obj_is_parent {
                     ui.horizontal(|ui| {
                         ui.label(t.get("add_prefab_index"));
-                        ui.add(egui::DragValue::new(&mut self.add_obj_prefab_index));
+                        render_prefab_index_picker(
+                            ui,
+                            "add_object_prefab_index",
+                            &mut self.add_obj_prefab_index,
+                            &prefab_options,
+                        );
                     });
+                    if self.add_obj_data_type == DataType::Terrain {
+                        ui.small(t.get("add_data_type_terrain_help"));
+                    } else if self.add_obj_data_type == DataType::PrefabOverrides {
+                        ui.small(t.get("add_data_type_prefab_overrides_help"));
+                    }
                 }
+                ui.separator();
+                let position_label = t.get("prop_position");
+                let rotation_label = t.get("prop_rotation");
+                let scale_label = t.get("prop_scale");
+                render_vec3_row(ui, &position_label, &mut self.add_obj_position);
+                render_vec3_row(ui, &rotation_label, &mut self.add_obj_rotation);
+                render_vec3_row(ui, &scale_label, &mut self.add_obj_scale);
                 ui.separator();
                 ui.horizontal(|ui| {
                     if ui.button(t.get("btn_ok")).clicked() {
                         self.push_undo();
-                        let add_name = if self.add_obj_name.is_empty() {
-                            "NewObject".to_string()
+                        let add_name = if self.add_obj_name.trim().is_empty() {
+                            if self.add_obj_is_parent {
+                                "NewObject".to_string()
+                            } else {
+                                add_prefab_default_name(self.add_obj_data_type).to_string()
+                            }
                         } else {
                             self.add_obj_name.clone()
                         };
                         let is_parent = self.add_obj_is_parent;
+                        let data_type = self.add_obj_data_type;
                         let prefab_index = self.add_obj_prefab_index;
+                        let position = self.add_obj_position;
+                        let rotation = self.add_obj_rotation;
+                        let scale = self.add_obj_scale;
                         let tab = &mut self.tabs[self.active_tab];
                         if let Some(ref mut level) = tab.level {
                             let new_idx = level.objects.len();
                             if is_parent {
                                 level.objects.push(LevelObject::Parent(ParentObject {
                                     name: add_name.clone(),
-                                    position: Vec3 {
-                                        x: 0.0,
-                                        y: 0.0,
-                                        z: 0.0,
-                                    },
+                                    position,
                                     children: Vec::new(),
                                     parent: None,
                                 }));
                             } else {
+                                let terrain_data = (data_type == DataType::Terrain)
+                                    .then(|| Box::new(build_default_terrain_data()));
+                                let override_data = (data_type == DataType::PrefabOverrides)
+                                    .then(|| make_override_data(String::new()));
                                 level.objects.push(LevelObject::Prefab(PrefabInstance {
                                     name: add_name.clone(),
-                                    position: Vec3 {
-                                        x: 0.0,
-                                        y: 0.0,
-                                        z: 0.0,
-                                    },
+                                    position,
                                     prefab_index,
-                                    rotation: Vec3 {
-                                        x: 0.0,
-                                        y: 0.0,
-                                        z: 0.0,
-                                    },
-                                    scale: Vec3 {
-                                        x: 1.0,
-                                        y: 1.0,
-                                        z: 1.0,
-                                    },
-                                    data_type: DataType::None,
-                                    terrain_data: None,
-                                    override_data: None,
+                                    rotation,
+                                    scale,
+                                    data_type,
+                                    terrain_data,
+                                    override_data,
                                     parent: None,
                                 }));
                             }

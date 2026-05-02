@@ -9,7 +9,7 @@ use super::background;
 use super::bg_shader;
 use super::clouds::{CLOUD_CONFIGS, CloudInstance};
 use super::compounds;
-use super::dark_overlay::parse_dark_level_data;
+use super::dark_overlay::{construction_grid_start_light, parse_dark_level_data};
 use super::dark_shader;
 use super::edge_shader;
 use super::fill_shader;
@@ -92,6 +92,11 @@ impl LevelRenderer {
             node_drag_result: None,
             node_edit_action: None,
             box_select_result: None,
+            context_action: None,
+            context_selected_object: None,
+            context_menu_world_pos: None,
+            context_menu_indices: Vec::new(),
+            context_menu_node: None,
             box_select_start: None,
             draw_terrain_result: None,
             draw_terrain_points: Vec::new(),
@@ -141,6 +146,7 @@ impl LevelRenderer {
             dark_gpu_meshes: None,
             hovered_terrain_node: None,
             terrain_scratch_mesh: egui::Mesh::default(),
+            clicked_empty: false,
             dark_overlay_mesh: None,
             dark_overlay_ring: None,
             dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0),
@@ -175,6 +181,11 @@ impl LevelRenderer {
             node_drag_result: None,
             node_edit_action: None,
             box_select_result: None,
+            context_action: None,
+            context_selected_object: None,
+            context_menu_world_pos: None,
+            context_menu_indices: Vec::new(),
+            context_menu_node: None,
             box_select_start: None,
             draw_terrain_result: None,
             draw_terrain_points: Vec::new(),
@@ -224,6 +235,7 @@ impl LevelRenderer {
             dark_gpu_meshes: None,
             hovered_terrain_node: None,
             terrain_scratch_mesh: egui::Mesh::default(),
+            clicked_empty: false,
             dark_overlay_mesh: None,
             dark_overlay_ring: None,
             dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0),
@@ -620,6 +632,12 @@ impl LevelRenderer {
 
         // Parse dark level flag and LitArea polygons
         parse_dark_level_data(level, &mut self.dark_level, &mut self.lit_area_polygons);
+        if self.dark_level
+            && let Some(ref construction_grid) = self.construction_grid
+        {
+            self.lit_area_polygons
+                .push(construction_grid_start_light(construction_grid));
+        }
 
         // Parse camera limits from LevelManager
         self.camera_limits = parse_camera_limits(level);

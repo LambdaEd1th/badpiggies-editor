@@ -1,23 +1,33 @@
 //! Bad Piggies Level Editor — Rust/egui rewrite.
 //! Supports both native desktop and WASM (GitHub Pages) targets.
+//!
+//! ── Module layout ───────────────────────────────────
+//!   diagnostics/  cross-cutting error & log buffer
+//!   i18n/         Fluent-based localization
+//!   domain/       pure data types, level (de)serialization, terrain gen
+//!   io/           encryption, save-file parsing
+//!   data/         embedded static data (assets, sprite/level/icon/bg DBs)
+//!   renderer/     wgpu-based level renderer
+//!   app/          egui application (main UI, panels, dialogs, save viewer)
 
 mod app;
-mod assets;
-mod bg_data;
-mod crypto;
-mod error;
-mod icon_db;
-mod level_db;
-mod level_ops;
-mod level_refs;
-mod locale;
-mod log_buffer;
-mod parser;
+mod data;
+mod diagnostics;
+mod domain;
+mod i18n;
+mod io;
 mod renderer;
-mod save_parser;
-mod sprite_db;
-mod terrain_gen;
-mod types;
+
+// ── Backward-compat re-exports ───────────────────────
+// Existing call sites use `crate::error::…`, `crate::types::…`, etc.
+// These aliases keep the old paths working after the reorganization.
+pub use data::{assets, bg_data, icon_db, level_db, sprite_db};
+pub use diagnostics::{error, log_buffer};
+pub use domain::level::{ops as level_ops, refs as level_refs};
+pub use domain::{parser, terrain_gen, types};
+pub use i18n::locale;
+pub use io::crypto;
+pub use io::save::parser as save_parser;
 
 use app::EditorApp;
 

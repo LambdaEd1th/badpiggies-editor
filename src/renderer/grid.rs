@@ -12,9 +12,9 @@
 
 use eframe::egui;
 
-use crate::assets::TextureCache;
-use crate::sprite_db;
-use crate::types::*;
+use crate::data::assets::TextureCache;
+use crate::data::sprite_db;
+use crate::domain::types::*;
 
 use super::Camera;
 
@@ -234,7 +234,7 @@ pub fn draw_construction_grid(
             let wx = grid.base_x + (grid.x_min + col) as f32;
             let wy = grid.base_y + row as f32;
 
-            let center = camera.world_to_screen(crate::types::Vec2 { x: wx, y: wy }, canvas_center);
+            let center = camera.world_to_screen(crate::domain::types::Vec2 { x: wx, y: wy }, canvas_center);
 
             let hw = half_w * camera.zoom;
             let hh = half_h * camera.zoom;

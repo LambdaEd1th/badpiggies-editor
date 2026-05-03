@@ -10,9 +10,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, TerrainPresetShape};
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::EditorApp;
 
@@ -156,19 +156,19 @@ fn make_override_data(raw_text: String) -> PrefabOverrideData {
 
 pub(super) fn build_default_terrain_data() -> TerrainData {
     let default_nodes = vec![
-        crate::terrain_gen::CurveNode {
+        crate::domain::terrain_gen::CurveNode {
             position: Vec2 { x: -5.0, y: 0.0 },
             texture: 0,
         },
-        crate::terrain_gen::CurveNode {
+        crate::domain::terrain_gen::CurveNode {
             position: Vec2 { x: -1.5, y: 0.5 },
             texture: 0,
         },
-        crate::terrain_gen::CurveNode {
+        crate::domain::terrain_gen::CurveNode {
             position: Vec2 { x: 1.5, y: 0.5 },
             texture: 0,
         },
-        crate::terrain_gen::CurveNode {
+        crate::domain::terrain_gen::CurveNode {
             position: Vec2 { x: 5.0, y: 0.0 },
             texture: 0,
         },
@@ -204,7 +204,7 @@ pub(super) fn build_default_terrain_data() -> TerrainData {
         has_collider: true,
         fill_boundary: None,
     };
-    crate::terrain_gen::regenerate_terrain(&mut td, &default_nodes);
+    crate::domain::terrain_gen::regenerate_terrain(&mut td, &default_nodes);
     td
 }
 
@@ -368,7 +368,7 @@ pub(super) fn current_level_prefab_options(
     source_path: Option<&str>,
 ) -> Vec<PrefabOption> {
     let used_labels = level.map(build_used_prefab_labels).unwrap_or_default();
-    let level_key = file_name.map(crate::level_refs::level_key_from_filename);
+    let level_key = file_name.map(crate::domain::level::refs::level_key_from_filename);
     let loader_count = resolve_loader_prefab_path(file_name, source_path)
         .as_deref()
         .and_then(parse_loader_prefab_count);
@@ -384,7 +384,7 @@ pub(super) fn current_level_prefab_options(
                     .or_else(|| {
                         level_key
                             .as_deref()
-                            .and_then(|key| crate::level_refs::get_prefab_override(key, index))
+                            .and_then(|key| crate::domain::level::refs::get_prefab_override(key, index))
                             .map(|name| format!("#{index} {name}"))
                     })
                     .unwrap_or_else(|| format!("#{index}"));

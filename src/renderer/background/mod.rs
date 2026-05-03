@@ -12,14 +12,12 @@ mod tests;
 
 pub use cache::{build_bg_layer_cache, BgGpuState, BgLayerCache};
 pub use draw::{draw_background, draw_bg_layers};
-pub(super) use draw::hermite;
-pub(super) use cache::WORLD_SCALE;
+pub(in crate::renderer) use draw::hermite;
 
 use eframe::egui;
 
-use crate::types::Vec2;
 
-use super::{Camera, DrawCtx, LevelRenderer, bg_shader, clouds};
+use super::{DrawCtx, LevelRenderer, clouds};
 
 impl LevelRenderer {
     /// Draw background layers for a Z range, constructing BgGpuState if available.

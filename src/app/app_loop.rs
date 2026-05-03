@@ -2,8 +2,10 @@
 
 use eframe::egui;
 
-use crate::types::*;
+use crate::renderer::CursorMode;
+use crate::domain::types::*;
 
+use super::state::Tab;
 use super::EditorApp;
 
 impl eframe::App for EditorApp {

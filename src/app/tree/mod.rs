@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use eframe::egui;
 
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::EditorApp;
 
@@ -28,7 +28,7 @@ pub(super) enum TreeBlankAction {
 
 const OBJECT_TREE_TAIL_BLANK_HEIGHT: f32 = 48.0;
 
-use crate::types::DropPosition;
+use crate::domain::types::DropPosition;
 
 pub(super) fn tree_collapse_id(idx: ObjectIndex) -> egui::Id {
     egui::Id::new("object_tree_collapsing").with(idx)
@@ -67,7 +67,7 @@ pub(super) fn handle_tree_blank_response(
     can_paste: bool,
     has_selection: bool,
     paste_position: PastePosition,
-    t: &'static crate::locale::I18n,
+    t: &'static crate::i18n::locale::I18n,
     blank_action: &mut Option<TreeBlankAction>,
 ) {
     if response.clicked() {
@@ -141,7 +141,7 @@ pub(super) fn row_blank_paste_position(
 pub(super) fn handle_tree_item_context_menu(
     response: &egui::Response,
     context_indices: &[ObjectIndex],
-    t: &'static crate::locale::I18n,
+    t: &'static crate::i18n::locale::I18n,
     context_action: &mut Option<TreeContextAction>,
 ) {
     response.context_menu(|ui| {

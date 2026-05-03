@@ -3,7 +3,7 @@
 
 use std::io::{self, Cursor, Read};
 
-use crate::types::*;
+use crate::domain::types::*;
 
 // ── Binary Reader ────────────────────────────────────
 

@@ -1,6 +1,6 @@
 //! Parsing of LitArea / PointLight prefabs and ConstructionGrid into lit-area polygons.
 
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::super::grid::ConstructionGrid;
 use super::{LIT_AREA_BORDER_ALPHA, LitAreaPolygon, POINT_LIGHT_BORDER_ALPHA};

@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 
 // ── Override tree data structures and editor ──
 

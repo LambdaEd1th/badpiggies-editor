@@ -4,23 +4,21 @@ use std::collections::{HashMap, HashSet};
 
 use std::sync::Arc;
 
-use crate::assets;
-use crate::bg_data::{self, BgSprite};
-use crate::types::Vec2;
+use crate::data::bg_data::{self};
 
 use super::super::bg_shader;
 
 pub struct BgLayerCache {
     /// Sprite index → (block_width, parallax_speed) for tiled sprite groups.
-    tile_info: HashMap<usize, (f32, f32)>,
+    pub(super) tile_info: HashMap<usize, (f32, f32)>,
     /// Set of sprite indices that are fill-extended singletons.
-    singleton_set: HashSet<usize>,
+    pub(super) singleton_set: HashSet<usize>,
     /// Pre-lowercased sprite names (avoids per-frame String allocation).
-    name_lower: Vec<String>,
+    pub(super) name_lower: Vec<String>,
     /// Effective sprites (with overrides applied), or None if using theme defaults.
     effective_sprites: Option<Vec<bg_data::BgSprite>>,
     /// Sprite indices sorted by worldZ descending (farthest first = back-to-front).
-    sorted_indices: Vec<usize>,
+    pub(super) sorted_indices: Vec<usize>,
 }
 
 impl BgLayerCache {
@@ -30,7 +28,7 @@ impl BgLayerCache {
     }
 }
 
-fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
+pub(super) fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
     sprite.sprite_w * WORLD_SCALE * 2.0 * sprite.scale_x.abs()
 }
 
@@ -67,7 +65,7 @@ fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f
     Some(max_right - min_left + median_edge_gap)
 }
 
-fn tile_group_key(
+pub(super) fn tile_group_key(
     sprite: &bg_data::BgSprite,
     name_lower: &str,
     name_count: usize,
@@ -97,7 +95,7 @@ fn tile_group_key(
     }
 }
 
-fn bg_sprite_x_animation_offset(_name_lower: &str, _time: f64, _layer: &bg_data::BgLayer) -> f32 {
+pub(super) fn bg_sprite_x_animation_offset(_name_lower: &str, _time: f64, _layer: &bg_data::BgLayer) -> f32 {
     // Unity's background prefab cloud strips are static parallax sprites.
     // Only CloudSet instances animate horizontally at runtime.
     0.0
@@ -234,4 +232,4 @@ pub struct BgGpuState<'a> {
 }
 
 /// World-size formula: pixelSize * 10 / 768
-const WORLD_SCALE: f32 = 10.0 / 768.0;
+pub(super) const WORLD_SCALE: f32 = 10.0 / 768.0;

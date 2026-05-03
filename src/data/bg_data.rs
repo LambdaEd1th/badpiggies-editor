@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::error::{AppError, AppResult};
+use crate::diagnostics::error::{AppError, AppResult};
 
 /// Parallax layer with a speed factor.
 #[derive(Debug, Clone, Copy, PartialEq)]

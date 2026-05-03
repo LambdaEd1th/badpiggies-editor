@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 
 use super::super::EditorApp;
 #[cfg(not(target_arch = "wasm32"))]
@@ -17,7 +17,7 @@ impl EditorApp {
             ui.set_min_width(80.0);
             if ui.button(t.get("menu_export_log")).clicked() {
                 ui.close();
-                let lines = crate::log_buffer::drain();
+                let lines = crate::diagnostics::log_buffer::drain();
                 let content = lines.join("\n");
                 #[cfg(not(target_arch = "wasm32"))]
                 {

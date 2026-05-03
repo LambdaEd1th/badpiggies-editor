@@ -3,12 +3,12 @@
 
 use eframe::egui;
 
-use crate::assets::TextureCache;
-use crate::icon_db;
+use crate::data::assets::TextureCache;
+use crate::data::icon_db;
 use crate::renderer::grid::ConstructionGridCellStyle;
 use crate::renderer::{LevelRenderer, sprite_shader};
-use crate::save_parser::ContraptionPart;
-use crate::sprite_db::UvRect;
+use crate::io::save::parser::ContraptionPart;
+use crate::data::sprite_db::UvRect;
 
 /// Part type integer to display name.
 fn part_type_name(part_type: i32) -> &'static str {
@@ -247,7 +247,7 @@ pub(super) fn render_contraption_canvas(
 
     // The save preview uses the light construction-cell variant in dark UI,
     // matching the in-game construction background more closely.
-    if let Some(sprite) = crate::sprite_db::get_sprite_info(grid_style.sprite_name()) {
+    if let Some(sprite) = crate::data::sprite_db::get_sprite_info(grid_style.sprite_name()) {
         let (half_w, half_h) = grid_style.half_extents();
         let grid_sprite_w = scaled_cell * half_w * 2.0;
         let grid_sprite_h = scaled_cell * half_h * 2.0;

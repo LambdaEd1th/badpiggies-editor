@@ -7,13 +7,13 @@ use std::collections::HashSet;
 
 use eframe::egui;
 
-use crate::assets::TextureCache;
+use crate::data::assets::TextureCache;
 
-use crate::crypto::{self, SaveFileType};
-use crate::error::AppError;
-use crate::locale::I18n;
+use crate::io::crypto::{self, SaveFileType};
+use crate::diagnostics::error::AppError;
+use crate::i18n::locale::I18n;
 use crate::renderer::LevelRenderer;
-use crate::save_parser::*;
+use crate::io::save::parser::*;
 
 use contraption_preview::render_contraption_canvas;
 
@@ -116,7 +116,7 @@ fn resolve_level_name(file_name: &str) -> Option<String> {
     let stem = file_name
         .strip_suffix(".contraption")
         .or_else(|| file_name.strip_suffix(".CONTRAPTION"))?;
-    let (label, scene) = crate::level_db::contraption_level_name(stem)?;
+    let (label, scene) = crate::data::level_db::contraption_level_name(stem)?;
     if label.is_empty() {
         Some(scene.to_string())
     } else {
@@ -261,7 +261,7 @@ impl SaveViewerData {
             .replace("\r\n", "\n")
             .replace('\r', "\n");
 
-        let file_type = crate::save_parser::detect_type_from_xml(&xml_clean);
+        let file_type = crate::io::save::parser::detect_type_from_xml(&xml_clean);
         let file_type_label = localized_file_type_label(file_type.as_ref(), i18n);
 
         let (data, parse_error) = match file_type.as_ref() {
@@ -309,7 +309,7 @@ impl SaveViewerData {
     }
 
     /// Encrypt the current XML text back to the save file format.
-    pub fn export_encrypted(&self) -> crate::error::AppResult<Option<Vec<u8>>> {
+    pub fn export_encrypted(&self) -> crate::diagnostics::error::AppResult<Option<Vec<u8>>> {
         let Some(ft) = self.file_type.as_ref() else {
             return Ok(None);
         };

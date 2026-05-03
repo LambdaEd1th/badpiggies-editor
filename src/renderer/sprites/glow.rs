@@ -2,7 +2,9 @@
 
 use eframe::egui;
 
-use super::super::{DrawCtx, opaque_shader};
+use crate::domain::types::Vec2;
+
+use super::super::Camera;
 use super::SpriteDrawData;
 
 pub fn has_glow(name: &str) -> bool {

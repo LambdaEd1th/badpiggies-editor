@@ -2,10 +2,13 @@
 
 use eframe::egui;
 
-use crate::sprite_db;
+use crate::domain::types::*;
 
-use super::super::{DrawCtx, sprite_shader};
-use super::{SpriteDrawData, SpriteDrawOpts};
+use super::super::DrawCtx;
+use super::{
+    SpriteDrawData, SpriteDrawOpts, BIRD_SLEEP_DURATION, BIRD_SLEEP_POS_Y, BIRD_SLEEP_SCALE_X,
+    BIRD_SLEEP_SCALE_Y,
+};
 
 pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawOpts) {
     let painter = ctx.painter;
@@ -277,7 +280,7 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 }
 
 /// Y offset per dessert variant (from prefab BoxCollider center.y).
-fn dessert_y_offset(name: &str) -> f32 {
+pub(in crate::renderer::sprites) fn dessert_y_offset(name: &str) -> f32 {
     match name {
         "Cupcake" => 0.4167,
         "StrawberryCake" => 0.7813,

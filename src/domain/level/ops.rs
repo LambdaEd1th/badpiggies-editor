@@ -1,6 +1,6 @@
 //! Level data tree operations (delete, move, reorder).
 
-use crate::types::*;
+use crate::domain::types::*;
 
 impl LevelData {
     /// Delete an object (and all its descendants if it's a parent) from the level.

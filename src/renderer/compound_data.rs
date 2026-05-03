@@ -3,7 +3,7 @@
 //! Extracted from the TS editor's prefab-data.ts. These are pure data tables
 //! with no logic — the rendering code lives in compounds.rs.
 
-use crate::sprite_db::UvRect;
+use crate::data::sprite_db::UvRect;
 
 pub(super) const SCALE: f32 = 10.0 / 768.0;
 

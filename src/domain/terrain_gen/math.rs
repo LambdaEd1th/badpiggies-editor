@@ -1,6 +1,6 @@
 //! Vector & geometric math helpers used across the terrain mesh pipeline.
 
-use crate::types::Vec2;
+use crate::domain::types::Vec2;
 
 // ── Vector math ──
 

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io;
 
-use crate::locale::{I18n, Language};
+use crate::i18n::locale::{I18n, Language};
 
 pub type AppResult<T> = Result<T, AppError>;
 

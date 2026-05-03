@@ -1,15 +1,14 @@
 //! Drawing functions for background sprites and layers.
 
-use std::sync::Arc;
 
 use eframe::egui;
 
-use crate::assets;
-use crate::bg_data::{self, BgSprite};
-use crate::types::Vec2;
+use crate::data::assets;
+use crate::data::bg_data::{self, BgSprite};
+use crate::domain::types::Vec2;
 
-use super::super::{Camera, DrawCtx, bg_shader, clouds};
-use super::{BgGpuState, BgLayerCache, WORLD_SCALE};
+use super::super::{Camera, DrawCtx, bg_shader};
+use super::cache::{bg_sprite_x_animation_offset, BgGpuState, BgLayerCache, WORLD_SCALE};
 
 pub fn draw_background(
     painter: &egui::Painter,
@@ -115,7 +114,7 @@ pub fn draw_bg_layers(
 // ── Animation helpers ────────────────────────────────────────────────────
 
 /// Hermite spline evaluation (Unity AnimationCurve equivalent).
-pub(super) fn hermite(keys: &[(f32, f32, f32, f32)], time: f32) -> f32 {
+pub(in crate::renderer) fn hermite(keys: &[(f32, f32, f32, f32)], time: f32) -> f32 {
     let n = keys.len();
     if n == 0 {
         return 0.0;

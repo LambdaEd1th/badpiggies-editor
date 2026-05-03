@@ -3,7 +3,7 @@
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
-use crate::error::{AppError, AppResult};
+use crate::diagnostics::error::{AppError, AppResult};
 
 /// A key-value entry from Progress.dat or Settings.xml.
 #[derive(Clone)]
@@ -169,8 +169,8 @@ pub fn parse_achievements_xml(xml: &str) -> AppResult<Vec<AchievementEntry>> {
 }
 
 /// Try to detect the save file type from decrypted XML content.
-pub fn detect_type_from_xml(xml: &str) -> Option<crate::crypto::SaveFileType> {
-    use crate::crypto::SaveFileType;
+pub fn detect_type_from_xml(xml: &str) -> Option<crate::io::crypto::SaveFileType> {
+    use crate::io::crypto::SaveFileType;
     // Look for characteristic element names in the XML
     if xml.contains("<ContraptionDataset") || xml.contains("<ContraptionDatasetUnit") {
         Some(SaveFileType::Contraption)
@@ -185,7 +185,7 @@ pub fn detect_type_from_xml(xml: &str) -> Option<crate::crypto::SaveFileType> {
 
 /// Parse decrypted XML bytes based on file type.
 pub fn parse_save_data(
-    file_type: &crate::crypto::SaveFileType,
+    file_type: &crate::io::crypto::SaveFileType,
     xml_bytes: &[u8],
 ) -> AppResult<SaveData> {
     let xml = String::from_utf8(xml_bytes.to_vec())
@@ -193,11 +193,11 @@ pub fn parse_save_data(
     // Strip BOM if present
     let xml = xml.strip_prefix('\u{feff}').unwrap_or(&xml);
     match file_type {
-        crate::crypto::SaveFileType::Progress => parse_progress_xml(xml).map(SaveData::Progress),
-        crate::crypto::SaveFileType::Contraption => {
+        crate::io::crypto::SaveFileType::Progress => parse_progress_xml(xml).map(SaveData::Progress),
+        crate::io::crypto::SaveFileType::Contraption => {
             parse_contraption_xml(xml).map(SaveData::Contraption)
         }
-        crate::crypto::SaveFileType::Achievements => {
+        crate::io::crypto::SaveFileType::Achievements => {
             parse_achievements_xml(xml).map(SaveData::Achievements)
         }
     }
@@ -274,9 +274,9 @@ pub fn serialize_save_data(data: &SaveData) -> String {
 #[cfg(test)]
 mod tests {
     use super::{ContraptionPart, parse_progress_xml, parse_save_data, serialize_contraption_xml};
-    use crate::crypto::SaveFileType;
-    use crate::error::AppError;
-    use crate::locale::Language;
+    use crate::io::crypto::SaveFileType;
+    use crate::diagnostics::error::AppError;
+    use crate::i18n::locale::Language;
 
     #[test]
     fn serialize_contraption_xml_preserves_dataset_wrapper_layout() {

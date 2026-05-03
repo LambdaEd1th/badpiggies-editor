@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::types::Vec2;
+use crate::domain::types::Vec2;
 
 use super::super::{BoundsDragResult, BoundsDragState, BoundsHandle, LevelRenderer};
 

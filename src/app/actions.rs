@@ -1,6 +1,6 @@
 //! Editor actions: undo/redo, clipboard operations, tab management.
 
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::{Clipboard, EditorApp, Snapshot, Tab, UNDO_MAX};
 

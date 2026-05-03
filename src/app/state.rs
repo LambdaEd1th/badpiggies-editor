@@ -2,11 +2,11 @@
 
 use std::collections::BTreeSet;
 
-use crate::error::AppError;
-use crate::locale::I18n;
-use crate::parser;
+use crate::diagnostics::error::AppError;
+use crate::i18n::locale::I18n;
+use crate::domain::parser;
 use crate::renderer::LevelRenderer;
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::save_viewer;
 use super::text_codec::{
@@ -151,11 +151,11 @@ impl Tab {
         self.level.as_ref().map(parser::serialize_level)
     }
 
-    pub(super) fn export_yaml(&self) -> crate::error::AppResult<Option<String>> {
+    pub(super) fn export_yaml(&self) -> crate::diagnostics::error::AppResult<Option<String>> {
         self.level.as_ref().map(serialize_level_yaml).transpose()
     }
 
-    pub(super) fn export_toml(&self) -> crate::error::AppResult<Option<String>> {
+    pub(super) fn export_toml(&self) -> crate::diagnostics::error::AppResult<Option<String>> {
         self.level.as_ref().map(serialize_level_toml).transpose()
     }
 

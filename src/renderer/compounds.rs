@@ -5,7 +5,7 @@
 
 use eframe::egui;
 
-use crate::sprite_db::UvRect;
+use crate::data::sprite_db::UvRect;
 
 use super::compound_data::*;
 use super::compound_overrides::{parse_bridge_overrides, parse_fan_overrides};
@@ -247,14 +247,14 @@ pub fn draw_compound(
                 let rope_start_d = prev_along + half_step;
                 let rope_end_d = along - half_step;
                 let p0 = ctx.camera.world_to_screen(
-                    crate::types::Vec2 {
+                    crate::domain::types::Vec2 {
                         x: xf.world_x + rope_start_d * cos_a * xf.scale_x,
                         y: xf.world_y + rope_start_d * sin_a * xf.scale_y,
                     },
                     ctx.canvas_center,
                 );
                 let p1 = ctx.camera.world_to_screen(
-                    crate::types::Vec2 {
+                    crate::domain::types::Vec2 {
                         x: xf.world_x + rope_end_d * cos_a * xf.scale_x,
                         y: xf.world_y + rope_end_d * sin_a * xf.scale_y,
                     },
@@ -270,14 +270,14 @@ pub fn draw_compound(
         if step_count > 0 {
             let half_step = step_length * 0.5;
             let p0 = ctx.camera.world_to_screen(
-                crate::types::Vec2 {
+                crate::domain::types::Vec2 {
                     x: xf.world_x,
                     y: xf.world_y,
                 },
                 ctx.canvas_center,
             );
             let p1 = ctx.camera.world_to_screen(
-                crate::types::Vec2 {
+                crate::domain::types::Vec2 {
                     x: xf.world_x + (0.5 * stride - half_step) * cos_a * xf.scale_x,
                     y: xf.world_y + (0.5 * stride - half_step) * sin_a * xf.scale_y,
                 },
@@ -290,14 +290,14 @@ pub fn draw_compound(
             // Last rope: last step right edge → endpoint
             let last_right = ((step_count - 1) as f32 + 0.5) * stride + half_step;
             let p0 = ctx.camera.world_to_screen(
-                crate::types::Vec2 {
+                crate::domain::types::Vec2 {
                     x: xf.world_x + last_right * cos_a * xf.scale_x,
                     y: xf.world_y + last_right * sin_a * xf.scale_y,
                 },
                 ctx.canvas_center,
             );
             let p1 = ctx.camera.world_to_screen(
-                crate::types::Vec2 {
+                crate::domain::types::Vec2 {
                     x: xf.world_x + endpoint_x * xf.scale_x,
                     y: xf.world_y + endpoint_y * xf.scale_y,
                 },
@@ -366,14 +366,14 @@ pub fn draw_compound(
         let rtx = 0.0;
         let rty = balloon_dist + (balloon_bob - box_bob) - 0.875 * sy;
         let rope_bot = ctx.camera.world_to_screen(
-            crate::types::Vec2 {
+            crate::domain::types::Vec2 {
                 x: xf.world_x + rbx,
                 y: box_y + rby,
             },
             ctx.canvas_center,
         );
         let rope_top = ctx.camera.world_to_screen(
-            crate::types::Vec2 {
+            crate::domain::types::Vec2 {
                 x: xf.world_x + rtx,
                 y: box_y + rty,
             },
@@ -474,7 +474,7 @@ fn draw_uv_quad_rotated(ctx: &DrawCtx, q: QuadDraw<'_>) {
     };
 
     let center = ctx.camera.world_to_screen(
-        crate::types::Vec2 {
+        crate::domain::types::Vec2 {
             x: q.world_x,
             y: q.world_y,
         },

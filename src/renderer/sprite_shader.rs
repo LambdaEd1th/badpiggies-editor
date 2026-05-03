@@ -18,7 +18,7 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
-use crate::sprite_db::UvRect;
+use crate::data::sprite_db::UvRect;
 
 /// Maximum number of sprite draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 2048;
@@ -429,8 +429,8 @@ fn load_sprite_atlas(
     filename: &str,
 ) -> Option<SpriteAtlasGpu> {
     let path = format!("sprites/{}", filename);
-    let data = crate::assets::read_asset(&path)
-        .or_else(|| crate::assets::read_asset(&format!("props/{}", filename)))?;
+    let data = crate::data::assets::read_asset(&path)
+        .or_else(|| crate::data::assets::read_asset(&format!("props/{}", filename)))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
     let pixels = img.into_raw();

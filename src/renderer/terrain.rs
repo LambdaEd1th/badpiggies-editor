@@ -6,8 +6,8 @@
 
 use eframe::egui;
 
-use crate::assets;
-use crate::types::*;
+use crate::data::assets;
+use crate::domain::types::*;
 
 use super::{Camera, LevelRenderer, edge_shader, fill_shader};
 use edge_shader::EdgeVertex;
@@ -97,7 +97,7 @@ pub fn build_terrain(
     // m_references entry (captured in level-refs.toml), NOT by the background
     // theme.  Different terrain prefab names (e.g. MM_sand, MM_rock,
     // Dark_MM_rock) map to different textures within the same level.
-    let fill_texture = crate::level_refs::get_level_ref(level_key, td.fill_texture_index)
+    let fill_texture = crate::domain::level::refs::get_level_ref(level_key, td.fill_texture_index)
         .map(|s| s.to_string())
         .or_else(|| assets::get_terrain_fill_texture(&prefab.name).map(|s| s.to_string()));
 
@@ -119,7 +119,7 @@ pub fn build_terrain(
     };
     // Resolve splat texture names via level-refs then fallback
     let edge_splat0 = if !td.curve_textures.is_empty() {
-        crate::level_refs::get_level_ref(level_key, td.curve_textures[0].texture_index)
+        crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[0].texture_index)
             .map(|s| s.to_string())
             .or_else(|| assets::get_terrain_splat0(&prefab.name).map(|s| s.to_string()))
     } else {
@@ -133,8 +133,8 @@ pub fn build_terrain(
     let edge_splat1 = if assets::terrain_splat1_prefers_prefab_over_level_refs(&prefab.name) {
         fallback_edge_splat1.clone()
     } else if td.curve_textures.len() > 1 {
-        crate::level_refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
-            .filter(|name| crate::assets::read_asset(&format!("ground/{}", name)).is_some())
+        crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
+            .filter(|name| crate::data::assets::read_asset(&format!("ground/{}", name)).is_some())
             .map(|s| s.to_string())
             .or_else(|| fallback_edge_splat1.clone())
     } else {
@@ -157,7 +157,7 @@ pub fn build_terrain(
             td.control_texture_data
                 .as_ref()
                 .and_then(|data| {
-                    crate::terrain_gen::decode_control_png_pixels(data).map(|px| {
+                    crate::domain::terrain_gen::decode_control_png_pixels(data).map(|px| {
                         let gi = i * 4 + 1; // green channel
                         if gi < px.len() && px[gi] > 128 { 1 } else { 0 }
                     })
@@ -492,7 +492,7 @@ pub fn transform_mesh_to_screen_into(
         .reserve(mesh.vertices.len().saturating_sub(out.vertices.capacity()));
     for v in &mesh.vertices {
         let screen = camera.world_to_screen(
-            crate::types::Vec2 {
+            crate::domain::types::Vec2 {
                 x: v.pos.x,
                 y: v.pos.y,
             },

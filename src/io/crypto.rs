@@ -6,8 +6,8 @@ use cbc::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::Pkcs7};
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::{Digest, Sha1};
 
-use crate::error::{AppError, AppResult};
-use crate::locale::I18n;
+use crate::diagnostics::error::{AppError, AppResult};
+use crate::i18n::locale::I18n;
 
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;

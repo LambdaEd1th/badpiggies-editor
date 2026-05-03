@@ -2,15 +2,15 @@
 
 use eframe::egui;
 
-use crate::error::AppError;
+use crate::diagnostics::error::AppError;
 
 #[cfg(target_arch = "wasm32")]
-use crate::error::AppResult;
+use crate::diagnostics::error::AppResult;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 
 use super::super::EditorApp;
 #[cfg(target_arch = "wasm32")]

@@ -1,6 +1,6 @@
 //! Curve "stripe" (edge strip) mesh generation from curve nodes.
 
-use crate::types::{TerrainMesh, Vec2};
+use crate::domain::types::{TerrainMesh, Vec2};
 
 use super::curve::{CurveNode, is_closed_loop};
 use super::math::{normalize, point_in_triangle, segments_intersect_point, sub};

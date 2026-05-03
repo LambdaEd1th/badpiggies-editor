@@ -9,7 +9,7 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
-use crate::sprite_db::UvRect;
+use crate::data::sprite_db::UvRect;
 
 // ── WGSL shader source — exact port of Unity _Custom/Unlit_Color_Geometry ──
 
@@ -237,8 +237,8 @@ pub struct OpaqueAtlas {
 
 /// Load and upload the Props_Generic_Sheet_01 atlas as a raw wgpu texture.
 pub fn load_props_atlas(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<OpaqueAtlas> {
-    let data = crate::assets::read_asset("sprites/Props_Generic_Sheet_01.png")
-        .or_else(|| crate::assets::read_asset("props/Props_Generic_Sheet_01.png"))?;
+    let data = crate::data::assets::read_asset("sprites/Props_Generic_Sheet_01.png")
+        .or_else(|| crate::data::assets::read_asset("props/Props_Generic_Sheet_01.png"))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let width = img.width();
     let height = img.height();

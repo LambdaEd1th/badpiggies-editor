@@ -388,7 +388,7 @@ pub fn load_bg_texture(
     filename: &str,
 ) -> Option<BgAtlasGpu> {
     let path = format!("{}/{}", prefix, filename);
-    let data = crate::assets::read_asset(&path)?;
+    let data = crate::data::assets::read_asset(&path)?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
     // Premultiply alpha into RGB — matches Unity's "Alpha Is Transparency"

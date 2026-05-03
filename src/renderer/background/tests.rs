@@ -1,10 +1,15 @@
 #![cfg(test)]
 //! Background unit tests.
 
-mod tests {
-    use super::*;
+use std::collections::HashSet;
 
-    fn median(values: &mut [f32]) -> f32 {
+use crate::data::bg_data;
+
+use super::cache::{
+    bg_sprite_x_animation_offset, build_bg_layer_cache, sprite_display_width, tile_group_key,
+};
+
+fn median(values: &mut [f32]) -> f32 {
         values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         values[values.len() / 2]
     }
@@ -260,4 +265,3 @@ mod tests {
             "block_width {block_width:.2} too large"
         );
     }
-}

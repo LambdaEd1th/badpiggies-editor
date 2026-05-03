@@ -2,11 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::assets;
-use crate::types::{LevelData, LevelObject, ObjectIndex, Vec2, Vec3};
+use crate::data::assets;
+use crate::domain::types::{LevelData, LevelObject, Vec2};
 
 use super::super::background;
-use super::super::bg_shader;
 use super::super::clouds::{CLOUD_CONFIGS, CloudInstance};
 use super::super::compounds;
 use super::super::dark_overlay::{construction_grid_start_light, parse_dark_level_data};
@@ -15,10 +14,9 @@ use super::super::fill_shader;
 use super::super::grid;
 use super::super::opaque_shader;
 use super::super::particles::{FanEmitter, FanState, WindAreaDef, pseudo_random, spawn_wind_particle};
-use super::super::sprite_shader;
 use super::super::sprites;
 use super::super::terrain;
-use super::super::{Camera, LevelRenderer};
+use super::super::LevelRenderer;
 
 use super::{compute_world_position, find_bg_override_text, load_raw_rgba, parse_camera_limits};
 
@@ -86,7 +84,7 @@ impl LevelRenderer {
                         ));
                     }
                     // Resolve correct sprite name via level-refs override
-                    let resolved_name = crate::level_refs::get_prefab_override(
+                    let resolved_name = crate::domain::level::refs::get_prefab_override(
                         &self.level_key,
                         prefab.prefab_index,
                     );

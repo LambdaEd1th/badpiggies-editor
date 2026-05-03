@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use eframe::egui;
 
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::{
     DndPayload, TreeBlankAction, TreeContextAction, handle_tree_blank_response,
@@ -21,7 +21,7 @@ pub(super) fn show_object_tree(
     depth: usize,
     can_paste: bool,
     has_selection: bool,
-    t: &'static crate::locale::I18n,
+    t: &'static crate::i18n::locale::I18n,
 ) -> (
     Option<(ObjectIndex, DropPosition)>,
     Option<ObjectIndex>,

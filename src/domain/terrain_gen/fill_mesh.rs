@@ -1,6 +1,6 @@
 //! Fill (interior) mesh generation — boundary stitching + ear-clip triangulation.
 
-use crate::types::{TerrainMesh, Vec2};
+use crate::domain::types::{TerrainMesh, Vec2};
 
 use super::curve::{CurveNode, is_closed_loop};
 use super::math::{

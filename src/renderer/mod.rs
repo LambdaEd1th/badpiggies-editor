@@ -25,8 +25,8 @@ use std::sync::Arc;
 
 use eframe::egui;
 
-use crate::assets;
-use crate::types::*;
+use crate::data::assets;
+use crate::domain::types::*;
 
 use clouds::*;
 use dark_overlay::DarkOverlayKey;
@@ -422,7 +422,7 @@ pub struct LevelRenderer {
 impl LevelRenderer {
     /// Set the level-refs key (derived from filename) for prefab name overrides.
     pub fn set_level_key(&mut self, filename: &str) {
-        self.level_key = crate::level_refs::level_key_from_filename(filename);
+        self.level_key = crate::domain::level::refs::level_key_from_filename(filename);
     }
 
     /// Whether the current level is a dark level.
@@ -457,7 +457,7 @@ impl LevelRenderer {
         ui: &mut egui::Ui,
         selected: &BTreeSet<ObjectIndex>,
         cursor_mode: CursorMode,
-        tr: &'static crate::locale::I18n,
+        tr: &'static crate::i18n::locale::I18n,
         has_clipboard: bool,
     ) {
         let available = ui.available_size();

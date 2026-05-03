@@ -4,8 +4,8 @@ use std::collections::HashSet;
 
 use eframe::egui;
 
-use crate::locale::I18n;
-use crate::save_parser::*;
+use crate::i18n::locale::I18n;
+use crate::io::save::parser::*;
 
 use super::super::save_viewer::Filter;
 use super::{duplicate_indices, handle_row_click};

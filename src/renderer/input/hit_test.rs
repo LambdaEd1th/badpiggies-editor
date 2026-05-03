@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::types::{ObjectIndex, Vec2};
+use crate::domain::types::{ObjectIndex, Vec2};
 
 use super::super::LevelRenderer;
 use super::point_in_triangle;

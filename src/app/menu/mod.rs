@@ -7,8 +7,8 @@ mod view;
 
 use eframe::egui;
 
-use crate::error::AppError;
-use crate::locale::I18n;
+use crate::diagnostics::error::AppError;
+use crate::i18n::locale::I18n;
 
 use super::EditorApp;
 

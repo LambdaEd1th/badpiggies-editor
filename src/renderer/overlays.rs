@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::types::{ObjectIndex, Vec2};
+use crate::domain::types::{ObjectIndex, Vec2};
 
 use super::{ATLAS_FILES, CursorMode, GLOW_ATLAS, GOAL_FLAG_TEXTURE, LevelRenderer};
 
@@ -148,7 +148,7 @@ impl LevelRenderer {
         painter: &egui::Painter,
         rect: egui::Rect,
         canvas_center: egui::Vec2,
-        tr: &'static crate::locale::I18n,
+        tr: &'static crate::i18n::locale::I18n,
     ) {
         // Origin axes
         let origin = self
@@ -329,14 +329,14 @@ impl LevelRenderer {
             }
         }
         // Background atlases (bg/ subdir)
-        for atlas in crate::bg_data::bg_atlas_files() {
+        for atlas in crate::data::bg_data::bg_atlas_files() {
             if self.tex_cache.get(atlas).is_none() {
                 self.tex_cache
                     .load_texture(ctx, &format!("bg/{}", atlas), atlas);
             }
         }
         // Sky textures (sky/ subdir)
-        for sky in crate::bg_data::sky_texture_files() {
+        for sky in crate::data::bg_data::sky_texture_files() {
             if self.tex_cache.get(sky).is_none() {
                 self.tex_cache
                     .load_texture(ctx, &format!("sky/{}", sky), sky);

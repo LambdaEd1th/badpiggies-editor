@@ -1,6 +1,6 @@
 //! Curve nodes — extraction from existing terrain data and closed-loop detection.
 
-use crate::types::{TerrainData, Vec2};
+use crate::domain::types::{TerrainData, Vec2};
 
 use super::math::dist_sq;
 use super::png::decode_control_png_pixels;

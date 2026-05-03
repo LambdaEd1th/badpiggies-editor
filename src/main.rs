@@ -18,17 +18,6 @@ mod i18n;
 mod io;
 mod renderer;
 
-// ── Backward-compat re-exports ───────────────────────
-// Existing call sites use `crate::error::…`, `crate::types::…`, etc.
-// These aliases keep the old paths working after the reorganization.
-pub use data::{assets, bg_data, icon_db, level_db, sprite_db};
-pub use diagnostics::{error, log_buffer};
-pub use domain::level::{ops as level_ops, refs as level_refs};
-pub use domain::{parser, terrain_gen, types};
-pub use i18n::locale;
-pub use io::crypto;
-pub use io::save::parser as save_parser;
-
 use app::EditorApp;
 
 // ── Screen size detection ────────────────────────────
@@ -78,9 +67,9 @@ fn get_screen_size_80pct() -> (f32, f32) {
 // ── CLI ──────────────────────────────────────────────
 #[cfg(not(target_arch = "wasm32"))]
 mod cli {
-    use crate::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
-    use crate::error::{AppError, AppResult};
-    use crate::locale::Language;
+    use crate::io::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
+    use crate::diagnostics::error::{AppError, AppResult};
+    use crate::i18n::locale::Language;
     use clap::{Parser, Subcommand, ValueEnum};
     use std::path::PathBuf;
 
@@ -200,7 +189,7 @@ mod cli {
                         &error.to_string(),
                     ))
                 })?;
-                crate::parser::parse_level(data).map_err(|error| {
+                crate::domain::parser::parse_level(data).map_err(|error| {
                     AppError::invalid_data(t.fmt_path_error(
                         "cli_parse_error",
                         &display_in,
@@ -244,7 +233,7 @@ mod cli {
         };
 
         let output_data: Vec<u8> = match ext_out.as_str() {
-            "bytes" => crate::parser::serialize_level(&level),
+            "bytes" => crate::domain::parser::serialize_level(&level),
             "yaml" | "yml" => serde_yaml::to_string(&level)
                 .map_err(|error| {
                     AppError::invalid_data(t.fmt1(
@@ -371,7 +360,7 @@ fn main() -> eframe::Result<()> {
     let cli = cli::Cli::parse();
     if let Some(cmd) = cli.command {
         if let Err(e) = cli::run(cmd) {
-            let t = crate::locale::Language::from_system().i18n();
+            let t = crate::i18n::locale::Language::from_system().i18n();
             eprintln!("{}", t.fmt1("cli_error_prefix", &e.to_string()));
             std::process::exit(1);
         }
@@ -382,7 +371,7 @@ fn main() -> eframe::Result<()> {
         .filter_level(log::LevelFilter::Info)
         .filter_module("egui::context", log::LevelFilter::Error)
         .build();
-    log_buffer::init(Box::new(inner), log::LevelFilter::Debug);
+    diagnostics::log_buffer::init(Box::new(inner), log::LevelFilter::Debug);
 
     // Query primary monitor size via macOS Core Graphics and use 80% for the initial window.
     // Falls back to 1600×1000 on other platforms or errors.
@@ -409,7 +398,7 @@ fn main() {
     use wasm_bindgen::JsCast;
 
     console_error_panic_hook::set_once();
-    log_buffer::init_wasm(log::LevelFilter::Debug);
+    diagnostics::log_buffer::init_wasm(log::LevelFilter::Debug);
 
     let web_options = eframe::WebOptions::default();
 

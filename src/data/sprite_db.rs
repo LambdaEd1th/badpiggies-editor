@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::error::{AppError, AppResult};
+use crate::diagnostics::error::{AppError, AppResult};
 
 /// Resolved sprite info ready for rendering.
 #[derive(Debug, Clone)]

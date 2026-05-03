@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 
 use super::super::EditorApp;
 
@@ -101,7 +101,7 @@ impl EditorApp {
                         sv.show_table = v;
                     }
                 }
-                if matches!(sv.data, Some(crate::save_parser::SaveData::Contraption(_))) {
+                if matches!(sv.data, Some(crate::io::save::parser::SaveData::Contraption(_))) {
                     let mut v = sv.show_preview;
                     if ui
                         .checkbox(&mut v, t.get("contraption_preview_title"))
@@ -114,7 +114,7 @@ impl EditorApp {
                 ui.separator();
             }
             ui.menu_button(t.get("menu_language"), |ui| {
-                for &lang in crate::locale::Language::ALL {
+                for &lang in crate::i18n::locale::Language::ALL {
                     if ui
                         .selectable_label(self.lang == lang, lang.display_name())
                         .clicked()

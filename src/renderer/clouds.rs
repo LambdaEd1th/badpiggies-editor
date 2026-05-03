@@ -2,8 +2,8 @@
 
 use eframe::egui;
 
-use crate::assets;
-use crate::types::Vec2;
+use crate::data::assets;
+use crate::domain::types::Vec2;
 
 use super::Camera;
 
@@ -220,7 +220,7 @@ pub(super) fn update_and_draw_clouds(
         } else if cloud.x < cloud.center_x - cloud.limits {
             cloud.x = cloud.center_x + cloud.limits;
         }
-        if let Some(info) = crate::sprite_db::get_sprite_info(&cloud.sprite_name) {
+        if let Some(info) = crate::data::sprite_db::get_sprite_info(&cloud.sprite_name) {
             let hw = info.world_w * cloud.scale_x;
             let hh = info.world_h * cloud.scale_y;
             let center = camera.world_to_screen(

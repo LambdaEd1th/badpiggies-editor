@@ -10,14 +10,17 @@ mod glow;
 pub use data::{build_sprite, SpriteDrawData, SpriteDrawOpts};
 pub use draw::draw_sprite;
 pub use glow::{draw_glow, has_glow};
+pub(in crate::renderer::sprites) use draw::dessert_y_offset;
+
+use std::collections::BTreeSet;
 
 use eframe::egui;
 
-use crate::assets;
-use crate::types::*;
+use crate::data::assets;
+use crate::domain::types::*;
 
 use super::compounds;
-use super::{Camera, CompoundTransform, DrawCtx, LevelRenderer};
+use super::{CompoundTransform, DrawCtx, LevelRenderer};
 use super::{background, opaque_shader, sprite_shader};
 
 // ── BirdSleep2.anim hermite keyframes (t, value, inSlope, outSlope) ──

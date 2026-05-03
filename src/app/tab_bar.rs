@@ -2,13 +2,15 @@
 
 use eframe::egui;
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 
+use super::state::Tab;
+use super::tree;
 use super::EditorApp;
 
 /// Render the tab bar with drag-and-drop reordering.
 impl EditorApp {
-    fn render_tab_bar(&mut self, ui: &mut egui::Ui, t: &'static I18n, ctx: &egui::Context) {
+    pub(super) fn render_tab_bar(&mut self, ui: &mut egui::Ui, t: &'static I18n, ctx: &egui::Context) {
         /// Drag-and-drop payload for tab reordering.
         struct TabDndPayload(usize);
 
@@ -106,4 +108,4 @@ impl EditorApp {
         });
     }
 
-    /// Render the central canvas panel.
+}

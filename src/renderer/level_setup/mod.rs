@@ -4,22 +4,14 @@ mod set_level;
 
 use std::sync::Arc;
 
-use crate::assets;
-use crate::types::{LevelData, LevelObject, ObjectIndex, Vec2, Vec3};
+use crate::data::assets;
+use crate::domain::types::{LevelData, LevelObject, ObjectIndex, Vec2, Vec3};
 
-use super::background;
 use super::bg_shader;
-use super::clouds::{CLOUD_CONFIGS, CloudInstance};
-use super::compounds;
-use super::dark_overlay::{construction_grid_start_light, parse_dark_level_data};
 use super::edge_shader;
 use super::fill_shader;
-use super::grid;
 use super::opaque_shader;
-use super::particles::{FanEmitter, FanState, WindAreaDef, pseudo_random, spawn_wind_particle};
 use super::sprite_shader;
-use super::sprites;
-use super::terrain;
 use super::{Camera, LevelRenderer};
 
 
@@ -276,13 +268,11 @@ impl LevelRenderer {
         let range = range_x.max(range_y).max(1.0);
         self.camera.zoom = (600.0 / range).clamp(5.0, 200.0);
     }
-}
-
 
 }
 
 pub(super) fn load_raw_rgba(asset_key: &str) -> Option<(Vec<u8>, u32, u32)> {
-    let data = crate::assets::read_asset(asset_key)?;
+    let data = crate::data::assets::read_asset(asset_key)?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     // Flip vertically: image crate stores top-to-bottom, but glTexImage2D places
     // row 0 at V=0 (bottom). Flipping matches Three.js flipY=true / Unity convention
@@ -295,7 +285,7 @@ pub(super) fn load_raw_rgba(asset_key: &str) -> Option<(Vec<u8>, u32, u32)> {
 
 /// Compute the world position of an object by walking up the parent chain.
 /// Binary stores world-space positions (LevelLoader.cs uses transform.position, not localPosition).
-fn compute_world_position(level: &LevelData, idx: ObjectIndex) -> Vec3 {
+pub(super) fn compute_world_position(level: &LevelData, idx: ObjectIndex) -> Vec3 {
     level.objects[idx].position()
 }
 
@@ -303,7 +293,7 @@ fn compute_world_position(level: &LevelData, idx: ObjectIndex) -> Vec3 {
 ///
 /// Accepts both `Component UnityEngine.Transform` overrides (EP1-5 style)
 /// and `PositionSerializer` / `childLocalPositions` (EP6 style).
-fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
+pub(super) fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
     for obj in objects {
         if let LevelObject::Prefab(inst) = obj
             && inst.name.contains("Background")

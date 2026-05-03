@@ -1,7 +1,7 @@
 //! Hit testing, terrain point tests, and geometry helpers for the renderer.
 
-use crate::assets;
-use crate::types::Vec2;
+use crate::data::assets;
+use crate::domain::types::Vec2;
 
 use super::terrain;
 use super::{Camera, LevelRenderer, TerrainPresetShape};

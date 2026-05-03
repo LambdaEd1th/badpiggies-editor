@@ -1,6 +1,6 @@
 //! Control-texture PNG (en/de)coding for terrain curve nodes.
 
-use crate::error::{AppError, AppResult};
+use crate::diagnostics::error::{AppError, AppResult};
 
 use super::curve::CurveNode;
 

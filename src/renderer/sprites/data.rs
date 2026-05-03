@@ -1,15 +1,12 @@
 //! Sprite draw data structures and builder.
 
-use std::collections::BTreeSet;
-
 use eframe::egui;
 
-use crate::assets;
-use crate::sprite_db;
-use crate::types::*;
+use crate::data::assets;
+use crate::data::sprite_db;
+use crate::domain::types::*;
 
-use super::super::compounds;
-use super::super::CompoundTransform;
+use super::{dessert_y_offset, BIRD_SLEEP_DURATION};
 
 pub struct SpriteDrawData {
     /// World position.

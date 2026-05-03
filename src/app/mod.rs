@@ -19,11 +19,10 @@ use state::{Clipboard, Snapshot, Tab, UNDO_MAX};
 
 use eframe::egui;
 
-use std::collections::BTreeSet;
 
-use crate::locale::{I18n, Language};
+use crate::i18n::locale::{I18n, Language};
 use crate::renderer::{CursorMode, LevelRenderer, TerrainPresetShape};
-use crate::types::*;
+use crate::domain::types::*;
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
@@ -73,7 +72,7 @@ pub struct EditorApp {
 impl EditorApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
-        configure_cjk_fonts(&cc.egui_ctx);
+        fonts::configure_cjk_fonts(&cc.egui_ctx);
 
         // Disable debug visualisations that cause red-frame flicker in dev builds
         #[cfg(debug_assertions)]
@@ -201,7 +200,7 @@ impl EditorApp {
                     } else {
                         self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
                     }
-                } else if crate::crypto::SaveFileType::detect(&name).is_some() {
+                } else if crate::io::crypto::SaveFileType::detect(&name).is_some() {
                     self.load_save_into_tab(name, data);
                 } else {
                     self.load_level_into_tab(name, data, None);

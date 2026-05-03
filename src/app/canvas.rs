@@ -1,15 +1,17 @@
 //! Central canvas panel rendering.
 
+use std::collections::BTreeSet;
+
 use eframe::egui;
 
-use crate::locale::I18n;
-use crate::renderer::CursorMode;
-use crate::types::*;
+use crate::domain::types::*;
 
+use super::dialogs;
+use super::state::{Snapshot, UNDO_MAX};
 use super::EditorApp;
 
 impl EditorApp {
-    fn render_canvas(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn render_canvas(&mut self, ui: &mut egui::Ui) {
         let t = self.t();
         let cursor_mode = self.cursor_mode;
         let active_tab = self.active_tab;
@@ -106,10 +108,10 @@ impl EditorApp {
                         if let LevelObject::Prefab(ref mut p) = level.objects[result.object_index]
                             && let Some(ref mut td) = p.terrain_data
                         {
-                            let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
+                            let mut nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
                             if result.node_index < nodes.len() {
                                 nodes[result.node_index].position = result.new_local_pos;
-                                crate::terrain_gen::regenerate_terrain(td, &nodes);
+                                crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
                             }
                         }
 
@@ -140,7 +142,7 @@ impl EditorApp {
                             if let LevelObject::Prefab(ref mut p) = level.objects[obj_idx]
                                 && let Some(ref mut td) = p.terrain_data
                             {
-                                let mut nodes = crate::terrain_gen::extract_curve_nodes(td);
+                                let mut nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
                                 match action {
                                     NodeEditAction::Delete { node_index, .. } => {
                                         if node_index < nodes.len() && nodes.len() > 2 {
@@ -157,7 +159,7 @@ impl EditorApp {
                                             nodes.get(after_node).map(|n| n.texture).unwrap_or(0);
                                         nodes.insert(
                                             insert_idx,
-                                            crate::terrain_gen::CurveNode {
+                                            crate::domain::terrain_gen::CurveNode {
                                                 position: local_pos,
                                                 texture: tex,
                                             },
@@ -169,7 +171,7 @@ impl EditorApp {
                                         }
                                     }
                                 }
-                                crate::terrain_gen::regenerate_terrain(td, &nodes);
+                                crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
                             }
 
                             let cam = tab.renderer.camera.clone();
@@ -224,10 +226,10 @@ impl EditorApp {
                             }
                         };
                         // Default texture = 1 (splat1)
-                        let local_nodes: Vec<crate::terrain_gen::CurveNode> = result
+                        let local_nodes: Vec<crate::domain::terrain_gen::CurveNode> = result
                             .points
                             .iter()
-                            .map(|p| crate::terrain_gen::CurveNode {
+                            .map(|p| crate::domain::terrain_gen::CurveNode {
                                 position: Vec2 {
                                     x: p.x - center.x,
                                     y: p.y - center.y,
@@ -266,7 +268,7 @@ impl EditorApp {
                             has_collider: true,
                             fill_boundary: None,
                         };
-                        crate::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
+                        crate::domain::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
                         let prefab_index = Self::next_prefab_index_for_level(level);
                         let new_obj = LevelObject::Prefab(PrefabInstance {
                             name: "e2dTerrainBase".to_string(),

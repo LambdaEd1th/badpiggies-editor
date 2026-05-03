@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use eframe::egui;
 
-use crate::types::{ObjectIndex, Vec2};
+use crate::domain::types::{ObjectIndex, Vec2};
 
 use super::super::{
     BoxSelectResult, CursorMode, DragState, LevelRenderer, NodeDragResult, NodeDragState,

@@ -4,7 +4,7 @@ use eframe::egui;
 use eframe::egui::containers::{Popup, PopupCloseBehavior, PopupKind};
 use eframe::egui::widgets::TextBuffer;
 
-use crate::locale::I18n;
+use crate::i18n::locale::I18n;
 
 use super::save_viewer::{Filter, SaveViewerData};
 

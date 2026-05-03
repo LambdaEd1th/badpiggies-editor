@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::error::{AppError, AppResult};
+use crate::diagnostics::error::{AppError, AppResult};
 
 #[derive(Deserialize)]
 struct LevelRefsToml {

@@ -4,8 +4,8 @@ mod overrides;
 
 use eframe::egui;
 
-use crate::locale::I18n;
-use crate::types::*;
+use crate::i18n::locale::I18n;
+use crate::domain::types::*;
 
 use super::{
     dialogs::{
@@ -201,22 +201,22 @@ fn show_properties_editable(
                 });
 
                 // Closed loop toggle
-                let nodes = crate::terrain_gen::extract_curve_nodes(td);
-                let is_closed = nodes.len() >= 2 && crate::terrain_gen::is_closed_loop(&nodes);
+                let nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
+                let is_closed = nodes.len() >= 2 && crate::domain::terrain_gen::is_closed_loop(&nodes);
                 let mut closed_val = is_closed;
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_terrain_closed"));
                     if ui.checkbox(&mut closed_val, "").changed() {
                         let mut nodes = nodes.clone();
                         if closed_val && !is_closed && nodes.len() >= 2 {
-                            nodes.push(crate::terrain_gen::CurveNode {
+                            nodes.push(crate::domain::terrain_gen::CurveNode {
                                 position: nodes[0].position,
                                 texture: nodes[0].texture,
                             });
                         } else if !closed_val && is_closed && nodes.len() >= 3 {
                             nodes.pop();
                         }
-                        crate::terrain_gen::regenerate_terrain(td, &nodes);
+                        crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
                         changed = true;
                     }
                 });
@@ -236,8 +236,8 @@ fn show_properties_editable(
                             )
                             .changed()
                         {
-                            let nodes = crate::terrain_gen::extract_curve_nodes(td);
-                            crate::terrain_gen::regenerate_terrain(td, &nodes);
+                            let nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
+                            crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
                             changed = true;
                         }
                     });

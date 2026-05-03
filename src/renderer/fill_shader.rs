@@ -319,7 +319,7 @@ impl FillTextureCache {
             return Some(arc.clone());
         }
         let path = format!("ground/{}", filename);
-        let data = crate::assets::read_asset(&path)?;
+        let data = crate::data::assets::read_asset(&path)?;
         let img = image::load_from_memory(&data).ok()?.to_rgba8();
         let (w, h) = (img.width(), img.height());
         let pixels = img.into_raw();

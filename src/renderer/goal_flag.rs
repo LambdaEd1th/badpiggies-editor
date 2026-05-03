@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::types::*;
+use crate::domain::types::*;
 
 use super::Camera;
 use super::sprites::SpriteDrawData;

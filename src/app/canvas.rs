@@ -333,7 +333,7 @@ impl EditorApp {
                                     ui.add(
                                         egui::Image::from_bytes(
                                             "bytes://drop-icon.svg",
-                                            include_bytes!("../../assets/drop-icon.svg"),
+                                            include_bytes!("../../assets/ui/drop-icon.svg"),
                                         )
                                         .fit_to_exact_size(egui::Vec2::splat(48.0))
                                         .tint(icon_tint),

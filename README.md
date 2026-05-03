@@ -15,6 +15,7 @@ A native desktop (and WASM) level editor for the **Bad Piggies** mobile game, bu
 - **Compound objects** — Multi-part objects (fans, motors, hinges, boxes, …) with sub-sprite composition
 - **Performance** — Frustum culling + GPU draw call batching (one render pass per shader type per frame)
 - **Properties panel** — Editable object properties with override tree
+- **Save viewer / editor** — Open `Progress.dat`, `*.contraption`, and `Achievements.xml`, edit raw XML or structured tables, export XML or re-encrypted save files, and preview contraptions on a grid
 - **Undo / Redo** — Full snapshot-based undo/redo history (⌘Z / Ctrl+Z, ⇧⌘Z / Ctrl+Y)
 - **Multi-format I/O** — Import/export levels as binary `.bytes`, YAML, or TOML
 - **CLI** — Command-line format conversion between `.bytes` / `.yaml` / `.toml`
@@ -25,6 +26,7 @@ A native desktop (and WASM) level editor for the **Bad Piggies** mobile game, bu
 
 - Rust 1.85+ (edition 2024)
 - For native: a GPU supporting Vulkan / Metal / DirectX 12 / OpenGL ES 3.1
+- For WASM target checks/builds: `rustup target add wasm32-unknown-unknown`
 - For WASM: [Trunk](https://trunkrs.dev) — `cargo install trunk`
 
 ## Getting Started
@@ -46,10 +48,26 @@ The editor looks for game asset textures in an `assets/` directory next to the e
 ### WASM (browser)
 
 ```bash
-trunk serve
+trunk serve index.html
 ```
 
 Then open `http://localhost:8080` in your browser.
+
+## Development Checks
+
+Native checks:
+
+```bash
+cargo test --message-format=short
+cargo clippy --all-targets --message-format=short
+```
+
+WASM checks:
+
+```bash
+cargo check --target wasm32-unknown-unknown --message-format=short
+cargo clippy --target wasm32-unknown-unknown --all-targets --message-format=short
+```
 
 ## Usage
 
@@ -64,7 +82,12 @@ Then open `http://localhost:8080` in your browser.
 7. **Toggle background** — Press `B` or `View → Hide/Show Background`
 8. **Export level** — `File → Export Level / Export as YAML / Export as TOML`
 9. **Import text format** — `File → Import YAML/TOML…`
-10. **Switch language** — `View → Switch to 中文 / English`
+10. **Open a save file** — `File → Open Save File…` for `Progress.dat`, `*.contraption`, or `Achievements.xml`
+11. **Edit save data** — Use the raw XML panel or the structured table view side-by-side
+12. **Preview contraptions** — For `.contraption` saves, toggle `View → Contraption Preview`
+13. **Export saves** — `File → Export Save` to re-encrypt, or `File → Export XML` for decrypted XML
+14. **Import decrypted XML** — `File → Import XML…` and let the editor detect the save type from content
+15. **Switch language** — `View → Switch to 中文 / English`
 
 ### CLI
 
@@ -80,9 +103,17 @@ badpiggies-editor convert level.yaml level.toml
 # Convert TOML back to binary
 badpiggies-editor convert level.toml level.bytes
 
+# Decrypt a save file to XML
+badpiggies-editor decrypt Progress.dat -o Progress.xml
+
+# Encrypt edited XML back to a save file
+badpiggies-editor encrypt Progress.xml Progress.dat
+
 # Show help
 badpiggies-editor --help
 badpiggies-editor convert --help
+badpiggies-editor decrypt --help
+badpiggies-editor encrypt --help
 ```
 
 CLI messages are localized based on system locale.
@@ -92,37 +123,51 @@ CLI messages are localized based on system locale.
 ```
 editor/
 ├── src/
-│   ├── main.rs          # Entry point (native + WASM)
-│   ├── app.rs           # egui application, menus, panels, dialogs
-│   ├── locale.rs        # i18n via fluent-bundle (zh-CN / en-US)
-│   ├── parser.rs        # Binary .bytes level file parser / serializer
-│   ├── types.rs         # Data structures (LevelData, TerrainData, PrefabInstance, …)
-│   ├── assets.rs        # Embedded asset loader (rust-embed)
-│   ├── sprite_db.rs     # Runtime sprite database
-│   ├── bg_data.rs       # Background theme data
-│   ├── level_refs.rs    # Level object reference tables
-│   └── renderer/
-│       ├── mod.rs           # Main render loop, frustum culling, batch collection
-│       ├── terrain.rs       # Terrain mesh generation
-│       ├── fill_shader.rs   # Terrain fill wgpu shader + texture cache
-│       ├── edge_shader.rs   # Terrain edge/curve wgpu shader
-│       ├── sprite_shader.rs # Transparent sprite batch shader
-│       ├── opaque_shader.rs # Opaque (Props) sprite batch shader
-│       ├── bg_shader.rs     # Parallax background wgpu shader
-│       ├── background.rs    # Background layer rendering logic
-│       ├── compounds.rs     # Compound object sub-sprite definitions
-│       ├── sprites.rs       # Sprite atlas GPU resource management
+│   ├── main.rs              # Native + WASM entry point
+│   ├── app/                 # egui app shell, menu/dialog/panel orchestration
+│   │   ├── mod.rs
+│   │   ├── app_loop.rs      # Main frame update loop and shortcuts
+│   │   ├── canvas.rs        # Center canvas UI and renderer writeback
+│   │   ├── dialogs/         # Tool/about/add-object/shortcut dialogs
+│   │   ├── menu/            # File/Edit/View/Help menus
+│   │   ├── properties/      # Object properties and override editors
+│   │   ├── save_tables/     # Structured save-data table editors
+│   │   ├── save_viewer/     # Save viewer UI + previews
+│   │   └── tree/            # Object tree rendering and drag/drop
+│   ├── data/                # Embedded asset/theme/sprite/icon lookup data
+│   ├── diagnostics/         # Shared error/logging helpers
+│   ├── domain/              # Level types, parser, terrain generation
+│   │   ├── level/           # Level DB helpers
+│   │   ├── parser.rs        # Binary .bytes parser / serializer
+│   │   ├── types.rs         # Core level/object/terrain data structures
+│   │   └── terrain_gen/     # Fill/stripe mesh generation utilities
+│   ├── i18n/                # Fluent locale loading and language switching
+│   ├── io/                  # Crypto and save-file parsing/export helpers
+│   └── renderer/            # wgpu-backed scene rendering
+│       ├── mod.rs           # Main render loop and renderer state
+│       ├── background/      # Background cache, draw path, tests
+│       ├── dark_overlay/    # Dark overlay interval/mesh parsing
+│       ├── input/           # Camera, hit-test, interaction, terrain edit
+│       ├── level_setup/     # Renderer cache rebuild when loading levels
+│       ├── sprites/         # Sprite data extraction and drawing
+│       ├── terrain.rs       # Terrain draw data construction
+│       ├── fill_shader.rs   # Terrain fill shader
+│       ├── edge_shader.rs   # Terrain edge shader
+│       ├── sprite_shader.rs # Transparent sprite batching
+│       ├── opaque_shader.rs # Opaque props batching
+│       ├── bg_shader.rs     # Parallax background shader
+│       ├── particles.rs     # Particle rendering helpers
 │       └── grid.rs          # Editor grid overlay
 ├── assets/              # Game assets — all embedded at compile time (rust-embed)
+│   ├── data/            # Embedded TOML metadata (backgrounds, sprites, icons, level refs)
+│   ├── ui/              # SVG icons for toolbars and drop targets
 │   ├── bg/              # Background layer textures
 │   ├── ground/          # Terrain fill textures
 │   ├── props/           # Props atlas textures
 │   ├── sky/             # Sky textures
 │   ├── sprites/         # Sprite atlas textures
 │   ├── particles/       # Particle textures
-│   ├── bg-data.toml     # Background theme metadata
-│   ├── sprite-data.toml # Sprite atlas UV / sizing data
-│   └── level-refs.toml  # Level object reference tables
+│   └── fonts/           # Embedded UI fonts
 ├── locales/             # Fluent translation files (embedded via include_str!)
 │   ├── zh-CN.ftl        # Chinese (Simplified)
 │   └── en-US.ftl        # English

@@ -125,7 +125,7 @@ fn load() -> HashMap<String, PartInfo> {
 }
 
 fn try_load_toml() -> AppResult<IconLayersToml> {
-    let Some(toml_bytes) = crate::data::assets::EmbeddedAssets::get("icon-layers.toml") else {
+    let Some(toml_bytes) = crate::data::assets::EmbeddedAssets::get("data/icon-layers.toml") else {
         return Err(AppError::invalid_data_key("error_icon_layers_missing"));
     };
     let toml_str = std::str::from_utf8(&toml_bytes.data).map_err(|error| {

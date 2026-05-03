@@ -43,7 +43,7 @@ fn data() -> &'static LevelRefsData {
 }
 
 fn try_load_level_refs() -> AppResult<LevelRefsData> {
-    let toml_str = include_str!("../../../assets/level-refs.toml");
+    let toml_str = include_str!("../../../assets/data/level-refs.toml");
     let raw: LevelRefsToml = toml::from_str(toml_str).map_err(|error| {
         AppError::invalid_data_key1("error_level_refs_parse", error.to_string())
     })?;

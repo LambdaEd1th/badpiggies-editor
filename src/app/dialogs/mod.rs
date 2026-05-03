@@ -26,19 +26,19 @@ fn tool_mode_icon(mode: CursorMode) -> egui::Image<'static> {
     match mode {
         CursorMode::Select => egui::Image::from_bytes(
             "bytes://tool-select.svg",
-            include_bytes!("../../../assets/tool-select.svg"),
+            include_bytes!("../../../assets/ui/tool-select.svg"),
         ),
         CursorMode::BoxSelect => egui::Image::from_bytes(
             "bytes://tool-box-select.svg",
-            include_bytes!("../../../assets/tool-box-select.svg"),
+            include_bytes!("../../../assets/ui/tool-box-select.svg"),
         ),
         CursorMode::DrawTerrain => egui::Image::from_bytes(
             "bytes://tool-draw-terrain.svg",
-            include_bytes!("../../../assets/tool-draw-terrain.svg"),
+            include_bytes!("../../../assets/ui/tool-draw-terrain.svg"),
         ),
         CursorMode::Pan => egui::Image::from_bytes(
             "bytes://tool-pan.svg",
-            include_bytes!("../../../assets/tool-pan.svg"),
+            include_bytes!("../../../assets/ui/tool-pan.svg"),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))
@@ -48,23 +48,23 @@ fn terrain_preset_icon(shape: TerrainPresetShape) -> egui::Image<'static> {
     match shape {
         TerrainPresetShape::Circle => egui::Image::from_bytes(
             "bytes://tool-terrain-ellipse.svg",
-            include_bytes!("../../../assets/tool-terrain-ellipse.svg"),
+            include_bytes!("../../../assets/ui/tool-terrain-ellipse.svg"),
         ),
         TerrainPresetShape::Rectangle => egui::Image::from_bytes(
             "bytes://tool-terrain-rectangle.svg",
-            include_bytes!("../../../assets/tool-terrain-rectangle.svg"),
+            include_bytes!("../../../assets/ui/tool-terrain-rectangle.svg"),
         ),
         TerrainPresetShape::PerfectCircle => egui::Image::from_bytes(
             "bytes://tool-terrain-perfect-circle.svg",
-            include_bytes!("../../../assets/tool-terrain-perfect-circle.svg"),
+            include_bytes!("../../../assets/ui/tool-terrain-perfect-circle.svg"),
         ),
         TerrainPresetShape::Square => egui::Image::from_bytes(
             "bytes://tool-terrain-square.svg",
-            include_bytes!("../../../assets/tool-terrain-square.svg"),
+            include_bytes!("../../../assets/ui/tool-terrain-square.svg"),
         ),
         TerrainPresetShape::EquilateralTriangle => egui::Image::from_bytes(
             "bytes://tool-terrain-equilateral-triangle.svg",
-            include_bytes!("../../../assets/tool-terrain-equilateral-triangle.svg"),
+            include_bytes!("../../../assets/ui/tool-terrain-equilateral-triangle.svg"),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))

@@ -243,7 +243,7 @@ fn build_themes() -> HashMap<String, BgTheme> {
 }
 
 fn try_load_themes() -> AppResult<HashMap<String, ThemeToml>> {
-    let toml_str = include_str!("../../assets/bg-data.toml");
+    let toml_str = include_str!("../../assets/data/bg-data.toml");
     toml::from_str(toml_str)
         .map_err(|error| AppError::invalid_data_key1("error_bg_data_parse", error.to_string()))
 }

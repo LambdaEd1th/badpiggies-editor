@@ -131,7 +131,7 @@ fn build_db() -> HashMap<String, SpriteInfo> {
 }
 
 fn try_load_sprite_data() -> AppResult<SpriteDataToml> {
-    let toml_str = include_str!("../../assets/sprite-data.toml");
+    let toml_str = include_str!("../../assets/data/sprite-data.toml");
     toml::from_str(toml_str)
         .map_err(|error| AppError::invalid_data_key1("error_sprite_data_parse", error.to_string()))
 }

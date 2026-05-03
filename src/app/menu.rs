@@ -30,7 +30,7 @@ impl EditorApp {
         });
     }
 
-    fn menu_file(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context, t: &'static I18n) {
+    fn menu_file(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, t: &'static I18n) {
         ui.menu_button(t.get("menu_file"), |ui| {
             if ui.button(t.get("menu_open_level")).clicked() {
                 ui.close();

@@ -125,18 +125,21 @@ pub fn build_terrain(
     } else {
         assets::get_terrain_splat0(&prefab.name).map(|s| s.to_string())
     };
-    // Splat1: prefer the curated manual map (assets.rs) because the GUID→filename
-    // mapping in level-refs is unreliable for these small solid-color outline textures.
-    let edge_splat1 = assets::get_terrain_splat1(&prefab.name)
-        .map(|s| s.to_string())
-        .or_else(|| {
-            if td.curve_textures.len() > 1 {
-                crate::level_refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
-        });
+    let fallback_edge_splat1 =
+        assets::get_terrain_splat1_for_level(level_key, &prefab.name).map(|s| s.to_string());
+    // Most terrains should still honor loader refs, but the Maya cave / temple / dark
+    // prefabs keep their prefab-authored Border splat1 even when level refs point at a
+    // shared outline texture such as Ground_Rocks_Outline_Texture_06.
+    let edge_splat1 = if assets::terrain_splat1_prefers_prefab_over_level_refs(&prefab.name) {
+        fallback_edge_splat1.clone()
+    } else if td.curve_textures.len() > 1 {
+        crate::level_refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
+            .filter(|name| crate::assets::read_asset(&format!("ground/{}", name)).is_some())
+            .map(|s| s.to_string())
+            .or_else(|| fallback_edge_splat1.clone())
+    } else {
+        fallback_edge_splat1.clone()
+    };
 
     // Extract curve outer vertices for selection outline
     let curve_world_verts: Vec<(f32, f32)> = td

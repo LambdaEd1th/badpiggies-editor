@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! GPU dark overlay with stencil buffer.
 //!
 //! Replicates Unity's depth-mask approach for dark level overlays:
@@ -9,8 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use eframe::{egui, wgpu};
 
-const NUM_SLOTS: u64 = 3;
-
+const NUM_SLOTS: u64 = 4;
+const GPU_LIGHT_FILL_ALPHA: f32 = 28.0 / 255.0;
 // ── WGSL: mark + fill passes (offscreen with stencil) ──
 
 const WGSL_OFFSCREEN: &str = r#"
@@ -610,6 +612,17 @@ impl egui_wgpu::CallbackTrait for DarkPaintCallback {
             bytemuck::bytes_of(&border_u),
         );
 
+        // Slot 3: inner light fill color (premultiplied)
+        let light_fill_u = DarkUniforms {
+            color: [0.0, 0.0, 0.0, GPU_LIGHT_FILL_ALPHA],
+            ..bytemuck::Zeroable::zeroed()
+        };
+        queue.write_buffer(
+            &self.resources.uniform_buffer,
+            self.resources.slot_stride * 3,
+            bytemuck::bytes_of(&light_fill_u),
+        );
+
         // ── Ensure offscreen textures match screen size ──
         let mut ofs_guard = self.resources.offscreen.lock().unwrap();
         if ofs_guard.as_ref().map(|o| (o.width, o.height)) != Some((scr_w, scr_h)) {
@@ -685,6 +698,11 @@ impl egui_wgpu::CallbackTrait for DarkPaintCallback {
             // 4. Fill border where stencil == 1 (border ring zone)
             pass.set_bind_group(0, &uniform_bg, &[(self.resources.slot_stride * 2) as u32]);
             pass.set_stencil_reference(1);
+            pass.draw(0..3, 0..1);
+
+            // 5. Fill inner light where stencil == 3 (lit interior)
+            pass.set_bind_group(0, &uniform_bg, &[(self.resources.slot_stride * 3) as u32]);
+            pass.set_stencil_reference(3);
             pass.draw(0..3, 0..1);
         }
 

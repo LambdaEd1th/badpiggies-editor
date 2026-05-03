@@ -4,9 +4,10 @@ use eframe::egui;
 
 use crate::types::*;
 
-use super::dark_shader;
 use super::grid::ConstructionGrid;
 use super::{Camera, LevelRenderer};
+
+pub(super) type DarkOverlayKey = (f32, f32, f32, f32, f32, f32, f32);
 
 /// A pre-computed lit area polygon from a LitArea prefab's bezier curve.
 pub(super) struct LitAreaPolygon {
@@ -20,6 +21,14 @@ pub(super) struct LitAreaPolygon {
 }
 
 const LIT_AREA_BORDER_ALPHA: u8 = 80;
+// Unity renders an explicit light mesh inside lit regions instead of leaving a
+// completely untouched hole. Approximate that middle layer as a faint darkening
+// so the editor has distinct dark / lit / border bands.
+const LIGHT_FILL_ALPHA: u8 = 28;
+// Keep using the GPU interaction path until the camera has been stable for a
+// few frames; rebuilding the CPU exact mesh too eagerly causes visible hitches
+// while dragging slowly or during wheel-zoom deceleration.
+const CPU_REBUILD_SETTLE_FRAMES: u8 = 6;
 // Unity's depth-mask border material darkens the scene to roughly 68.6% of
 // the original color (`DepthMaskTransparent.mat` _Color ~= 0.686), which is
 // visually closest to a black overlay with alpha ~= 80.
@@ -382,15 +391,16 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     Some(build_point_light_polygon(cx, cy, size, border_width))
 }
 
-/// Build dark overlay meshes (complement + ring) without drawing.
-/// Returns (dark_complement_mesh, optional_ring_mesh).
+/// Build dark overlay meshes (complement + light fill + ring) without drawing.
+/// Returns (dark_complement_mesh, optional_light_fill_mesh, optional_ring_mesh).
 pub(super) fn build_dark_overlay_meshes(
     rect: egui::Rect,
     camera: &Camera,
     canvas_center: egui::Vec2,
     lit_areas: &[LitAreaPolygon],
-) -> (egui::Mesh, Option<egui::Mesh>) {
+) -> (egui::Mesh, Option<egui::Mesh>, Option<egui::Mesh>) {
     let dark_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200);
+    let light_fill_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, LIGHT_FILL_ALPHA);
     let lit_area_border_color =
         egui::Color32::from_rgba_unmultiplied(0, 0, 0, LIT_AREA_BORDER_ALPHA);
     let point_light_border_color =
@@ -412,7 +422,7 @@ pub(super) fn build_dark_overlay_meshes(
             dark_color,
             uv,
         );
-        return (m, None);
+        return (m, None, None);
     }
 
     let to_screen = |wx: f32, wy: f32| -> egui::Pos2 {
@@ -482,26 +492,29 @@ pub(super) fn build_dark_overlay_meshes(
             dark_color,
             uv,
         );
-        return (m, None);
+        return (m, None, None);
     }
 
-    let mut dark_mesh = build_scanline_complement_mesh(rect, &hole_polys, dark_color);
-    if dark_mesh.vertices.is_empty() {
-        let uv = egui::pos2(0.0, 0.0);
-        emit_quad(
-            &mut dark_mesh,
-            Trapezoid {
-                left_top: rect.left(),
-                right_top: rect.right(),
-                left_bot: rect.left(),
-                right_bot: rect.right(),
-                y_top: rect.top(),
-                y_bot: rect.bottom(),
-            },
-            dark_color,
-            uv,
-        );
-    }
+    // When the lit-area union covers the whole viewport, the dark complement
+    // is legitimately empty and should stay empty instead of blacking out the
+    // entire screen.
+    let dark_mesh = build_scanline_complement_mesh(rect, &hole_polys, dark_color);
+
+    let inner_polys: Vec<Vec<egui::Pos2>> = screen_lit_areas
+        .iter()
+        .map(|area| area.inner.clone())
+        .collect();
+
+    let light_fill_mesh = if inner_polys.is_empty() {
+        None
+    } else {
+        let mesh = build_scanline_fill_mesh(rect, &inner_polys, light_fill_color);
+        if mesh.vertices.is_empty() {
+            None
+        } else {
+            Some(mesh)
+        }
+    };
 
     let ring_mesh = if screen_lit_areas
         .iter()
@@ -541,7 +554,7 @@ pub(super) fn build_dark_overlay_meshes(
         None
     };
 
-    (dark_mesh, ring_mesh)
+    (dark_mesh, light_fill_mesh, ring_mesh)
 }
 
 /// Build a scanline mesh covering `rect` minus the holes defined by `polys`.
@@ -713,6 +726,80 @@ fn build_scanline_ring_mesh(
     mesh
 }
 
+/// Build a scanline mesh filling the union of `polys`.
+fn build_scanline_fill_mesh(
+    rect: egui::Rect,
+    polys: &[Vec<egui::Pos2>],
+    color: egui::Color32,
+) -> egui::Mesh {
+    let mut ys: Vec<f32> = Vec::new();
+    ys.push(rect.top());
+    ys.push(rect.bottom());
+    for poly in polys {
+        for pt in poly {
+            let y = pt.y.clamp(rect.top(), rect.bottom());
+            ys.push(y);
+        }
+    }
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+
+    let mut mesh = egui::Mesh::default();
+    let uv = egui::pos2(0.0, 0.0);
+
+    for si in 0..ys.len() - 1 {
+        let y_top = ys[si];
+        let y_bot = ys[si + 1];
+        if y_bot - y_top < 0.5 {
+            continue;
+        }
+        let eps = (y_bot - y_top).min(1.0) * 0.01;
+
+        let top_fill = merged_poly_intervals(y_top + eps, polys);
+        let bot_fill = merged_poly_intervals(y_bot - eps, polys);
+
+        if top_fill.len() == bot_fill.len() {
+            for (top, bot) in top_fill.iter().zip(bot_fill.iter()) {
+                if top.1 - top.0 > 0.5 || bot.1 - bot.0 > 0.5 {
+                    emit_quad(
+                        &mut mesh,
+                        Trapezoid {
+                            left_top: top.0,
+                            right_top: top.1,
+                            left_bot: bot.0,
+                            right_bot: bot.1,
+                            y_top,
+                            y_bot,
+                        },
+                        color,
+                        uv,
+                    );
+                }
+            }
+        } else {
+            let y_mid = (y_top + y_bot) * 0.5;
+            let mid_fill = merged_poly_intervals(y_mid, polys);
+            for interval in mid_fill {
+                emit_quad(
+                    &mut mesh,
+                    Trapezoid {
+                        left_top: interval.0,
+                        right_top: interval.1,
+                        left_bot: interval.0,
+                        right_bot: interval.1,
+                        y_top,
+                        y_bot,
+                    },
+                    color,
+                    uv,
+                );
+            }
+        }
+    }
+
+    mesh
+}
+
 /// Emit a trapezoid quad into the mesh.
 fn emit_quad(mesh: &mut egui::Mesh, t: Trapezoid, color: egui::Color32, uv: egui::Pos2) {
     let base = mesh.vertices.len() as u32;
@@ -745,6 +832,44 @@ fn append_mesh(dst: &mut egui::Mesh, src: egui::Mesh) {
     dst.vertices.extend(src.vertices);
     dst.indices
         .extend(src.indices.into_iter().map(|index| index + base));
+}
+
+fn overlay_key(camera: &Camera, rect: egui::Rect) -> DarkOverlayKey {
+    (
+        camera.center.x,
+        camera.center.y,
+        camera.zoom,
+        rect.center().x,
+        rect.center().y,
+        rect.width(),
+        rect.height(),
+    )
+}
+
+fn can_transform_overlay(from: DarkOverlayKey, to: DarkOverlayKey) -> bool {
+    (from.5 - to.5).abs() < 0.5 && (from.6 - to.6).abs() < 0.5 && from.2.abs() > f32::EPSILON
+}
+
+fn transform_overlay_pos(pos: egui::Pos2, from: DarkOverlayKey, to: DarkOverlayKey) -> egui::Pos2 {
+    let (from_cam_x, from_cam_y, from_zoom, from_cx, from_cy, _, _) = from;
+    let (to_cam_x, to_cam_y, to_zoom, to_cx, to_cy, _, _) = to;
+    let scale = to_zoom / from_zoom;
+    egui::pos2(
+        to_cx + (pos.x - from_cx) * scale + (from_cam_x - to_cam_x) * to_zoom,
+        to_cy + (pos.y - from_cy) * scale + (to_cam_y - from_cam_y) * to_zoom,
+    )
+}
+
+fn transformed_overlay_mesh(
+    mesh: &egui::Mesh,
+    from: DarkOverlayKey,
+    to: DarkOverlayKey,
+) -> egui::Mesh {
+    let mut transformed = mesh.clone();
+    for vertex in &mut transformed.vertices {
+        vertex.pos = transform_overlay_pos(vertex.pos, from, to);
+    }
+    transformed
 }
 
 fn polygon_intervals_at_y(y: f32, poly: &[egui::Pos2]) -> Vec<(f32, f32)> {
@@ -858,44 +983,70 @@ impl LevelRenderer {
         canvas_center: egui::Vec2,
         rect: egui::Rect,
     ) {
-        if let (Some(resources), Some(gpu_meshes)) = (&self.dark_resources, &self.dark_gpu_meshes) {
-            painter.add(dark_shader::make_dark_callback(
+        let key = overlay_key(&self.camera, rect);
+
+        if self.dark_overlay_live_key != key {
+            self.dark_overlay_live_key = key;
+            self.dark_overlay_stable_frames = 0;
+        } else if self.dark_overlay_key != key {
+            self.dark_overlay_stable_frames = self.dark_overlay_stable_frames.saturating_add(1);
+        }
+
+        if key != self.dark_overlay_key {
+            if self.dark_overlay_stable_frames < CPU_REBUILD_SETTLE_FRAMES
+                && can_transform_overlay(self.dark_overlay_key, key)
+                && self.dark_overlay_mesh.is_some()
+            {
+                if let Some(ref mesh) = self.dark_overlay_mesh {
+                    let transformed = transformed_overlay_mesh(mesh, self.dark_overlay_key, key);
+                    if !transformed.vertices.is_empty() {
+                        painter.add(egui::Shape::mesh(transformed));
+                    }
+                }
+                if let Some(ref mesh) = self.dark_overlay_light {
+                    let transformed = transformed_overlay_mesh(mesh, self.dark_overlay_key, key);
+                    if !transformed.vertices.is_empty() {
+                        painter.add(egui::Shape::mesh(transformed));
+                    }
+                }
+                if let Some(ref mesh) = self.dark_overlay_ring {
+                    let transformed = transformed_overlay_mesh(mesh, self.dark_overlay_key, key);
+                    if !transformed.vertices.is_empty() {
+                        painter.add(egui::Shape::mesh(transformed));
+                    }
+                }
+                return;
+            }
+
+            let (dark_mesh, light_fill_mesh, ring_mesh) = build_dark_overlay_meshes(
                 rect,
-                resources.clone(),
-                gpu_meshes.clone(),
-                [self.camera.center.x, self.camera.center.y],
-                [rect.left(), rect.top(), rect.width(), rect.height()],
-                self.camera.zoom,
-            ));
-        } else {
-            let key = (
-                self.camera.center.x,
-                self.camera.center.y,
-                self.camera.zoom,
-                rect.width(),
-                rect.height(),
+                &self.camera,
+                canvas_center,
+                &self.lit_area_polygons,
             );
-            if key != self.dark_overlay_key || self.dark_overlay_mesh.is_none() {
-                let (dark_mesh, ring_mesh) = build_dark_overlay_meshes(
-                    rect,
-                    &self.camera,
-                    canvas_center,
-                    &self.lit_area_polygons,
-                );
-                self.dark_overlay_mesh = Some(dark_mesh);
-                self.dark_overlay_ring = ring_mesh;
-                self.dark_overlay_key = key;
-            }
-            if let Some(ref mesh) = self.dark_overlay_mesh
-                && !mesh.vertices.is_empty()
-            {
-                painter.add(egui::Shape::mesh(mesh.clone()));
-            }
-            if let Some(ref mesh) = self.dark_overlay_ring
-                && !mesh.vertices.is_empty()
-            {
-                painter.add(egui::Shape::mesh(mesh.clone()));
-            }
+            self.dark_overlay_mesh = Some(dark_mesh);
+            self.dark_overlay_light = light_fill_mesh;
+            self.dark_overlay_ring = ring_mesh;
+            self.dark_overlay_key = key;
+            self.dark_overlay_stable_frames = CPU_REBUILD_SETTLE_FRAMES;
+        }
+
+        self.dark_overlay_live_key = key;
+
+        if let Some(ref mesh) = self.dark_overlay_mesh
+            && !mesh.vertices.is_empty()
+        {
+            painter.add(egui::Shape::mesh(mesh.clone()));
+        }
+        if let Some(ref mesh) = self.dark_overlay_light
+            && !mesh.vertices.is_empty()
+        {
+            painter.add(egui::Shape::mesh(mesh.clone()));
+        }
+        if let Some(ref mesh) = self.dark_overlay_ring
+            && !mesh.vertices.is_empty()
+        {
+            painter.add(egui::Shape::mesh(mesh.clone()));
         }
     }
 }

@@ -30,6 +30,7 @@ use crate::assets;
 use crate::types::*;
 
 use clouds::*;
+use dark_overlay::DarkOverlayKey;
 use dark_overlay::LitAreaPolygon;
 use particles::*;
 
@@ -394,10 +395,16 @@ pub struct LevelRenderer {
     pub clicked_empty: bool,
     /// Cached dark overlay mesh (layer 1: dark complement).
     dark_overlay_mesh: Option<egui::Mesh>,
-    /// Cached dark overlay border ring mesh (layer 2).
+    /// Cached dark overlay light fill mesh (layer 2: faintly darkened lit area).
+    dark_overlay_light: Option<egui::Mesh>,
+    /// Cached dark overlay border ring mesh (layer 3).
     dark_overlay_ring: Option<egui::Mesh>,
     /// Camera/viewport state when dark overlay was last built.
-    dark_overlay_key: (f32, f32, f32, f32, f32),
+    dark_overlay_key: DarkOverlayKey,
+    /// Most recent camera/viewport state seen by the dark overlay draw path.
+    dark_overlay_live_key: DarkOverlayKey,
+    /// Number of consecutive frames the dark overlay viewport key has stayed stable.
+    dark_overlay_stable_frames: u8,
 }
 
 impl LevelRenderer {

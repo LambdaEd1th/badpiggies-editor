@@ -148,8 +148,11 @@ impl LevelRenderer {
             terrain_scratch_mesh: egui::Mesh::default(),
             clicked_empty: false,
             dark_overlay_mesh: None,
+            dark_overlay_light: None,
             dark_overlay_ring: None,
-            dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0),
+            dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            dark_overlay_live_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            dark_overlay_stable_frames: 0,
         }
     }
 
@@ -237,8 +240,11 @@ impl LevelRenderer {
             terrain_scratch_mesh: egui::Mesh::default(),
             clicked_empty: false,
             dark_overlay_mesh: None,
+            dark_overlay_light: None,
             dark_overlay_ring: None,
-            dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0),
+            dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            dark_overlay_live_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            dark_overlay_stable_frames: 0,
         }
     }
 
@@ -265,8 +271,12 @@ impl LevelRenderer {
         self.dark_level = false;
         self.lit_area_polygons.clear();
         self.dark_overlay_mesh = None;
+        self.dark_overlay_light = None;
         self.dark_overlay_ring = None;
         self.dark_gpu_meshes = None;
+        self.dark_overlay_key = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        self.dark_overlay_live_key = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        self.dark_overlay_stable_frames = 0;
 
         // Collect all object names for BG theme detection
         let names: Vec<String> = level
@@ -642,12 +652,23 @@ impl LevelRenderer {
         // Parse camera limits from LevelManager
         self.camera_limits = parse_camera_limits(level);
 
-        // Build GPU fan-triangulated meshes for dark overlay stencil pass
-        // The GPU stencil path still uses global parity across all lit polygons,
-        // which produces false dark rings when light areas overlap. Prefer the
-        // CPU union mesh path until the GPU implementation is rewritten for true
-        // polygon unions.
-        self.dark_gpu_meshes = None;
+        self.dark_gpu_meshes = self.wgpu_device.as_ref().and_then(|device| {
+            if self.lit_area_polygons.is_empty() {
+                None
+            } else {
+                Some(Arc::new(dark_shader::build_dark_gpu_meshes(
+                    device,
+                    self.lit_area_polygons.iter().map(|polygon| {
+                        let border = if polygon.border_vertices.len() >= 3 {
+                            polygon.border_vertices.as_slice()
+                        } else {
+                            polygon.vertices.as_slice()
+                        };
+                        (border, polygon.vertices.as_slice())
+                    }),
+                )))
+            }
+        });
 
         // Fit camera to level bounds
         self.fit_to_level();

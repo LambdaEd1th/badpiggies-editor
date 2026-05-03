@@ -262,6 +262,9 @@ impl LevelRenderer {
             if let Some(ref atlas) = self.opaque_atlas {
                 let mut vertices = Vec::new();
                 for (i, sprite) in self.sprite_data.iter().enumerate() {
+                    if sprite.is_terrain {
+                        continue;
+                    }
                     if sprite.atlas.as_deref() != Some("Props_Generic_Sheet_01.png") {
                         continue;
                     }

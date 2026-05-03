@@ -91,6 +91,10 @@ impl LevelRenderer {
         let mut deferred_birds: Vec<DeferredBird> = Vec::new();
 
         for (si, sprite) in self.sprite_data.iter().enumerate() {
+            if sprite.is_terrain {
+                continue;
+            }
+
             let is_sel = selected.contains(&sprite.index)
                 || (sprite.is_hidden
                     && sprite.parent.is_some()

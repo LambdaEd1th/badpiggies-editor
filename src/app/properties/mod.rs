@@ -52,12 +52,16 @@ impl EditorApp {
                         } else {
                             None
                         };
-                        let changed = show_properties_editable(
-                            ui,
-                            &mut level.objects[sel],
-                            &prefab_options,
-                            t,
-                        );
+                        let changed = ui
+                            .push_id(sel, |ui| {
+                                show_properties_editable(
+                                    ui,
+                                    &mut level.objects[sel],
+                                    &prefab_options,
+                                    t,
+                                )
+                            })
+                            .inner;
                         if changed {
                             if let Some(obj_backup) = pre_obj {
                                 let mut level_snapshot = level.clone();
@@ -191,8 +195,10 @@ fn show_properties_editable(
                 });
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_fill_tex_index"));
+                    // Real terrain data uses fill texture indices beyond 31.
+                    // Clamping here mutates the selected terrain on first render.
                     changed |= ui
-                        .add(egui::DragValue::new(&mut td.fill_texture_index).range(0..=31))
+                        .add(egui::DragValue::new(&mut td.fill_texture_index).speed(1.0))
                         .changed();
                 });
                 ui.horizontal(|ui| {
@@ -232,33 +238,37 @@ fn show_properties_editable(
 
                 // Curve textures (strip width / fade threshold)
                 for ct_i in 0..td.curve_textures.len() {
-                    ui.horizontal(|ui| {
-                        ui.label(t.fmt_idx("prop_curve_tex", ct_i));
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label(format!("  {}", t.get("prop_strip_width")));
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut td.curve_textures[ct_i].size.y)
-                                    .speed(0.01)
-                                    .range(0.01..=5.0),
-                            )
-                            .changed()
-                        {
-                            let nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
-                            crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
-                            changed = true;
-                        }
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label(format!("  {}", t.get("prop_fade_threshold")));
-                        changed |= ui
-                            .add(
-                                egui::DragValue::new(&mut td.curve_textures[ct_i].fade_threshold)
+                    ui.push_id(ct_i, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(t.fmt_idx("prop_curve_tex", ct_i));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(format!("  {}", t.get("prop_strip_width")));
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut td.curve_textures[ct_i].size.y)
+                                        .speed(0.01)
+                                        .range(0.01..=5.0),
+                                )
+                                .changed()
+                            {
+                                let nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
+                                crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
+                                changed = true;
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(format!("  {}", t.get("prop_fade_threshold")));
+                            changed |= ui
+                                .add(
+                                    egui::DragValue::new(
+                                        &mut td.curve_textures[ct_i].fade_threshold,
+                                    )
                                     .speed(0.01)
                                     .range(0.0..=1.0),
-                            )
-                            .changed();
+                                )
+                                .changed();
+                        });
                     });
                 }
             }

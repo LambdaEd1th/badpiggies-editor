@@ -173,6 +173,15 @@ impl Default for CursorMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TerrainPresetShape {
+    Circle,
+    Rectangle,
+    PerfectCircle,
+    Square,
+    EquilateralTriangle,
+}
+
 /// Result of a completed box-selection drag.
 pub struct BoxSelectResult {
     /// Indices of objects whose world positions fall inside the box.
@@ -300,6 +309,12 @@ pub struct LevelRenderer {
     box_select_start: Option<egui::Pos2>,
     /// Completed freehand terrain draw result.
     pub draw_terrain_result: Option<DrawTerrainResult>,
+    /// Currently armed terrain preset shape, if any.
+    terrain_preset_shape: Option<TerrainPresetShape>,
+    /// World-space drag start for the armed terrain preset shape.
+    terrain_preset_drag_start: Option<Vec2>,
+    /// Node count used for ellipse and perfect-circle preset generation.
+    terrain_round_segments: usize,
     /// Active freehand terrain draw points (world coords).
     draw_terrain_points: Vec<Vec2>,
     /// Whether a freehand draw is currently active.

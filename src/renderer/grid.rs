@@ -28,21 +28,21 @@ pub enum ConstructionGridCellStyle {
 }
 
 impl ConstructionGridCellStyle {
-    fn sprite_name(self) -> &'static str {
+    pub(crate) fn sprite_name(self) -> &'static str {
         match self {
             Self::Default => "GridCell",
             Self::Light => "GridCellLight",
         }
     }
 
-    fn texture_cache_key(self) -> &'static str {
+    pub(crate) fn texture_cache_key(self) -> &'static str {
         match self {
             Self::Default => "GridCell_raw",
             Self::Light => "GridCellLight_raw",
         }
     }
 
-    fn half_extents(self) -> (f32, f32) {
+    pub(crate) fn half_extents(self) -> (f32, f32) {
         match self {
             Self::Default => (
                 103.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
@@ -55,7 +55,7 @@ impl ConstructionGridCellStyle {
         }
     }
 
-    fn fallback_color(self) -> egui::Color32 {
+    pub(crate) fn fallback_color(self) -> egui::Color32 {
         match self {
             Self::Default => egui::Color32::from_rgba_unmultiplied(126, 133, 148, 112),
             Self::Light => egui::Color32::from_rgba_unmultiplied(48, 48, 48, 64),

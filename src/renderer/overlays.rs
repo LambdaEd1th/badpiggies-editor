@@ -455,8 +455,24 @@ impl LevelRenderer {
                 }
             }
             CursorMode::DrawTerrain => {
+                if let Some(preview_points) = self.terrain_preset_preview_points() {
+                    let color = egui::Color32::from_rgb(100, 220, 100);
+                    let points: Vec<egui::Pos2> = preview_points
+                        .iter()
+                        .map(|p| self.camera.world_to_screen(*p, canvas_center))
+                        .collect();
+
+                    for pair in points.windows(2) {
+                        painter.line_segment([pair[0], pair[1]], egui::Stroke::new(2.0, color));
+                    }
+
+                    for pt in points.iter().step_by(4.max(points.len() / 8)) {
+                        painter.circle_filled(*pt, 3.0, color);
+                    }
+                }
+
                 // Draw the point-by-point terrain preview
-                if !self.draw_terrain_points.is_empty() {
+                if self.active_terrain_preset().is_none() && !self.draw_terrain_points.is_empty() {
                     let color = egui::Color32::from_rgb(100, 220, 100);
                     let close_color = egui::Color32::from_rgb(255, 200, 60);
                     let points: Vec<egui::Pos2> = self

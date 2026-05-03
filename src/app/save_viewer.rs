@@ -9,6 +9,7 @@ use crate::assets::TextureCache;
 
 use crate::crypto::{self, SaveFileType};
 use crate::locale::I18n;
+use crate::renderer::grid::ConstructionGridCellStyle;
 use crate::renderer::{sprite_shader, LevelRenderer};
 use crate::save_parser::*;
 use crate::sprite_db::UvRect;
@@ -843,6 +844,11 @@ fn render_contraption_canvas(
         response.rect.center().x - total_w * 0.5,
         response.rect.center().y - total_h * 0.5,
     );
+    let grid_style = if ui.visuals().dark_mode {
+        ConstructionGridCellStyle::Light
+    } else {
+        ConstructionGridCellStyle::Default
+    };
 
     let gpu_resources = renderer.preview_sprite_resources();
     let mut gpu_draws: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
@@ -871,16 +877,12 @@ fn render_contraption_canvas(
         }
     };
 
-    // Match the editor's default ConstructionUI behavior: use GridCell unless
-    // a level explicitly overrides m_gridCellPrefab.
-    if let Some(sprite) = crate::sprite_db::get_sprite_info("GridCell") {
-        // Unity confirmation:
-        // GridCell prefab localScale = 0.3
-        // Sprite.CreateMesh uses half-extents = width * 10 / 768, so final
-        // full world size is width * 20 / 768 * localScale.
-        // From sprites.bytes: GridCell width=103, height=104.
-        let grid_sprite_w = scaled_cell * (103.0 * 0.3 * 20.0 / 768.0);
-        let grid_sprite_h = scaled_cell * (104.0 * 0.3 * 20.0 / 768.0);
+    // The save preview uses the light construction-cell variant in dark UI,
+    // matching the in-game construction background more closely.
+    if let Some(sprite) = crate::sprite_db::get_sprite_info(grid_style.sprite_name()) {
+        let (half_w, half_h) = grid_style.half_extents();
+        let grid_sprite_w = scaled_cell * half_w * 2.0;
+        let grid_sprite_h = scaled_cell * half_h * 2.0;
         if gpu_resources.is_some()
             && let Some(atlas) = renderer.preview_sprite_atlas(&sprite.atlas)
         {
@@ -924,7 +926,7 @@ fn render_contraption_canvas(
             let atlas_path = format!("sprites/{}", sprite.atlas);
             let tex_id = tex_cache.load_sprite_crop(
                 ui.ctx(),
-                "save_viewer_grid_cell_raw",
+                grid_style.texture_cache_key(),
                 &atlas_path,
                 [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
             );

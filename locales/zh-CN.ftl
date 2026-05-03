@@ -172,6 +172,13 @@ tool_box_select = 框选
 tool_draw_terrain = 绘制地形
 tool_pan = 平移
 tool_window_title = 工具
+tool_terrain_presets = 地形预制图形
+tool_terrain_preset_circle = 椭圆
+tool_terrain_preset_rectangle = 矩形
+tool_terrain_preset_perfect_circle = 正圆
+tool_terrain_preset_square = 正四边形
+tool_terrain_preset_equilateral_triangle = 正三角形
+tool_terrain_round_segments = 椭圆/正圆节点
 
 # 工具模式快捷键
 shortcuts_section_tools = 工具模式

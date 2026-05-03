@@ -172,6 +172,13 @@ tool_box_select = Box Select
 tool_draw_terrain = Draw Terrain
 tool_pan = Pan
 tool_window_title = Tools
+tool_terrain_presets = Terrain Presets
+tool_terrain_preset_circle = Ellipse
+tool_terrain_preset_rectangle = Rectangle
+tool_terrain_preset_perfect_circle = Perfect Circle
+tool_terrain_preset_square = Square
+tool_terrain_preset_equilateral_triangle = Equilateral Triangle
+tool_terrain_round_segments = Ellipse/Circle Nodes
 
 # Tool mode shortcuts
 shortcuts_section_tools = Tool Modes

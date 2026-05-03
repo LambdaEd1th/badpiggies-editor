@@ -18,8 +18,7 @@ use std::collections::BTreeSet;
 
 use crate::locale::{I18n, Language};
 use crate::parser;
-use crate::renderer::CursorMode;
-use crate::renderer::LevelRenderer;
+use crate::renderer::{CursorMode, LevelRenderer, TerrainPresetShape};
 use crate::types::*;
 
 #[cfg(target_arch = "wasm32")]
@@ -438,6 +437,14 @@ impl EditorApp {
 
     pub(super) fn prepare_add_object_dialog(&mut self) {
         self.prepare_add_object_dialog_at(None);
+    }
+
+    fn toggle_active_terrain_preset(&mut self, shape: TerrainPresetShape) {
+        if self.tabs[self.active_tab].is_save_tab() {
+            return;
+        }
+
+        self.tabs[self.active_tab].renderer.toggle_terrain_preset(shape);
     }
 
     pub(super) fn prepare_add_object_dialog_at(&mut self, world_pos: Option<Vec2>) {
@@ -1200,7 +1207,7 @@ impl EditorApp {
                         crate::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
                         let prefab_index = Self::next_prefab_index_for_level(level);
                         let new_obj = LevelObject::Prefab(PrefabInstance {
-                            name: "Terrain".to_string(),
+                            name: "e2dTerrainBase".to_string(),
                             prefab_index,
                             position: Vec3 {
                                 x: center.x,

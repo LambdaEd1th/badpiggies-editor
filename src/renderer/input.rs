@@ -8,8 +8,129 @@ use crate::types::{ObjectIndex, Vec2};
 use super::terrain;
 use super::{
     BoundsDragState, BoundsHandle, Camera, CursorMode, DragState, LevelRenderer, NodeDragResult,
-    NodeDragState, NodeEditAction,
+    NodeDragState, NodeEditAction, TerrainPresetShape,
 };
+
+fn constrain_square_end(start: Vec2, end: Vec2) -> Vec2 {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let side = dx.abs().max(dy.abs());
+    let sign_x = if dx < 0.0 { -1.0 } else { 1.0 };
+    let sign_y = if dy < 0.0 { -1.0 } else { 1.0 };
+
+    Vec2 {
+        x: start.x + sign_x * side,
+        y: start.y + sign_y * side,
+    }
+}
+
+fn constrain_equilateral_triangle_end(start: Vec2, end: Vec2) -> Vec2 {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let sign_x = if dx < 0.0 { -1.0 } else { 1.0 };
+    let sign_y = if dy < 0.0 { -1.0 } else { 1.0 };
+    let height_ratio = (3.0_f32).sqrt() * 0.5;
+    let side = dx.abs().max(dy.abs() / height_ratio.max(1e-6));
+
+    Vec2 {
+        x: start.x + sign_x * side,
+        y: start.y + sign_y * side * height_ratio,
+    }
+}
+
+fn terrain_preset_points(
+    shape: TerrainPresetShape,
+    start: Vec2,
+    end: Vec2,
+    round_segments: usize,
+) -> Vec<Vec2> {
+    let constrained_end = match shape {
+        TerrainPresetShape::PerfectCircle | TerrainPresetShape::Square => {
+            constrain_square_end(start, end)
+        }
+        TerrainPresetShape::EquilateralTriangle => constrain_equilateral_triangle_end(start, end),
+        _ => end,
+    };
+
+    let min_x = start.x.min(constrained_end.x);
+    let max_x = start.x.max(constrained_end.x);
+    let min_y = start.y.min(constrained_end.y);
+    let max_y = start.y.max(constrained_end.y);
+
+    match shape {
+        TerrainPresetShape::Circle | TerrainPresetShape::PerfectCircle => {
+            let segments = round_segments.max(3);
+            let center = Vec2 {
+                x: (min_x + max_x) * 0.5,
+                y: (min_y + max_y) * 0.5,
+            };
+            let radius_x = (max_x - min_x) * 0.5;
+            let radius_y = (max_y - min_y) * 0.5;
+
+            let mut points = Vec::with_capacity(segments + 1);
+            for index in 0..segments {
+                let angle = index as f32 / segments as f32 * std::f32::consts::TAU;
+                points.push(Vec2 {
+                    x: center.x + angle.cos() * radius_x,
+                    y: center.y + angle.sin() * radius_y,
+                });
+            }
+            if let Some(first) = points.first().copied() {
+                points.push(first);
+            }
+            points
+        }
+        TerrainPresetShape::Rectangle | TerrainPresetShape::Square => {
+            vec![
+                Vec2 {
+                    x: min_x,
+                    y: min_y,
+                },
+                Vec2 {
+                    x: max_x,
+                    y: min_y,
+                },
+                Vec2 {
+                    x: max_x,
+                    y: max_y,
+                },
+                Vec2 {
+                    x: min_x,
+                    y: max_y,
+                },
+                Vec2 {
+                    x: min_x,
+                    y: min_y,
+                },
+            ]
+        }
+        TerrainPresetShape::EquilateralTriangle => {
+            let apex_is_top = constrained_end.y >= start.y;
+            let apex_y = if apex_is_top { max_y } else { min_y };
+            let base_y = if apex_is_top { min_y } else { max_y };
+            let center_x = (min_x + max_x) * 0.5;
+
+            vec![
+                Vec2 {
+                    x: center_x,
+                    y: apex_y,
+                },
+                Vec2 {
+                    x: max_x,
+                    y: base_y,
+                },
+                Vec2 {
+                    x: min_x,
+                    y: base_y,
+                },
+                Vec2 {
+                    x: center_x,
+                    y: apex_y,
+                },
+            ]
+        }
+    }
+}
 
 /// Point-in-triangle test using barycentric coordinates (sign of cross products).
 fn point_in_triangle(p: egui::Pos2, a: egui::Pos2, b: egui::Pos2, c: egui::Pos2) -> bool {
@@ -47,6 +168,36 @@ pub(super) fn point_to_segment_dist(
 }
 
 impl LevelRenderer {
+    pub fn active_terrain_preset(&self) -> Option<TerrainPresetShape> {
+        self.terrain_preset_shape
+    }
+
+    pub fn terrain_round_segments(&self) -> usize {
+        self.terrain_round_segments
+    }
+
+    pub fn set_terrain_round_segments(&mut self, segments: usize) {
+        self.terrain_round_segments = segments.clamp(3, 128);
+    }
+
+    pub fn toggle_terrain_preset(&mut self, shape: TerrainPresetShape) {
+        self.draw_terrain_points.clear();
+        self.draw_terrain_active = false;
+        self.terrain_preset_drag_start = None;
+        if self.terrain_preset_shape == Some(shape) {
+            self.terrain_preset_shape = None;
+        } else {
+            self.terrain_preset_shape = Some(shape);
+        }
+    }
+
+    pub(crate) fn terrain_preset_preview_points(&self) -> Option<Vec<Vec2>> {
+        let shape = self.terrain_preset_shape?;
+        let start = self.terrain_preset_drag_start?;
+        let end = self.mouse_world?;
+        Some(terrain_preset_points(shape, start, end, self.terrain_round_segments))
+    }
+
     /// Draw a single terrain's edge using CPU fallback (splat textures or flat vertex-color).
     pub(super) fn draw_terrain_edge_cpu(
         painter: &egui::Painter,
@@ -519,6 +670,57 @@ impl LevelRenderer {
         self.panning = false;
     }
 
+    fn handle_terrain_preset_mode(
+        &mut self,
+        ui: &egui::Ui,
+        response: &egui::Response,
+        canvas_center: egui::Vec2,
+        shape: TerrainPresetShape,
+        is_shift: bool,
+        is_alt: bool,
+    ) {
+        if response.secondary_clicked() {
+            self.terrain_preset_drag_start = None;
+            self.terrain_preset_shape = None;
+            self.suppress_context_menu_this_frame = true;
+            self.panning = false;
+            return;
+        }
+
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.terrain_preset_drag_start = None;
+            self.terrain_preset_shape = None;
+            self.panning = false;
+            return;
+        }
+
+        if response.drag_started_by(egui::PointerButton::Primary)
+            && !is_shift
+            && !is_alt
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            self.terrain_preset_drag_start = Some(self.camera.screen_to_world(pointer, canvas_center));
+        }
+
+        if response.drag_stopped_by(egui::PointerButton::Primary)
+            && let Some(start) = self.terrain_preset_drag_start.take()
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let end = self.camera.screen_to_world(pointer, canvas_center);
+            let width = (end.x - start.x).abs();
+            let height = (end.y - start.y).abs();
+            if width > 0.05 && height > 0.05 {
+                self.draw_terrain_result = Some(super::DrawTerrainResult {
+                    points: terrain_preset_points(shape, start, end, self.terrain_round_segments),
+                    closed: true,
+                });
+            }
+            self.terrain_preset_shape = None;
+        }
+
+        self.panning = false;
+    }
+
     /// Draw-terrain mode: click to place individual points.
     /// Close the curve by clicking near the first point (when ≥3 points exist),
     /// or press Enter to finish as open curve, Escape to cancel.
@@ -544,6 +746,11 @@ impl LevelRenderer {
         }
 
         let close_threshold = 12.0 / self.camera.zoom; // 12 screen-px in world units
+
+        if let Some(shape) = self.terrain_preset_shape {
+            self.handle_terrain_preset_mode(ui, response, canvas_center, shape, is_shift, is_alt);
+            return;
+        }
 
         // Right-click while drawing removes the most recently placed point.
         if response.secondary_clicked() && !self.draw_terrain_points.is_empty() {

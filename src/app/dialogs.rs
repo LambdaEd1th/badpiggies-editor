@@ -637,8 +637,8 @@ impl EditorApp {
                 let previous_data_type = self.add_obj_data_type;
                 ui.horizontal(|ui| {
                     ui.label(t.get("add_type"));
-                    ui.radio_value(&mut self.add_obj_is_parent, false, t.get("add_kind_prefab"));
-                    ui.radio_value(&mut self.add_obj_is_parent, true, t.get("add_kind_parent"));
+                    ui.radio_value(&mut self.add_obj_is_parent, false, "Prefab");
+                    ui.radio_value(&mut self.add_obj_is_parent, true, "Parent");
                     if !self.add_obj_is_parent {
                         ui.separator();
                         ui.label(t.get("add_data_type"));
@@ -687,11 +687,6 @@ impl EditorApp {
                             &prefab_options,
                         );
                     });
-                    if self.add_obj_data_type == DataType::Terrain {
-                        ui.small(t.get("add_data_type_terrain_help"));
-                    } else if self.add_obj_data_type == DataType::PrefabOverrides {
-                        ui.small(t.get("add_data_type_prefab_overrides_help"));
-                    }
                 }
                 ui.separator();
                 let position_label = t.get("prop_position");

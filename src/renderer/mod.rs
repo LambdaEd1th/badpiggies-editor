@@ -225,6 +225,9 @@ pub struct BoundsDragResult {
 pub enum CanvasContextAction {
     Copy(Vec<ObjectIndex>),
     Cut(Vec<ObjectIndex>),
+    AddObject {
+        world_pos: Option<Vec2>,
+    },
     Paste {
         context_indices: Vec<ObjectIndex>,
         world_pos: Option<Vec2>,
@@ -291,6 +294,8 @@ pub struct LevelRenderer {
     context_menu_indices: Vec<ObjectIndex>,
     /// Terrain node snapshot for the current canvas context menu.
     context_menu_node: Option<(ObjectIndex, usize)>,
+    /// True when a canvas secondary click was consumed by another tool this frame.
+    suppress_context_menu_this_frame: bool,
     /// Active box-selection start position (screen coords).
     box_select_start: Option<egui::Pos2>,
     /// Completed freehand terrain draw result.
@@ -600,6 +605,8 @@ impl LevelRenderer {
         self.lazy_load_textures(ui.ctx());
 
         let hovered_node = self.hovered_terrain_node;
+        let suppress_context_menu = self.suppress_context_menu_this_frame
+            || (cursor_mode == CursorMode::DrawTerrain && !self.draw_terrain_points.is_empty());
         let terrain_node_can_delete = |node: Option<(ObjectIndex, usize)>| {
             node.and_then(|(object_index, node_index)| {
                 self.terrain_data
@@ -609,7 +616,7 @@ impl LevelRenderer {
             })
         };
         let context_menu_node_can_delete = terrain_node_can_delete(self.context_menu_node);
-        if response.secondary_clicked() {
+        if !suppress_context_menu && response.secondary_clicked() {
             let hovered_node_can_delete = terrain_node_can_delete(hovered_node);
             let context_world = response
                 .interact_pointer_pos()
@@ -644,88 +651,97 @@ impl LevelRenderer {
         let cut_shortcut = if is_mac { "Cmd+X" } else { "Ctrl+X" };
         let paste_shortcut = if is_mac { "Cmd+V" } else { "Ctrl+V" };
         let dup_shortcut = if is_mac { "Cmd+D" } else { "Ctrl+D" };
-        response.context_menu(|ui| {
-            if ui
-                .add_enabled(
-                    has_context_selection,
-                    egui::Button::new(tr.get("menu_copy")).shortcut_text(copy_shortcut),
-                )
-                .clicked()
-            {
-                self.context_action = Some(CanvasContextAction::Copy(context_indices.clone()));
-                ui.close();
-            }
-            if ui
-                .add_enabled(
-                    has_context_selection,
-                    egui::Button::new(tr.get("menu_cut")).shortcut_text(cut_shortcut),
-                )
-                .clicked()
-            {
-                self.context_action = Some(CanvasContextAction::Cut(context_indices.clone()));
-                ui.close();
-            }
-            if ui
-                .add_enabled(
-                    has_clipboard,
-                    egui::Button::new(tr.get("menu_paste")).shortcut_text(paste_shortcut),
-                )
-                .clicked()
-            {
-                self.context_action = Some(CanvasContextAction::Paste {
-                    context_indices: context_indices.clone(),
-                    world_pos: context_world,
-                });
-                ui.close();
-            }
-            if ui
-                .add_enabled(
-                    has_context_selection,
-                    egui::Button::new(tr.get("menu_duplicate")).shortcut_text(dup_shortcut),
-                )
-                .clicked()
-            {
-                self.context_action =
-                    Some(CanvasContextAction::Duplicate(context_indices.clone()));
-                ui.close();
-            }
-            if ui
-                .add_enabled(
-                    has_context_selection,
-                    egui::Button::new(tr.get("menu_delete")).shortcut_text("Del"),
-                )
-                .clicked()
-            {
-                self.context_action = Some(CanvasContextAction::Delete(context_indices.clone()));
-                ui.close();
-            }
-
-            if let Some((object_index, node_index, can_delete)) = context_menu_node_can_delete {
+        if !suppress_context_menu {
+            response.context_menu(|ui| {
+                if ui
+                    .add_enabled(
+                        has_context_selection,
+                        egui::Button::new(tr.get("menu_copy")).shortcut_text(copy_shortcut),
+                    )
+                    .clicked()
+                {
+                    self.context_action = Some(CanvasContextAction::Copy(context_indices.clone()));
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(
+                        has_context_selection,
+                        egui::Button::new(tr.get("menu_cut")).shortcut_text(cut_shortcut),
+                    )
+                    .clicked()
+                {
+                    self.context_action = Some(CanvasContextAction::Cut(context_indices.clone()));
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(
+                        has_clipboard,
+                        egui::Button::new(tr.get("menu_paste")).shortcut_text(paste_shortcut),
+                    )
+                    .clicked()
+                {
+                    self.context_action = Some(CanvasContextAction::Paste {
+                        context_indices: context_indices.clone(),
+                        world_pos: context_world,
+                    });
+                    ui.close();
+                }
                 ui.separator();
-                if ui.button(tr.get("context_toggle_node_texture")).clicked() {
-                    self.node_edit_action = Some(NodeEditAction::ToggleTexture {
-                        object_index,
-                        node_index,
+                if ui.button(tr.get("menu_add_object")).clicked() {
+                    self.context_action = Some(CanvasContextAction::AddObject {
+                        world_pos: context_world,
                     });
                     ui.close();
                 }
                 if ui
-                    .add_enabled(can_delete, egui::Button::new(tr.get("menu_delete")))
+                    .add_enabled(
+                        has_context_selection,
+                        egui::Button::new(tr.get("menu_duplicate")).shortcut_text(dup_shortcut),
+                    )
                     .clicked()
                 {
-                    self.node_edit_action = Some(NodeEditAction::Delete {
-                        object_index,
-                        node_index,
-                    });
+                    self.context_action =
+                        Some(CanvasContextAction::Duplicate(context_indices.clone()));
                     ui.close();
                 }
-            }
+                if ui
+                    .add_enabled(
+                        has_context_selection,
+                        egui::Button::new(tr.get("menu_delete")).shortcut_text("Del"),
+                    )
+                    .clicked()
+                {
+                    self.context_action = Some(CanvasContextAction::Delete(context_indices.clone()));
+                    ui.close();
+                }
 
-            ui.separator();
-            if ui.button(tr.get("menu_fit_view")).clicked() {
-                self.fit_to_level();
-                ui.close();
-            }
-        });
+                if let Some((object_index, node_index, can_delete)) = context_menu_node_can_delete {
+                    ui.separator();
+                    if ui.button(tr.get("context_toggle_node_texture")).clicked() {
+                        self.node_edit_action = Some(NodeEditAction::ToggleTexture {
+                            object_index,
+                            node_index,
+                        });
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(can_delete, egui::Button::new(tr.get("menu_delete")))
+                        .clicked()
+                    {
+                        self.node_edit_action = Some(NodeEditAction::Delete {
+                            object_index,
+                            node_index,
+                        });
+                        ui.close();
+                    }
+                }
+
+                ui.separator();
+                if ui.button(tr.get("menu_fit_view")).clicked() {
+                    self.fit_to_level();
+                    ui.close();
+                }
+            });
+        }
     }
 }

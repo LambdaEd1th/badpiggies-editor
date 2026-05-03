@@ -185,6 +185,7 @@ impl LevelRenderer {
         self.box_select_result = None;
         self.draw_terrain_result = None;
         self.bounds_drag_result = None;
+        self.suppress_context_menu_this_frame = false;
 
         // Level bounds dragging takes priority (available in all modes when visible)
         if self.handle_bounds_drag(response, canvas_center) {
@@ -543,6 +544,15 @@ impl LevelRenderer {
         }
 
         let close_threshold = 12.0 / self.camera.zoom; // 12 screen-px in world units
+
+        // Right-click while drawing removes the most recently placed point.
+        if response.secondary_clicked() && !self.draw_terrain_points.is_empty() {
+            self.draw_terrain_points.pop();
+            self.draw_terrain_active = !self.draw_terrain_points.is_empty();
+            self.suppress_context_menu_this_frame = true;
+            self.panning = false;
+            return;
+        }
 
         // Click to place a point
         if response.clicked()

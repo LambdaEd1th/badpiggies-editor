@@ -175,6 +175,7 @@ impl LevelObject {
 }
 
 /// Where to drop an item in the tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DropPosition {
     /// Insert before `target` in its parent's children list (or in roots).
     Before(ObjectIndex),
@@ -182,6 +183,15 @@ pub enum DropPosition {
     After(ObjectIndex),
     /// Insert as the last child of a Parent object.
     IntoParent(ObjectIndex),
+}
+
+/// Where to paste a subtree in the tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PastePosition {
+    /// Append as the last child of `parent`, or as a new root when `None`.
+    AppendTo(Option<ObjectIndex>),
+    /// Insert at an exact tree position.
+    Exact(DropPosition),
 }
 
 /// Complete level data — flat arena of all objects + top-level root indices.

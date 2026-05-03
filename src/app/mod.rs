@@ -281,15 +281,27 @@ impl LevelData {
             .collect()
     }
 
-    /// Paste a subtree (Vec<LevelObject>) into the level.  All objects are appended to
-    /// the arena.  If `parent_idx` is `Some`, the pasted root becomes a child
-    /// of that parent; otherwise it becomes a new root-level object.
+    /// Paste a subtree (Vec<LevelObject>) into the level. All objects are appended to
+    /// the arena, then the pasted root is inserted either as the last child/root
+    /// or at an exact `DropPosition`.
     /// Returns the index of the pasted root.
     fn paste_subtree(
         &mut self,
         subtree: &[LevelObject],
-        parent_idx: Option<ObjectIndex>,
+        paste_position: PastePosition,
     ) -> ObjectIndex {
+        let root_parent = match paste_position {
+            PastePosition::AppendTo(parent_idx) => parent_idx,
+            PastePosition::Exact(DropPosition::IntoParent(target)) => Some(target),
+            PastePosition::Exact(DropPosition::Before(target))
+            | PastePosition::Exact(DropPosition::After(target)) => {
+                match self.objects.get(target) {
+                    Some(LevelObject::Prefab(prefab)) => prefab.parent,
+                    Some(LevelObject::Parent(parent)) => parent.parent,
+                    None => None,
+                }
+            }
+        };
         let base = self.objects.len();
         for (i, obj) in subtree.iter().enumerate() {
             let mut obj = obj.clone();
@@ -305,19 +317,56 @@ impl LevelData {
             // The root of the pasted subtree: set its parent.
             if i == 0 {
                 match &mut obj {
-                    LevelObject::Prefab(p) => p.parent = parent_idx,
-                    LevelObject::Parent(p) => p.parent = parent_idx,
+                    LevelObject::Prefab(p) => p.parent = root_parent,
+                    LevelObject::Parent(p) => p.parent = root_parent,
                 }
             }
             self.objects.push(obj);
         }
-        if let Some(pi) = parent_idx {
-            // Add the pasted root as a child of the target parent.
-            if let LevelObject::Parent(p) = &mut self.objects[pi] {
-                p.children.push(base);
+        match paste_position {
+            PastePosition::AppendTo(Some(parent_idx)) => {
+                if let Some(LevelObject::Parent(parent)) = self.objects.get_mut(parent_idx) {
+                    parent.children.push(base);
+                } else {
+                    self.roots.push(base);
+                }
             }
-        } else {
-            self.roots.push(base);
+            PastePosition::AppendTo(None) => {
+                self.roots.push(base);
+            }
+            PastePosition::Exact(DropPosition::IntoParent(target)) => {
+                if let Some(LevelObject::Parent(parent)) = self.objects.get_mut(target) {
+                    parent.children.push(base);
+                } else {
+                    self.roots.push(base);
+                }
+            }
+            PastePosition::Exact(DropPosition::Before(target))
+            | PastePosition::Exact(DropPosition::After(target)) => {
+                let is_before = matches!(paste_position, PastePosition::Exact(DropPosition::Before(_)));
+                let target_parent = match self.objects.get(target) {
+                    Some(LevelObject::Prefab(prefab)) => prefab.parent,
+                    Some(LevelObject::Parent(parent)) => parent.parent,
+                    None => None,
+                };
+                if let Some(parent_idx) = target_parent {
+                    if let Some(LevelObject::Parent(parent)) = self.objects.get_mut(parent_idx) {
+                        let pos = parent.children.iter().position(|&child| child == target);
+                        let insert_at = pos.map_or(parent.children.len(), |index| {
+                            if is_before { index } else { index + 1 }
+                        });
+                        parent.children.insert(insert_at, base);
+                    } else {
+                        self.roots.push(base);
+                    }
+                } else {
+                    let pos = self.roots.iter().position(|&root| root == target);
+                    let insert_at = pos.map_or(self.roots.len(), |index| {
+                        if is_before { index } else { index + 1 }
+                    });
+                    self.roots.insert(insert_at, base);
+                }
+            }
         }
         base
     }
@@ -388,11 +437,19 @@ impl EditorApp {
     }
 
     pub(super) fn prepare_add_object_dialog(&mut self) {
+        self.prepare_add_object_dialog_at(None);
+    }
+
+    pub(super) fn prepare_add_object_dialog_at(&mut self, world_pos: Option<Vec2>) {
         self.add_obj_is_parent = false;
         self.add_obj_data_type = DataType::None;
         self.add_obj_name.clear();
-        self.add_obj_prefab_index = 0;
-        self.add_obj_position = Vec3::default();
+        self.add_obj_prefab_index = self.next_add_prefab_index();
+        self.add_obj_position = world_pos.map_or_else(Vec3::default, |pos| Vec3 {
+            x: pos.x,
+            y: pos.y,
+            z: 0.0,
+        });
         self.add_obj_rotation = Vec3::default();
         self.add_obj_scale = Vec3 {
             x: 1.0,
@@ -400,6 +457,27 @@ impl EditorApp {
             z: 1.0,
         };
         self.show_add_dialog = true;
+    }
+
+    fn next_prefab_index_for_level(level: &LevelData) -> i16 {
+        level
+            .objects
+            .iter()
+            .filter_map(|object| match object {
+                LevelObject::Prefab(prefab) if prefab.prefab_index >= 0 => Some(prefab.prefab_index),
+                _ => None,
+            })
+            .max()
+            .and_then(|index| index.checked_add(1))
+            .unwrap_or(0)
+    }
+
+    fn next_add_prefab_index(&self) -> i16 {
+        self.tabs
+            .get(self.active_tab)
+            .and_then(|tab| tab.level.as_ref())
+            .map(Self::next_prefab_index_for_level)
+            .unwrap_or(0)
     }
 
     /// Returns the current language's translations.
@@ -1120,9 +1198,10 @@ impl EditorApp {
                             fill_boundary: None,
                         };
                         crate::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
+                        let prefab_index = Self::next_prefab_index_for_level(level);
                         let new_obj = LevelObject::Prefab(PrefabInstance {
                             name: "Terrain".to_string(),
-                            prefab_index: -1,
+                            prefab_index,
                             position: Vec3 {
                                 x: center.x,
                                 y: center.y,
@@ -1213,11 +1292,14 @@ impl EditorApp {
                     crate::renderer::CanvasContextAction::Cut(indices) => {
                         self.cut_objects(&indices);
                     }
+                    crate::renderer::CanvasContextAction::AddObject { world_pos } => {
+                        self.prepare_add_object_dialog_at(world_pos);
+                    }
                     crate::renderer::CanvasContextAction::Paste {
                         context_indices,
                         world_pos,
                     } => {
-                        self.paste_with_context(&context_indices, world_pos);
+                        self.paste_with_context(&context_indices, world_pos, None);
                     }
                     crate::renderer::CanvasContextAction::Duplicate(indices) => {
                         self.duplicate_objects(&indices);

@@ -126,7 +126,7 @@ impl EditorApp {
         let level = tab.level.as_mut().unwrap();
         tab.selected.clear();
         for (subtree, target) in &items {
-            let new_root = level.paste_subtree(subtree, *target);
+            let new_root = level.paste_subtree(subtree, PastePosition::AppendTo(*target));
             match &mut level.objects[new_root] {
                 LevelObject::Prefab(prefab) => {
                     prefab.position.x += 1.0;
@@ -225,7 +225,7 @@ impl EditorApp {
     }
 
     pub(super) fn paste(&mut self) {
-        self.paste_with_context(&[], None);
+        self.paste_with_context(&[], None, None);
     }
 
     /// Paste from the clipboard, optionally using a specific context target and world position.
@@ -233,6 +233,7 @@ impl EditorApp {
         &mut self,
         context_indices: &[ObjectIndex],
         world_pos: Option<Vec2>,
+        paste_position: Option<PastePosition>,
     ) {
         let clip = match self.clipboard.clone() {
             Some(c) => c,
@@ -253,7 +254,12 @@ impl EditorApp {
         } else {
             context_indices.iter().copied().collect()
         };
-        let target = Tab::paste_target_parent(tab.level.as_ref().unwrap(), &target_selection);
+        let paste_position = paste_position.unwrap_or_else(|| {
+            PastePosition::AppendTo(Tab::paste_target_parent(
+                tab.level.as_ref().unwrap(),
+                &target_selection,
+            ))
+        });
         // push_undo inline
         {
             let level = tab.level.as_ref().unwrap();
@@ -269,7 +275,7 @@ impl EditorApp {
         let level = tab.level.as_mut().unwrap();
         tab.selected.clear();
         for subtree in &clip.subtrees {
-            let new_root = level.paste_subtree(subtree, target);
+            let new_root = level.paste_subtree(subtree, paste_position);
             match &mut level.objects[new_root] {
                 LevelObject::Prefab(p) => {
                     if let Some(delta) = world_delta {

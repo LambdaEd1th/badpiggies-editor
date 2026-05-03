@@ -20,7 +20,7 @@ enum TreeContextAction {
 
 enum TreeBlankAction {
     AddObject,
-    Paste,
+    Paste(PastePosition),
     ExpandAll,
     CollapseAll,
     ClearSelection,
@@ -66,6 +66,7 @@ fn handle_tree_blank_response(
     response: &egui::Response,
     can_paste: bool,
     has_selection: bool,
+    paste_position: PastePosition,
     t: &'static crate::locale::I18n,
     blank_action: &mut Option<TreeBlankAction>,
 ) {
@@ -73,15 +74,11 @@ fn handle_tree_blank_response(
         *blank_action = Some(TreeBlankAction::ClearSelection);
     }
     response.context_menu(|ui| {
-        if ui.button(t.get("menu_add_object")).clicked() {
-            *blank_action = Some(TreeBlankAction::AddObject);
-            ui.close();
-        }
         if ui
             .add_enabled(can_paste, egui::Button::new(t.get("menu_paste")))
             .clicked()
         {
-            *blank_action = Some(TreeBlankAction::Paste);
+            *blank_action = Some(TreeBlankAction::Paste(paste_position));
             ui.close();
         }
         ui.separator();
@@ -101,7 +98,91 @@ fn handle_tree_blank_response(
             *blank_action = Some(TreeBlankAction::ClearSelection);
             ui.close();
         }
+        ui.separator();
+        if ui.button(t.get("menu_add_object")).clicked() {
+            *blank_action = Some(TreeBlankAction::AddObject);
+            ui.close();
+        }
     });
+}
+
+fn root_end_paste_position(level: &LevelData) -> PastePosition {
+    level.roots.last().copied().map_or(PastePosition::AppendTo(None), |idx| {
+        PastePosition::Exact(DropPosition::After(idx))
+    })
+}
+
+fn row_blank_paste_position(
+    response: &egui::Response,
+    row_rect: egui::Rect,
+    idx: ObjectIndex,
+    allows_into_parent: bool,
+) -> PastePosition {
+    let frac = response
+        .interact_pointer_pos()
+        .map(|pointer| ((pointer.y - row_rect.top()) / row_rect.height()).clamp(0.0, 1.0))
+        .unwrap_or(1.0);
+    let drop_pos = if allows_into_parent {
+        if frac < 0.25 {
+            DropPosition::Before(idx)
+        } else if frac > 0.75 {
+            DropPosition::After(idx)
+        } else {
+            DropPosition::IntoParent(idx)
+        }
+    } else if frac < 0.5 {
+        DropPosition::Before(idx)
+    } else {
+        DropPosition::After(idx)
+    };
+    PastePosition::Exact(drop_pos)
+}
+
+fn handle_tree_item_context_menu(
+    response: &egui::Response,
+    context_indices: &[ObjectIndex],
+    t: &'static crate::locale::I18n,
+    context_action: &mut Option<TreeContextAction>,
+) {
+    response.context_menu(|ui| {
+        if ui.button(t.get("menu_copy")).clicked() {
+            *context_action = Some(TreeContextAction::Copy(context_indices.to_vec()));
+            ui.close();
+        }
+        if ui.button(t.get("menu_cut")).clicked() {
+            *context_action = Some(TreeContextAction::Cut(context_indices.to_vec()));
+            ui.close();
+        }
+        if ui.button(t.get("menu_duplicate")).clicked() {
+            *context_action = Some(TreeContextAction::Duplicate(context_indices.to_vec()));
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(t.get("menu_delete")).clicked() {
+            *context_action = Some(TreeContextAction::Delete(context_indices.to_vec()));
+            ui.close();
+        }
+    });
+}
+
+fn interact_tree_row_blank(
+    ui: &mut egui::Ui,
+    idx: ObjectIndex,
+    row_rect: egui::Rect,
+) -> Option<egui::Response> {
+    let panel_right = ui.max_rect().right();
+    if row_rect.right() >= panel_right {
+        return None;
+    }
+    let blank_rect = egui::Rect::from_min_max(
+        egui::pos2(row_rect.right(), row_rect.top()),
+        egui::pos2(panel_right, row_rect.bottom()),
+    );
+    Some(ui.interact(
+        blank_rect,
+        ui.id().with("object_tree_row_blank").with(idx),
+        egui::Sense::click(),
+    ))
 }
 
 impl EditorApp {
@@ -126,12 +207,21 @@ impl EditorApp {
                 let has_selection = !self.tabs[self.active_tab].selected.is_empty();
                 let sel_snapshot = self.tabs[self.active_tab].selected.clone();
                 if let Some(ref level) = self.tabs[self.active_tab].level {
+                    let root_end_paste = root_end_paste_position(level);
                     let scroll_output = egui::ScrollArea::vertical()
                         .auto_shrink(false)
                         .show(ui, |ui| {
                             for &root_idx in &level.roots {
-                                let (dr, cl, action) =
-                                    show_object_tree(ui, level, root_idx, &sel_snapshot, 0, t);
+                                let (dr, cl, action, row_blank_action) = show_object_tree(
+                                    ui,
+                                    level,
+                                    root_idx,
+                                    &sel_snapshot,
+                                    0,
+                                    can_paste,
+                                    has_selection,
+                                    t,
+                                );
                                 if dr.is_some() && drop_action.is_none() {
                                     drop_action = dr;
                                 }
@@ -140,6 +230,9 @@ impl EditorApp {
                                 }
                                 if action.is_some() && context_action.is_none() {
                                     context_action = action;
+                                }
+                                if row_blank_action.is_some() && blank_action.is_none() {
+                                    blank_action = row_blank_action;
                                 }
                             }
 
@@ -154,6 +247,7 @@ impl EditorApp {
                                 &tail_blank_response,
                                 can_paste,
                                 has_selection,
+                                root_end_paste,
                                 t,
                                 &mut blank_action,
                             );
@@ -177,6 +271,7 @@ impl EditorApp {
                             &blank_response,
                             can_paste,
                             has_selection,
+                            root_end_paste,
                             t,
                             &mut blank_action,
                         );
@@ -248,7 +343,9 @@ impl EditorApp {
                         TreeBlankAction::AddObject => {
                             self.prepare_add_object_dialog();
                         }
-                        TreeBlankAction::Paste => self.paste(),
+                        TreeBlankAction::Paste(paste_position) => {
+                            self.paste_with_context(&[], None, Some(paste_position));
+                        }
                         TreeBlankAction::ExpandAll => {
                             if let Some(level) = self.tabs[self.active_tab].level.as_ref() {
                                 set_tree_expanded_all(ui.ctx(), level, true);
@@ -316,17 +413,21 @@ fn show_object_tree(
     idx: ObjectIndex,
     selected: &BTreeSet<ObjectIndex>,
     depth: usize,
+    can_paste: bool,
+    has_selection: bool,
     t: &'static crate::locale::I18n,
 ) -> (
     Option<(ObjectIndex, DropPosition)>,
     Option<ObjectIndex>,
     Option<TreeContextAction>,
+    Option<TreeBlankAction>,
 ) {
     let obj = &level.objects[idx];
     let is_selected = selected.contains(&idx);
     let mut drop_result: Option<(ObjectIndex, DropPosition)> = None;
     let mut clicked: Option<ObjectIndex> = None;
     let mut context_action: Option<TreeContextAction> = None;
+    let mut blank_action: Option<TreeBlankAction> = None;
     let context_indices: Vec<ObjectIndex> = if is_selected {
         selected.iter().copied().collect()
     } else {
@@ -353,25 +454,18 @@ fn show_object_tree(
                 label_res
             });
             let header_rect = header_res.response.rect;
-            header_res.inner.context_menu(|ui| {
-                if ui.button(t.get("menu_copy")).clicked() {
-                    context_action = Some(TreeContextAction::Copy(context_indices.clone()));
-                    ui.close();
-                }
-                if ui.button(t.get("menu_cut")).clicked() {
-                    context_action = Some(TreeContextAction::Cut(context_indices.clone()));
-                    ui.close();
-                }
-                if ui.button(t.get("menu_duplicate")).clicked() {
-                    context_action = Some(TreeContextAction::Duplicate(context_indices.clone()));
-                    ui.close();
-                }
-                ui.separator();
-                if ui.button(t.get("menu_delete")).clicked() {
-                    context_action = Some(TreeContextAction::Delete(context_indices.clone()));
-                    ui.close();
-                }
-            });
+            handle_tree_item_context_menu(&header_res.inner, &context_indices, t, &mut context_action);
+            if let Some(blank_res) = interact_tree_row_blank(ui, idx, header_rect) {
+                let paste_position = row_blank_paste_position(&blank_res, header_rect, idx, true);
+                handle_tree_blank_response(
+                    &blank_res,
+                    can_paste,
+                    has_selection,
+                    paste_position,
+                    t,
+                    &mut blank_action,
+                );
+            }
 
             // Drop target detection on the header
             if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
@@ -425,7 +519,17 @@ fn show_object_tree(
             // Show children
             state.show_body_indented(&header_res.response, ui, |ui| {
                 for &child in &parent.children {
-                    let (dr, cl, action) = show_object_tree(ui, level, child, selected, depth + 1, t);
+                    let (dr, cl, action, child_blank_action) =
+                        show_object_tree(
+                            ui,
+                            level,
+                            child,
+                            selected,
+                            depth + 1,
+                            can_paste,
+                            has_selection,
+                            t,
+                        );
                     if dr.is_some() && drop_result.is_none() {
                         drop_result = dr;
                     }
@@ -434,6 +538,9 @@ fn show_object_tree(
                     }
                     if action.is_some() && context_action.is_none() {
                         context_action = action;
+                    }
+                    if child_blank_action.is_some() && blank_action.is_none() {
+                        blank_action = child_blank_action;
                     }
                 }
             });
@@ -448,25 +555,18 @@ fn show_object_tree(
             if label_res.dragged() {
                 label_res.dnd_set_drag_payload(DndPayload(idx));
             }
-            label_res.context_menu(|ui| {
-                if ui.button(t.get("menu_copy")).clicked() {
-                    context_action = Some(TreeContextAction::Copy(context_indices.clone()));
-                    ui.close();
-                }
-                if ui.button(t.get("menu_cut")).clicked() {
-                    context_action = Some(TreeContextAction::Cut(context_indices.clone()));
-                    ui.close();
-                }
-                if ui.button(t.get("menu_duplicate")).clicked() {
-                    context_action = Some(TreeContextAction::Duplicate(context_indices.clone()));
-                    ui.close();
-                }
-                ui.separator();
-                if ui.button(t.get("menu_delete")).clicked() {
-                    context_action = Some(TreeContextAction::Delete(context_indices.clone()));
-                    ui.close();
-                }
-            });
+            handle_tree_item_context_menu(&label_res, &context_indices, t, &mut context_action);
+            if let Some(blank_res) = interact_tree_row_blank(ui, idx, label_res.rect) {
+                let paste_position = row_blank_paste_position(&blank_res, label_res.rect, idx, false);
+                handle_tree_blank_response(
+                    &blank_res,
+                    can_paste,
+                    has_selection,
+                    paste_position,
+                    t,
+                    &mut blank_action,
+                );
+            }
 
             // Drop target: upper half = before, lower half = after
             if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
@@ -492,7 +592,7 @@ fn show_object_tree(
             }
         }
     }
-    (drop_result, clicked, context_action)
+    (drop_result, clicked, context_action, blank_action)
 }
 
 /// Collect all object indices in tree display order (depth-first).

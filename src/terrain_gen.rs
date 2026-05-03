@@ -7,6 +7,7 @@
 //! - `ear_clip_triangulate`: fill polygon from boundary + curve nodes
 //! - `encode_control_png`: 1×N RGBA PNG from node texture indices
 
+use crate::error::{AppError, AppResult};
 use crate::types::{TerrainData, TerrainMesh, Vec2};
 
 /// A curve node: position + texture index (0 or 1 in practice).
@@ -605,7 +606,7 @@ fn cross2d(a: Vec2, b: Vec2) -> f32 {
 
 /// Encode node texture indices into a 1×N PNG (control texture).
 /// Returns raw PNG bytes.
-pub fn encode_control_png(nodes: &[CurveNode]) -> Vec<u8> {
+pub fn encode_control_png(nodes: &[CurveNode]) -> AppResult<Vec<u8>> {
     let n = nodes.len().max(1);
     // Control texture width = next power of two of node count
     let tex_width = n.next_power_of_two();
@@ -633,9 +634,11 @@ pub fn encode_control_png(nodes: &[CurveNode]) -> Vec<u8> {
             1,
             image::ExtendedColorType::Rgba8,
         )
-        .expect("PNG encode failed");
+        .map_err(|error| {
+            AppError::invalid_data_key1("error_terrain_control_png_encode", error.to_string())
+        })?;
     }
-    buf
+    Ok(buf)
 }
 
 /// Compute initial boundary rect from the original fill mesh vertices.
@@ -704,8 +707,17 @@ pub fn regenerate_terrain(td: &mut TerrainData, nodes: &[CurveNode]) {
     td.fill_mesh = rebuild_fill_mesh(nodes, boundary);
 
     // Rebuild control texture
-    td.control_texture_data = Some(encode_control_png(nodes));
-    td.control_texture_count = 1;
+    match encode_control_png(nodes) {
+        Ok(png) => {
+            td.control_texture_data = Some(png);
+            td.control_texture_count = 1;
+        }
+        Err(error) => {
+            log::error!("Failed to rebuild terrain control texture: {error}");
+            td.control_texture_data = None;
+            td.control_texture_count = 0;
+        }
+    }
 }
 
 // ── Vector math helpers ──
@@ -806,8 +818,16 @@ mod tests {
                 texture: 0,
             },
         ];
-        let png = encode_control_png(&nodes);
-        let pixels = decode_control_png_pixels(&png).unwrap();
+        let png_result = encode_control_png(&nodes);
+        assert!(png_result.is_ok(), "control PNG should encode: {png_result:?}");
+        let Ok(png) = png_result else {
+            return;
+        };
+        let pixels_result = decode_control_png_pixels(&png);
+        assert!(pixels_result.is_some(), "control PNG should decode");
+        let Some(pixels) = pixels_result else {
+            return;
+        };
         // Node 0: R=255, G=0 → texture 0
         assert_eq!(pixels[0], 255);
         assert_eq!(pixels[1], 0);

@@ -10,7 +10,6 @@ use super::bg_shader;
 use super::clouds::{CLOUD_CONFIGS, CloudInstance};
 use super::compounds;
 use super::dark_overlay::{construction_grid_start_light, parse_dark_level_data};
-use super::dark_shader;
 use super::edge_shader;
 use super::fill_shader;
 use super::grid;
@@ -62,12 +61,6 @@ impl LevelRenderer {
                 rs.target_format,
             ))
         });
-        let dark_resources = render_state.map(|rs| {
-            Arc::new(dark_shader::init_dark_resources(
-                &rs.device,
-                rs.target_format,
-            ))
-        });
         Self {
             camera: Camera::default(),
             world_positions: Vec::new(),
@@ -80,7 +73,6 @@ impl LevelRenderer {
             show_grid_overlay: true,
             level_key: String::new(),
             tex_cache: assets::TextureCache::new(),
-            asset_base: None,
             panning: false,
             clicked_object: None,
             clicked_with_cmd: false,
@@ -146,8 +138,6 @@ impl LevelRenderer {
             fill_texture_cache: fill_shader::FillTextureCache::new(),
             fill_gpu_meshes: Vec::new(),
             fill_slot_counter: 0,
-            dark_resources,
-            dark_gpu_meshes: None,
             hovered_terrain_node: None,
             terrain_scratch_mesh: egui::Mesh::default(),
             clicked_empty: false,
@@ -176,7 +166,6 @@ impl LevelRenderer {
             show_grid_overlay: self.show_grid_overlay,
             level_key: String::new(),
             tex_cache: assets::TextureCache::new(),
-            asset_base: self.asset_base.clone(),
             panning: false,
             clicked_object: None,
             clicked_with_cmd: false,
@@ -242,8 +231,6 @@ impl LevelRenderer {
             fill_texture_cache: fill_shader::FillTextureCache::new(),
             fill_gpu_meshes: Vec::new(),
             fill_slot_counter: 0,
-            dark_resources: self.dark_resources.clone(),
-            dark_gpu_meshes: None,
             hovered_terrain_node: None,
             terrain_scratch_mesh: egui::Mesh::default(),
             clicked_empty: false,
@@ -281,7 +268,6 @@ impl LevelRenderer {
         self.dark_overlay_mesh = None;
         self.dark_overlay_light = None;
         self.dark_overlay_ring = None;
-        self.dark_gpu_meshes = None;
         self.dark_overlay_key = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         self.dark_overlay_live_key = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         self.dark_overlay_stable_frames = 0;
@@ -408,7 +394,9 @@ impl LevelRenderer {
                 if td.edge_vertices.is_empty() || td.edge_ctrl_pixels.is_none() {
                     continue;
                 }
-                let ctrl = td.edge_ctrl_pixels.as_ref().unwrap();
+                let Some(ctrl) = td.edge_ctrl_pixels.as_ref() else {
+                    continue;
+                };
                 // Load splat textures from embedded assets
                 let splat0 = td
                     .edge_splat0
@@ -659,24 +647,6 @@ impl LevelRenderer {
 
         // Parse camera limits from LevelManager
         self.camera_limits = parse_camera_limits(level);
-
-        self.dark_gpu_meshes = self.wgpu_device.as_ref().and_then(|device| {
-            if self.lit_area_polygons.is_empty() {
-                None
-            } else {
-                Some(Arc::new(dark_shader::build_dark_gpu_meshes(
-                    device,
-                    self.lit_area_polygons.iter().map(|polygon| {
-                        let border = if polygon.border_vertices.len() >= 3 {
-                            polygon.border_vertices.as_slice()
-                        } else {
-                            polygon.vertices.as_slice()
-                        };
-                        (border, polygon.vertices.as_slice())
-                    }),
-                )))
-            }
-        });
 
         // Fit camera to level bounds
         self.fit_to_level();

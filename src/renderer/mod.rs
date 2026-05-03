@@ -7,7 +7,6 @@ mod compound_data;
 mod compound_overrides;
 pub mod compounds;
 pub mod dark_overlay;
-pub mod dark_shader;
 pub mod edge_shader;
 pub mod fill_shader;
 mod goal_flag;
@@ -268,9 +267,6 @@ pub struct LevelRenderer {
     level_key: String,
     /// Atlas texture cache.
     tex_cache: assets::TextureCache,
-    /// Asset base directory (for loading textures).
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-    pub asset_base: Option<String>,
     /// Is panning active?
     panning: bool,
     /// Object index clicked this frame (if any).
@@ -394,10 +390,6 @@ pub struct LevelRenderer {
     sprite_atlas_cache: sprite_shader::SpriteAtlasCache,
     /// Per-frame sprite shader draw slot counter.
     sprite_slot_counter: u32,
-    /// Shared wgpu dark overlay shader pipeline + resources.
-    dark_resources: Option<Arc<dark_shader::DarkResources>>,
-    /// Pre-built GPU meshes for dark overlay (fan-triangulated lit-area polygons).
-    dark_gpu_meshes: Option<Arc<dark_shader::DarkGpuMeshes>>,
     /// Shared wgpu terrain fill shader pipeline + resources.
     fill_resources: Option<Arc<fill_shader::FillResources>>,
     /// Cached GPU fill textures (loaded lazily per ground texture).
@@ -602,8 +594,8 @@ impl LevelRenderer {
             };
             ui.ctx().set_cursor_icon(icon);
         }
-        if self.bounds_dragging.is_some() {
-            let icon = match self.bounds_dragging.as_ref().unwrap().handle {
+        if let Some(bounds_dragging) = self.bounds_dragging.as_ref() {
+            let icon = match bounds_dragging.handle {
                 BoundsHandle::Move => egui::CursorIcon::Grabbing,
                 BoundsHandle::Left | BoundsHandle::Right => egui::CursorIcon::ResizeHorizontal,
                 BoundsHandle::Top | BoundsHandle::Bottom => egui::CursorIcon::ResizeVertical,

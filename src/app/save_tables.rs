@@ -221,11 +221,14 @@ pub(super) fn edit_contraption(
     ));
 
     if !parts.is_empty() {
-        let min_x = parts.iter().map(|p| p.x).min().unwrap();
-        let max_x = parts.iter().map(|p| p.x).max().unwrap();
-        let min_y = parts.iter().map(|p| p.y).min().unwrap();
-        let max_y = parts.iter().map(|p| p.y).max().unwrap();
-        ui.label(format!("Grid: X [{min_x}, {max_x}]  Y [{min_y}, {max_y}]"));
+        if let (Some(min_x), Some(max_x), Some(min_y), Some(max_y)) = (
+            parts.iter().map(|p| p.x).min(),
+            parts.iter().map(|p| p.x).max(),
+            parts.iter().map(|p| p.y).min(),
+            parts.iter().map(|p| p.y).max(),
+        ) {
+            ui.label(format!("Grid: X [{min_x}, {max_x}]  Y [{min_y}, {max_y}]"));
+        }
     }
     ui.separator();
 

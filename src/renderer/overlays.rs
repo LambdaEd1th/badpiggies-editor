@@ -394,7 +394,7 @@ impl LevelRenderer {
         let grid_step = nice
             .iter()
             .copied()
-            .min_by(|a, b| (a - base).abs().partial_cmp(&(b - base).abs()).unwrap())
+            .min_by(|a, b| (a - base).abs().total_cmp(&(b - base).abs()))
             .unwrap_or(5.0);
         let color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 25);
 

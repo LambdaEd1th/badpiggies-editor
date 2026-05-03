@@ -649,26 +649,6 @@ impl TextureCache {
         Some(id)
     }
 
-    /// Load a texture from raw RGBA bytes (for control textures decoded from level data).
-    #[allow(dead_code)]
-    pub fn load_from_rgba(
-        &mut self,
-        ctx: &egui::Context,
-        key: &str,
-        pixels: &[u8],
-        width: usize,
-        height: usize,
-    ) -> egui::TextureId {
-        if let Some(handle) = self.textures.get(key) {
-            return handle.id();
-        }
-        let color_image = color_image_premultiplied([width, height], pixels);
-        let handle = ctx.load_texture(key, color_image, egui::TextureOptions::LINEAR);
-        let id = handle.id();
-        self.textures.insert(key.to_string(), handle);
-        id
-    }
-
     /// Load a PNG texture with repeat (tiling) wrap mode.
     /// `path` is a relative asset key (e.g. "ground/Ground_Rocks_Texture.png").
     pub fn load_texture_repeat(

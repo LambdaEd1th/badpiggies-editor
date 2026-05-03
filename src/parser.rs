@@ -383,7 +383,10 @@ fn write_object(writer: &mut BinaryWriter, level: &LevelData, idx: ObjectIndex) 
 }
 
 fn write_prefab_instance(writer: &mut BinaryWriter, level: &LevelData, idx: ObjectIndex) {
-    let obj = level.objects[idx].as_prefab().unwrap();
+    let Some(obj) = level.objects[idx].as_prefab() else {
+        log::error!("serialize_level invariant violated: object {idx} is not a prefab");
+        return;
+    };
 
     writer.write_string(&obj.name);
     writer.write_int16(obj.prefab_index);
@@ -405,7 +408,10 @@ fn write_prefab_instance(writer: &mut BinaryWriter, level: &LevelData, idx: Obje
 }
 
 fn write_parent_object(writer: &mut BinaryWriter, level: &LevelData, idx: ObjectIndex) {
-    let obj = level.objects[idx].as_parent().unwrap();
+    let Some(obj) = level.objects[idx].as_parent() else {
+        log::error!("serialize_level invariant violated: object {idx} is not a parent");
+        return;
+    };
 
     writer.write_string(&obj.name);
     write_vector3(writer, &obj.position);
@@ -485,7 +491,9 @@ mod tests {
         let bytes = w.into_bytes();
 
         let mut r = BinaryReader::new(bytes);
-        let s = r.read_string().unwrap();
+        let Ok(s) = r.read_string() else {
+            panic!("test string should round-trip");
+        };
         assert_eq!(s, "Hello, 世界!");
     }
 
@@ -501,12 +509,30 @@ mod tests {
         let bytes = w.into_bytes();
 
         let mut r = BinaryReader::new(bytes);
-        assert_eq!(r.read_int16().unwrap(), -1234);
-        assert_eq!(r.read_int32().unwrap(), 0x12345678);
-        assert_eq!(r.read_uint32().unwrap(), 0xDEADBEEF);
-        assert!((r.read_single().unwrap() - PI).abs() < 0.001);
-        assert!(r.read_boolean().unwrap());
-        assert!(!r.read_boolean().unwrap());
+        let Ok(value_i16) = r.read_int16() else {
+            panic!("i16 should round-trip");
+        };
+        let Ok(value_i32) = r.read_int32() else {
+            panic!("i32 should round-trip");
+        };
+        let Ok(value_u32) = r.read_uint32() else {
+            panic!("u32 should round-trip");
+        };
+        let Ok(value_f32) = r.read_single() else {
+            panic!("f32 should round-trip");
+        };
+        let Ok(value_true) = r.read_boolean() else {
+            panic!("bool true should round-trip");
+        };
+        let Ok(value_false) = r.read_boolean() else {
+            panic!("bool false should round-trip");
+        };
+        assert_eq!(value_i16, -1234);
+        assert_eq!(value_i32, 0x12345678);
+        assert_eq!(value_u32, 0xDEADBEEF);
+        assert!((value_f32 - PI).abs() < 0.001);
+        assert!(value_true);
+        assert!(!value_false);
     }
 
     #[test]
@@ -532,10 +558,14 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../test_levels/assetbundles/episode_1_levels.unity3d/Level_05_data.bytes"
         );
-        let data = std::fs::read(path).expect("test level file not found");
+        let Ok(data) = std::fs::read(path) else {
+            panic!("test level file not found");
+        };
         let original = data.clone();
 
-        let level = parse_level(data).expect("parse failed");
+        let Ok(level) = parse_level(data) else {
+            panic!("parse failed");
+        };
         assert!(!level.objects.is_empty(), "level should have objects");
         assert!(!level.roots.is_empty(), "level should have roots");
 

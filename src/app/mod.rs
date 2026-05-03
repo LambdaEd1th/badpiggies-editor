@@ -11,11 +11,9 @@ mod tree;
 
 use eframe::egui;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::JsCast;
-
 use std::collections::BTreeSet;
 
+use crate::error::{AppError, AppResult};
 use crate::locale::{I18n, Language};
 use crate::parser;
 use crate::renderer::{CursorMode, LevelRenderer, TerrainPresetShape};
@@ -25,6 +23,37 @@ use crate::types::*;
 thread_local! {
     static WASM_OPEN_RESULT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
     static WASM_OPEN_XML_SAVE: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
+}
+
+fn status_parse_error_message(i18n: &I18n, error: impl Into<AppError>) -> String {
+    let error = error.into();
+    i18n.fmt1("status_parse_error", &error.localized(i18n))
+}
+
+fn parse_level_text(name: &str, text: &str) -> AppResult<LevelData> {
+    if name.ends_with(".yaml") || name.ends_with(".yml") {
+        serde_yaml::from_str(text).map_err(|error| {
+            AppError::invalid_data_key1("error_parse_yaml_level", error.to_string())
+        })
+    } else if name.ends_with(".toml") {
+        toml::from_str(text).map_err(|error| {
+            AppError::invalid_data_key1("error_parse_toml_level", error.to_string())
+        })
+    } else {
+        Err(AppError::invalid_data_key("error_unsupported_file_format"))
+    }
+}
+
+fn serialize_level_yaml(level: &LevelData) -> AppResult<String> {
+    serde_yaml::to_string(level).map_err(|error| {
+        AppError::invalid_data_key1("error_serialize_yaml_level", error.to_string())
+    })
+}
+
+fn serialize_level_toml(level: &LevelData) -> AppResult<String> {
+    toml::to_string_pretty(level).map_err(|error| {
+        AppError::invalid_data_key1("error_serialize_toml_level", error.to_string())
+    })
 }
 
 /// Maximum number of undo snapshots to keep.
@@ -123,7 +152,7 @@ impl Tab {
                 self.status = i18n.fmt_status_loaded(obj_count, root_count);
             }
             Err(e) => {
-                self.status = format!("解析失败: {}", e);
+                self.status = status_parse_error_message(i18n, AppError::from(e));
             }
         }
     }
@@ -135,15 +164,7 @@ impl Tab {
         i18n: &I18n,
         source_path: Option<String>,
     ) {
-        let result: Result<LevelData, String> = if name.ends_with(".yaml") || name.ends_with(".yml")
-        {
-            serde_yaml::from_str(text).map_err(|e| e.to_string())
-        } else if name.ends_with(".toml") {
-            toml::from_str(text).map_err(|e| e.to_string())
-        } else {
-            Err("不支持的文件格式".to_string())
-        };
-        match result {
+        match parse_level_text(&name, text) {
             Ok(level) => {
                 let obj_count = level.objects.len();
                 let root_count = level.roots.len();
@@ -158,7 +179,7 @@ impl Tab {
                 self.status = i18n.fmt_status_loaded(obj_count, root_count);
             }
             Err(e) => {
-                self.status = format!("解析失败: {}", e);
+                self.status = status_parse_error_message(i18n, e);
             }
         }
     }
@@ -167,16 +188,12 @@ impl Tab {
         self.level.as_ref().map(parser::serialize_level)
     }
 
-    fn export_yaml(&self) -> Option<String> {
-        self.level
-            .as_ref()
-            .and_then(|l| serde_yaml::to_string(l).ok())
+    fn export_yaml(&self) -> AppResult<Option<String>> {
+        self.level.as_ref().map(serialize_level_yaml).transpose()
     }
 
-    fn export_toml(&self) -> Option<String> {
-        self.level
-            .as_ref()
-            .and_then(|l| toml::to_string_pretty(l).ok())
+    fn export_toml(&self) -> AppResult<Option<String>> {
+        self.level.as_ref().map(serialize_level_toml).transpose()
     }
 
     /// Determine the target parent for a paste operation.
@@ -225,6 +242,7 @@ pub struct EditorApp {
     /// Object clipboard for copy/cut/paste (shared across tabs).
     clipboard: Option<Clipboard>,
     /// Graphics API backend name (e.g. "Metal", "Vulkan").
+    #[cfg(not(target_arch = "wasm32"))]
     gpu_backend: String,
     /// Current UI language.
     lang: Language,
@@ -384,24 +402,16 @@ impl EditorApp {
         });
 
         #[cfg(not(target_arch = "wasm32"))]
-        let mut renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
+        let renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
         #[cfg(target_arch = "wasm32")]
         let renderer = LevelRenderer::new(cc.wgpu_render_state.as_ref());
 
+        #[cfg(not(target_arch = "wasm32"))]
         let gpu_backend = cc
             .wgpu_render_state
             .as_ref()
             .map(|rs| rs.adapter.get_info().backend.to_string())
             .unwrap_or_default();
-
-        // Auto-detect asset base directory relative to the executable
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let asset_base = Self::detect_asset_base();
-            if let Some(base) = asset_base {
-                renderer.asset_base = Some(base);
-            }
-        }
 
         let lang = Language::from_system();
         let initial_tab = Tab::new(renderer, lang.i18n().get("status_welcome"));
@@ -428,6 +438,7 @@ impl EditorApp {
             show_shortcuts: false,
             show_about: false,
             clipboard: None,
+            #[cfg(not(target_arch = "wasm32"))]
             gpu_backend,
             lang,
             cursor_mode: CursorMode::default(),
@@ -492,34 +503,6 @@ impl EditorApp {
         self.lang.i18n()
     }
 
-    /// Detect the asset base directory by searching upward from the executable.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn detect_asset_base() -> Option<String> {
-        // First try ASSET_BASE env var
-        if let Ok(val) = std::env::var("ASSET_BASE") {
-            let p = std::path::Path::new(&val);
-            if p.is_dir() {
-                return Some(val);
-            }
-        }
-        // Walk up from the executable to find assets/ or level-editor/public/assets
-        let exe = std::env::current_exe().ok()?;
-        let mut dir = exe.parent()?;
-        for _ in 0..6 {
-            // Prefer local assets/ directory (bundled with the editor)
-            let local = dir.join("assets");
-            if local.join("sprites").is_dir() {
-                return Some(local.to_string_lossy().into_owned());
-            }
-            let candidate = dir.join("level-editor/public/assets");
-            if candidate.is_dir() {
-                return Some(candidate.to_string_lossy().into_owned());
-            }
-            dir = dir.parent()?;
-        }
-        None
-    }
-
     /// Handle WASM pending file and native drag-and-drop file input.
     fn handle_file_input(&mut self, _ui: &mut egui::Ui, ctx: &egui::Context) {
         #[cfg(target_arch = "wasm32")]
@@ -537,6 +520,8 @@ impl EditorApp {
                     } else {
                         self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
                     }
+                } else if crate::crypto::SaveFileType::detect(&name).is_some() {
+                    self.load_save_into_tab(name, data);
                 } else {
                     self.load_level_into_tab(name, data, None);
                 }
@@ -793,7 +778,8 @@ impl eframe::App for EditorApp {
         let ctx = ui.ctx().clone();
         let t = self.t();
 
-        // Update OS window title with GPU backend info
+        // The web backend ignores viewport title updates and logs a warning each frame.
+        #[cfg(not(target_arch = "wasm32"))]
         {
             let tab_title = self.tabs[self.active_tab].title(&t.get("tab_untitled"));
             let title = if self.gpu_backend.is_empty() {

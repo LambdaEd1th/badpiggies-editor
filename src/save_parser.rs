@@ -3,6 +3,8 @@
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
+use crate::error::{AppError, AppResult};
+
 /// A key-value entry from Progress.dat or Settings.xml.
 #[derive(Clone)]
 pub struct ProgressEntry {
@@ -47,7 +49,7 @@ fn attr_str(e: &quick_xml::events::BytesStart, name: &[u8]) -> Option<String> {
 }
 
 /// Parse Progress.dat / Settings.xml XML.
-pub fn parse_progress_xml(xml: &str) -> Result<Vec<ProgressEntry>, String> {
+pub fn parse_progress_xml(xml: &str) -> AppResult<Vec<ProgressEntry>> {
     let mut reader = Reader::from_str(xml);
     let mut entries = Vec::new();
     loop {
@@ -66,7 +68,12 @@ pub fn parse_progress_xml(xml: &str) -> Result<Vec<ProgressEntry>, String> {
                 });
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(format!("XML parse error: {e}")),
+            Err(error) => {
+                return Err(AppError::invalid_data_key1(
+                    "error_xml_parse",
+                    error.to_string(),
+                ));
+            }
             _ => {}
         }
     }
@@ -74,7 +81,7 @@ pub fn parse_progress_xml(xml: &str) -> Result<Vec<ProgressEntry>, String> {
 }
 
 /// Parse ContraptionDataset XML.
-pub fn parse_contraption_xml(xml: &str) -> Result<Vec<ContraptionPart>, String> {
+pub fn parse_contraption_xml(xml: &str) -> AppResult<Vec<ContraptionPart>> {
     let mut reader = Reader::from_str(xml);
     let mut parts = Vec::new();
     loop {
@@ -108,7 +115,12 @@ pub fn parse_contraption_xml(xml: &str) -> Result<Vec<ContraptionPart>, String> 
                 });
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(format!("XML parse error: {e}")),
+            Err(error) => {
+                return Err(AppError::invalid_data_key1(
+                    "error_xml_parse",
+                    error.to_string(),
+                ));
+            }
             _ => {}
         }
     }
@@ -116,7 +128,7 @@ pub fn parse_contraption_xml(xml: &str) -> Result<Vec<ContraptionPart>, String> 
 }
 
 /// Parse Achievements.xml.
-pub fn parse_achievements_xml(xml: &str) -> Result<Vec<AchievementEntry>, String> {
+pub fn parse_achievements_xml(xml: &str) -> AppResult<Vec<AchievementEntry>> {
     let mut reader = Reader::from_str(xml);
     let mut entries = Vec::new();
     loop {
@@ -144,7 +156,12 @@ pub fn parse_achievements_xml(xml: &str) -> Result<Vec<AchievementEntry>, String
                 });
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(format!("XML parse error: {e}")),
+            Err(error) => {
+                return Err(AppError::invalid_data_key1(
+                    "error_xml_parse",
+                    error.to_string(),
+                ));
+            }
             _ => {}
         }
     }
@@ -170,8 +187,9 @@ pub fn detect_type_from_xml(xml: &str) -> Option<crate::crypto::SaveFileType> {
 pub fn parse_save_data(
     file_type: &crate::crypto::SaveFileType,
     xml_bytes: &[u8],
-) -> Result<SaveData, String> {
-    let xml = String::from_utf8(xml_bytes.to_vec()).map_err(|e| format!("Invalid UTF-8: {e}"))?;
+) -> AppResult<SaveData> {
+    let xml = String::from_utf8(xml_bytes.to_vec())
+        .map_err(|error| AppError::invalid_data_key1("error_invalid_utf8", error.to_string()))?;
     // Strip BOM if present
     let xml = xml.strip_prefix('\u{feff}').unwrap_or(&xml);
     match file_type {
@@ -255,7 +273,10 @@ pub fn serialize_save_data(data: &SaveData) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContraptionPart, serialize_contraption_xml};
+    use super::{ContraptionPart, parse_progress_xml, parse_save_data, serialize_contraption_xml};
+    use crate::crypto::SaveFileType;
+    use crate::error::AppError;
+    use crate::locale::Language;
 
     #[test]
     fn serialize_contraption_xml_preserves_dataset_wrapper_layout() {
@@ -289,6 +310,34 @@ mod tests {
                 "  </ContraptionDatasetList>\n",
                 "</ContraptionDataset>"
             )
+        );
+    }
+
+    #[test]
+    fn parse_progress_xml_reports_invalid_data_for_malformed_xml() {
+        let error = match parse_progress_xml("<data><Int key=\"coins\" value=\"1\"></data>") {
+            Ok(_) => panic!("malformed XML should fail"),
+            Err(error) => error,
+        };
+
+        assert!(
+            matches!(error, AppError::InvalidData(_))
+                && error.localized(Language::En.i18n()).contains("XML parse error"),
+            "expected InvalidData XML parse error, got {error}"
+        );
+    }
+
+    #[test]
+    fn parse_save_data_reports_invalid_data_for_invalid_utf8() {
+        let error = match parse_save_data(&SaveFileType::Progress, &[0xff, 0xfe, 0xfd]) {
+            Ok(_) => panic!("invalid UTF-8 should fail"),
+            Err(error) => error,
+        };
+
+        assert!(
+            matches!(error, AppError::InvalidData(_))
+                && error.localized(Language::En.i18n()).contains("Invalid UTF-8"),
+            "expected InvalidData UTF-8 error, got {error}"
         );
     }
 }

@@ -123,7 +123,9 @@ impl EditorApp {
         }
         tab.history.redo.clear();
 
-        let level = tab.level.as_mut().unwrap();
+        let Some(level) = tab.level.as_mut() else {
+            return;
+        };
         tab.selected.clear();
         for (subtree, target) in &items {
             let new_root = level.paste_subtree(subtree, PastePosition::AppendTo(*target));
@@ -254,17 +256,16 @@ impl EditorApp {
         } else {
             context_indices.iter().copied().collect()
         };
+        let Some(level_ref) = tab.level.as_ref() else {
+            return;
+        };
         let paste_position = paste_position.unwrap_or_else(|| {
-            PastePosition::AppendTo(Tab::paste_target_parent(
-                tab.level.as_ref().unwrap(),
-                &target_selection,
-            ))
+            PastePosition::AppendTo(Tab::paste_target_parent(level_ref, &target_selection))
         });
         // push_undo inline
         {
-            let level = tab.level.as_ref().unwrap();
             tab.history.undo.push(Snapshot {
-                level: level.clone(),
+                level: level_ref.clone(),
                 selected: tab.selected.clone(),
             });
             if tab.history.undo.len() > UNDO_MAX {
@@ -272,7 +273,9 @@ impl EditorApp {
             }
             tab.history.redo.clear();
         }
-        let level = tab.level.as_mut().unwrap();
+        let Some(level) = tab.level.as_mut() else {
+            return;
+        };
         tab.selected.clear();
         for subtree in &clip.subtrees {
             let new_root = level.paste_subtree(subtree, paste_position);
@@ -351,7 +354,8 @@ impl EditorApp {
 
     /// Load a save file into the active tab (or a new tab if active tab already has content).
     pub(super) fn load_save_into_tab(&mut self, name: String, data: Vec<u8>) {
-        let (sv, status) = super::save_viewer::SaveViewerData::load(&name, &data);
+        let i18n = self.lang.i18n();
+        let (sv, status) = super::save_viewer::SaveViewerData::load(&name, &data, i18n);
         let tab = &self.tabs[self.active_tab];
         let is_empty = tab.level.is_none() && tab.save_view.is_none();
         if is_empty {
@@ -370,7 +374,8 @@ impl EditorApp {
 
     /// Load a decrypted XML save file into the active tab (or a new tab).
     pub(super) fn load_xml_into_tab(&mut self, name: String, data: Vec<u8>) {
-        let (sv, status) = super::save_viewer::SaveViewerData::load_xml(&name, &data);
+        let i18n = self.lang.i18n();
+        let (sv, status) = super::save_viewer::SaveViewerData::load_xml(&name, &data, i18n);
         let tab = &self.tabs[self.active_tab];
         let is_empty = tab.level.is_none() && tab.save_view.is_none();
         if is_empty {

@@ -8,6 +8,7 @@ use eframe::egui;
 use crate::assets::TextureCache;
 
 use crate::crypto::{self, SaveFileType};
+use crate::error::AppError;
 use crate::locale::I18n;
 use crate::renderer::grid::ConstructionGridCellStyle;
 use crate::renderer::{sprite_shader, LevelRenderer};
@@ -69,7 +70,7 @@ pub struct SaveViewerData {
     /// Parsed structured data (right panel, editable).
     pub data: Option<SaveData>,
     /// Error message if decryption/parsing failed.
-    pub error: Option<String>,
+    pub error: Option<AppError>,
     /// Filter string for searching entries.
     pub filter: String,
     /// Whether data has been modified since load.
@@ -121,17 +122,26 @@ fn resolve_level_name(file_name: &str) -> Option<String> {
     }
 }
 
+fn localized_file_type_label(file_type: Option<&SaveFileType>, i18n: &I18n) -> String {
+    match file_type {
+        Some(file_type) => file_type.localized_label(i18n),
+        None => i18n.get("save_file_type_unknown"),
+    }
+}
+
 impl SaveViewerData {
     /// Decrypt and parse a save file, returning the editor data and a status message.
-    pub fn load(file_name: &str, raw_data: &[u8]) -> (Self, String) {
+    pub fn load(file_name: &str, raw_data: &[u8], i18n: &I18n) -> (Self, String) {
         let Some(file_type) = SaveFileType::detect(file_name) else {
+            let error = AppError::invalid_data_key("error_unknown_file_type");
+            let status = error.localized(i18n);
             return (
                 Self {
                     file_type: None,
-                    file_type_label: "Unknown".into(),
+                    file_type_label: localized_file_type_label(None, i18n),
                     xml_text: String::new(),
                     data: None,
-                    error: Some("Unknown file type".into()),
+                    error: Some(error),
                     filter: String::new(),
                     dirty: false,
                     split_ratio: 0.5,
@@ -151,11 +161,11 @@ impl SaveViewerData {
                     preview_tex_cache: TextureCache::new(),
                     level_name: None,
                 },
-                "Unknown file type".into(),
+                status,
             );
         };
 
-        let file_type_label = file_type.label().to_string();
+        let file_type_label = localized_file_type_label(Some(&file_type), i18n);
         let level_name = resolve_level_name(file_name);
 
         match crypto::decrypt_save_file(&file_type, raw_data) {
@@ -166,16 +176,24 @@ impl SaveViewerData {
                     .unwrap_or(&xml)
                     .replace("\r\n", "\n")
                     .replace('\r', "\n");
-                let data = parse_save_data(&file_type, &xml_bytes).ok();
+                let (data, parse_error) = match parse_save_data(&file_type, &xml_bytes) {
+                    Ok(data) => (Some(data), None),
+                    Err(error) => (None, Some(error)),
+                };
                 let is_contraption = matches!(data, Some(SaveData::Contraption(_)));
-                let status = format!("{file_type_label}: {} bytes", xml_clean.len());
+                let status = parse_error
+                    .as_ref()
+                    .map(|error| error.localized(i18n))
+                    .unwrap_or_else(|| {
+                        i18n.fmt_save_viewer_type_bytes(&file_type_label, xml_clean.len())
+                    });
                 (
                     Self {
                         file_type: Some(file_type),
                         file_type_label,
                         xml_text: xml_clean,
                         data,
-                        error: None,
+                        error: parse_error,
                         filter: String::new(),
                         dirty: false,
                         split_ratio: 0.5,
@@ -198,39 +216,42 @@ impl SaveViewerData {
                     status,
                 )
             }
-            Err(e) => (
-                Self {
-                    file_type: Some(file_type),
-                    file_type_label,
-                    xml_text: String::new(),
-                    data: None,
-                    error: Some(e.clone()),
-                    filter: String::new(),
-                    dirty: false,
-                    split_ratio: 0.5,
-                    show_xml: true,
-                    show_table: true,
-                    undo_stack: Vec::new(),
-                    redo_stack: Vec::new(),
-                    selected: HashSet::new(),
-                    last_clicked: None,
-                    xml_editing_snapshot: None,
-                    scroll_to_xml_entry: None,
-                    highlighted_xml_line: None,
-                    xml_context_menu_open: false,
-                    xml_context_menu_pos: None,
-                    xml_context_menu_wait_for_release: false,
-                    show_preview: false,
-                    preview_tex_cache: TextureCache::new(),
-                    level_name,
-                },
-                e,
-            ),
+            Err(e) => {
+                let message = e.localized(i18n);
+                (
+                    Self {
+                        file_type: Some(file_type),
+                        file_type_label,
+                        xml_text: String::new(),
+                        data: None,
+                        error: Some(e),
+                        filter: String::new(),
+                        dirty: false,
+                        split_ratio: 0.5,
+                        show_xml: true,
+                        show_table: true,
+                        undo_stack: Vec::new(),
+                        redo_stack: Vec::new(),
+                        selected: HashSet::new(),
+                        last_clicked: None,
+                        xml_editing_snapshot: None,
+                        scroll_to_xml_entry: None,
+                        highlighted_xml_line: None,
+                        xml_context_menu_open: false,
+                        xml_context_menu_pos: None,
+                        xml_context_menu_wait_for_release: false,
+                        show_preview: false,
+                        preview_tex_cache: TextureCache::new(),
+                        level_name,
+                    },
+                    message,
+                )
+            }
         }
     }
 
     /// Load a decrypted XML file directly (no decryption), detecting type from content.
-    pub fn load_xml(file_name: &str, xml_bytes: &[u8]) -> (Self, String) {
+    pub fn load_xml(file_name: &str, xml_bytes: &[u8], i18n: &I18n) -> (Self, String) {
         let xml_raw = String::from_utf8_lossy(xml_bytes);
         let xml_clean = xml_raw
             .strip_prefix('\u{feff}')
@@ -239,24 +260,29 @@ impl SaveViewerData {
             .replace('\r', "\n");
 
         let file_type = crate::save_parser::detect_type_from_xml(&xml_clean);
-        let file_type_label = file_type
-            .as_ref()
-            .map(|ft| ft.label().to_string())
-            .unwrap_or_else(|| "Unknown".into());
+        let file_type_label = localized_file_type_label(file_type.as_ref(), i18n);
 
-        let data = file_type
-            .as_ref()
-            .and_then(|ft| parse_save_data(ft, xml_clean.as_bytes()).ok());
-
+        let (data, parse_error) = match file_type.as_ref() {
+            Some(ft) => match parse_save_data(ft, xml_clean.as_bytes()) {
+                Ok(data) => (Some(data), None),
+                Err(error) => (None, Some(error)),
+            },
+            None => (None, None),
+        };
         let is_contraption = matches!(data, Some(SaveData::Contraption(_)));
-        let status = format!("{file_name}: {file_type_label}, {} bytes", xml_clean.len());
+        let status = parse_error
+            .as_ref()
+            .map(|error| error.localized(i18n))
+            .unwrap_or_else(|| {
+                i18n.fmt_save_viewer_file_type_bytes(file_name, &file_type_label, xml_clean.len())
+            });
         (
             Self {
                 file_type,
                 file_type_label,
                 xml_text: xml_clean,
                 data,
-                error: None,
+                error: parse_error,
                 filter: String::new(),
                 dirty: false,
                 split_ratio: 0.5,
@@ -281,9 +307,11 @@ impl SaveViewerData {
     }
 
     /// Encrypt the current XML text back to the save file format.
-    pub fn export_encrypted(&self) -> Option<Vec<u8>> {
-        let ft = self.file_type.as_ref()?;
-        Some(crypto::encrypt_save_file(ft, self.xml_text.as_bytes()))
+    pub fn export_encrypted(&self) -> crate::error::AppResult<Option<Vec<u8>>> {
+        let Some(ft) = self.file_type.as_ref() else {
+            return Ok(None);
+        };
+        crypto::encrypt_save_file(ft, self.xml_text.as_bytes()).map(Some)
     }
 
     /// Push current XML text onto the undo stack (call before mutation).
@@ -350,6 +378,7 @@ impl SaveViewerData {
                     self.error = None;
                 }
                 Err(error) => {
+                    self.data = None;
                     self.error = Some(error);
                 }
             }
@@ -379,7 +408,16 @@ impl SaveViewerData {
     /// Re-parse structured data from current xml_text.
     fn reparse(&mut self) {
         if let Some(ref ft) = self.file_type {
-            self.data = parse_save_data(ft, self.xml_text.as_bytes()).ok();
+            match parse_save_data(ft, self.xml_text.as_bytes()) {
+                Ok(data) => {
+                    self.data = Some(data);
+                    self.error = None;
+                }
+                Err(error) => {
+                    self.data = None;
+                    self.error = Some(error);
+                }
+            }
         }
         self.selected.clear();
         self.last_clicked = None;
@@ -486,7 +524,7 @@ impl SaveViewerData {
             });
 
             if let Some(ref err) = self.error {
-                ui.colored_label(egui::Color32::RED, err);
+                ui.colored_label(egui::Color32::RED, err.localized(t));
             }
 
             ui.separator();

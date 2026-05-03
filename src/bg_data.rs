@@ -7,6 +7,8 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::error::{AppError, AppResult};
+
 /// Parallax layer with a speed factor.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BgLayer {
@@ -111,8 +113,8 @@ struct ThemeToml {
 
 #[derive(Deserialize)]
 struct SpriteToml {
-    #[allow(dead_code)]
-    name: String,
+    #[serde(rename = "name")]
+    _name: String,
     atlas: Option<String>,
     #[serde(rename = "fillColor")]
     fill_color: Option<String>,
@@ -168,9 +170,13 @@ fn parse_hex_color(s: &str) -> Option<[u8; 3]> {
 static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
-    let toml_str = include_str!("../assets/bg-data.toml");
-    let raw: HashMap<String, ThemeToml> =
-        toml::from_str(toml_str).expect("bg-data.toml parse error");
+    let raw = match try_load_themes() {
+        Ok(raw) => raw,
+        Err(error) => {
+            log::error!("Failed to load background themes: {error}");
+            return HashMap::new();
+        }
+    };
 
     let mut themes = HashMap::with_capacity(raw.len());
     for (name, theme_toml) in raw {
@@ -181,7 +187,7 @@ fn build_themes() -> HashMap<String, BgTheme> {
                 None => continue,
             };
             sprites.push(BgSprite {
-                name: s.name.clone(),
+                name: s._name.clone(),
                 atlas: s.atlas.clone(),
                 fill_color: s.fill_color.as_deref().and_then(parse_hex_color),
                 sky_texture: s.sky_texture.clone(),
@@ -234,6 +240,12 @@ fn build_themes() -> HashMap<String, BgTheme> {
         );
     }
     themes
+}
+
+fn try_load_themes() -> AppResult<HashMap<String, ThemeToml>> {
+    let toml_str = include_str!("../assets/bg-data.toml");
+    toml::from_str(toml_str)
+        .map_err(|error| AppError::invalid_data_key1("error_bg_data_parse", error.to_string()))
 }
 
 /// Get background theme data by name.

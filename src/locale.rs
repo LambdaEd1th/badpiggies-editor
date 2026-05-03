@@ -22,10 +22,28 @@ unsafe impl Sync for I18n {}
 
 impl I18n {
     fn new(source: &'static str, lang_tag: &'static str) -> Self {
-        let res = FluentResource::try_new(source.to_owned()).expect("FTL parse error");
-        let lid: unic_langid::LanguageIdentifier = lang_tag.parse().expect("invalid lang tag");
+        let res = match FluentResource::try_new(source.to_owned()) {
+            Ok(resource) => resource,
+            Err((resource, errors)) => {
+                log::error!("FTL parse error for {lang_tag}: {errors:?}");
+                resource
+            }
+        };
+
+        let lid: unic_langid::LanguageIdentifier = match lang_tag.parse() {
+            Ok(lid) => lid,
+            Err(error) => {
+                log::error!("invalid language tag {lang_tag}: {error}");
+                return I18n {
+                    bundle: FluentBundle::new(Vec::<unic_langid::LanguageIdentifier>::new()),
+                };
+            }
+        };
+
         let mut bundle = FluentBundle::new(vec![lid]);
-        bundle.add_resource(res).expect("FTL add_resource error");
+        if let Err(errors) = bundle.add_resource(res) {
+            log::error!("FTL add_resource error for {lang_tag}: {errors:?}");
+        }
         I18n { bundle }
     }
 
@@ -68,6 +86,30 @@ impl I18n {
         self.format_with(key, &args)
     }
 
+    /// Format a save viewer status message with localized file type and byte count.
+    pub fn fmt_save_viewer_type_bytes(&self, file_type: &str, bytes: usize) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("type", file_type.to_owned());
+        args.set("bytes", bytes as i64);
+        self.format_with("save_viewer_status_type_bytes", &args)
+    }
+
+    /// Format a save viewer status message with file name, localized file type, and byte count.
+    pub fn fmt_save_viewer_file_type_bytes(
+        &self,
+        file_name: &str,
+        file_type: &str,
+        bytes: usize,
+    ) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("file_name", file_name.to_owned());
+        args.set("type", file_type.to_owned());
+        args.set("bytes", bytes as i64);
+        self.format_with("save_viewer_status_file_type_bytes", &args)
+    }
+
     /// Format a two-argument message with `$path` and `$error`.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn fmt_path_error(&self, key: &str, path: &str, error: &str) -> String {
@@ -94,6 +136,42 @@ impl I18n {
         args.set("obj_count", obj_count as i64);
         args.set("root_count", root_count as i64);
         self.format_with("cli_convert_ok", &args)
+    }
+
+    /// Format the CLI decrypt success message.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn fmt_cli_decrypt_ok(
+        &self,
+        input: &str,
+        file_type: &str,
+        output: &str,
+        bytes: usize,
+    ) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("input", input.to_owned());
+        args.set("type", file_type.to_owned());
+        args.set("output", output.to_owned());
+        args.set("bytes", bytes as i64);
+        self.format_with("cli_decrypt_ok", &args)
+    }
+
+    /// Format the CLI encrypt success message.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn fmt_cli_encrypt_ok(
+        &self,
+        input: &str,
+        output: &str,
+        file_type: &str,
+        bytes: usize,
+    ) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("input", input.to_owned());
+        args.set("output", output.to_owned());
+        args.set("type", file_type.to_owned());
+        args.set("bytes", bytes as i64);
+        self.format_with("cli_encrypt_ok", &args)
     }
 
     fn format_with(&self, key: &str, args: &fluent_bundle::FluentArgs) -> String {

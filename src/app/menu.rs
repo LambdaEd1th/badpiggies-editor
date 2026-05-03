@@ -2,6 +2,11 @@
 
 use eframe::egui;
 
+use crate::error::AppError;
+
+#[cfg(target_arch = "wasm32")]
+use crate::error::AppResult;
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
 
@@ -12,6 +17,11 @@ use super::EditorApp;
 
 #[cfg(target_arch = "wasm32")]
 use super::{WASM_OPEN_RESULT, WASM_OPEN_XML_SAVE};
+
+fn status_export_error_message(t: &'static I18n, error: impl Into<AppError>) -> String {
+    let error = error.into();
+    t.fmt1("status_export_error", &error.localized(t))
+}
 
 impl EditorApp {
     pub(super) fn render_menu_bar(
@@ -30,7 +40,7 @@ impl EditorApp {
         });
     }
 
-    fn menu_file(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, t: &'static I18n) {
+    fn menu_file(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context, t: &'static I18n) {
         ui.menu_button(t.get("menu_file"), |ui| {
             if ui.button(t.get("menu_open_level")).clicked() {
                 ui.close();
@@ -54,14 +64,14 @@ impl EditorApp {
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
-                                    t.fmt1("status_read_error", &e.to_string());
+                                    t.fmt1("status_read_error", &AppError::from(e).localized(t));
                             }
                         }
                     }
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = ctx.clone();
+                    let repaint_ctx = _ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("Level files", &["bytes"])
@@ -100,14 +110,14 @@ impl EditorApp {
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
-                                    t.fmt1("status_read_error", &e.to_string());
+                                    t.fmt1("status_read_error", &AppError::from(e).localized(t));
                             }
                         }
                     }
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = ctx.clone();
+                    let repaint_ctx = _ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("YAML / TOML", &["yaml", "yml", "toml"])
@@ -142,14 +152,14 @@ impl EditorApp {
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
-                                    t.fmt1("status_read_error", &e.to_string());
+                                    t.fmt1("status_read_error", &AppError::from(e).localized(t));
                             }
                         }
                     }
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = ctx.clone();
+                    let repaint_ctx = _ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("Save files", &["dat", "contraption", "xml"])
@@ -184,14 +194,14 @@ impl EditorApp {
                             }
                             Err(e) => {
                                 self.tabs[self.active_tab].status =
-                                    t.fmt1("status_read_error", &e.to_string());
+                                    t.fmt1("status_read_error", &AppError::from(e).localized(t));
                             }
                         }
                     }
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = ctx.clone();
+                    let repaint_ctx = _ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("XML files", &["xml"])
@@ -219,16 +229,51 @@ impl EditorApp {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         if let Some(ref sv) = self.tabs[self.active_tab].save_view {
-                            if let Some(encrypted) = sv.export_encrypted() {
-                                let default_name = self.tabs[self.active_tab]
-                                    .file_name
-                                    .as_deref()
-                                    .unwrap_or("save.dat");
-                                if let Some(path) = rfd::FileDialog::new()
-                                    .set_file_name(default_name)
-                                    .save_file()
-                                {
-                                    match std::fs::write(&path, encrypted) {
+                            match sv.export_encrypted() {
+                                Ok(Some(encrypted)) => {
+                                    let default_name = self.tabs[self.active_tab]
+                                        .file_name
+                                        .as_deref()
+                                        .unwrap_or("save.dat");
+                                    if let Some(path) = rfd::FileDialog::new()
+                                        .set_file_name(default_name)
+                                        .save_file()
+                                    {
+                                        match std::fs::write(&path, encrypted) {
+                                            Ok(()) => {
+                                                if let Some(ref mut sv) =
+                                                    self.tabs[self.active_tab].save_view
+                                                {
+                                                    sv.dirty = false;
+                                                }
+                                                self.tabs[self.active_tab].status =
+                                                    t.get("status_exported");
+                                            }
+                                            Err(e) => {
+                                                self.tabs[self.active_tab].status =
+                                                    status_export_error_message(t, e);
+                                            }
+                                        }
+                                    }
+                                }
+                                Ok(None) => {}
+                                Err(e) => {
+                                    self.tabs[self.active_tab].status =
+                                        status_export_error_message(t, e);
+                                }
+                            }
+                        }
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        if let Some(ref sv) = self.tabs[self.active_tab].save_view {
+                            match sv.export_encrypted() {
+                                Ok(Some(encrypted)) => {
+                                    let file_name = self.tabs[self.active_tab]
+                                        .file_name
+                                        .clone()
+                                        .unwrap_or_else(|| "save.dat".to_string());
+                                    match export_bytes_wasm(&file_name, encrypted) {
                                         Ok(()) => {
                                             if let Some(ref mut sv) =
                                                 self.tabs[self.active_tab].save_view
@@ -240,35 +285,14 @@ impl EditorApp {
                                         }
                                         Err(e) => {
                                             self.tabs[self.active_tab].status =
-                                                t.fmt1("status_export_error", &e.to_string());
+                                                status_export_error_message(t, e);
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        if let Some(ref sv) = self.tabs[self.active_tab].save_view {
-                            if let Some(encrypted) = sv.export_encrypted() {
-                                let file_name = self.tabs[self.active_tab]
-                                    .file_name
-                                    .clone()
-                                    .unwrap_or_else(|| "save.dat".to_string());
-                                match export_bytes_wasm(&file_name, encrypted) {
-                                    Ok(()) => {
-                                        if let Some(ref mut sv) =
-                                            self.tabs[self.active_tab].save_view
-                                        {
-                                            sv.dirty = false;
-                                        }
-                                        self.tabs[self.active_tab].status =
-                                            t.get("status_exported");
-                                    }
-                                    Err(e) => {
-                                        self.tabs[self.active_tab].status =
-                                            t.fmt1("status_export_error", &e);
-                                    }
+                                Ok(None) => {}
+                                Err(e) => {
+                                    self.tabs[self.active_tab].status =
+                                        status_export_error_message(t, e);
                                 }
                             }
                         }
@@ -296,7 +320,7 @@ impl EditorApp {
                                     }
                                     Err(e) => {
                                         self.tabs[self.active_tab].status =
-                                            t.fmt1("status_export_error", &e.to_string());
+                                            status_export_error_message(t, e);
                                     }
                                 }
                             }
@@ -316,7 +340,7 @@ impl EditorApp {
                                 }
                                 Err(e) => {
                                     self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e);
+                                        status_export_error_message(t, e);
                                 }
                             }
                         }
@@ -344,7 +368,7 @@ impl EditorApp {
                                 }
                                 Err(e) => {
                                     self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e.to_string());
+                                        status_export_error_message(t, e);
                                 }
                             }
                         }
@@ -362,7 +386,7 @@ impl EditorApp {
                                 }
                                 Err(e) => {
                                     self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e);
+                                        status_export_error_message(t, e);
                                 }
                             }
                         }
@@ -377,39 +401,56 @@ impl EditorApp {
                             .as_deref()
                             .map(|n| format!("{n}.yaml"))
                             .unwrap_or_else(|| "level.yaml".into());
-                        if let Some(text) = self.tabs[self.active_tab].export_yaml()
-                            && let Some(path) = rfd::FileDialog::new()
-                                .add_filter("YAML files", &["yaml"])
-                                .set_file_name(&yaml_name)
-                                .save_file()
-                        {
-                            match std::fs::write(&path, text.as_bytes()) {
-                                Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_exported");
+                        match self.tabs[self.active_tab].export_yaml() {
+                            Ok(Some(text)) => {
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("YAML files", &["yaml"])
+                                    .set_file_name(&yaml_name)
+                                    .save_file()
+                                {
+                                    match std::fs::write(&path, text.as_bytes()) {
+                                        Ok(()) => {
+                                            self.tabs[self.active_tab].status =
+                                                t.get("status_exported");
+                                        }
+                                        Err(e) => {
+                                            self.tabs[self.active_tab].status =
+                                                status_export_error_message(t, e);
+                                        }
+                                    }
                                 }
-                                Err(e) => {
-                                    self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e.to_string());
-                                }
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                self.tabs[self.active_tab].status =
+                                    status_export_error_message(t, e);
                             }
                         }
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
-                        if let Some(text) = self.tabs[self.active_tab].export_yaml() {
-                            let file_name = self.tabs[self.active_tab]
-                                .file_name
-                                .as_deref()
-                                .map(|n| format!("{n}.yaml"))
-                                .unwrap_or_else(|| "level.yaml".to_string());
-                            match export_bytes_wasm(&file_name, text.into_bytes()) {
-                                Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_exported");
+                        match self.tabs[self.active_tab].export_yaml() {
+                            Ok(Some(text)) => {
+                                let file_name = self.tabs[self.active_tab]
+                                    .file_name
+                                    .as_deref()
+                                    .map(|n| format!("{n}.yaml"))
+                                    .unwrap_or_else(|| "level.yaml".to_string());
+                                match export_bytes_wasm(&file_name, text.into_bytes()) {
+                                    Ok(()) => {
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.tabs[self.active_tab].status =
+                                            status_export_error_message(t, e);
+                                    }
                                 }
-                                Err(e) => {
-                                    self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e);
-                                }
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                self.tabs[self.active_tab].status =
+                                    status_export_error_message(t, e);
                             }
                         }
                     }
@@ -423,39 +464,56 @@ impl EditorApp {
                             .as_deref()
                             .map(|n| format!("{n}.toml"))
                             .unwrap_or_else(|| "level.toml".into());
-                        if let Some(text) = self.tabs[self.active_tab].export_toml()
-                            && let Some(path) = rfd::FileDialog::new()
-                                .add_filter("TOML files", &["toml"])
-                                .set_file_name(&toml_name)
-                                .save_file()
-                        {
-                            match std::fs::write(&path, text.as_bytes()) {
-                                Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_exported");
+                        match self.tabs[self.active_tab].export_toml() {
+                            Ok(Some(text)) => {
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("TOML files", &["toml"])
+                                    .set_file_name(&toml_name)
+                                    .save_file()
+                                {
+                                    match std::fs::write(&path, text.as_bytes()) {
+                                        Ok(()) => {
+                                            self.tabs[self.active_tab].status =
+                                                t.get("status_exported");
+                                        }
+                                        Err(e) => {
+                                            self.tabs[self.active_tab].status =
+                                                status_export_error_message(t, e);
+                                        }
+                                    }
                                 }
-                                Err(e) => {
-                                    self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e.to_string());
-                                }
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                self.tabs[self.active_tab].status =
+                                    status_export_error_message(t, e);
                             }
                         }
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
-                        if let Some(text) = self.tabs[self.active_tab].export_toml() {
-                            let file_name = self.tabs[self.active_tab]
-                                .file_name
-                                .as_deref()
-                                .map(|n| format!("{n}.toml"))
-                                .unwrap_or_else(|| "level.toml".to_string());
-                            match export_bytes_wasm(&file_name, text.into_bytes()) {
-                                Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_exported");
+                        match self.tabs[self.active_tab].export_toml() {
+                            Ok(Some(text)) => {
+                                let file_name = self.tabs[self.active_tab]
+                                    .file_name
+                                    .as_deref()
+                                    .map(|n| format!("{n}.toml"))
+                                    .unwrap_or_else(|| "level.toml".to_string());
+                                match export_bytes_wasm(&file_name, text.into_bytes()) {
+                                    Ok(()) => {
+                                        self.tabs[self.active_tab].status =
+                                            t.get("status_exported");
+                                    }
+                                    Err(e) => {
+                                        self.tabs[self.active_tab].status =
+                                            status_export_error_message(t, e);
+                                    }
                                 }
-                                Err(e) => {
-                                    self.tabs[self.active_tab].status =
-                                        t.fmt1("status_export_error", &e);
-                                }
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                self.tabs[self.active_tab].status =
+                                    status_export_error_message(t, e);
                             }
                         }
                     }
@@ -845,38 +903,42 @@ impl EditorApp {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> Result<(), String> {
+fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> AppResult<()> {
+    let js_error = |error| {
+        AppError::browser_key1("error_browser_api_call_failed", format!("{:?}", error))
+    };
+
     let arr = js_sys::Array::new();
     let u8arr = js_sys::Uint8Array::from(bytes.as_slice());
     arr.push(&u8arr.buffer());
-    let blob = web_sys::Blob::new_with_u8_array_sequence(&arr).map_err(|e| format!("{:?}", e))?;
-    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|e| format!("{:?}", e))?;
+    let blob = web_sys::Blob::new_with_u8_array_sequence(&arr).map_err(js_error)?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(js_error)?;
 
-    let window = web_sys::window().ok_or_else(|| "window 不可用".to_string())?;
+    let window = web_sys::window().ok_or_else(|| AppError::state_key("error_window_unavailable"))?;
     let document = window
         .document()
-        .ok_or_else(|| "document 不可用".to_string())?;
+        .ok_or_else(|| AppError::state_key("error_document_unavailable"))?;
     let body = document
         .body()
-        .ok_or_else(|| "document.body 不可用".to_string())?;
+        .ok_or_else(|| AppError::state_key("error_document_body_unavailable"))?;
 
     let anchor = document
         .create_element("a")
-        .map_err(|e| format!("{:?}", e))?
+        .map_err(js_error)?
         .dyn_into::<web_sys::HtmlElement>()
-        .map_err(|_| "无法创建下载链接".to_string())?;
+        .map_err(|_| AppError::browser_key("error_download_link_unavailable"))?;
 
     anchor
         .set_attribute("href", &url)
-        .map_err(|e| format!("{:?}", e))?;
+        .map_err(js_error)?;
     anchor
         .set_attribute("download", file_name)
-        .map_err(|e| format!("{:?}", e))?;
+        .map_err(js_error)?;
     anchor
         .set_attribute("style", "display:none")
-        .map_err(|e| format!("{:?}", e))?;
+        .map_err(js_error)?;
 
-    body.append_child(&anchor).map_err(|e| format!("{:?}", e))?;
+    body.append_child(&anchor).map_err(js_error)?;
     anchor.click();
     let _ = body.remove_child(&anchor);
     let _ = web_sys::Url::revoke_object_url(&url);

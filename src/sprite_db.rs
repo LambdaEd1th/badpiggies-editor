@@ -9,6 +9,8 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::error::{AppError, AppResult};
+
 /// Resolved sprite info ready for rendering.
 #[derive(Debug, Clone)]
 pub struct SpriteInfo {
@@ -80,8 +82,13 @@ const WORLD_SCALE: f32 = 10.0 / 768.0;
 static SPRITE_DB: OnceLock<HashMap<String, SpriteInfo>> = OnceLock::new();
 
 fn build_db() -> HashMap<String, SpriteInfo> {
-    let toml_str = include_str!("../assets/sprite-data.toml");
-    let data: SpriteDataToml = toml::from_str(toml_str).expect("sprite-data.toml parse error");
+    let data = match try_load_sprite_data() {
+        Ok(data) => data,
+        Err(error) => {
+            log::error!("Failed to load sprite database: {error}");
+            return HashMap::new();
+        }
+    };
 
     let mut map = HashMap::with_capacity(data.runtime.len() + data.unmanaged.len());
 
@@ -121,6 +128,12 @@ fn build_db() -> HashMap<String, SpriteInfo> {
     }
 
     map
+}
+
+fn try_load_sprite_data() -> AppResult<SpriteDataToml> {
+    let toml_str = include_str!("../assets/sprite-data.toml");
+    toml::from_str(toml_str)
+        .map_err(|error| AppError::invalid_data_key1("error_sprite_data_parse", error.to_string()))
 }
 
 /// Get the sprite database (lazily initialized).

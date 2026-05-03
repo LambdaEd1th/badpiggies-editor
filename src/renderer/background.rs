@@ -66,7 +66,10 @@ fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f
     edge_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let median_edge_gap = edge_gaps[edge_gaps.len() / 2];
     let first = &sprites[sorted[0]];
-    let last = &sprites[*sorted.last().unwrap()];
+    let Some(last_index) = sorted.last().copied() else {
+        return None;
+    };
+    let last = &sprites[last_index];
     let min_left = first.world_x - sprite_display_width(first) * 0.5;
     let max_right = last.world_x + sprite_display_width(last) * 0.5;
     Some(max_right - min_left + median_edge_gap)
@@ -197,12 +200,7 @@ pub fn build_bg_layer_cache(
             continue;
         }
         let mut sorted: Vec<usize> = indices.clone();
-        sorted.sort_by(|a, b| {
-            sprites[*a]
-                .world_x
-                .partial_cmp(&sprites[*b].world_x)
-                .unwrap()
-        });
+        sorted.sort_by(|a, b| sprites[*a].world_x.total_cmp(&sprites[*b].world_x));
         let Some(block_width) = tile_block_width(&sorted, sprites) else {
             continue;
         };
@@ -682,8 +680,12 @@ mod tests {
 
     #[test]
     fn jungle_far_tiles_share_one_period_across_z() {
-        let cache = build_bg_layer_cache("Jungle", None).expect("jungle cache");
-        let theme = bg_data::get_theme("Jungle").expect("jungle theme");
+        let Some(cache) = build_bg_layer_cache("Jungle", None) else {
+            panic!("jungle cache");
+        };
+        let Some(theme) = bg_data::get_theme("Jungle") else {
+            panic!("jungle theme");
+        };
         let sprites = cache.sprites(theme);
 
         let far_indices: Vec<usize> = sprites
@@ -700,18 +702,14 @@ mod tests {
             "expected far hill sprites in jungle theme"
         );
 
-        let first_width = cache
-            .tile_info
-            .get(&far_indices[0])
-            .map(|(width, _)| *width)
-            .expect("first far hill should tile");
+        let Some(first_width) = cache.tile_info.get(&far_indices[0]).map(|(width, _)| *width) else {
+            panic!("first far hill should tile");
+        };
 
         for idx in far_indices {
-            let width = cache
-                .tile_info
-                .get(&idx)
-                .map(|(block_width, _)| *block_width)
-                .expect("every far hill should tile");
+            let Some(width) = cache.tile_info.get(&idx).map(|(block_width, _)| *block_width) else {
+                panic!("every far hill should tile");
+            };
             assert!(
                 (width - first_width).abs() < 0.001,
                 "expected shared block width, got {width} vs {first_width}"
@@ -721,8 +719,12 @@ mod tests {
 
     #[test]
     fn jungle_far_wrap_gap_matches_internal_spacing() {
-        let cache = build_bg_layer_cache("Jungle", None).expect("jungle cache");
-        let theme = bg_data::get_theme("Jungle").expect("jungle theme");
+        let Some(cache) = build_bg_layer_cache("Jungle", None) else {
+            panic!("jungle cache");
+        };
+        let Some(theme) = bg_data::get_theme("Jungle") else {
+            panic!("jungle theme");
+        };
         let sprites = cache.sprites(theme);
 
         let mut far_indices: Vec<usize> = sprites
@@ -740,19 +742,18 @@ mod tests {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let min_x = sprites[*far_indices.first().expect("first")].world_x;
-        let max_x = sprites[*far_indices.last().expect("last")].world_x;
+        assert!(!far_indices.is_empty(), "expected far hill sprites in jungle theme");
+        let min_x = sprites[far_indices[0]].world_x;
+        let max_x = sprites[far_indices[far_indices.len() - 1]].world_x;
         let mut diffs: Vec<f32> = far_indices
             .windows(2)
             .map(|pair| sprites[pair[1]].world_x - sprites[pair[0]].world_x)
             .collect();
         let expected_wrap_gap = median(&mut diffs);
 
-        let block_width = cache
-            .tile_info
-            .get(&far_indices[0])
-            .map(|(width, _)| *width)
-            .expect("far hills should tile");
+        let Some(block_width) = cache.tile_info.get(&far_indices[0]).map(|(width, _)| *width) else {
+            panic!("far hills should tile");
+        };
         let actual_wrap_gap = block_width - (max_x - min_x);
 
         assert!(
@@ -763,7 +764,9 @@ mod tests {
 
     #[test]
     fn ocean_parent_group_splits_by_name_when_names_differ() {
-        let theme = bg_data::get_theme("Jungle").expect("jungle theme");
+        let Some(theme) = bg_data::get_theme("Jungle") else {
+            panic!("jungle theme");
+        };
         let sprites = &theme.sprites;
 
         let ocean_name_count = sprites
@@ -778,17 +781,25 @@ mod tests {
             "expected multiple Ocean sprite names"
         );
 
-        let wave = sprites
+        let Some(wave) = sprites
             .iter()
             .find(|sprite| sprite.parent_group == "Ocean" && sprite.name == "Waves")
-            .expect("wave sprite");
-        let foam = sprites
+        else {
+            panic!("wave sprite");
+        };
+        let Some(foam) = sprites
             .iter()
             .find(|sprite| sprite.parent_group == "Ocean" && sprite.name == "Foam")
-            .expect("foam sprite");
+        else {
+            panic!("foam sprite");
+        };
 
-        let wave_key = tile_group_key(wave, "waves", ocean_name_count).expect("wave key");
-        let foam_key = tile_group_key(foam, "foam", ocean_name_count).expect("foam key");
+        let Some(wave_key) = tile_group_key(wave, "waves", ocean_name_count) else {
+            panic!("wave key");
+        };
+        let Some(foam_key) = tile_group_key(foam, "foam", ocean_name_count) else {
+            panic!("foam key");
+        };
 
         assert!(
             wave_key != foam_key,
@@ -815,8 +826,12 @@ mod tests {
 
     #[test]
     fn morning_cloud_wrap_gap_matches_internal_edge_gap() {
-        let cache = build_bg_layer_cache("Morning", None).expect("morning cache");
-        let theme = bg_data::get_theme("Morning").expect("morning theme");
+        let Some(cache) = build_bg_layer_cache("Morning", None) else {
+            panic!("morning cache");
+        };
+        let Some(theme) = bg_data::get_theme("Morning") else {
+            panic!("morning theme");
+        };
         let sprites = cache.sprites(theme);
 
         let mut cloud_indices: Vec<usize> = sprites
@@ -835,8 +850,12 @@ mod tests {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let first = &sprites[*cloud_indices.first().expect("first cloud")];
-        let last = &sprites[*cloud_indices.last().expect("last cloud")];
+        assert!(
+            !cloud_indices.is_empty(),
+            "expected BGLayerClouds sprites in morning theme"
+        );
+        let first = &sprites[cloud_indices[0]];
+        let last = &sprites[cloud_indices[cloud_indices.len() - 1]];
         let min_left = first.world_x - sprite_display_width(first) * 0.5;
         let max_right = last.world_x + sprite_display_width(last) * 0.5;
         let mut edge_gaps: Vec<f32> = cloud_indices
@@ -851,11 +870,10 @@ mod tests {
             .collect();
         let expected_wrap_gap = median(&mut edge_gaps);
 
-        let block_width = cache
-            .tile_info
-            .get(&cloud_indices[0])
-            .map(|(width, _)| *width)
-            .expect("cloud strip should tile");
+        let Some(block_width) = cache.tile_info.get(&cloud_indices[0]).map(|(width, _)| *width)
+        else {
+            panic!("cloud strip should tile");
+        };
         let actual_wrap_gap = block_width - (max_right - min_left);
 
         assert!(
@@ -871,8 +889,12 @@ mod tests {
     /// With name-based splitting each type gets its own clean tile group.
     #[test]
     fn halloween_near_plateau_tiles_at_correct_period() {
-        let cache = build_bg_layer_cache("Halloween", None).expect("halloween cache");
-        let theme = bg_data::get_theme("Halloween").expect("halloween theme");
+        let Some(cache) = build_bg_layer_cache("Halloween", None) else {
+            panic!("halloween cache");
+        };
+        let Some(theme) = bg_data::get_theme("Halloween") else {
+            panic!("halloween theme");
+        };
         let sprites = cache.sprites(theme);
 
         let mut plateau_indices: Vec<usize> = sprites
@@ -893,11 +915,9 @@ mod tests {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let block_width = cache
-            .tile_info
-            .get(&plateau_indices[0])
-            .map(|(w, _)| *w)
-            .expect("plateau should tile");
+        let Some(block_width) = cache.tile_info.get(&plateau_indices[0]).map(|(w, _)| *w) else {
+            panic!("plateau should tile");
+        };
 
         // Correct period ≈ 7 * 26.4 ≈ 184–185.  Old (broken) period was ~173.
         assert!(

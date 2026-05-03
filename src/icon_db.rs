@@ -8,6 +8,8 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::error::{AppError, AppResult};
+
 /// A single compositing layer within a part icon.
 #[derive(Debug, Clone)]
 pub struct IconLayer {
@@ -41,8 +43,8 @@ struct IconLayersToml {
 
 #[derive(Deserialize)]
 struct PartEntry {
-    #[allow(dead_code)]
-    name: String,
+    #[serde(rename = "name")]
+    _name: String,
     #[serde(default)]
     z_offset: f32,
     layers: Vec<LayerEntry>,
@@ -80,10 +82,13 @@ pub struct PartInfo {
 static ICON_DB: OnceLock<HashMap<String, PartInfo>> = OnceLock::new();
 
 fn load() -> HashMap<String, PartInfo> {
-    let toml_bytes = crate::assets::EmbeddedAssets::get("icon-layers.toml")
-        .expect("icon-layers.toml missing from embedded assets");
-    let toml_str = std::str::from_utf8(&toml_bytes.data).expect("icon-layers.toml not UTF-8");
-    let parsed: IconLayersToml = toml::from_str(toml_str).expect("failed to parse icon-layers.toml");
+    let parsed = match try_load_toml() {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            log::error!("Failed to load icon layer database: {error}");
+            return HashMap::new();
+        }
+    };
 
     let mut map = HashMap::new();
     for (key, entry) in parsed.parts {
@@ -111,6 +116,17 @@ fn load() -> HashMap<String, PartInfo> {
         map.insert(key, PartInfo { z_offset: entry.z_offset, layers });
     }
     map
+}
+
+fn try_load_toml() -> AppResult<IconLayersToml> {
+    let Some(toml_bytes) = crate::assets::EmbeddedAssets::get("icon-layers.toml") else {
+        return Err(AppError::invalid_data_key("error_icon_layers_missing"));
+    };
+    let toml_str = std::str::from_utf8(&toml_bytes.data).map_err(|error| {
+        AppError::invalid_data_key1("error_icon_layers_not_utf8", error.to_string())
+    })?;
+    toml::from_str(toml_str)
+        .map_err(|error| AppError::invalid_data_key1("error_icon_layers_parse", error.to_string()))
 }
 
 /// Get the part info (z_offset + layers) for a given part type and custom part index.

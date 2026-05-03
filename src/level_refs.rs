@@ -10,6 +10,8 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::error::{AppError, AppResult};
+
 #[derive(Deserialize)]
 struct LevelRefsToml {
     refs: HashMap<String, HashMap<String, String>>,
@@ -28,36 +30,48 @@ struct LevelRefsData {
 
 fn data() -> &'static LevelRefsData {
     static INSTANCE: OnceLock<LevelRefsData> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let toml_str = include_str!("../assets/level-refs.toml");
-        let raw: LevelRefsToml = toml::from_str(toml_str).expect("Failed to parse level-refs.toml");
-
-        let refs: RefsMap = raw
-            .refs
-            .into_iter()
-            .map(|(k, v)| {
-                let inner: HashMap<i32, String> = v
-                    .into_iter()
-                    .filter_map(|(idx_str, val)| idx_str.parse::<i32>().ok().map(|i| (i, val)))
-                    .collect();
-                (k, inner)
-            })
-            .collect();
-
-        let prefabs: PrefabsMap = raw
-            .prefabs
-            .into_iter()
-            .map(|(k, v)| {
-                let inner: HashMap<i16, String> = v
-                    .into_iter()
-                    .filter_map(|(idx_str, val)| idx_str.parse::<i16>().ok().map(|i| (i, val)))
-                    .collect();
-                (k, inner)
-            })
-            .collect();
-
-        LevelRefsData { refs, prefabs }
+    INSTANCE.get_or_init(|| match try_load_level_refs() {
+        Ok(data) => data,
+        Err(error) => {
+            log::error!("Failed to load level refs: {error}");
+            LevelRefsData {
+                refs: HashMap::new(),
+                prefabs: HashMap::new(),
+            }
+        }
     })
+}
+
+fn try_load_level_refs() -> AppResult<LevelRefsData> {
+    let toml_str = include_str!("../assets/level-refs.toml");
+    let raw: LevelRefsToml = toml::from_str(toml_str)
+        .map_err(|error| AppError::invalid_data_key1("error_level_refs_parse", error.to_string()))?;
+
+    let refs: RefsMap = raw
+        .refs
+        .into_iter()
+        .map(|(k, v)| {
+            let inner: HashMap<i32, String> = v
+                .into_iter()
+                .filter_map(|(idx_str, val)| idx_str.parse::<i32>().ok().map(|i| (i, val)))
+                .collect();
+            (k, inner)
+        })
+        .collect();
+
+    let prefabs: PrefabsMap = raw
+        .prefabs
+        .into_iter()
+        .map(|(k, v)| {
+            let inner: HashMap<i16, String> = v
+                .into_iter()
+                .filter_map(|(idx_str, val)| idx_str.parse::<i16>().ok().map(|i| (i, val)))
+                .collect();
+            (k, inner)
+        })
+        .collect();
+
+    Ok(LevelRefsData { refs, prefabs })
 }
 
 /// Derive the level-refs key from a filename (strip `.bytes` extension).

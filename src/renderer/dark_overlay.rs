@@ -572,7 +572,7 @@ fn build_scanline_complement_mesh(
             ys.push(y);
         }
     }
-    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.total_cmp(b));
     ys.dedup_by(|a, b| (*a - *b).abs() < 0.5);
 
     let mut mesh = egui::Mesh::default();
@@ -659,7 +659,7 @@ fn build_scanline_ring_mesh(
             ys.push(y);
         }
     }
-    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.total_cmp(b));
     ys.dedup_by(|a, b| (*a - *b).abs() < 0.5);
 
     let mut mesh = egui::Mesh::default();
@@ -741,7 +741,7 @@ fn build_scanline_fill_mesh(
             ys.push(y);
         }
     }
-    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.total_cmp(b));
     ys.dedup_by(|a, b| (*a - *b).abs() < 0.5);
 
     let mut mesh = egui::Mesh::default();
@@ -883,7 +883,7 @@ fn polygon_intervals_at_y(y: f32, poly: &[egui::Pos2]) -> Vec<(f32, f32)> {
             xs.push(poly[i].x + t * (poly[j].x - poly[i].x));
         }
     }
-    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    xs.sort_by(|a, b| a.total_cmp(b));
 
     let mut intervals = Vec::new();
     let mut i = 0;
@@ -902,7 +902,7 @@ fn merge_intervals(mut intervals: Vec<(f32, f32)>) -> Vec<(f32, f32)> {
     if intervals.is_empty() {
         return intervals;
     }
-    intervals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
 
     let mut merged = Vec::with_capacity(intervals.len());
     let mut current = intervals[0];

@@ -29,7 +29,9 @@ impl LevelData {
         // Rebuild roots
         self.roots.retain(|r| !to_delete.contains(r));
         for r in &mut self.roots {
-            *r = remap[*r].unwrap();
+            if let Some(mapped) = remap[*r] {
+                *r = mapped;
+            }
         }
 
         // Rebuild objects with remapped indices

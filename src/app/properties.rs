@@ -37,7 +37,7 @@ impl EditorApp {
                     tab.source_path.as_deref(),
                 );
                 let single_sel = if tab.selected.len() == 1 {
-                    Some(*tab.selected.iter().next().unwrap())
+                    tab.selected.iter().next().copied()
                 } else {
                     None
                 };
@@ -602,18 +602,19 @@ fn show_override_tree(
                     changed = true;
                 }
                 ui.label("=");
-                let val = node.value.as_mut().unwrap();
-                if node.node_type == "Boolean" {
-                    let mut checked = val.eq_ignore_ascii_case("true");
-                    if ui.checkbox(&mut checked, "").changed() {
-                        *val = if checked { "True" } else { "False" }.to_string();
+                if let Some(val) = node.value.as_mut() {
+                    if node.node_type == "Boolean" {
+                        let mut checked = val.eq_ignore_ascii_case("true");
+                        if ui.checkbox(&mut checked, "").changed() {
+                            *val = if checked { "True" } else { "False" }.to_string();
+                            changed = true;
+                        }
+                    } else if ui
+                        .add(egui::TextEdit::singleline(val).desired_width(val_w))
+                        .changed()
+                    {
                         changed = true;
                     }
-                } else if ui
-                    .add(egui::TextEdit::singleline(val).desired_width(val_w))
-                    .changed()
-                {
-                    changed = true;
                 }
             });
         } else {

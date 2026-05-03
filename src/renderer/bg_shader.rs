@@ -440,11 +440,6 @@ impl BgAtlasCache {
         self.atlases.insert(filename.to_string(), arc.clone());
         Some(arc)
     }
-
-    #[allow(dead_code)]
-    pub fn clear(&mut self) {
-        self.atlases.clear();
-    }
 }
 
 // ── Paint callback ──

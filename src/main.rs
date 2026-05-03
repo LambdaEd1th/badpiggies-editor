@@ -5,6 +5,7 @@ mod app;
 mod assets;
 mod bg_data;
 mod crypto;
+mod error;
 mod icon_db;
 mod level_db;
 mod level_ops;
@@ -68,6 +69,7 @@ fn get_screen_size_80pct() -> (f32, f32) {
 #[cfg(not(target_arch = "wasm32"))]
 mod cli {
     use crate::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
+    use crate::error::{AppError, AppResult};
     use crate::locale::Language;
     use clap::{Parser, Subcommand, ValueEnum};
     use std::path::PathBuf;
@@ -133,20 +135,20 @@ mod cli {
         explicit: Option<SaveType>,
         path: &std::path::Path,
         role: &str,
-    ) -> Result<SaveFileType, String> {
+    ) -> AppResult<SaveFileType> {
         if let Some(st) = explicit {
             return Ok(st.into_file_type());
         }
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        SaveFileType::detect(name).ok_or_else(|| {
-            format!(
-                "Cannot detect save file type from {role} filename \"{name}\". \
-                 Use --type progress|contraption|achievements"
-            )
-        })
+        let key = if role == "output" {
+            "cli_detect_save_type_error_output"
+        } else {
+            "cli_detect_save_type_error_input"
+        };
+        SaveFileType::detect(name).ok_or_else(|| AppError::invalid_data_key1(key, name))
     }
 
-    pub fn run(cmd: Command) -> Result<(), String> {
+    pub fn run(cmd: Command) -> AppResult<()> {
         match cmd {
             Command::Convert { input, output } => run_convert(input, output),
             Command::Decrypt {
@@ -162,7 +164,7 @@ mod cli {
         }
     }
 
-    fn run_convert(input: PathBuf, output: PathBuf) -> Result<(), String> {
+    fn run_convert(input: PathBuf, output: PathBuf) -> AppResult<()> {
         let t = Language::from_system().i18n();
 
         let ext_in = input
@@ -181,39 +183,84 @@ mod cli {
 
         let level = match ext_in.as_str() {
             "bytes" => {
-                let data = std::fs::read(&input)
-                    .map_err(|e| t.fmt_path_error("cli_read_error", &display_in, &e.to_string()))?;
-                crate::parser::parse_level(data)
-                    .map_err(|e| t.fmt_path_error("cli_parse_error", &display_in, &e.to_string()))?
+                let data = std::fs::read(&input).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_read_error",
+                        &display_in,
+                        &error.to_string(),
+                    ))
+                })?;
+                crate::parser::parse_level(data).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_parse_error",
+                        &display_in,
+                        &error.to_string(),
+                    ))
+                })?
             }
             "yaml" | "yml" => {
-                let text = std::fs::read_to_string(&input)
-                    .map_err(|e| t.fmt_path_error("cli_read_error", &display_in, &e.to_string()))?;
-                serde_yaml::from_str(&text)
-                    .map_err(|e| t.fmt_path_error("cli_parse_error", &display_in, &e.to_string()))?
+                let text = std::fs::read_to_string(&input).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_read_error",
+                        &display_in,
+                        &error.to_string(),
+                    ))
+                })?;
+                serde_yaml::from_str(&text).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_parse_error",
+                        &display_in,
+                        &error.to_string(),
+                    ))
+                })?
             }
             "toml" => {
-                let text = std::fs::read_to_string(&input)
-                    .map_err(|e| t.fmt_path_error("cli_read_error", &display_in, &e.to_string()))?;
-                toml::from_str(&text)
-                    .map_err(|e| t.fmt_path_error("cli_parse_error", &display_in, &e.to_string()))?
+                let text = std::fs::read_to_string(&input).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_read_error",
+                        &display_in,
+                        &error.to_string(),
+                    ))
+                })?;
+                toml::from_str(&text).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_parse_error",
+                        &display_in,
+                        &error.to_string(),
+                    ))
+                })?
             }
-            _ => return Err(t.fmt1("cli_unsupported_input", &ext_in)),
+            _ => return Err(AppError::invalid_data(t.fmt1("cli_unsupported_input", &ext_in))),
         };
 
         let output_data: Vec<u8> = match ext_out.as_str() {
             "bytes" => crate::parser::serialize_level(&level),
             "yaml" | "yml" => serde_yaml::to_string(&level)
-                .map_err(|e| t.fmt1("cli_serialize_yaml_error", &e.to_string()))?
+                .map_err(|error| {
+                    AppError::invalid_data(t.fmt1(
+                        "cli_serialize_yaml_error",
+                        &error.to_string(),
+                    ))
+                })?
                 .into_bytes(),
             "toml" => toml::to_string_pretty(&level)
-                .map_err(|e| t.fmt1("cli_serialize_toml_error", &e.to_string()))?
+                .map_err(|error| {
+                    AppError::invalid_data(t.fmt1(
+                        "cli_serialize_toml_error",
+                        &error.to_string(),
+                    ))
+                })?
                 .into_bytes(),
-            _ => return Err(t.fmt1("cli_unsupported_output", &ext_out)),
+            _ => return Err(AppError::invalid_data(t.fmt1("cli_unsupported_output", &ext_out))),
         };
 
-        std::fs::write(&output, &output_data)
-            .map_err(|e| t.fmt_path_error("cli_write_error", &display_out, &e.to_string()))?;
+        std::fs::write(&output, &output_data).map_err(|error| {
+            AppError::invalid_data(t.fmt_path_error(
+                "cli_write_error",
+                &display_out,
+                &error.to_string(),
+            ))
+        })?;
 
         eprintln!(
             "{}",
@@ -231,28 +278,41 @@ mod cli {
         input: PathBuf,
         output: Option<PathBuf>,
         save_type: Option<SaveType>,
-    ) -> Result<(), String> {
+    ) -> AppResult<()> {
+        let t = Language::from_system().i18n();
         let file_type = resolve_type(save_type, &input, "input")?;
 
-        let data = std::fs::read(&input)
-            .map_err(|e| format!("Failed to read {}: {e}", input.display()))?;
+        let display_in = input.display().to_string();
+        let data = std::fs::read(&input).map_err(|error| {
+            AppError::invalid_data(t.fmt_path_error(
+                "cli_read_error",
+                &display_in,
+                &error.to_string(),
+            ))
+        })?;
         let xml = decrypt_save_file(&file_type, &data)?;
 
         if let Some(ref out) = output {
-            std::fs::write(out, &xml)
-                .map_err(|e| format!("Failed to write {}: {e}", out.display()))?;
+            let display_out = out.display().to_string();
+            std::fs::write(out, &xml).map_err(|error| {
+                AppError::invalid_data(t.fmt_path_error(
+                    "cli_write_error",
+                    &display_out,
+                    &error.to_string(),
+                ))
+            })?;
+            let file_type_label = file_type.localized_label(t);
             eprintln!(
-                "Decrypted {} ({}) -> {} ({} bytes)",
-                input.display(),
-                file_type.label(),
-                out.display(),
-                xml.len()
+                "{}",
+                t.fmt_cli_decrypt_ok(&display_in, &file_type_label, &display_out, xml.len())
             );
         } else {
             use std::io::Write;
             std::io::stdout()
                 .write_all(&xml)
-                .map_err(|e| format!("Failed to write to stdout: {e}"))?;
+                .map_err(|error| {
+                    AppError::invalid_data(t.fmt1("cli_stdout_write_error", &error.to_string()))
+                })?;
         }
         Ok(())
     }
@@ -261,22 +321,33 @@ mod cli {
         input: PathBuf,
         output: PathBuf,
         save_type: Option<SaveType>,
-    ) -> Result<(), String> {
+    ) -> AppResult<()> {
+        let t = Language::from_system().i18n();
         let file_type = resolve_type(save_type, &output, "output")?;
 
-        let xml = std::fs::read(&input)
-            .map_err(|e| format!("Failed to read {}: {e}", input.display()))?;
-        let encrypted = encrypt_save_file(&file_type, &xml);
+        let display_in = input.display().to_string();
+        let xml = std::fs::read(&input).map_err(|error| {
+            AppError::invalid_data(t.fmt_path_error(
+                "cli_read_error",
+                &display_in,
+                &error.to_string(),
+            ))
+        })?;
+        let encrypted = encrypt_save_file(&file_type, &xml)?;
 
-        std::fs::write(&output, &encrypted)
-            .map_err(|e| format!("Failed to write {}: {e}", output.display()))?;
+        let display_out = output.display().to_string();
+        std::fs::write(&output, &encrypted).map_err(|error| {
+            AppError::invalid_data(t.fmt_path_error(
+                "cli_write_error",
+                &display_out,
+                &error.to_string(),
+            ))
+        })?;
 
+        let file_type_label = file_type.localized_label(t);
         eprintln!(
-            "Encrypted {} -> {} ({}, {} bytes)",
-            input.display(),
-            output.display(),
-            file_type.label(),
-            encrypted.len()
+            "{}",
+            t.fmt_cli_encrypt_ok(&display_in, &display_out, &file_type_label, encrypted.len())
         );
         Ok(())
     }
@@ -290,7 +361,8 @@ fn main() -> eframe::Result<()> {
     let cli = cli::Cli::parse();
     if let Some(cmd) = cli.command {
         if let Err(e) = cli::run(cmd) {
-            eprintln!("Error: {e}");
+            let t = crate::locale::Language::from_system().i18n();
+            eprintln!("{}", t.fmt1("cli_error_prefix", &e.to_string()));
             std::process::exit(1);
         }
         return Ok(());
@@ -332,15 +404,26 @@ fn main() {
     let web_options = eframe::WebOptions::default();
 
     wasm_bindgen_futures::spawn_local(async {
-        let document = web_sys::window()
-            .and_then(|w| w.document())
-            .expect("failed to get document");
+        let Some(document) = web_sys::window().and_then(|w| w.document()) else {
+            log::error!("应用启动失败: 无法获取浏览器 document");
+            return;
+        };
 
-        let canvas = document
-            .get_element_by_id("the_canvas_id")
-            .expect("failed to find canvas element")
-            .dyn_into::<web_sys::HtmlCanvasElement>()
-            .expect("element is not a canvas");
+        let Some(canvas_element) = document.get_element_by_id("the_canvas_id") else {
+            if let Some(body) = document.body() {
+                body.set_inner_html("<p style='color:red'>应用启动失败: 未找到渲染画布</p>");
+            }
+            log::error!("应用启动失败: 未找到 canvas 元素 the_canvas_id");
+            return;
+        };
+
+        let Ok(canvas) = canvas_element.dyn_into::<web_sys::HtmlCanvasElement>() else {
+            if let Some(body) = document.body() {
+                body.set_inner_html("<p style='color:red'>应用启动失败: 渲染节点不是 canvas</p>");
+            }
+            log::error!("应用启动失败: the_canvas_id 不是 HtmlCanvasElement");
+            return;
+        };
 
         let start_result = eframe::WebRunner::new()
             .start(

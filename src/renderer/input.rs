@@ -259,7 +259,7 @@ impl LevelRenderer {
                     continue;
                 }
                 let dist = dx * dx + dy * dy;
-                if best.is_none() || dist < best.unwrap().1 {
+                if best.map_or(true, |(_, best_dist)| dist < best_dist) {
                     best = Some((sprite.index, dist));
                 }
             }
@@ -570,7 +570,9 @@ impl LevelRenderer {
                         let (bx, by) = (bx + tdx, by + tdy);
                         let (dist, t) =
                             point_to_segment_dist(click_world.x, click_world.y, ax, ay, bx, by);
-                        if dist < threshold && (best.is_none() || dist < best.unwrap().2) {
+                        if dist < threshold
+                            && best.map_or(true, |(_, _, best_dist, _)| dist < best_dist)
+                        {
                             best = Some((td.object_index, seg, dist, t));
                         }
                     }

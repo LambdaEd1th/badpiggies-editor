@@ -350,8 +350,7 @@ fn build_lookup() -> HashMap<String, (String, String)> {
         for slot in 1..=40 {
             let key = format!("{scene}_{slot}");
             let hash = contraption_hash(&key);
-            map.entry(hash)
-                .or_insert_with(|| (String::new(), key));
+            map.entry(hash).or_insert_with(|| (String::new(), key));
         }
     }
 
@@ -360,8 +359,7 @@ fn build_lookup() -> HashMap<String, (String, String)> {
         for track in 0..=20 {
             let key = format!("cr_{scene}_{track}");
             let hash = contraption_hash(&key);
-            map.entry(hash)
-                .or_insert_with(|| (String::new(), key));
+            map.entry(hash).or_insert_with(|| (String::new(), key));
         }
     }
 

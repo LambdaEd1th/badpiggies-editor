@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use eframe::egui;
 
 use crate::domain::types::*;
+use crate::i18n::locale::I18n;
 
 use super::{
     DndPayload, TreeBlankAction, TreeContextAction, handle_tree_blank_response,
@@ -12,22 +13,32 @@ use super::{
     selectable_label_draggable, tree_collapse_id,
 };
 
+pub(super) struct TreeRenderCtx<'a> {
+    pub selected: &'a BTreeSet<ObjectIndex>,
+    pub can_paste: bool,
+    pub has_selection: bool,
+    pub t: &'static I18n,
+}
+
+pub(super) type TreeRenderResult = (
+    Option<(ObjectIndex, DropPosition)>,
+    Option<ObjectIndex>,
+    Option<TreeContextAction>,
+    Option<TreeBlankAction>,
+);
+
 /// Recursively render the object tree with drag-and-drop support.
 pub(super) fn show_object_tree(
     ui: &mut egui::Ui,
     level: &LevelData,
     idx: ObjectIndex,
-    selected: &BTreeSet<ObjectIndex>,
     depth: usize,
-    can_paste: bool,
-    has_selection: bool,
-    t: &'static crate::i18n::locale::I18n,
-) -> (
-    Option<(ObjectIndex, DropPosition)>,
-    Option<ObjectIndex>,
-    Option<TreeContextAction>,
-    Option<TreeBlankAction>,
-) {
+    ctx: &TreeRenderCtx<'_>,
+) -> TreeRenderResult {
+    let selected = ctx.selected;
+    let can_paste = ctx.can_paste;
+    let has_selection = ctx.has_selection;
+    let t = ctx.t;
     let obj = &level.objects[idx];
     let is_selected = selected.contains(&idx);
     let mut drop_result: Option<(ObjectIndex, DropPosition)> = None;
@@ -60,7 +71,12 @@ pub(super) fn show_object_tree(
                 label_res
             });
             let header_rect = header_res.response.rect;
-            handle_tree_item_context_menu(&header_res.inner, &context_indices, t, &mut context_action);
+            handle_tree_item_context_menu(
+                &header_res.inner,
+                &context_indices,
+                t,
+                &mut context_action,
+            );
             if let Some(blank_res) = interact_tree_row_blank(ui, idx, header_rect) {
                 let paste_position = row_blank_paste_position(&blank_res, header_rect, idx, true);
                 handle_tree_blank_response(
@@ -126,16 +142,7 @@ pub(super) fn show_object_tree(
             state.show_body_indented(&header_res.response, ui, |ui| {
                 for &child in &parent.children {
                     let (dr, cl, action, child_blank_action) =
-                        show_object_tree(
-                            ui,
-                            level,
-                            child,
-                            selected,
-                            depth + 1,
-                            can_paste,
-                            has_selection,
-                            t,
-                        );
+                        show_object_tree(ui, level, child, depth + 1, ctx);
                     if dr.is_some() && drop_result.is_none() {
                         drop_result = dr;
                     }
@@ -163,7 +170,8 @@ pub(super) fn show_object_tree(
             }
             handle_tree_item_context_menu(&label_res, &context_indices, t, &mut context_action);
             if let Some(blank_res) = interact_tree_row_blank(ui, idx, label_res.rect) {
-                let paste_position = row_blank_paste_position(&blank_res, label_res.rect, idx, false);
+                let paste_position =
+                    row_blank_paste_position(&blank_res, label_res.rect, idx, false);
                 handle_tree_blank_response(
                     &blank_res,
                     can_paste,

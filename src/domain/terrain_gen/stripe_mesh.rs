@@ -135,8 +135,8 @@ fn collapse_inner_intersections(stripe: &mut [Vec2]) {
             if let Some(pt) =
                 segments_intersect_point(stripe[j], stripe[j + 1], stripe[k], stripe[k + 1])
             {
-                for l in (j + 1)..=k {
-                    stripe[l] = pt;
+                for point in stripe.iter_mut().take(k + 1).skip(j + 1) {
+                    *point = pt;
                 }
                 break; // inner loop only — continue outer loop from j+1
             }
@@ -145,7 +145,6 @@ fn collapse_inner_intersections(stripe: &mut [Vec2]) {
 }
 
 /// Test if segments AB and CD intersect, returning the intersection point.
-
 /// Triangulate `segment_count` segments of a quad strip with bowtie detection.
 /// Vertices are interleaved: [outer0, inner0, outer1, inner1, ...].
 fn triangulate_strip_n(verts: &[Vec2], segment_count: usize) -> Vec<i16> {
@@ -179,4 +178,3 @@ fn triangulate_strip_n(verts: &[Vec2], segment_count: usize) -> Vec<i16> {
     }
     indices
 }
-

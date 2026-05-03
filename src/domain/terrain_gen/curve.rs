@@ -45,4 +45,3 @@ pub fn extract_curve_nodes(td: &TerrainData) -> Vec<CurveNode> {
 pub fn is_closed_loop(nodes: &[CurveNode]) -> bool {
     nodes.len() >= 2 && dist_sq(nodes[0].position, nodes[nodes.len() - 1].position) < 0.5 * 0.5
 }
-

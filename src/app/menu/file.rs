@@ -503,9 +503,8 @@ impl EditorApp {
 
 #[cfg(target_arch = "wasm32")]
 pub(super) fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> AppResult<()> {
-    let js_error = |error| {
-        AppError::browser_key1("error_browser_api_call_failed", format!("{:?}", error))
-    };
+    let js_error =
+        |error| AppError::browser_key1("error_browser_api_call_failed", format!("{:?}", error));
 
     let arr = js_sys::Array::new();
     let u8arr = js_sys::Uint8Array::from(bytes.as_slice());
@@ -513,7 +512,8 @@ pub(super) fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> AppResult<()
     let blob = web_sys::Blob::new_with_u8_array_sequence(&arr).map_err(js_error)?;
     let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(js_error)?;
 
-    let window = web_sys::window().ok_or_else(|| AppError::state_key("error_window_unavailable"))?;
+    let window =
+        web_sys::window().ok_or_else(|| AppError::state_key("error_window_unavailable"))?;
     let document = window
         .document()
         .ok_or_else(|| AppError::state_key("error_document_unavailable"))?;
@@ -527,9 +527,7 @@ pub(super) fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> AppResult<()
         .dyn_into::<web_sys::HtmlElement>()
         .map_err(|_| AppError::browser_key("error_download_link_unavailable"))?;
 
-    anchor
-        .set_attribute("href", &url)
-        .map_err(js_error)?;
+    anchor.set_attribute("href", &url).map_err(js_error)?;
     anchor
         .set_attribute("download", file_name)
         .map_err(js_error)?;

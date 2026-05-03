@@ -6,9 +6,9 @@ use eframe::egui;
 
 use crate::domain::types::*;
 
+use super::EditorApp;
 use super::dialogs;
 use super::state::{Snapshot, UNDO_MAX};
-use super::EditorApp;
 
 impl EditorApp {
     pub(super) fn render_canvas(&mut self, ui: &mut egui::Ui) {
@@ -382,5 +382,4 @@ impl EditorApp {
             }
         }
     }
-
 }

@@ -12,6 +12,17 @@ use std::collections::HashSet;
 
 use eframe::egui;
 
+use crate::i18n::locale::I18n;
+
+pub(in crate::app) struct SaveTableEditCtx<'a> {
+    pub selected: &'a mut HashSet<usize>,
+    pub last_clicked: &'a mut Option<usize>,
+    pub scroll_to_xml_entry: &'a mut Option<usize>,
+    pub highlighted_xml_line: &'a mut Option<usize>,
+    pub xml_entry_line_offset: usize,
+    pub t: &'static I18n,
+}
+
 /// Remove entries at the given indices (in reverse order to keep indices valid).
 pub(super) fn remove_indices<T>(vec: &mut Vec<T>, indices: &HashSet<usize>) {
     let mut sorted: Vec<usize> = indices.iter().copied().collect();

@@ -4,15 +4,15 @@ mod overrides;
 
 use eframe::egui;
 
-use crate::i18n::locale::I18n;
 use crate::domain::types::*;
+use crate::i18n::locale::I18n;
 
 use super::{
-    dialogs::{
-        build_default_terrain_data, current_level_prefab_options,
-        render_prefab_index_picker, PrefabOption,
-    },
     EditorApp, Snapshot, UNDO_MAX,
+    dialogs::{
+        PrefabOption, build_default_terrain_data, current_level_prefab_options,
+        render_prefab_index_picker,
+    },
 };
 
 use overrides::{parse_override_text, serialize_override_tree, show_override_tree};
@@ -52,8 +52,12 @@ impl EditorApp {
                         } else {
                             None
                         };
-                        let changed =
-                            show_properties_editable(ui, &mut level.objects[sel], &prefab_options, t);
+                        let changed = show_properties_editable(
+                            ui,
+                            &mut level.objects[sel],
+                            &prefab_options,
+                            t,
+                        );
                         if changed {
                             if let Some(obj_backup) = pre_obj {
                                 let mut level_snapshot = level.clone();
@@ -124,7 +128,11 @@ fn show_properties_editable(
                 egui::ComboBox::from_id_salt("properties_data_type")
                     .selected_text(data_type_label(data_type))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut data_type, DataType::None, data_type_label(DataType::None));
+                        ui.selectable_value(
+                            &mut data_type,
+                            DataType::None,
+                            data_type_label(DataType::None),
+                        );
                         ui.selectable_value(
                             &mut data_type,
                             DataType::Terrain,
@@ -202,7 +210,8 @@ fn show_properties_editable(
 
                 // Closed loop toggle
                 let nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
-                let is_closed = nodes.len() >= 2 && crate::domain::terrain_gen::is_closed_loop(&nodes);
+                let is_closed =
+                    nodes.len() >= 2 && crate::domain::terrain_gen::is_closed_loop(&nodes);
                 let mut closed_val = is_closed;
                 ui.horizontal(|ui| {
                     ui.label(t.get("prop_terrain_closed"));

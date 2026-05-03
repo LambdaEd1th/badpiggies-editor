@@ -1,41 +1,42 @@
 //! Contraption parts table editor.
 
-use std::collections::HashSet;
-
 use eframe::egui;
 
-use crate::i18n::locale::I18n;
 use crate::io::save::parser::*;
 
 use super::super::save_viewer::Filter;
-use super::{duplicate_indices, handle_row_click};
+use super::{SaveTableEditCtx, duplicate_indices, handle_row_click};
 
 pub(in crate::app) fn edit_contraption(
     filter: &Filter,
     ui: &mut egui::Ui,
     parts: &mut Vec<ContraptionPart>,
-    selected: &mut HashSet<usize>,
-    last_clicked: &mut Option<usize>,
-    scroll_to_xml_entry: &mut Option<usize>,
-    highlighted_xml_line: &mut Option<usize>,
-    xml_entry_line_offset: usize,
-    t: &'static I18n,
+    ctx: SaveTableEditCtx<'_>,
 ) -> bool {
+    let SaveTableEditCtx {
+        selected,
+        last_clicked,
+        scroll_to_xml_entry,
+        highlighted_xml_line,
+        xml_entry_line_offset,
+        t,
+    } = ctx;
+
     ui.label(format!(
         "{}: {}",
         t.get("save_viewer_part_count"),
         parts.len()
     ));
 
-    if !parts.is_empty() {
-        if let (Some(min_x), Some(max_x), Some(min_y), Some(max_y)) = (
+    if !parts.is_empty()
+        && let (Some(min_x), Some(max_x), Some(min_y), Some(max_y)) = (
             parts.iter().map(|p| p.x).min(),
             parts.iter().map(|p| p.x).max(),
             parts.iter().map(|p| p.y).min(),
             parts.iter().map(|p| p.y).max(),
-        ) {
-            ui.label(format!("Grid: X [{min_x}, {max_x}]  Y [{min_y}, {max_y}]"));
-        }
+        )
+    {
+        ui.label(format!("Grid: X [{min_x}, {max_x}]  Y [{min_y}, {max_y}]"));
     }
     ui.separator();
 

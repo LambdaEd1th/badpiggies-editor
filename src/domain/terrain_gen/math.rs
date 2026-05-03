@@ -36,7 +36,6 @@ pub(super) fn cross2d(a: Vec2, b: Vec2) -> f32 {
     a.x * b.y - a.y * b.x
 }
 
-
 // ── Polygon area ──
 
 /// Compute signed area of a polygon. Positive = CCW, negative = CW.
@@ -50,7 +49,6 @@ pub(super) fn signed_area(polygon: &[Vec2]) -> f64 {
     }
     area * 0.5
 }
-
 
 // ── Point/triangle/segment tests ──
 
@@ -93,7 +91,6 @@ pub(super) fn point_to_segment_dist_sq(p: Vec2, a: Vec2, b: Vec2) -> f32 {
     let proj = project_onto_segment(p, a, b);
     dist_sq(p, proj)
 }
-
 
 // ── Segment intersections ──
 
@@ -172,4 +169,3 @@ pub(super) fn count_self_intersections(polygon: &[Vec2]) -> usize {
     }
     count
 }
-

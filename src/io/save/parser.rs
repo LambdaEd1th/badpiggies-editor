@@ -193,7 +193,9 @@ pub fn parse_save_data(
     // Strip BOM if present
     let xml = xml.strip_prefix('\u{feff}').unwrap_or(&xml);
     match file_type {
-        crate::io::crypto::SaveFileType::Progress => parse_progress_xml(xml).map(SaveData::Progress),
+        crate::io::crypto::SaveFileType::Progress => {
+            parse_progress_xml(xml).map(SaveData::Progress)
+        }
         crate::io::crypto::SaveFileType::Contraption => {
             parse_contraption_xml(xml).map(SaveData::Contraption)
         }
@@ -274,9 +276,9 @@ pub fn serialize_save_data(data: &SaveData) -> String {
 #[cfg(test)]
 mod tests {
     use super::{ContraptionPart, parse_progress_xml, parse_save_data, serialize_contraption_xml};
-    use crate::io::crypto::SaveFileType;
     use crate::diagnostics::error::AppError;
     use crate::i18n::locale::Language;
+    use crate::io::crypto::SaveFileType;
 
     #[test]
     fn serialize_contraption_xml_preserves_dataset_wrapper_layout() {
@@ -322,7 +324,9 @@ mod tests {
 
         assert!(
             matches!(error, AppError::InvalidData(_))
-                && error.localized(Language::En.i18n()).contains("XML parse error"),
+                && error
+                    .localized(Language::En.i18n())
+                    .contains("XML parse error"),
             "expected InvalidData XML parse error, got {error}"
         );
     }
@@ -336,7 +340,9 @@ mod tests {
 
         assert!(
             matches!(error, AppError::InvalidData(_))
-                && error.localized(Language::En.i18n()).contains("Invalid UTF-8"),
+                && error
+                    .localized(Language::En.i18n())
+                    .contains("Invalid UTF-8"),
             "expected InvalidData UTF-8 error, got {error}"
         );
     }

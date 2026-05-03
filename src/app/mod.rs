@@ -19,10 +19,9 @@ use state::{Clipboard, Snapshot, Tab, UNDO_MAX};
 
 use eframe::egui;
 
-
+use crate::domain::types::*;
 use crate::i18n::locale::{I18n, Language};
 use crate::renderer::{CursorMode, LevelRenderer, TerrainPresetShape};
-use crate::domain::types::*;
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
@@ -135,7 +134,9 @@ impl EditorApp {
             return;
         }
 
-        self.tabs[self.active_tab].renderer.toggle_terrain_preset(shape);
+        self.tabs[self.active_tab]
+            .renderer
+            .toggle_terrain_preset(shape);
     }
 
     pub(super) fn prepare_add_object_dialog_at(&mut self, world_pos: Option<Vec2>) {
@@ -162,7 +163,9 @@ impl EditorApp {
             .objects
             .iter()
             .filter_map(|object| match object {
-                LevelObject::Prefab(prefab) if prefab.prefab_index >= 0 => Some(prefab.prefab_index),
+                LevelObject::Prefab(prefab) if prefab.prefab_index >= 0 => {
+                    Some(prefab.prefab_index)
+                }
                 _ => None,
             })
             .max()
@@ -211,27 +214,28 @@ impl EditorApp {
         // Handle dropped files
         ctx.input(|i| {
             for file in &i.raw.dropped_files {
-                let file_data: Option<(String, Vec<u8>, Option<String>)> = if let Some(ref bytes) = file.bytes {
-                    Some((file.name.clone(), bytes.to_vec(), None))
-                } else if let Some(ref path) = file.path {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        std::fs::read(path).ok().map(|data| {
-                            let name = path
-                                .file_name()
-                                .map(|n| n.to_string_lossy().into_owned())
-                                .unwrap_or_else(|| file.name.clone());
-                            (name, data, Some(path.to_string_lossy().into_owned()))
-                        })
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        let _ = path;
+                let file_data: Option<(String, Vec<u8>, Option<String>)> =
+                    if let Some(ref bytes) = file.bytes {
+                        Some((file.name.clone(), bytes.to_vec(), None))
+                    } else if let Some(ref path) = file.path {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            std::fs::read(path).ok().map(|data| {
+                                let name = path
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .unwrap_or_else(|| file.name.clone());
+                                (name, data, Some(path.to_string_lossy().into_owned()))
+                            })
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            let _ = path;
+                            None
+                        }
+                    } else {
                         None
-                    }
-                } else {
-                    None
-                };
+                    };
 
                 if let Some((name, data, source_path)) = file_data {
                     if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml")
@@ -251,7 +255,6 @@ impl EditorApp {
     }
 }
 
-
 /// Convert days since Unix epoch to (year, month, day).
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) fn civil_from_days(z: i64) -> (i64, u32, u32) {
@@ -267,4 +270,3 @@ pub(super) fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
 }
-

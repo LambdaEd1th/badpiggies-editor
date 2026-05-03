@@ -101,7 +101,10 @@ impl EditorApp {
                         sv.show_table = v;
                     }
                 }
-                if matches!(sv.data, Some(crate::io::save::parser::SaveData::Contraption(_))) {
+                if matches!(
+                    sv.data,
+                    Some(crate::io::save::parser::SaveData::Contraption(_))
+                ) {
                     let mut v = sv.show_preview;
                     if ui
                         .checkbox(&mut v, t.get("contraption_preview_title"))

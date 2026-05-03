@@ -216,13 +216,21 @@ impl EditorApp {
 
     /// Copy all selected objects (and their subtrees) to the clipboard.
     pub(super) fn copy_selected(&mut self) {
-        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab].selected.iter().copied().collect();
+        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+            .selected
+            .iter()
+            .copied()
+            .collect();
         self.copy_objects(&indices);
     }
 
     /// Cut all selected objects: copy then delete.
     pub(super) fn cut_selected(&mut self) {
-        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab].selected.iter().copied().collect();
+        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+            .selected
+            .iter()
+            .copied()
+            .collect();
         self.cut_objects(&indices);
     }
 
@@ -308,7 +316,11 @@ impl EditorApp {
 
     /// Duplicate all selected objects in-place.
     pub(super) fn duplicate_selected(&mut self) {
-        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab].selected.iter().copied().collect();
+        let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+            .selected
+            .iter()
+            .copied()
+            .collect();
         self.duplicate_objects(&indices);
     }
 

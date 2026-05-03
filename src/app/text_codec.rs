@@ -1,8 +1,8 @@
 //! Text-format level (de)serialization helpers used by the UI layer.
 
 use crate::diagnostics::error::{AppError, AppResult};
-use crate::i18n::locale::I18n;
 use crate::domain::types::LevelData;
+use crate::i18n::locale::I18n;
 
 pub(super) fn status_parse_error_message(i18n: &I18n, error: impl Into<AppError>) -> String {
     let error = error.into();

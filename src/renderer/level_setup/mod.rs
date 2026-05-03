@@ -14,7 +14,6 @@ use super::opaque_shader;
 use super::sprite_shader;
 use super::{Camera, LevelRenderer};
 
-
 impl LevelRenderer {
     pub fn new(render_state: Option<&egui_wgpu::RenderState>) -> Self {
         // Initialize wgpu edge shader pipeline if render state available
@@ -239,7 +238,6 @@ impl LevelRenderer {
     }
 
     /// Rebuild cached data when a new level is loaded.
-
     pub fn fit_to_level(&mut self) {
         if self.world_positions.is_empty() {
             return;
@@ -268,7 +266,6 @@ impl LevelRenderer {
         let range = range_x.max(range_y).max(1.0);
         self.camera.zoom = (600.0 / range).clamp(5.0, 200.0);
     }
-
 }
 
 pub(super) fn load_raw_rgba(asset_key: &str) -> Option<(Vec<u8>, u32, u32)> {

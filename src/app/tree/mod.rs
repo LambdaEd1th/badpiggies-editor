@@ -1,5 +1,3 @@
-//! Object tree panel with drag-and-drop reordering.
-
 use std::collections::BTreeSet;
 
 use eframe::egui;
@@ -92,7 +90,10 @@ pub(super) fn handle_tree_blank_response(
         }
         ui.separator();
         if ui
-            .add_enabled(has_selection, egui::Button::new(t.get("menu_clear_selection")))
+            .add_enabled(
+                has_selection,
+                egui::Button::new(t.get("menu_clear_selection")),
+            )
             .clicked()
         {
             *blank_action = Some(TreeBlankAction::ClearSelection);
@@ -107,9 +108,13 @@ pub(super) fn handle_tree_blank_response(
 }
 
 fn root_end_paste_position(level: &LevelData) -> PastePosition {
-    level.roots.last().copied().map_or(PastePosition::AppendTo(None), |idx| {
-        PastePosition::Exact(DropPosition::After(idx))
-    })
+    level
+        .roots
+        .last()
+        .copied()
+        .map_or(PastePosition::AppendTo(None), |idx| {
+            PastePosition::Exact(DropPosition::After(idx))
+        })
 }
 
 pub(super) fn row_blank_paste_position(
@@ -207,56 +212,58 @@ impl EditorApp {
                 let has_selection = !self.tabs[self.active_tab].selected.is_empty();
                 let sel_snapshot = self.tabs[self.active_tab].selected.clone();
                 if let Some(ref level) = self.tabs[self.active_tab].level {
+                    let tree_ctx = TreeRenderCtx {
+                        selected: &sel_snapshot,
+                        can_paste,
+                        has_selection,
+                        t,
+                    };
                     let root_end_paste = root_end_paste_position(level);
-                    let scroll_output = egui::ScrollArea::vertical()
-                        .auto_shrink(false)
-                        .show(ui, |ui| {
-                            for &root_idx in &level.roots {
-                                let (dr, cl, action, row_blank_action) = show_object_tree(
-                                    ui,
-                                    level,
-                                    root_idx,
-                                    &sel_snapshot,
-                                    0,
+                    let scroll_output =
+                        egui::ScrollArea::vertical()
+                            .auto_shrink(false)
+                            .show(ui, |ui| {
+                                for &root_idx in &level.roots {
+                                    let (dr, cl, action, row_blank_action) =
+                                        show_object_tree(ui, level, root_idx, 0, &tree_ctx);
+                                    if dr.is_some() && drop_action.is_none() {
+                                        drop_action = dr;
+                                    }
+                                    if cl.is_some() && tree_clicked.is_none() {
+                                        tree_clicked = cl;
+                                    }
+                                    if action.is_some() && context_action.is_none() {
+                                        context_action = action;
+                                    }
+                                    if row_blank_action.is_some() && blank_action.is_none() {
+                                        blank_action = row_blank_action;
+                                    }
+                                }
+
+                                let (_tail_blank_rect, tail_blank_response) = ui
+                                    .allocate_exact_size(
+                                        egui::vec2(
+                                            ui.available_width().max(1.0),
+                                            OBJECT_TREE_TAIL_BLANK_HEIGHT,
+                                        ),
+                                        egui::Sense::click(),
+                                    );
+                                handle_tree_blank_response(
+                                    &tail_blank_response,
                                     can_paste,
                                     has_selection,
+                                    root_end_paste,
                                     t,
+                                    &mut blank_action,
                                 );
-                                if dr.is_some() && drop_action.is_none() {
-                                    drop_action = dr;
-                                }
-                                if cl.is_some() && tree_clicked.is_none() {
-                                    tree_clicked = cl;
-                                }
-                                if action.is_some() && context_action.is_none() {
-                                    context_action = action;
-                                }
-                                if row_blank_action.is_some() && blank_action.is_none() {
-                                    blank_action = row_blank_action;
-                                }
-                            }
+                            });
 
-                            let (_tail_blank_rect, tail_blank_response) = ui.allocate_exact_size(
-                                egui::vec2(
-                                    ui.available_width().max(1.0),
-                                    OBJECT_TREE_TAIL_BLANK_HEIGHT,
-                                ),
-                                egui::Sense::click(),
-                            );
-                            handle_tree_blank_response(
-                                &tail_blank_response,
-                                can_paste,
-                                has_selection,
-                                root_end_paste,
-                                t,
-                                &mut blank_action,
-                            );
-                        });
-
-                    let blank_top = (scroll_output.inner_rect.top()
-                        + scroll_output.content_size.y
+                    let blank_top = (scroll_output.inner_rect.top() + scroll_output.content_size.y
                         - scroll_output.state.offset.y)
-                        .clamp(scroll_output.inner_rect.top(), scroll_output.inner_rect.bottom());
+                        .clamp(
+                            scroll_output.inner_rect.top(),
+                            scroll_output.inner_rect.bottom(),
+                        );
                     let blank_rect = egui::Rect::from_min_max(
                         egui::pos2(scroll_output.inner_rect.left(), blank_top),
                         scroll_output.inner_rect.right_bottom(),
@@ -408,4 +415,4 @@ pub(super) fn selectable_label_draggable(
 
 mod show;
 
-use show::{collect_tree_order, show_object_tree};
+use show::{TreeRenderCtx, collect_tree_order, show_object_tree};

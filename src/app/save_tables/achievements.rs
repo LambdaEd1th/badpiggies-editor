@@ -1,26 +1,27 @@
 //! Achievements table editor.
 
-use std::collections::HashSet;
-
 use eframe::egui;
 
-use crate::i18n::locale::I18n;
 use crate::io::save::parser::*;
 
 use super::super::save_viewer::Filter;
-use super::{duplicate_indices, handle_row_click};
+use super::{SaveTableEditCtx, duplicate_indices, handle_row_click};
 
 pub(in crate::app) fn edit_achievements(
     filter: &Filter,
     ui: &mut egui::Ui,
     entries: &mut Vec<AchievementEntry>,
-    selected: &mut HashSet<usize>,
-    last_clicked: &mut Option<usize>,
-    scroll_to_xml_entry: &mut Option<usize>,
-    highlighted_xml_line: &mut Option<usize>,
-    xml_entry_line_offset: usize,
-    t: &'static I18n,
+    ctx: SaveTableEditCtx<'_>,
 ) -> bool {
+    let SaveTableEditCtx {
+        selected,
+        last_clicked,
+        scroll_to_xml_entry,
+        highlighted_xml_line,
+        xml_entry_line_offset,
+        t,
+    } = ctx;
+
     let completed_count = entries.iter().filter(|e| e.completed).count();
     ui.label(format!(
         "{completed_count} / {} {}",

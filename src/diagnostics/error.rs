@@ -10,7 +10,10 @@ pub enum AppErrorMessage {
     #[cfg(not(target_arch = "wasm32"))]
     Raw(String),
     Key(&'static str),
-    Key1 { key: &'static str, name: String },
+    Key1 {
+        key: &'static str,
+        name: String,
+    },
 }
 
 impl AppErrorMessage {

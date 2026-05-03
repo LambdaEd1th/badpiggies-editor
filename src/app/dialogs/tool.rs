@@ -17,9 +17,10 @@ impl EditorApp {
         let button_size = egui::vec2(40.0, 40.0);
         let button_spacing = 6.0;
         let button_count = 4.0;
-        let base_window_width = button_size.x * button_count + button_spacing * (button_count - 1.0);
-        let show_terrain_presets =
-            self.cursor_mode == CursorMode::DrawTerrain && !self.tabs[self.active_tab].is_save_tab();
+        let base_window_width =
+            button_size.x * button_count + button_spacing * (button_count - 1.0);
+        let show_terrain_presets = self.cursor_mode == CursorMode::DrawTerrain
+            && !self.tabs[self.active_tab].is_save_tab();
         let active_terrain_preset = if show_terrain_presets {
             self.tabs[self.active_tab].renderer.active_terrain_preset()
         } else {
@@ -95,7 +96,8 @@ impl EditorApp {
                                     .min_size(button_size)
                                     .image_tint_follows_text_color(true),
                             );
-                            let response = response.on_hover_text(t.get(terrain_preset_label_key(shape)));
+                            let response =
+                                response.on_hover_text(t.get(terrain_preset_label_key(shape)));
                             if response.clicked() {
                                 queued_preset = Some(shape);
                             }

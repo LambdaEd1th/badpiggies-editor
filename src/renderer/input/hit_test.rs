@@ -23,7 +23,7 @@ impl LevelRenderer {
             let is_selected = selected.contains(&sprite.index)
                 || (sprite.is_hidden
                     && sprite.parent.is_some()
-                    && sprite.parent.map_or(false, |p| selected.contains(&p)));
+                    && sprite.parent.is_some_and(|p| selected.contains(&p)));
             if !is_selected && sprite.is_hidden {
                 continue;
             }
@@ -35,7 +35,7 @@ impl LevelRenderer {
                     continue;
                 }
                 let dist = dx * dx + dy * dy;
-                if best.map_or(true, |(_, best_dist)| dist < best_dist) {
+                if best.is_none_or(|(_, best_dist)| dist < best_dist) {
                     best = Some((sprite.index, dist));
                 }
             }
@@ -91,5 +91,4 @@ impl LevelRenderer {
         }
         (0.0, 0.0)
     }
-
 }

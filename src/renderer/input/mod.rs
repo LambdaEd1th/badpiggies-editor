@@ -77,26 +77,11 @@ fn terrain_preset_points(
         }
         TerrainPresetShape::Rectangle | TerrainPresetShape::Square => {
             vec![
-                Vec2 {
-                    x: min_x,
-                    y: min_y,
-                },
-                Vec2 {
-                    x: max_x,
-                    y: min_y,
-                },
-                Vec2 {
-                    x: max_x,
-                    y: max_y,
-                },
-                Vec2 {
-                    x: min_x,
-                    y: max_y,
-                },
-                Vec2 {
-                    x: min_x,
-                    y: min_y,
-                },
+                Vec2 { x: min_x, y: min_y },
+                Vec2 { x: max_x, y: min_y },
+                Vec2 { x: max_x, y: max_y },
+                Vec2 { x: min_x, y: max_y },
+                Vec2 { x: min_x, y: min_y },
             ]
         }
         TerrainPresetShape::EquilateralTriangle => {
@@ -162,10 +147,10 @@ pub(super) fn point_to_segment_dist(
     (dist, t)
 }
 
+mod camera;
 mod hit_test;
 mod interaction;
 mod terrain_edit;
-mod camera;
 
 impl LevelRenderer {
     pub fn active_terrain_preset(&self) -> Option<TerrainPresetShape> {
@@ -195,7 +180,12 @@ impl LevelRenderer {
         let shape = self.terrain_preset_shape?;
         let start = self.terrain_preset_drag_start?;
         let end = self.mouse_world?;
-        Some(terrain_preset_points(shape, start, end, self.terrain_round_segments))
+        Some(terrain_preset_points(
+            shape,
+            start,
+            end,
+            self.terrain_round_segments,
+        ))
     }
 
     /// Draw a single terrain's edge using CPU fallback (splat textures or flat vertex-color).

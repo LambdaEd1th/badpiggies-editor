@@ -134,14 +134,8 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
             ),
             ("e2dTerrainBase_MM_rock", "Border.png"),
             ("e2dTerrainBase_MM_sand", "Border.png"),
-            (
-                "e2dTerrainBase_MM_TempleDarkRock",
-                "Border_Maya_Cave.png",
-            ),
-            (
-                "e2dTerrainBase_MM_caveSand",
-                "Border_Maya_Cave.png",
-            ),
+            ("e2dTerrainBase_MM_TempleDarkRock", "Border_Maya_Cave.png"),
+            ("e2dTerrainBase_MM_caveSand", "Border_Maya_Cave.png"),
             // Dark variants with different Splat1 than their base
             ("e2dTerrainDark_02", "Ground_Rocks_Outline_Texture.png"),
             ("e2dTerrainDark_03", "Ground_Rocks_Outline_Texture_05.png"),
@@ -150,15 +144,9 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
                 "Ground_Rocks_Outline_Texture_04.png",
             ),
             ("e2dTerrainDark_MM", "Border_Maya_Cave.png"),
-            (
-                "e2dTerrainDark_MM_CaveSand",
-                "Border_Maya_Cave.png",
-            ),
+            ("e2dTerrainDark_MM_CaveSand", "Border_Maya_Cave.png"),
             ("e2dTerrainDark_MM_rock", "Border.png"),
-            (
-                "e2dTerrainDark_MM_TempleDarkRock",
-                "Border_Maya_Cave.png",
-            ),
+            ("e2dTerrainDark_MM_TempleDarkRock", "Border_Maya_Cave.png"),
         ])
     })
 }
@@ -270,10 +258,7 @@ pub fn get_terrain_splat1(terrain_name: &str) -> Option<&'static str> {
 /// show that MM rock/sand use `Border.png`, while the cave / temple / dark MM
 /// groups use `Border_Maya_Cave.png` except for `e2dTerrainDark_MM_rock`, which
 /// uses `Border.png`.
-pub fn get_terrain_splat1_for_level(
-    _level_key: &str,
-    terrain_name: &str,
-) -> Option<&'static str> {
+pub fn get_terrain_splat1_for_level(_level_key: &str, terrain_name: &str) -> Option<&'static str> {
     let key = normalize_terrain(terrain_name);
     match key.as_str() {
         "e2dTerrainBase_MM_rock" | "e2dTerrainBase_MM_sand" => Some("Border.png"),
@@ -309,77 +294,6 @@ pub fn terrain_splat1_prefers_prefab_over_level_refs(terrain_name: &str) -> bool
 pub fn is_dark_terrain(terrain_name: &str) -> bool {
     let key = normalize_terrain(terrain_name);
     dark_terrain_map().contains_key(key.as_str())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        get_terrain_splat1, get_terrain_splat1_for_level,
-        terrain_splat1_prefers_prefab_over_level_refs,
-    };
-
-    #[test]
-    fn mm_maya_splat1_defaults_match_prefab_border_textures_for_cave_dark_groups() {
-        assert_eq!(
-            get_terrain_splat1("e2dTerrainBase_MM_rock"),
-            Some("Border.png")
-        );
-        assert_eq!(
-            get_terrain_splat1("e2dTerrainBase_MM_sand"),
-            Some("Border.png")
-        );
-        assert_eq!(
-            get_terrain_splat1("e2dTerrainBase_MM_TempleDarkRock"),
-            Some("Border_Maya_Cave.png")
-        );
-        assert_eq!(
-            get_terrain_splat1("e2dTerrainDark_MM_rock"),
-            Some("Border.png")
-        );
-    }
-
-    #[test]
-    fn mm_maya_splat1_level_rule_keeps_prefab_border_textures() {
-        assert_eq!(
-            get_terrain_splat1_for_level("episode_6_level_5_data", "e2dTerrainBase_MM_sand"),
-            Some("Border.png")
-        );
-        assert_eq!(
-            get_terrain_splat1_for_level("Episode_6_Dark Sandbox_data", "e2dTerrainBase_MM_rock"),
-            Some("Border.png")
-        );
-        assert_eq!(
-            get_terrain_splat1_for_level("episode_6_level_10_data", "e2dTerrainBase_MM_rock"),
-            Some("Border.png")
-        );
-        assert_eq!(
-            get_terrain_splat1_for_level("episode_6_level_18_data", "e2dTerrainDark_MM"),
-            Some("Border_Maya_Cave.png")
-        );
-        assert_eq!(
-            get_terrain_splat1_for_level("episode_6_level_18_data", "e2dTerrainDark_MM_rock"),
-            Some("Border.png")
-        );
-    }
-
-    #[test]
-    fn mm_maya_cave_dark_groups_override_shared_level_refs() {
-        assert!(terrain_splat1_prefers_prefab_over_level_refs(
-            "e2dTerrainBase_MM_rock"
-        ));
-        assert!(terrain_splat1_prefers_prefab_over_level_refs(
-            "e2dTerrainBase_MM_sand"
-        ));
-        assert!(terrain_splat1_prefers_prefab_over_level_refs(
-            "e2dTerrainBase_MM_TempleDarkRock"
-        ));
-        assert!(terrain_splat1_prefers_prefab_over_level_refs(
-            "e2dTerrainDark_MM_rock"
-        ));
-        assert!(!terrain_splat1_prefers_prefab_over_level_refs(
-            "e2dTerrainBase_MM_Ice"
-        ));
-    }
 }
 
 // ── Background theme detection ───────────────────────
@@ -532,10 +446,10 @@ pub fn props_tint_color(theme: Option<&str>) -> [f32; 4] {
 /// GenericPropsNight / GenericPropsMorning2 at runtime in Unity.
 pub fn skip_props_tint(name: &str) -> bool {
     name.starts_with("Crystal_")
-    || name == "Glow"
-    || name.starts_with("Glow_")
-    || name.starts_with("GoalArea")
-    || name.starts_with("GoalSprite")
+        || name == "Glow"
+        || name.starts_with("Glow_")
+        || name.starts_with("GoalArea")
+        || name.starts_with("GoalSprite")
         || name.starts_with("Lit")
         || name.starts_with("Secret_")
         || name.starts_with("Star_")
@@ -748,5 +662,76 @@ impl TextureCache {
     /// Get the pixel dimensions of a loaded texture.
     pub fn texture_size(&self, name: &str) -> Option<[usize; 2]> {
         self.textures.get(name).map(|h| h.size())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        get_terrain_splat1, get_terrain_splat1_for_level,
+        terrain_splat1_prefers_prefab_over_level_refs,
+    };
+
+    #[test]
+    fn mm_maya_splat1_defaults_match_prefab_border_textures_for_cave_dark_groups() {
+        assert_eq!(
+            get_terrain_splat1("e2dTerrainBase_MM_rock"),
+            Some("Border.png")
+        );
+        assert_eq!(
+            get_terrain_splat1("e2dTerrainBase_MM_sand"),
+            Some("Border.png")
+        );
+        assert_eq!(
+            get_terrain_splat1("e2dTerrainBase_MM_TempleDarkRock"),
+            Some("Border_Maya_Cave.png")
+        );
+        assert_eq!(
+            get_terrain_splat1("e2dTerrainDark_MM_rock"),
+            Some("Border.png")
+        );
+    }
+
+    #[test]
+    fn mm_maya_splat1_level_rule_keeps_prefab_border_textures() {
+        assert_eq!(
+            get_terrain_splat1_for_level("episode_6_level_5_data", "e2dTerrainBase_MM_sand"),
+            Some("Border.png")
+        );
+        assert_eq!(
+            get_terrain_splat1_for_level("Episode_6_Dark Sandbox_data", "e2dTerrainBase_MM_rock"),
+            Some("Border.png")
+        );
+        assert_eq!(
+            get_terrain_splat1_for_level("episode_6_level_10_data", "e2dTerrainBase_MM_rock"),
+            Some("Border.png")
+        );
+        assert_eq!(
+            get_terrain_splat1_for_level("episode_6_level_18_data", "e2dTerrainDark_MM"),
+            Some("Border_Maya_Cave.png")
+        );
+        assert_eq!(
+            get_terrain_splat1_for_level("episode_6_level_18_data", "e2dTerrainDark_MM_rock"),
+            Some("Border.png")
+        );
+    }
+
+    #[test]
+    fn mm_maya_cave_dark_groups_override_shared_level_refs() {
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
+            "e2dTerrainBase_MM_rock"
+        ));
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
+            "e2dTerrainBase_MM_sand"
+        ));
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
+            "e2dTerrainBase_MM_TempleDarkRock"
+        ));
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
+            "e2dTerrainDark_MM_rock"
+        ));
+        assert!(!terrain_splat1_prefers_prefab_over_level_refs(
+            "e2dTerrainBase_MM_Ice"
+        ));
     }
 }

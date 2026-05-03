@@ -49,8 +49,6 @@ pub fn rebuild_fill_mesh(nodes: &[CurveNode], boundary: [f32; 4]) -> TerrainMesh
 }
 
 /// Build the fill polygon from curve nodes + boundary rect corners.
-///
-
 ///   0: (max_x, min_y)  bottom-right
 ///   1: (min_x, min_y)  bottom-left
 ///   2: (min_x, max_y)  top-left
@@ -198,8 +196,7 @@ pub(super) fn ear_clip_triangulate(polygon: &[Vec2]) -> Vec<i16> {
 
             // No other active vertex must lie inside this triangle
             let mut ear = true;
-            for aj in 0..m {
-                let vi = active[aj];
+            for &vi in active.iter().take(m) {
                 if vi == prev || vi == curr || vi == next {
                     continue;
                 }
@@ -239,9 +236,8 @@ pub(super) fn ear_clip_triangulate(polygon: &[Vec2]) -> Vec<i16> {
 
     // Map back to original polygon indices if we reversed
     if area < 0.0 {
-        indices.iter().map(|&i| (n as i16 - 1 - i) as i16).collect()
+        indices.iter().map(|&i| n as i16 - 1 - i).collect()
     } else {
         indices
     }
 }
-

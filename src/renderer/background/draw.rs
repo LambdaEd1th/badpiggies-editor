@@ -1,6 +1,5 @@
 //! Drawing functions for background sprites and layers.
 
-
 use eframe::egui;
 
 use crate::data::assets;
@@ -8,7 +7,7 @@ use crate::data::bg_data::{self, BgSprite};
 use crate::domain::types::Vec2;
 
 use super::super::{Camera, DrawCtx, bg_shader};
-use super::cache::{bg_sprite_x_animation_offset, BgGpuState, BgLayerCache, WORLD_SCALE};
+use super::cache::{BgGpuState, BgLayerCache, WORLD_SCALE, bg_sprite_x_animation_offset};
 
 pub fn draw_background(
     painter: &egui::Painter,

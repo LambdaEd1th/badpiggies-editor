@@ -7,10 +7,10 @@ mod data;
 mod draw;
 mod glow;
 
-pub use data::{build_sprite, SpriteDrawData, SpriteDrawOpts};
+pub use data::{SpriteDrawData, SpriteDrawOpts, build_sprite};
+pub(in crate::renderer::sprites) use draw::dessert_y_offset;
 pub use draw::draw_sprite;
 pub use glow::{draw_glow, has_glow};
-pub(in crate::renderer::sprites) use draw::dessert_y_offset;
 
 use std::collections::BTreeSet;
 
@@ -40,7 +40,6 @@ pub const BIRD_SLEEP_SCALE_Y: &[(f32, f32, f32, f32)] = &[
     (1.833333, 0.9, -0.004195808, -0.004195808),
     (4.0, 1.0, 0.04615385, 0.04615385),
 ];
-
 
 impl LevelRenderer {
     /// Draw all sprites with GPU batching, compound sub-sprites, and bird face deferral.
@@ -95,7 +94,7 @@ impl LevelRenderer {
             let is_sel = selected.contains(&sprite.index)
                 || (sprite.is_hidden
                     && sprite.parent.is_some()
-                    && sprite.parent.map_or(false, |p| selected.contains(&p)));
+                    && sprite.parent.is_some_and(|p| selected.contains(&p)));
 
             // Early world-space frustum cull
             if !is_sel {

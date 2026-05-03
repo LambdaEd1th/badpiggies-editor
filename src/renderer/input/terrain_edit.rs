@@ -35,7 +35,8 @@ impl LevelRenderer {
             && !is_alt
             && let Some(pointer) = response.interact_pointer_pos()
         {
-            self.terrain_preset_drag_start = Some(self.camera.screen_to_world(pointer, canvas_center));
+            self.terrain_preset_drag_start =
+                Some(self.camera.screen_to_world(pointer, canvas_center));
         }
 
         if response.drag_stopped_by(egui::PointerButton::Primary)
@@ -150,5 +151,4 @@ impl LevelRenderer {
 
         self.panning = false;
     }
-
 }

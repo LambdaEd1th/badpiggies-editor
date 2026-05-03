@@ -234,7 +234,8 @@ pub fn draw_construction_grid(
             let wx = grid.base_x + (grid.x_min + col) as f32;
             let wy = grid.base_y + row as f32;
 
-            let center = camera.world_to_screen(crate::domain::types::Vec2 { x: wx, y: wy }, canvas_center);
+            let center =
+                camera.world_to_screen(crate::domain::types::Vec2 { x: wx, y: wy }, canvas_center);
 
             let hw = half_w * camera.zoom;
             let hh = half_h * camera.zoom;

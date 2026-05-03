@@ -273,7 +273,9 @@ fn build_point_light_polygon(cx: f32, cy: f32, size: f32, border_width: f32) -> 
     }
 }
 
-pub(in crate::renderer) fn construction_grid_start_light(grid: &ConstructionGrid) -> LitAreaPolygon {
+pub(in crate::renderer) fn construction_grid_start_light(
+    grid: &ConstructionGrid,
+) -> LitAreaPolygon {
     let mut cx = grid.base_x;
     let cy = grid.base_y + 0.5 * grid.grid_height as f32 - 0.5;
     if grid.grid_width % 2 == 0 {
@@ -351,4 +353,3 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
 
     Some(build_point_light_polygon(cx, cy, size, border_width))
 }
-

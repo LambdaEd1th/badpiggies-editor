@@ -6,7 +6,7 @@ use crate::data::assets;
 use crate::data::sprite_db;
 use crate::domain::types::*;
 
-use super::{dessert_y_offset, BIRD_SLEEP_DURATION};
+use super::{BIRD_SLEEP_DURATION, dessert_y_offset};
 
 pub struct SpriteDrawData {
     /// World position.

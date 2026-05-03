@@ -32,6 +32,11 @@ pub(super) fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
     sprite.sprite_w * WORLD_SCALE * 2.0 * sprite.scale_x.abs()
 }
 
+fn parent_group_z_key(sprite: &bg_data::BgSprite) -> i32 {
+    // Use 0.5-unit Z granularity so 5.5 and 6.0 stay distinct.
+    (sprite.world_z * 2.0).round() as i32
+}
+
 fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f32> {
     // Use edge-to-edge bounding for the wrap gap: the gap between the last
     // sprite's right edge and the first sprite's left edge in the next copy
@@ -56,9 +61,7 @@ fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f
     edge_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let median_edge_gap = edge_gaps[edge_gaps.len() / 2];
     let first = &sprites[sorted[0]];
-    let Some(last_index) = sorted.last().copied() else {
-        return None;
-    };
+    let last_index = sorted.last().copied()?;
     let last = &sprites[last_index];
     let min_left = first.world_x - sprite_display_width(first) * 0.5;
     let max_right = last.world_x + sprite_display_width(last) * 0.5;
@@ -68,7 +71,8 @@ fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f
 pub(super) fn tile_group_key(
     sprite: &bg_data::BgSprite,
     name_lower: &str,
-    name_count: usize,
+    distinct_name_count: usize,
+    split_by_name: bool,
 ) -> Option<String> {
     if sprite.fill_color.is_some() || sprite.sky_texture.is_some() || name_lower.contains("fill") {
         return None;
@@ -76,17 +80,22 @@ pub(super) fn tile_group_key(
 
     let layer_key = sprite.layer.order();
     if !sprite.parent_group.is_empty() {
-        if name_count <= 1 {
+        if distinct_name_count <= 1 {
             Some(format!("g:{}:{}", sprite.parent_group, layer_key))
         } else {
-            // Use 0.5-unit Z granularity: multiply by 2 before rounding.
-            // Plain z.round() collapses Z=5.5 and Z=6.0 to the same key (both →
-            // 6), merging e.g. Lamp_01 and Background_Plateau_02 in Halloween
-            // BGLayerNear and producing the wrong block_width.  Sprites that
-            // belong to a single tiling strip (like Morning BGLayerForeground's
-            // 14 uniquely-named trees, all at Z=−8.94) still share one key.
-            let z_key = (sprite.world_z * 2.0).round() as i32;
-            Some(format!("g:{}:{}:{}", sprite.parent_group, layer_key, z_key))
+            let z_key = parent_group_z_key(sprite);
+            if split_by_name {
+                Some(format!(
+                    "g:{}:{}:{}:{}",
+                    sprite.parent_group, layer_key, z_key, name_lower
+                ))
+            } else {
+                // Multi-name parent groups still need Z separation, but only
+                // repeated names within the same Z band split by name. That
+                // keeps Halloween's Lamp/Pumpkin and Ocean's Dummy/Waves apart
+                // without breaking Morning's one-off foreground tree strip.
+                Some(format!("g:{}:{}:{}", sprite.parent_group, layer_key, z_key))
+            }
         }
     } else {
         let atlas_key = sprite.atlas.as_deref().unwrap_or("");
@@ -95,7 +104,11 @@ pub(super) fn tile_group_key(
     }
 }
 
-pub(super) fn bg_sprite_x_animation_offset(_name_lower: &str, _time: f64, _layer: &bg_data::BgLayer) -> f32 {
+pub(super) fn bg_sprite_x_animation_offset(
+    _name_lower: &str,
+    _time: f64,
+    _layer: &bg_data::BgLayer,
+) -> f32 {
     // Unity's background prefab cloud strips are static parallax sprites.
     // Only CloudSet instances animate horizontally at runtime.
     0.0
@@ -130,12 +143,15 @@ pub fn build_bg_layer_cache(
 
     // Build tile bands: group non-fill, non-sky sprites by parent_group (or
     // fallback to atlas+round(y)+layer when no parent_group is set).
-    // When parent_group is set, we group by parent_group+layer only — NO Y or
-    // atlas in the key — so that all sprites in the same Unity repeating group
-    // share one block_width and tile as a coherent unit (e.g. MayaTemple
-    // vertical block columns must tile at the same period as the base strips).
+    // Single-name parent groups still group by parent_group+layer only — NO Y
+    // or atlas in the key — so that one Unity repeating strip can share one
+    // block_width across nearby Z offsets (e.g. Jungle far hills). Multi-name
+    // groups fall back to 0.5-Z bands, and only split by name inside a Z band
+    // when repeated names would otherwise be merged incorrectly.
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
     let mut parent_group_names: HashMap<(String, i32), HashSet<String>> = HashMap::new();
+    let mut parent_group_z_name_counts: HashMap<(String, i32, i32), HashMap<String, usize>> =
+        HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
         let nl = sprite.name.to_ascii_lowercase();
@@ -143,11 +159,19 @@ pub fn build_bg_layer_cache(
         if !sprite.parent_group.is_empty()
             && sprite.fill_color.is_none()
             && sprite.sky_texture.is_none()
+            && !name_lower[i].contains("fill")
         {
+            let parent_group = sprite.parent_group.clone();
+            let layer_key = sprite.layer.order();
             parent_group_names
-                .entry((sprite.parent_group.clone(), sprite.layer.order()))
+                .entry((parent_group.clone(), layer_key))
                 .or_default()
                 .insert(name_lower[i].clone());
+            *parent_group_z_name_counts
+                .entry((parent_group, layer_key, parent_group_z_key(sprite)))
+                .or_default()
+                .entry(name_lower[i].clone())
+                .or_default() += 1;
         }
     }
 
@@ -158,15 +182,27 @@ pub fn build_bg_layer_cache(
         if name_lower[i].contains("fill") {
             continue;
         }
-        let name_count = if sprite.parent_group.is_empty() {
-            0
+        let (distinct_name_count, split_by_name) = if sprite.parent_group.is_empty() {
+            (0, false)
         } else {
-            parent_group_names
-                .get(&(sprite.parent_group.clone(), sprite.layer.order()))
+            let layer_key = sprite.layer.order();
+            let distinct_name_count = parent_group_names
+                .get(&(sprite.parent_group.clone(), layer_key))
                 .map(HashSet::len)
-                .unwrap_or(0)
+                .unwrap_or(0);
+            let split_by_name = parent_group_z_name_counts
+                .get(&(
+                    sprite.parent_group.clone(),
+                    layer_key,
+                    parent_group_z_key(sprite),
+                ))
+                .map(|counts| counts.len() > 1 && counts.values().any(|count| *count > 1))
+                .unwrap_or(false);
+            (distinct_name_count, split_by_name)
         };
-        let Some(group_key) = tile_group_key(sprite, &name_lower[i], name_count) else {
+        let Some(group_key) =
+            tile_group_key(sprite, &name_lower[i], distinct_name_count, split_by_name)
+        else {
             continue;
         };
         groups.entry(group_key).or_default().push(i);

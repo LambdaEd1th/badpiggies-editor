@@ -2,8 +2,8 @@
 
 use eframe::egui;
 
-use crate::i18n::locale::I18n;
 use crate::domain::types::*;
+use crate::i18n::locale::I18n;
 
 use super::super::EditorApp;
 use super::{
@@ -43,11 +43,9 @@ impl EditorApp {
                         egui::ComboBox::from_id_salt("add_object_data_type")
                             .selected_text(t.get(add_data_type_key(self.add_obj_data_type)))
                             .show_ui(ui, |ui| {
-                                for data_type in [
-                                    DataType::None,
-                                    DataType::Terrain,
-                                    DataType::PrefabOverrides,
-                                ] {
+                                for data_type in
+                                    [DataType::None, DataType::Terrain, DataType::PrefabOverrides]
+                                {
                                     ui.selectable_value(
                                         &mut self.add_obj_data_type,
                                         data_type,
@@ -67,12 +65,13 @@ impl EditorApp {
                 ui.horizontal(|ui| {
                     ui.label(t.get("add_name"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.add_obj_name)
-                            .hint_text(if self.add_obj_is_parent {
+                        egui::TextEdit::singleline(&mut self.add_obj_name).hint_text(
+                            if self.add_obj_is_parent {
                                 "NewObject"
                             } else {
                                 add_prefab_default_name(self.add_obj_data_type)
-                            }),
+                            },
+                        ),
                     );
                 });
                 if !self.add_obj_is_parent {

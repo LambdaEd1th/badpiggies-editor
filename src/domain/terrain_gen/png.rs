@@ -49,4 +49,3 @@ pub fn encode_control_png(nodes: &[CurveNode]) -> AppResult<Vec<u8>> {
     }
     Ok(buf)
 }
-

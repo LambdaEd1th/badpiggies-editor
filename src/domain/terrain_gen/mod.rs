@@ -99,6 +99,5 @@ pub fn regenerate_terrain(td: &mut TerrainData, nodes: &[CurveNode]) {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

@@ -10,9 +10,9 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::domain::types::*;
 use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, TerrainPresetShape};
-use crate::domain::types::*;
 
 use super::EditorApp;
 
@@ -136,14 +136,13 @@ pub(super) fn render_prefab_index_picker(
             }
         });
 
-    changed
-        |= ui
-            .add(
-                egui::DragValue::new(prefab_index)
-                    .range(i16::MIN..=i16::MAX)
-                    .speed(1),
-            )
-            .changed();
+    changed |= ui
+        .add(
+            egui::DragValue::new(prefab_index)
+                .range(i16::MIN..=i16::MAX)
+                .speed(1),
+        )
+        .changed();
     changed
 }
 
@@ -263,7 +262,10 @@ fn loader_search_hint(source_path: Option<&str>) -> Option<String> {
     .map(str::to_string)
 }
 
-fn resolve_loader_prefab_path(file_name: Option<&str>, source_path: Option<&str>) -> Option<PathBuf> {
+fn resolve_loader_prefab_path(
+    file_name: Option<&str>,
+    source_path: Option<&str>,
+) -> Option<PathBuf> {
     let target_name = loader_file_name_for_level(file_name?)?;
     if let Some(source_path) = source_path {
         let source = Path::new(source_path);
@@ -384,7 +386,9 @@ pub(super) fn current_level_prefab_options(
                     .or_else(|| {
                         level_key
                             .as_deref()
-                            .and_then(|key| crate::domain::level::refs::get_prefab_override(key, index))
+                            .and_then(|key| {
+                                crate::domain::level::refs::get_prefab_override(key, index)
+                            })
                             .map(|name| format!("#{index} {name}"))
                     })
                     .unwrap_or_else(|| format!("#{index}"));
@@ -448,7 +452,6 @@ impl EditorApp {
         }
     }
 }
-
 
 /// Update (or create) `m_cameraLimits` in the LevelManager override data.
 pub(super) fn update_camera_limits_in_level(level: &mut LevelData, vals: [f32; 4]) {

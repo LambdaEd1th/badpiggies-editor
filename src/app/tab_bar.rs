@@ -4,13 +4,18 @@ use eframe::egui;
 
 use crate::i18n::locale::I18n;
 
+use super::EditorApp;
 use super::state::Tab;
 use super::tree;
-use super::EditorApp;
 
 /// Render the tab bar with drag-and-drop reordering.
 impl EditorApp {
-    pub(super) fn render_tab_bar(&mut self, ui: &mut egui::Ui, t: &'static I18n, ctx: &egui::Context) {
+    pub(super) fn render_tab_bar(
+        &mut self,
+        ui: &mut egui::Ui,
+        t: &'static I18n,
+        ctx: &egui::Context,
+    ) {
         /// Drag-and-drop payload for tab reordering.
         struct TabDndPayload(usize);
 
@@ -36,7 +41,7 @@ impl EditorApp {
                         let stroke = egui::Stroke::new(2.0, ui.visuals().selection.bg_fill);
                         let mid_x = resp.rect.center().x;
                         let hover_right =
-                            ui.input(|inp| inp.pointer.hover_pos().map_or(false, |p| p.x > mid_x));
+                            ui.input(|inp| inp.pointer.hover_pos().is_some_and(|p| p.x > mid_x));
                         let x = if hover_right {
                             resp.rect.right()
                         } else {
@@ -44,15 +49,14 @@ impl EditorApp {
                         };
                         ui.painter().vline(x, resp.rect.y_range(), stroke);
                     }
-                    if let Some(payload) = resp.dnd_release_payload::<TabDndPayload>() {
-                        if payload.0 != i {
-                            let mid_x = resp.rect.center().x;
-                            let drop_right = ui.input(|inp| {
-                                inp.pointer.hover_pos().map_or(false, |p| p.x > mid_x)
-                            });
-                            let target = if drop_right { i + 1 } else { i };
-                            tab_swap = Some((payload.0, target));
-                        }
+                    if let Some(payload) = resp.dnd_release_payload::<TabDndPayload>()
+                        && payload.0 != i
+                    {
+                        let mid_x = resp.rect.center().x;
+                        let drop_right =
+                            ui.input(|inp| inp.pointer.hover_pos().is_some_and(|p| p.x > mid_x));
+                        let target = if drop_right { i + 1 } else { i };
+                        tab_swap = Some((payload.0, target));
                     }
 
                     let close_btn = ui.small_button("×");
@@ -107,5 +111,4 @@ impl EditorApp {
             });
         });
     }
-
 }

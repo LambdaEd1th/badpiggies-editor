@@ -113,7 +113,13 @@ fn load() -> HashMap<String, PartInfo> {
                 v3_y: l.v3_y,
             })
             .collect();
-        map.insert(key, PartInfo { z_offset: entry.z_offset, layers });
+        map.insert(
+            key,
+            PartInfo {
+                z_offset: entry.z_offset,
+                layers,
+            },
+        );
     }
     map
 }

@@ -5,10 +5,10 @@ use eframe::egui;
 
 use crate::data::assets::TextureCache;
 use crate::data::icon_db;
+use crate::data::sprite_db::UvRect;
+use crate::io::save::parser::ContraptionPart;
 use crate::renderer::grid::ConstructionGridCellStyle;
 use crate::renderer::{LevelRenderer, sprite_shader};
-use crate::io::save::parser::ContraptionPart;
-use crate::data::sprite_db::UvRect;
 
 /// Part type integer to display name.
 fn part_type_name(part_type: i32) -> &'static str {
@@ -152,12 +152,14 @@ fn layer_visible(
             let has_up_right = rotated_has(x, y, 4, rot);
             let has_down_right = rotated_has(x, y, 7, rot);
             // Is this a diagonal rotation? GridRotation: Deg_45=4, Deg_135=5, Deg_225=6, Deg_315=7
-            let diag = rot >= 4 && rot <= 7;
+            let diag = (4..=7).contains(&rot);
             let visible = match name {
                 "LeftAttachment" => has_left && !diag,
                 "RightAttachment" => has_right && !diag,
                 "TopAttachment" => has_up && !diag,
-                "BottomAttachment" => (has_down && !diag) || (!has_up && !has_left && !has_right && !diag),
+                "BottomAttachment" => {
+                    (has_down && !diag) || (!has_up && !has_left && !has_right && !diag)
+                }
                 "BottomLeftAttachment" => has_down_left && diag,
                 "BottomRightAttachment" => has_down_right && diag,
                 "TopLeftAttachment" => has_up_left && diag,
@@ -166,8 +168,13 @@ fn layer_visible(
             };
             // Global fallback: if absolutely no connections, show bottom
             if !visible && name == "BottomAttachment" {
-                let any = has_up || has_down_left || has_left || has_right
-                    || has_up_left || has_up_right || has_down_right;
+                let any = has_up
+                    || has_down_left
+                    || has_left
+                    || has_right
+                    || has_up_left
+                    || has_up_right
+                    || has_down_right;
                 if !any {
                     return true;
                 }
@@ -299,8 +306,7 @@ pub(super) fn render_contraption_canvas(
                 [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
             );
             if let Some(tex_id) = tex_id {
-                let uv_rect =
-                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                let uv_rect = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
                 let tint = egui::Color32::WHITE;
                 for gx in 0..(grid_w as i32) {
                     for gy in 0..(grid_h as i32) {
@@ -360,8 +366,8 @@ pub(super) fn render_contraption_canvas(
     for part in parts {
         let part_info = icon_db::get_part_info(part.part_type, part.custom_part_index);
         if let Some(info) = part_info {
-            let part_z = -0.1_f32 + info.z_offset
-                - (part.x as f32 + 2.0 * part.y as f32) / 100000.0;
+            let part_z =
+                -0.1_f32 + info.z_offset - (part.x as f32 + 2.0 * part.y as f32) / 100000.0;
             for layer in &info.layers {
                 if !layer_visible(part, layer, &occupied, &rotated_has, &has_neighbor) {
                     continue;
@@ -523,13 +529,8 @@ pub(super) fn render_contraption_canvas(
             Some(size) => size,
             None => continue,
         };
-        let (uv_min, uv_max) = sprite_shader::compute_uvs(
-            &uv_rect,
-            atlas_w as f32,
-            atlas_h as f32,
-            false,
-            false,
-        );
+        let (uv_min, uv_max) =
+            sprite_shader::compute_uvs(&uv_rect, atlas_w as f32, atlas_h as f32, false, false);
         let uv_bl = egui::pos2(uv_min[0], uv_max[1]);
         let uv_tl = egui::pos2(uv_min[0], uv_min[1]);
         let uv_tr = egui::pos2(uv_max[0], uv_min[1]);
@@ -616,4 +617,3 @@ fn part_icon_mesh_quad(
     mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
     mesh
 }
-

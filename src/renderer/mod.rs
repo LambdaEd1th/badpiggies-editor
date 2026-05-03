@@ -154,9 +154,10 @@ pub enum NodeEditAction {
 }
 
 /// Active cursor/tool mode for canvas interaction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CursorMode {
     /// Default: click to select, drag objects to move.
+    #[default]
     Select,
     /// Drag a rectangle to select all objects inside it.
     BoxSelect,
@@ -164,12 +165,6 @@ pub enum CursorMode {
     DrawTerrain,
     /// All primary-drag pans the view (no object interaction).
     Pan,
-}
-
-impl Default for CursorMode {
-    fn default() -> Self {
-        Self::Select
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -619,7 +614,13 @@ impl LevelRenderer {
                 self.terrain_data
                     .iter()
                     .find(|terrain| terrain.object_index == object_index)
-                    .map(|terrain| (object_index, node_index, terrain.curve_world_verts.len() > 2))
+                    .map(|terrain| {
+                        (
+                            object_index,
+                            node_index,
+                            terrain.curve_world_verts.len() > 2,
+                        )
+                    })
             })
         };
         let context_menu_node_can_delete = terrain_node_can_delete(self.context_menu_node);
@@ -641,9 +642,8 @@ impl LevelRenderer {
                     }
                 })
                 .unwrap_or_else(|| selected.iter().copied().collect());
-            self.context_menu_node = hovered_node_can_delete.map(|(object_index, node_index, _)| {
-                (object_index, node_index)
-            });
+            self.context_menu_node = hovered_node_can_delete
+                .map(|(object_index, node_index, _)| (object_index, node_index));
             if let Some(index) = context_object
                 && !selected.contains(&index)
             {
@@ -718,7 +718,8 @@ impl LevelRenderer {
                     )
                     .clicked()
                 {
-                    self.context_action = Some(CanvasContextAction::Delete(context_indices.clone()));
+                    self.context_action =
+                        Some(CanvasContextAction::Delete(context_indices.clone()));
                     ui.close();
                 }
 

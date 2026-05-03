@@ -97,7 +97,11 @@ pub(super) fn merged_poly_intervals(y: f32, polys: &[Vec<egui::Pos2>]) -> Vec<(f
     merge_intervals(intervals)
 }
 
-pub(super) fn complement_intervals(left: f32, right: f32, intervals: &[(f32, f32)]) -> Vec<(f32, f32)> {
+pub(super) fn complement_intervals(
+    left: f32,
+    right: f32,
+    intervals: &[(f32, f32)],
+) -> Vec<(f32, f32)> {
     let mut result = Vec::new();
     let mut cursor = left;
     for &(start, end) in intervals {

@@ -6,9 +6,7 @@ use crate::domain::types::Vec2;
 
 use super::super::Camera;
 use super::Trapezoid;
-use super::intervals::{
-    complement_intervals, merged_poly_intervals, subtract_intervals,
-};
+use super::intervals::{complement_intervals, merged_poly_intervals, subtract_intervals};
 use super::{LIGHT_FILL_ALPHA, LIT_AREA_BORDER_ALPHA, LitAreaPolygon, POINT_LIGHT_BORDER_ALPHA};
 
 pub(in crate::renderer) fn build_dark_overlay_meshes(
@@ -55,10 +53,7 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
             } else {
                 &la.vertices
             };
-            let pts: Vec<egui::Pos2> = source
-                .iter()
-                .map(|&(wx, wy)| to_screen(wx, wy))
-                .collect();
+            let pts: Vec<egui::Pos2> = source.iter().map(|&(wx, wy)| to_screen(wx, wy)).collect();
             if pts.len() >= 3 { Some(pts) } else { None }
         })
         .collect();

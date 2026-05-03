@@ -21,7 +21,7 @@ impl EditorApp {
         let cut_key = if is_mac { "Cmd+X" } else { "Ctrl+X" };
         let paste_key = if is_mac { "Cmd+V" } else { "Ctrl+V" };
         let dup_key = if is_mac { "Cmd+D" } else { "Ctrl+D" };
-        let delete_key = if is_mac { "Delete" } else { "Delete" };
+        let delete_key = "Delete";
 
         // Add tool mode shortcuts to the shortcuts window
         egui::Window::new(t.get("win_shortcuts"))

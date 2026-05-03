@@ -2,11 +2,11 @@
 
 use eframe::egui;
 
-use crate::renderer::CursorMode;
 use crate::domain::types::*;
+use crate::renderer::CursorMode;
 
-use super::state::Tab;
 use super::EditorApp;
+use super::state::Tab;
 
 impl eframe::App for EditorApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -83,10 +83,9 @@ impl eframe::App for EditorApp {
             && ctx.input_mut(|i| {
                 i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::A))
             })
+            && let Some(ref mut sv) = self.tabs[self.active_tab].save_view
         {
-            if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
-                sv.select_all();
-            }
+            sv.select_all();
         }
         // Save tab: Delete/Backspace — delete selected entries
         if is_save_tab
@@ -95,10 +94,9 @@ impl eframe::App for EditorApp {
                 i.consume_key(Modifiers::NONE, Key::Delete)
                     || i.consume_key(Modifiers::NONE, Key::Backspace)
             })
+            && let Some(ref mut sv) = self.tabs[self.active_tab].save_view
         {
-            if let Some(ref mut sv) = self.tabs[self.active_tab].save_view {
-                sv.delete_selected();
-            }
+            sv.delete_selected();
         }
 
         // Cmd+C / Ctrl+C — copy

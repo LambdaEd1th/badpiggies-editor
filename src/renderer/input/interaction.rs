@@ -42,15 +42,7 @@ impl LevelRenderer {
 
         match cursor_mode {
             CursorMode::Select => {
-                self.handle_select_mode(
-                    ui,
-                    response,
-                    canvas_center,
-                    rect,
-                    selected,
-                    is_shift,
-                    is_alt,
-                );
+                self.handle_select_mode(ui, response, canvas_center, selected, is_shift, is_alt);
             }
             CursorMode::BoxSelect => {
                 self.handle_box_select_mode(ui, response, canvas_center, rect, is_shift, is_alt);
@@ -73,7 +65,6 @@ impl LevelRenderer {
         ui: &egui::Ui,
         response: &egui::Response,
         canvas_center: egui::Vec2,
-        rect: egui::Rect,
         selected: &BTreeSet<ObjectIndex>,
         is_shift: bool,
         is_alt: bool,
@@ -267,7 +258,7 @@ impl LevelRenderer {
                         let (dist, t) =
                             point_to_segment_dist(click_world.x, click_world.y, ax, ay, bx, by);
                         if dist < threshold
-                            && best.map_or(true, |(_, _, best_dist, _)| dist < best_dist)
+                            && best.is_none_or(|(_, _, best_dist, _)| dist < best_dist)
                         {
                             best = Some((td.object_index, seg, dist, t));
                         }
@@ -301,9 +292,6 @@ impl LevelRenderer {
                 });
             }
         }
-
-        // Handle zoom (scroll wheel, center-preserving)
-        self.handle_zoom(ui, response, canvas_center, rect);
     }
 
     /// Box-select mode: drag a rectangle to select all objects inside it.

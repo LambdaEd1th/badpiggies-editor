@@ -7,7 +7,12 @@ use crate::domain::types::Vec2;
 use super::super::{BoundsDragResult, BoundsDragState, BoundsHandle, LevelRenderer};
 
 impl LevelRenderer {
-    pub(super) fn handle_pan_mode(&mut self, response: &egui::Response, _is_shift: bool, _is_alt: bool) {
+    pub(super) fn handle_pan_mode(
+        &mut self,
+        response: &egui::Response,
+        _is_shift: bool,
+        _is_alt: bool,
+    ) {
         if response.dragged_by(egui::PointerButton::Primary)
             || response.dragged_by(egui::PointerButton::Middle)
         {
@@ -70,7 +75,11 @@ impl LevelRenderer {
 
     /// Handle level-bounds drag interaction. Returns `true` if a bounds drag
     /// is active or was just started (caller should skip normal mode handling).
-    pub(super) fn handle_bounds_drag(&mut self, response: &egui::Response, canvas_center: egui::Vec2) -> bool {
+    pub(super) fn handle_bounds_drag(
+        &mut self,
+        response: &egui::Response,
+        canvas_center: egui::Vec2,
+    ) -> bool {
         // Check if bounds are visible and exist
         if !self.show_level_bounds {
             self.bounds_hovered_handle = None;
@@ -126,7 +135,7 @@ impl LevelRenderer {
                         BoundsHandle::Bottom => [otl_x, otl_y, ow, (oh - dy).max(1.0)],
                         _ => {
                             // Compute for corner handles
-                            self.compute_corner_drag(drag.handle, otl_x, otl_y, ow, oh, dx, dy)
+                            Self::compute_corner_drag(drag.handle, [otl_x, otl_y, ow, oh], (dx, dy))
                         }
                     };
                     // Fix Top handle: topLeft.y moves with dy, height grows with dy
@@ -236,16 +245,9 @@ impl LevelRenderer {
     }
 
     /// Compute new limits for a corner drag handle.
-    fn compute_corner_drag(
-        &self,
-        handle: BoundsHandle,
-        tl_x: f32,
-        tl_y: f32,
-        w: f32,
-        h: f32,
-        dx: f32,
-        dy: f32,
-    ) -> [f32; 4] {
+    fn compute_corner_drag(handle: BoundsHandle, bounds: [f32; 4], delta: (f32, f32)) -> [f32; 4] {
+        let [tl_x, tl_y, w, h] = bounds;
+        let (dx, dy) = delta;
         match handle {
             BoundsHandle::TopLeft => {
                 let nw = (w - dx).max(1.0);

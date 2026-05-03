@@ -197,18 +197,24 @@ impl SaveViewerData {
             xml_context_menu_pos,
             context_menu_layer_id,
         ) {
-            let popup_response = Popup::new(xml_context_menu_id, ui.ctx().clone(), menu_pos, menu_layer_id)
-                .kind(PopupKind::Menu)
-                .layout(egui::Layout::top_down_justified(egui::Align::Min))
-                .close_behavior(PopupCloseBehavior::IgnoreClicks)
-                .open_bool(&mut xml_context_menu_open)
-                .show(|ui| {
+            let popup_response = Popup::new(
+                xml_context_menu_id,
+                ui.ctx().clone(),
+                menu_pos,
+                menu_layer_id,
+            )
+            .kind(PopupKind::Menu)
+            .layout(egui::Layout::top_down_justified(egui::Align::Min))
+            .close_behavior(PopupCloseBehavior::IgnoreClicks)
+            .open_bool(&mut xml_context_menu_open)
+            .show(|ui| {
                 if ui
                     .add_enabled(has_xml_selection, egui::Button::new(t.get("menu_copy")))
                     .clicked()
                 {
                     if let Some(range) = xml_selection {
-                        ui.ctx().copy_text(range.slice_str(&self.xml_text).to_owned());
+                        ui.ctx()
+                            .copy_text(range.slice_str(&self.xml_text).to_owned());
                     }
                     ui.close();
                 }
@@ -217,10 +223,11 @@ impl SaveViewerData {
                     .clicked()
                 {
                     if let Some(range) = xml_selection {
-                        ui.ctx().copy_text(range.slice_str(&self.xml_text).to_owned());
+                        ui.ctx()
+                            .copy_text(range.slice_str(&self.xml_text).to_owned());
                         let cursor = self.xml_text.delete_selected(&range);
-                        let mut state = egui::TextEdit::load_state(ui.ctx(), text_edit_id)
-                            .unwrap_or_default();
+                        let mut state =
+                            egui::TextEdit::load_state(ui.ctx(), text_edit_id).unwrap_or_default();
                         state
                             .cursor
                             .set_char_range(Some(egui::text::CCursorRange::one(cursor)));
@@ -233,18 +240,21 @@ impl SaveViewerData {
                 }
                 if ui.button(t.get("menu_paste")).clicked() {
                     ui.ctx().memory_mut(|mem| mem.request_focus(text_edit_id));
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::RequestPaste);
                     ui.close();
                 }
                 ui.separator();
                 if ui.button(t.get("menu_select_all")).clicked() {
-                    let mut state = egui::TextEdit::load_state(ui.ctx(), text_edit_id)
-                        .unwrap_or_default();
+                    let mut state =
+                        egui::TextEdit::load_state(ui.ctx(), text_edit_id).unwrap_or_default();
                     let end = egui::text::CCursor::new(self.xml_text.chars().count());
-                    state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
-                        egui::text::CCursor::new(0),
-                        end,
-                    )));
+                    state
+                        .cursor
+                        .set_char_range(Some(egui::text::CCursorRange::two(
+                            egui::text::CCursor::new(0),
+                            end,
+                        )));
                     state.store(ui.ctx(), text_edit_id);
                     ui.ctx().memory_mut(|mem| mem.request_focus(text_edit_id));
                     ui.ctx().request_repaint();
@@ -301,21 +311,19 @@ impl SaveViewerData {
         self.xml_context_menu_pos = xml_context_menu_pos;
         self.xml_context_menu_wait_for_release = xml_context_menu_wait_for_release;
         // Track editing snapshot for undo support
-        if xml_dirty {
-            if self.xml_editing_snapshot.is_none() {
-                self.xml_editing_snapshot = Some(xml_before_edit);
-            }
+        if xml_dirty && self.xml_editing_snapshot.is_none() {
+            self.xml_editing_snapshot = Some(xml_before_edit);
         }
         if text_lost_focus {
             // Editing session ended — finalize undo
-            if let Some(snap) = self.xml_editing_snapshot.take() {
-                if snap != self.xml_text {
-                    self.undo_stack.push(snap);
-                    if self.undo_stack.len() > 100 {
-                        self.undo_stack.remove(0);
-                    }
-                    self.redo_stack.clear();
+            if let Some(snap) = self.xml_editing_snapshot.take()
+                && snap != self.xml_text
+            {
+                self.undo_stack.push(snap);
+                if self.undo_stack.len() > 100 {
+                    self.undo_stack.remove(0);
                 }
+                self.redo_stack.clear();
             }
         }
         XmlPanelResult { xml_dirty }

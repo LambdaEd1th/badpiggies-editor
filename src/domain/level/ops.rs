@@ -205,13 +205,11 @@ impl LevelData {
             PastePosition::AppendTo(parent_idx) => parent_idx,
             PastePosition::Exact(DropPosition::IntoParent(target)) => Some(target),
             PastePosition::Exact(DropPosition::Before(target))
-            | PastePosition::Exact(DropPosition::After(target)) => {
-                match self.objects.get(target) {
-                    Some(LevelObject::Prefab(prefab)) => prefab.parent,
-                    Some(LevelObject::Parent(parent)) => parent.parent,
-                    None => None,
-                }
-            }
+            | PastePosition::Exact(DropPosition::After(target)) => match self.objects.get(target) {
+                Some(LevelObject::Prefab(prefab)) => prefab.parent,
+                Some(LevelObject::Parent(parent)) => parent.parent,
+                None => None,
+            },
         };
         let base = self.objects.len();
         for (i, obj) in subtree.iter().enumerate() {
@@ -254,7 +252,10 @@ impl LevelData {
             }
             PastePosition::Exact(DropPosition::Before(target))
             | PastePosition::Exact(DropPosition::After(target)) => {
-                let is_before = matches!(paste_position, PastePosition::Exact(DropPosition::Before(_)));
+                let is_before = matches!(
+                    paste_position,
+                    PastePosition::Exact(DropPosition::Before(_))
+                );
                 let target_parent = match self.objects.get(target) {
                     Some(LevelObject::Prefab(prefab)) => prefab.parent,
                     Some(LevelObject::Parent(parent)) => parent.parent,
@@ -272,9 +273,13 @@ impl LevelData {
                     }
                 } else {
                     let pos = self.roots.iter().position(|&root| root == target);
-                    let insert_at = pos.map_or(self.roots.len(), |index| {
-                        if is_before { index } else { index + 1 }
-                    });
+                    let insert_at =
+                        pos.map_or(
+                            self.roots.len(),
+                            |index| {
+                                if is_before { index } else { index + 1 }
+                            },
+                        );
                     self.roots.insert(insert_at, base);
                 }
             }

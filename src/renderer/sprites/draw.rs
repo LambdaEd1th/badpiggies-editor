@@ -6,8 +6,8 @@ use crate::domain::types::*;
 
 use super::super::DrawCtx;
 use super::{
-    SpriteDrawData, SpriteDrawOpts, BIRD_SLEEP_DURATION, BIRD_SLEEP_POS_Y, BIRD_SLEEP_SCALE_X,
-    BIRD_SLEEP_SCALE_Y,
+    BIRD_SLEEP_DURATION, BIRD_SLEEP_POS_Y, BIRD_SLEEP_SCALE_X, BIRD_SLEEP_SCALE_Y, SpriteDrawData,
+    SpriteDrawOpts,
 };
 
 pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawOpts) {

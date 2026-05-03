@@ -67,9 +67,9 @@ fn get_screen_size_80pct() -> (f32, f32) {
 // ── CLI ──────────────────────────────────────────────
 #[cfg(not(target_arch = "wasm32"))]
 mod cli {
-    use crate::io::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
     use crate::diagnostics::error::{AppError, AppResult};
     use crate::i18n::locale::Language;
+    use crate::io::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
     use clap::{Parser, Subcommand, ValueEnum};
     use std::path::PathBuf;
 
@@ -229,28 +229,30 @@ mod cli {
                     ))
                 })?
             }
-            _ => return Err(AppError::invalid_data(t.fmt1("cli_unsupported_input", &ext_in))),
+            _ => {
+                return Err(AppError::invalid_data(
+                    t.fmt1("cli_unsupported_input", &ext_in),
+                ));
+            }
         };
 
         let output_data: Vec<u8> = match ext_out.as_str() {
             "bytes" => crate::domain::parser::serialize_level(&level),
             "yaml" | "yml" => serde_yaml::to_string(&level)
                 .map_err(|error| {
-                    AppError::invalid_data(t.fmt1(
-                        "cli_serialize_yaml_error",
-                        &error.to_string(),
-                    ))
+                    AppError::invalid_data(t.fmt1("cli_serialize_yaml_error", &error.to_string()))
                 })?
                 .into_bytes(),
             "toml" => toml::to_string_pretty(&level)
                 .map_err(|error| {
-                    AppError::invalid_data(t.fmt1(
-                        "cli_serialize_toml_error",
-                        &error.to_string(),
-                    ))
+                    AppError::invalid_data(t.fmt1("cli_serialize_toml_error", &error.to_string()))
                 })?
                 .into_bytes(),
-            _ => return Err(AppError::invalid_data(t.fmt1("cli_unsupported_output", &ext_out))),
+            _ => {
+                return Err(AppError::invalid_data(
+                    t.fmt1("cli_unsupported_output", &ext_out),
+                ));
+            }
         };
 
         std::fs::write(&output, &output_data).map_err(|error| {
@@ -307,20 +309,14 @@ mod cli {
             );
         } else {
             use std::io::Write;
-            std::io::stdout()
-                .write_all(&xml)
-                .map_err(|error| {
-                    AppError::invalid_data(t.fmt1("cli_stdout_write_error", &error.to_string()))
-                })?;
+            std::io::stdout().write_all(&xml).map_err(|error| {
+                AppError::invalid_data(t.fmt1("cli_stdout_write_error", &error.to_string()))
+            })?;
         }
         Ok(())
     }
 
-    fn run_encrypt(
-        input: PathBuf,
-        output: PathBuf,
-        save_type: Option<SaveType>,
-    ) -> AppResult<()> {
+    fn run_encrypt(input: PathBuf, output: PathBuf, save_type: Option<SaveType>) -> AppResult<()> {
         let t = Language::from_system().i18n();
         let file_type = resolve_type(save_type, &output, "output")?;
 

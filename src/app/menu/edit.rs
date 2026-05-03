@@ -2,8 +2,8 @@
 
 use eframe::egui;
 
-use crate::i18n::locale::I18n;
 use crate::domain::types::*;
+use crate::i18n::locale::I18n;
 
 use super::super::EditorApp;
 

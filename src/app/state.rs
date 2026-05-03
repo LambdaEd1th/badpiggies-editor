@@ -3,10 +3,10 @@
 use std::collections::BTreeSet;
 
 use crate::diagnostics::error::AppError;
-use crate::i18n::locale::I18n;
 use crate::domain::parser;
-use crate::renderer::LevelRenderer;
 use crate::domain::types::*;
+use crate::i18n::locale::I18n;
+use crate::renderer::LevelRenderer;
 
 use super::save_viewer;
 use super::text_codec::{

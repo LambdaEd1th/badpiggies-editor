@@ -9,11 +9,11 @@ use eframe::egui;
 
 use crate::data::assets::TextureCache;
 
-use crate::io::crypto::{self, SaveFileType};
 use crate::diagnostics::error::AppError;
 use crate::i18n::locale::I18n;
-use crate::renderer::LevelRenderer;
+use crate::io::crypto::{self, SaveFileType};
 use crate::io::save::parser::*;
+use crate::renderer::LevelRenderer;
 
 use contraption_preview::render_contraption_canvas;
 
@@ -328,14 +328,14 @@ impl SaveViewerData {
     /// Undo the last change.
     pub fn undo(&mut self) {
         // If mid-edit in the TextEdit, restore the editing snapshot first.
-        if let Some(snap) = self.xml_editing_snapshot.take() {
-            if snap != self.xml_text {
-                self.redo_stack.push(self.xml_text.clone());
-                self.xml_text = snap;
-                self.reparse();
-                self.dirty = true;
-                return;
-            }
+        if let Some(snap) = self.xml_editing_snapshot.take()
+            && snap != self.xml_text
+        {
+            self.redo_stack.push(self.xml_text.clone());
+            self.xml_text = snap;
+            self.reparse();
+            self.dirty = true;
+            return;
         }
         if let Some(prev) = self.undo_stack.pop() {
             self.redo_stack.push(self.xml_text.clone());
@@ -570,6 +570,8 @@ impl SaveViewerData {
             let data = &mut self.data;
             let selected = &mut self.selected;
             let last_clicked = &mut self.last_clicked;
+            let scroll_to_xml_entry = &mut self.scroll_to_xml_entry;
+            let highlighted_xml_line = &mut self.highlighted_xml_line;
             egui::Panel::right("save_table_panel")
                 .resizable(true)
                 .default_size(default_right)
@@ -582,12 +584,14 @@ impl SaveViewerData {
                                 &compiled_filter,
                                 ui,
                                 entries,
-                                selected,
-                                last_clicked,
-                                &mut self.scroll_to_xml_entry,
-                                &mut self.highlighted_xml_line,
-                                xml_entry_line_offset,
-                                t,
+                                super::save_tables::SaveTableEditCtx {
+                                    selected: &mut *selected,
+                                    last_clicked: &mut *last_clicked,
+                                    scroll_to_xml_entry: &mut *scroll_to_xml_entry,
+                                    highlighted_xml_line: &mut *highlighted_xml_line,
+                                    xml_entry_line_offset,
+                                    t,
+                                },
                             );
                         }
                         Some(SaveData::Contraption(parts)) => {
@@ -595,12 +599,14 @@ impl SaveViewerData {
                                 &compiled_filter,
                                 ui,
                                 parts,
-                                selected,
-                                last_clicked,
-                                &mut self.scroll_to_xml_entry,
-                                &mut self.highlighted_xml_line,
-                                xml_entry_line_offset,
-                                t,
+                                super::save_tables::SaveTableEditCtx {
+                                    selected: &mut *selected,
+                                    last_clicked: &mut *last_clicked,
+                                    scroll_to_xml_entry: &mut *scroll_to_xml_entry,
+                                    highlighted_xml_line: &mut *highlighted_xml_line,
+                                    xml_entry_line_offset,
+                                    t,
+                                },
                             );
                         }
                         Some(SaveData::Achievements(entries)) => {
@@ -608,12 +614,14 @@ impl SaveViewerData {
                                 &compiled_filter,
                                 ui,
                                 entries,
-                                selected,
-                                last_clicked,
-                                &mut self.scroll_to_xml_entry,
-                                &mut self.highlighted_xml_line,
-                                xml_entry_line_offset,
-                                t,
+                                super::save_tables::SaveTableEditCtx {
+                                    selected: &mut *selected,
+                                    last_clicked: &mut *last_clicked,
+                                    scroll_to_xml_entry: &mut *scroll_to_xml_entry,
+                                    highlighted_xml_line: &mut *highlighted_xml_line,
+                                    xml_entry_line_offset,
+                                    t,
+                                },
                             );
                         }
                         None => {
@@ -623,11 +631,11 @@ impl SaveViewerData {
                 });
         }
         // When a new row is clicked, queue scroll-to in the XML panel
-        if self.last_clicked != old_last_clicked {
-            if let Some(entry_idx) = self.last_clicked {
-                self.scroll_to_xml_entry = Some(entry_idx);
-                self.highlighted_xml_line = Some(self.xml_entry_line(entry_idx));
-            }
+        if self.last_clicked != old_last_clicked
+            && let Some(entry_idx) = self.last_clicked
+        {
+            self.scroll_to_xml_entry = Some(entry_idx);
+            self.highlighted_xml_line = Some(self.xml_entry_line(entry_idx));
         }
 
         // Left panel: editable XML (fills remaining area)
@@ -679,4 +687,3 @@ impl SaveViewerData {
         self.show_preview = open;
     }
 }
-

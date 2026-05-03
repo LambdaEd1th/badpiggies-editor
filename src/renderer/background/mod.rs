@@ -10,12 +10,11 @@ mod draw;
 #[cfg(test)]
 mod tests;
 
-pub use cache::{build_bg_layer_cache, BgGpuState, BgLayerCache};
-pub use draw::{draw_background, draw_bg_layers};
+pub use cache::{BgGpuState, BgLayerCache, build_bg_layer_cache};
 pub(in crate::renderer) use draw::hermite;
+pub use draw::{draw_background, draw_bg_layers};
 
 use eframe::egui;
-
 
 use super::{DrawCtx, LevelRenderer, clouds};
 

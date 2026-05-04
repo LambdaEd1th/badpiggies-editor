@@ -3,7 +3,7 @@
 //! Uses PBKDF2-HMAC-SHA1 key derivation + AES-256-CBC, matching the game's CryptoUtility.
 
 use cbc::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::Pkcs7};
-use hmac::{Hmac, KeyInit, Mac};
+use pbkdf2::pbkdf2_hmac;
 use sha1::{Digest, Sha1};
 
 use crate::diagnostics::error::{AppError, AppResult};
@@ -11,7 +11,6 @@ use crate::i18n::locale::I18n;
 
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
-type HmacSha1 = Hmac<Sha1>;
 
 /// Fixed salt used by the game's `Rfc2898DeriveBytes`.
 const SALT: &[u8] = &[82, 166, 66, 87, 146, 51, 179, 108, 242, 110, 98, 237, 124];
@@ -24,54 +23,12 @@ fn derive_key_iv(password: &str) -> AppResult<([u8; 32], [u8; 16])> {
     // .NET Rfc2898DeriveBytes uses HMAC-SHA1 and produces a continuous stream.
     // Two consecutive GetBytes(32) and GetBytes(16) calls produce 48 bytes total.
     let mut derived = [0u8; 48];
-    pbkdf2_hmac_sha1(password.as_bytes(), SALT, PBKDF2_ITERATIONS, &mut derived)?;
+    pbkdf2_hmac::<Sha1>(password.as_bytes(), SALT, PBKDF2_ITERATIONS, &mut derived);
     let mut key = [0u8; 32];
     let mut iv = [0u8; 16];
     key.copy_from_slice(&derived[..32]);
     iv.copy_from_slice(&derived[32..48]);
     Ok((key, iv))
-}
-
-/// PBKDF2-HMAC-SHA1 (RFC 2898) — implemented directly to avoid digest version conflicts.
-fn pbkdf2_hmac_sha1(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    output: &mut [u8],
-) -> AppResult<()> {
-    let hlen = 20; // SHA1 output length
-    let mut block_num = 1u32;
-    let mut offset = 0;
-    while offset < output.len() {
-        // U1 = PRF(Password, Salt || INT_32_BE(i))
-        let mut mac = HmacSha1::new_from_slice(password)
-            .map_err(|_| AppError::crypto_key("error_pbkdf2_init"))?;
-        mac.update(salt);
-        mac.update(&block_num.to_be_bytes());
-        let u1 = mac.finalize().into_bytes();
-
-        let mut u_prev: [u8; 20] = u1.into();
-        let mut result = u_prev;
-
-        // U2..Uc — XOR all rounds together
-        for _ in 1..iterations {
-            let mut mac = HmacSha1::new_from_slice(password)
-                .map_err(|_| AppError::crypto_key("error_pbkdf2_init"))?;
-            mac.update(&u_prev);
-            let u_next = mac.finalize().into_bytes();
-            u_prev = u_next.into();
-            for (r, n) in result.iter_mut().zip(u_prev.iter()) {
-                *r ^= n;
-            }
-        }
-
-        let to_copy = (output.len() - offset).min(hlen);
-        output[offset..offset + to_copy].copy_from_slice(&result[..to_copy]);
-        offset += to_copy;
-        block_num += 1;
-    }
-
-    Ok(())
 }
 
 /// Encrypt data with AES-256-CBC.

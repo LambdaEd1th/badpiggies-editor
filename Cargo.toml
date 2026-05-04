@@ -26,8 +26,8 @@ sys-locale = { version = "0.3", features = ["js"] }
 rust-embed = { version = "8", features = ["debug-embed"] }
 aes = "0.9"
 cbc = "0.2"
+pbkdf2 = { version = "0.13", features = ["hmac"] }
 sha1 = "0.11"
-hmac = "0.13"
 quick-xml = "0.39"
 regex = "1"
 

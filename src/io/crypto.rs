@@ -38,9 +38,9 @@ fn aes_encrypt(key: &[u8; 32], iv: &[u8; 16], plaintext: &[u8]) -> AppResult<Vec
 
 /// Decrypt AES-256-CBC data.
 fn aes_decrypt(key: &[u8; 32], iv: &[u8; 16], ciphertext: &[u8]) -> AppResult<Vec<u8>> {
-    Ok(Aes256CbcDec::new(key.into(), iv.into())
+    Aes256CbcDec::new(key.into(), iv.into())
         .decrypt_padded_vec::<Pkcs7>(ciphertext)
-        .map_err(|error| AppError::crypto_key1("error_aes_decrypt_failed", error.to_string()))?)
+        .map_err(|error| AppError::crypto_key1("error_aes_decrypt_failed", error.to_string()))
 }
 
 /// Verify SHA1 hash: first 20 bytes of file must match SHA1 of the rest.

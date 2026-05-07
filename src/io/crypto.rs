@@ -2,7 +2,7 @@
 //!
 //! Uses PBKDF2-HMAC-SHA1 key derivation + AES-256-CBC, matching the game's CryptoUtility.
 
-use cbc::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::Pkcs7};
+use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit, block_padding::Pkcs7};
 use pbkdf2::pbkdf2_hmac;
 use sha1::{Digest, Sha1};
 
@@ -33,25 +33,14 @@ fn derive_key_iv(password: &str) -> AppResult<([u8; 32], [u8; 16])> {
 
 /// Encrypt data with AES-256-CBC.
 fn aes_encrypt(key: &[u8; 32], iv: &[u8; 16], plaintext: &[u8]) -> AppResult<Vec<u8>> {
-    use cbc::cipher::BlockModeEncrypt;
-    // cipher 0.5 has no encrypt_padded_vec; allocate buffer manually.
-    let block_size = 16;
-    let padded_len = (plaintext.len() / block_size + 1) * block_size;
-    let mut buf = vec![0u8; padded_len];
-    buf[..plaintext.len()].copy_from_slice(plaintext);
-    let ct = Aes256CbcEnc::new(key.into(), iv.into())
-        .encrypt_padded::<Pkcs7>(&mut buf, plaintext.len())
-        .map_err(|_| AppError::crypto_key("error_aes_encrypt_buffer_too_small"))?;
-    Ok(ct.to_vec())
+    Ok(Aes256CbcEnc::new(key.into(), iv.into()).encrypt_padded_vec::<Pkcs7>(plaintext))
 }
 
 /// Decrypt AES-256-CBC data.
 fn aes_decrypt(key: &[u8; 32], iv: &[u8; 16], ciphertext: &[u8]) -> AppResult<Vec<u8>> {
-    let mut buf = ciphertext.to_vec();
-    let decrypted = Aes256CbcDec::new(key.into(), iv.into())
-        .decrypt_padded::<Pkcs7>(&mut buf)
-        .map_err(|error| AppError::crypto_key1("error_aes_decrypt_failed", error.to_string()))?;
-    Ok(decrypted.to_vec())
+    Ok(Aes256CbcDec::new(key.into(), iv.into())
+        .decrypt_padded_vec::<Pkcs7>(ciphertext)
+        .map_err(|error| AppError::crypto_key1("error_aes_decrypt_failed", error.to_string()))?)
 }
 
 /// Verify SHA1 hash: first 20 bytes of file must match SHA1 of the rest.

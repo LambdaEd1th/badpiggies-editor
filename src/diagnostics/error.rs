@@ -68,10 +68,6 @@ impl AppError {
         Self::InvalidData(AppErrorMessage::key1(key, name))
     }
 
-    pub fn crypto_key(key: &'static str) -> Self {
-        Self::Crypto(AppErrorMessage::key(key))
-    }
-
     pub fn crypto_key1(key: &'static str, name: impl Into<String>) -> Self {
         Self::Crypto(AppErrorMessage::key1(key, name))
     }

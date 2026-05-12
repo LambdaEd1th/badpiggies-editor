@@ -5,14 +5,17 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use crate::data::assets;
 use crate::data::sprite_db::UvRect;
 use crate::domain::types::Vec2;
 
 const SPRITE_SCRIPT_GUID: &str = "eaa85264a31f76994888187c4d3a9fb9";
+const SPRITES_BYTES_ASSET: &str = "unity/resources/guisystem/Sprites.bytes";
+const SPRITE_MAPPING_ASSET: &str = "unity/resources/guisystem/spritemapping.bytes";
+const PREFAB_MANIFEST_ASSET: &str = "unity/prefabs/manifest.txt";
+const PREFAB_DIR_ASSET: &str = "unity/prefabs";
 const WORLD_SCALE: f32 = 10.0 / 768.0;
 
 type Mat2x3 = (f32, f32, f32, f32, f32, f32);
@@ -87,23 +90,9 @@ struct ParsedPrefab {
     renderers: HashMap<String, RendererInfo>,
 }
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
-        .to_path_buf()
-}
-
-fn prefab_dir() -> PathBuf {
-    repo_root().join("Assets/Prefab")
-}
-
-fn sprites_bytes_path() -> PathBuf {
-    repo_root().join("Assets/Resources/guisystem/Sprites.bytes")
-}
-
-fn sprite_mapping_path() -> PathBuf {
-    repo_root().join("Assets/Resources/guisystem/spritemapping.bytes")
+fn read_embedded_text(path: &str) -> Option<String> {
+    let bytes = assets::read_asset(path)?;
+    Some(String::from_utf8_lossy(bytes.as_ref()).into_owned())
 }
 
 fn runtime_sprites() -> &'static HashMap<String, RuntimeSpriteMeta> {
@@ -125,8 +114,11 @@ pub fn get_multi_sprite_layers(name: &str) -> Option<&'static [PrefabSpriteLayer
 
 fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
     let mut sprite_data: HashMap<String, RuntimeSpriteMeta> = HashMap::new();
-    let Ok(text) = fs::read_to_string(sprites_bytes_path()) else {
-        log::error!("Failed to read Sprites.bytes for prefab multi-sprite support");
+    let Some(text) = read_embedded_text(SPRITES_BYTES_ASSET) else {
+        log::error!(
+            "Failed to read embedded {} for prefab multi-sprite support",
+            SPRITES_BYTES_ASSET
+        );
         return HashMap::new();
     };
 
@@ -189,8 +181,11 @@ fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
         );
     }
 
-    let Ok(text) = fs::read_to_string(sprite_mapping_path()) else {
-        log::error!("Failed to read spritemapping.bytes for prefab multi-sprite support");
+    let Some(text) = read_embedded_text(SPRITE_MAPPING_ASSET) else {
+        log::error!(
+            "Failed to read embedded {} for prefab multi-sprite support",
+            SPRITE_MAPPING_ASSET
+        );
         return HashMap::new();
     };
 
@@ -225,30 +220,24 @@ fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
 
 fn load_multi_sprite_prefabs() -> HashMap<String, Vec<PrefabSpriteLayer>> {
     let runtime = runtime_sprites();
-    let dir = prefab_dir();
-    let Ok(entries) = fs::read_dir(&dir) else {
-        log::error!("Failed to read prefab directory for multi-sprite support: {}", dir.display());
+    let Some(manifest) = read_embedded_text(PREFAB_MANIFEST_ASSET) else {
+        log::error!(
+            "Failed to read embedded prefab manifest for multi-sprite support: {}",
+            PREFAB_MANIFEST_ASSET
+        );
         return HashMap::new();
     };
 
     let mut prefabs = HashMap::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("prefab"))
-        {
+    for filename in manifest.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        if !filename.ends_with(".prefab") {
             continue;
         }
-        let Some(name) = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .map(str::to_string)
-        else {
+        let Some(name) = filename.strip_suffix(".prefab").map(str::to_string) else {
             continue;
         };
-        let Some(layers) = parse_prefab_layers(&path, runtime) else {
+        let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
+        let Some(layers) = parse_prefab_layers(&asset_path, runtime) else {
             continue;
         };
         if layers.len() > 1 {
@@ -259,10 +248,10 @@ fn load_multi_sprite_prefabs() -> HashMap<String, Vec<PrefabSpriteLayer>> {
 }
 
 fn parse_prefab_layers(
-    path: &Path,
+    asset_path: &str,
     runtime: &HashMap<String, RuntimeSpriteMeta>,
 ) -> Option<Vec<PrefabSpriteLayer>> {
-    let text = fs::read_to_string(path).ok()?;
+    let text = read_embedded_text(asset_path)?;
     let parsed = parse_prefab(&text);
 
     let root_transform_id = parsed
@@ -747,4 +736,20 @@ fn mat_compose(m1: Mat2x3, m2: Mat2x3) -> Mat2x3 {
 fn mat_apply(m: Mat2x3, x: f32, y: f32) -> (f32, f32) {
     let (a, b, c, d, tx, ty) = m;
     (a * x + b * y + tx, c * x + d * y + ty)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_multi_sprite_layers;
+
+    #[test]
+    fn embedded_icon_pig_prefab_has_multiple_layers() {
+        let Some(layers) = get_multi_sprite_layers("Icon_Pig_01") else {
+            panic!("expected embedded multi-sprite data for Icon_Pig_01");
+        };
+        assert!(
+            layers.len() >= 3,
+            "expected Icon_Pig_01 to keep multiple embedded sprite layers"
+        );
+    }
 }

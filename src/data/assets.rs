@@ -8,7 +8,7 @@ use eframe::egui;
 
 /// Embedded game assets (compiled into the binary).
 #[derive(rust_embed::RustEmbed)]
-#[folder = "assets/"]
+#[folder = "embedded_assets/"]
 pub struct EmbeddedAssets;
 
 /// Read asset bytes by relative path (e.g. "sprites/IngameAtlas.png").

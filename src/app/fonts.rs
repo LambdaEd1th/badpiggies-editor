@@ -42,10 +42,10 @@ fn load_system_cjk_font() -> Option<Vec<u8>> {
             return Some(data);
         }
     }
-    Some(include_bytes!("../../assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
+    Some(include_bytes!("../../editor_assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
 }
 
 #[cfg(target_arch = "wasm32")]
 fn load_system_cjk_font() -> Option<Vec<u8>> {
-    Some(include_bytes!("../../assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
+    Some(include_bytes!("../../editor_assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
 }

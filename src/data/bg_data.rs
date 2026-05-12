@@ -1,13 +1,12 @@
-//! Background theme data — loads bg sprite data from embedded TOML.
+//! Background theme data — parses embedded Unity background prefabs at runtime.
 //!
 //! Each theme has multiple sprite entries organized into parallax layers.
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use serde::Deserialize;
-
-use crate::diagnostics::error::{AppError, AppResult};
+use crate::data::assets;
 
 /// Parallax layer with a speed factor.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -47,18 +46,6 @@ impl BgLayer {
         }
     }
 
-    fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "sky" => Some(BgLayer::Sky),
-            "camera" => Some(BgLayer::Camera),
-            "further" => Some(BgLayer::Further),
-            "far" => Some(BgLayer::Far),
-            "near" => Some(BgLayer::Near),
-            "ground" => Some(BgLayer::Ground),
-            "foreground" => Some(BgLayer::Foreground),
-            _ => None,
-        }
-    }
 }
 
 /// A background sprite ready for rendering.
@@ -100,152 +87,688 @@ pub struct BgTheme {
     pub child_order: Vec<String>,
 }
 
-// ── TOML deserialization ──
+const BG_SPRITE_SCRIPT_GUID: &str = "b011dfa16a4475b746a1372ea41fdf05";
+const BG_TEXTURELOADER_ASSET: &str = "unity/resources/textureloader.prefab";
+const BG_THEME_PREFABS: &[(&str, &str)] = &[
+    ("Cave", "unity/background/background_cave_01_set 1.prefab"),
+    ("Morning", "unity/background/background_forest_01_set 1.prefab"),
+    ("Halloween", "unity/background/background_halloween.prefab"),
+    ("Jungle", "unity/background/background_jungle_01_set.prefab"),
+    ("Maya", "unity/background/background_mm_01_set.prefab"),
+    ("MayaCave", "unity/background/background_mm_cave_01_set.prefab"),
+    (
+        "MayaCaveDark",
+        "unity/background/background_mm_cave_01_set_dark.prefab",
+    ),
+    (
+        "MayaCave2Dark",
+        "unity/background/background_mm_cave_02_set_dark.prefab",
+    ),
+    ("MayaHigh", "unity/background/background_mm_high_01_set.prefab"),
+    (
+        "MayaTemple",
+        "unity/background/background_mm_temple_01_set_01.prefab",
+    ),
+    ("Night", "unity/background/background_night_01_set 1.prefab"),
+    ("Plateau", "unity/background/background_plateau_01_set.prefab"),
+];
 
-#[derive(Deserialize)]
-struct ThemeToml {
-    sprites: Vec<SpriteToml>,
-    #[serde(rename = "groupDefaults")]
-    group_defaults: HashMap<String, [f64; 3]>,
-    #[serde(rename = "childOrder", default)]
-    child_order: Vec<String>,
+#[derive(Debug, Clone)]
+struct GameObjectInfo {
+    name: String,
+    tag: String,
+    active: bool,
 }
 
-#[derive(Deserialize)]
-struct SpriteToml {
-    #[serde(rename = "name")]
-    _name: String,
-    atlas: Option<String>,
-    #[serde(rename = "fillColor")]
-    fill_color: Option<String>,
-    #[serde(rename = "skyTexture")]
-    sky_texture: Option<String>,
-    #[serde(rename = "uvX")]
-    uv_x: f64,
-    #[serde(rename = "uvY")]
-    uv_y: f64,
-    #[serde(rename = "gridW")]
-    grid_w: f64,
-    #[serde(rename = "gridH")]
-    grid_h: f64,
-    #[serde(rename = "spriteW")]
-    sprite_w: f64,
-    #[serde(rename = "spriteH")]
-    sprite_h: f64,
-    subdiv: f64,
-    border: f64,
-    #[serde(rename = "worldX")]
-    world_x: f64,
-    #[serde(rename = "worldY")]
-    world_y: f64,
-    #[serde(rename = "worldZ")]
-    world_z: f64,
-    #[serde(rename = "worldScaleX")]
-    world_scale_x: f64,
-    #[serde(rename = "worldScaleY")]
-    world_scale_y: f64,
-    layer: String,
-    #[serde(rename = "localX", default)]
-    local_x: f64,
-    #[serde(rename = "localY", default)]
-    local_y: f64,
-    #[serde(rename = "parentGroup", default)]
-    parent_group: String,
-    tint: Option<String>,
-    #[serde(rename = "alphaBlend", default)]
-    alpha_blend: bool,
+#[derive(Debug, Clone)]
+struct TransformInfo {
+    game_object_id: String,
+    local_pos: [f32; 3],
+    local_scale: [f32; 3],
+    parent_id: Option<String>,
+    children: Vec<String>,
+    root_order: i32,
 }
 
-fn parse_hex_color(s: &str) -> Option<[u8; 3]> {
-    let s = s.trim_start_matches('#');
-    if s.len() != 6 {
-        return None;
+#[derive(Debug, Clone)]
+struct SpriteComponent {
+    sprite_width: f32,
+    sprite_height: f32,
+    uv_x: f32,
+    uv_y: f32,
+    width: f32,
+    height: f32,
+    subdiv: f32,
+    border: f32,
+}
+
+#[derive(Debug, Clone)]
+struct ParsedPrefab {
+    root_transform_id: String,
+    game_objects: HashMap<String, GameObjectInfo>,
+    transforms: HashMap<String, TransformInfo>,
+    renderers: HashMap<String, String>,
+    sprites: HashMap<String, SpriteComponent>,
+}
+
+#[derive(Debug, Clone)]
+struct GroupContext {
+    name: String,
+    layer: BgLayer,
+    origin: [f32; 3],
+}
+
+fn read_embedded_text(path: &str) -> Option<String> {
+    let bytes = assets::read_asset(path)?;
+    Some(String::from_utf8_lossy(bytes.as_ref()).into_owned())
+}
+
+fn field_value<'a>(doc: &'a str, prefix: &str) -> Option<&'a str> {
+    doc.lines()
+        .find_map(|line| line.trim().strip_prefix(prefix).map(str::trim))
+}
+
+fn parse_doc_header(header: &str) -> Option<(i32, &str)> {
+    let rest = header.trim().strip_prefix("!u!")?;
+    let (class_id, file_id) = rest.split_once(" &")?;
+    Some((class_id.parse().ok()?, file_id.trim()))
+}
+
+fn extract_file_id(value: &str) -> Option<String> {
+    let start = value.find("fileID: ")? + "fileID: ".len();
+    let tail = &value[start..];
+    let end = tail
+        .find(|c| [',', '}'].contains(&c))
+        .unwrap_or(tail.len());
+    Some(tail[..end].trim().to_string())
+}
+
+fn extract_guid(value: &str) -> Option<String> {
+    let start = value.find("guid: ")? + "guid: ".len();
+    let tail = &value[start..];
+    let end = tail
+        .find(|c| [',', '}'].contains(&c))
+        .unwrap_or(tail.len());
+    Some(tail[..end].trim().to_string())
+}
+
+fn parse_vec3(value: &str) -> Option<[f32; 3]> {
+    let mut out = [0.0; 3];
+    let trimmed = value.trim().trim_start_matches('{').trim_end_matches('}');
+    let mut seen = [false; 3];
+    for part in trimmed.split(',') {
+        let (axis, raw) = part.trim().split_once(':')?;
+        let index = match axis.trim() {
+            "x" => 0,
+            "y" => 1,
+            "z" => 2,
+            _ => continue,
+        };
+        out[index] = raw.trim().parse().ok()?;
+        seen[index] = true;
     }
-    let r = u8::from_str_radix(&s[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&s[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&s[4..6], 16).ok()?;
-    Some([r, g, b])
+    seen.iter().all(|v| *v).then_some(out)
+}
+
+fn parse_children(doc: &str) -> Vec<String> {
+    let mut children = Vec::new();
+    let mut in_children = false;
+    for line in doc.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("m_Children:") {
+            in_children = true;
+            continue;
+        }
+        if !in_children {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("- ") {
+            if let Some(child_id) = extract_file_id(rest) {
+                children.push(child_id);
+            }
+            continue;
+        }
+        if trimmed.starts_with("m_Father:") {
+            break;
+        }
+        if !trimmed.is_empty() {
+            break;
+        }
+    }
+    children
+}
+
+fn guid_prefix(guid: &str) -> &str {
+    guid.get(..8).unwrap_or(guid)
+}
+
+fn is_enabled(doc: &str) -> bool {
+    field_value(doc, "m_Enabled: ") != Some("0")
+}
+
+fn parse_prefab(raw: &str) -> Option<ParsedPrefab> {
+    let mut root_game_object_id = None;
+    let mut game_objects = HashMap::new();
+    let mut transforms = HashMap::new();
+    let mut renderers = HashMap::new();
+    let mut sprites = HashMap::new();
+
+    for doc in raw.split("--- ").skip(1) {
+        let mut lines = doc.lines();
+        let Some(header) = lines.next() else {
+            continue;
+        };
+        let Some((class_id, file_id)) = parse_doc_header(header) else {
+            continue;
+        };
+
+        match class_id {
+            1001 => {
+                root_game_object_id = field_value(doc, "m_RootGameObject: ").and_then(extract_file_id);
+            }
+            1 => {
+                let name = field_value(doc, "m_Name: ").unwrap_or(file_id).to_string();
+                let tag = field_value(doc, "m_TagString: ").unwrap_or("").to_string();
+                let active = field_value(doc, "m_IsActive: ").map_or(true, |value| value != "0");
+                game_objects.insert(file_id.to_string(), GameObjectInfo { name, tag, active });
+            }
+            4 => {
+                let Some(game_object_id) = field_value(doc, "m_GameObject: ").and_then(extract_file_id) else {
+                    continue;
+                };
+                let local_pos = field_value(doc, "m_LocalPosition: ")
+                    .and_then(parse_vec3)
+                    .unwrap_or([0.0, 0.0, 0.0]);
+                let local_scale = field_value(doc, "m_LocalScale: ")
+                    .and_then(parse_vec3)
+                    .unwrap_or([1.0, 1.0, 1.0]);
+                let parent_id = field_value(doc, "m_Father: ")
+                    .and_then(extract_file_id)
+                    .filter(|id| id != "0");
+                let root_order = field_value(doc, "m_RootOrder: ")
+                    .and_then(|value| value.parse().ok())
+                    .unwrap_or(0);
+                transforms.insert(
+                    file_id.to_string(),
+                    TransformInfo {
+                        game_object_id,
+                        local_pos,
+                        local_scale,
+                        parent_id,
+                        children: parse_children(doc),
+                        root_order,
+                    },
+                );
+            }
+            23 => {
+                if !is_enabled(doc) {
+                    continue;
+                }
+                let Some(game_object_id) = field_value(doc, "m_GameObject: ").and_then(extract_file_id) else {
+                    continue;
+                };
+                let Some(material_guid) = doc.lines().find_map(|line| {
+                    line.trim()
+                        .strip_prefix("- ")
+                        .and_then(extract_guid)
+                        .or_else(|| line.trim().starts_with("m_Materials:").then_some(None).flatten())
+                }) else {
+                    continue;
+                };
+                renderers.insert(game_object_id, guid_prefix(&material_guid).to_string());
+            }
+            114 => {
+                if !is_enabled(doc) {
+                    continue;
+                }
+                let Some(script_guid) = field_value(doc, "m_Script: ").and_then(extract_guid) else {
+                    continue;
+                };
+                if script_guid != BG_SPRITE_SCRIPT_GUID {
+                    continue;
+                }
+                let Some(game_object_id) = field_value(doc, "m_GameObject: ").and_then(extract_file_id) else {
+                    continue;
+                };
+                let parse_f32 = |key| field_value(doc, key).and_then(|value| value.parse::<f32>().ok());
+                if parse_f32("m_textureWidth: ").is_none() || parse_f32("m_textureHeight: ").is_none() {
+                    continue;
+                }
+                let Some(sprite_width) = parse_f32("m_spriteWidth: ") else {
+                    continue;
+                };
+                let Some(sprite_height) = parse_f32("m_spriteHeight: ") else {
+                    continue;
+                };
+                let Some(uv_x) = parse_f32("m_UVx: ") else {
+                    continue;
+                };
+                let Some(uv_y) = parse_f32("m_UVy: ") else {
+                    continue;
+                };
+                let Some(width) = parse_f32("m_width: ") else {
+                    continue;
+                };
+                let Some(height) = parse_f32("m_height: ") else {
+                    continue;
+                };
+                let Some(subdiv) = parse_f32("m_atlasGridSubdivisions: ") else {
+                    continue;
+                };
+                let border = parse_f32("m_border: ").unwrap_or(0.0);
+                sprites.insert(
+                    game_object_id,
+                    SpriteComponent {
+                        sprite_width,
+                        sprite_height,
+                        uv_x,
+                        uv_y,
+                        width,
+                        height,
+                        subdiv,
+                        border,
+                    },
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let root_transform_id = root_game_object_id
+        .as_ref()
+        .and_then(|root_id| {
+            transforms.iter().find_map(|(transform_id, transform)| {
+                (transform.game_object_id == *root_id).then_some(transform_id.clone())
+            })
+        })
+        .or_else(|| {
+            transforms.iter().find_map(|(transform_id, transform)| {
+                transform.parent_id.is_none().then_some(transform_id.clone())
+            })
+        })?;
+
+    Some(ParsedPrefab {
+        root_transform_id,
+        game_objects,
+        transforms,
+        renderers,
+        sprites,
+    })
+}
+
+fn load_textureloader_materials() -> HashMap<String, String> {
+    let Some(raw) = read_embedded_text(BG_TEXTURELOADER_ASSET) else {
+        log::error!("Missing embedded background textureloader asset");
+        return HashMap::new();
+    };
+
+    let mut map = HashMap::new();
+    let mut current_guid = None::<String>;
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("- material:") {
+            current_guid = extract_guid(trimmed).map(|guid| guid_prefix(&guid).to_string());
+            continue;
+        }
+        if let Some(asset_name) = trimmed.strip_prefix("assetName: ")
+            && let Some(guid) = current_guid.take()
+        {
+            map.insert(guid, asset_name.trim().to_string());
+        }
+    }
+    map
+}
+
+fn classify_group_layer(tag: &str, group_name: &str) -> BgLayer {
+    match tag {
+        "ParallaxLayerSky" => BgLayer::Sky,
+        "ParallaxLayerFixedFollowCamera" => BgLayer::Camera,
+        "ParallaxLayerFurther" => BgLayer::Further,
+        "ParallaxLayerFar" => BgLayer::Far,
+        "ParallaxLayerNear" => BgLayer::Near,
+        "ParallaxLayerForeground" => BgLayer::Foreground,
+        "Ground" => BgLayer::Ground,
+        _ => {
+            let lower = group_name.to_ascii_lowercase();
+            if lower.contains("sky") {
+                BgLayer::Sky
+            } else if lower.contains("further") {
+                BgLayer::Further
+            } else if lower.contains("foreground") || lower.starts_with("fglayer") {
+                BgLayer::Foreground
+            } else if lower.contains("far") {
+                BgLayer::Far
+            } else if lower.contains("near") {
+                BgLayer::Near
+            } else if lower.contains("cloud") || lower.contains("moon") || lower.contains("castle") {
+                BgLayer::Camera
+            } else {
+                BgLayer::Ground
+            }
+        }
+    }
+}
+
+fn supplemental_atlas_for_material(guid: &str) -> Option<&'static str> {
+    match guid {
+        "42e57a40" => Some("Background_Maya_Sheet_03.png"),
+        "38ea809d" => Some("Background_Maya_Sheet_02.png"),
+        "0de59521" => Some("Background_Maya_Sheet_02.png"),
+        "c650b83a" => Some("Background_Maya_Sheet_04.png"),
+        "d2458d0c" => Some("Background_Maya_Sheet_05.png"),
+        "ac6e41ef" => Some("Background_Maya_Sheet_04.png"),
+        "8429542c" => Some("Background_Maya_Sheet_04.png"),
+        "ac9d3653" => Some("Background_Maya_Sheet_04.png"),
+        "543a0873" => Some("Background_Maya_Sheet_03.png"),
+        "ad0893eb" => Some("Background_Maya_Sheet_02.png"),
+        "18df2da6" => Some("Background_Maya_Sheet_03.png"),
+        "a79aee02" => Some("Background_Maya_Sheet_03.png"),
+        "141823ce" => Some("Background_Maya_Sheet_03.png"),
+        _ => None,
+    }
+}
+
+fn fill_color_override(theme: &str, sprite_name: &str, parent_group: &str) -> Option<[u8; 3]> {
+    match (theme, sprite_name, parent_group) {
+        ("Cave", "Background_Far_fill", "BGLayerFar") => Some([0x21, 0x44, 0x21]),
+        ("Cave", "Background_Near_fill", "BGLayerNear") => Some([0x11, 0x21, 0x11]),
+        ("Jungle", "Background_Far_fill", "BGLayerFar") => Some([0x54, 0xaa, 0x44]),
+        ("Jungle", "Background_Near_fill", "BGLayerNear") => Some([0x33, 0x88, 0x44]),
+        ("Jungle", "Dummy", "Ocean") => Some([0x44, 0xaa, 0x99]),
+        ("Maya", "Background_Far_fill", "BGLayerFar") => Some([0xcd, 0xab, 0x74]),
+        ("Maya", "Background_Far_fill2", "BGLayerFurther") => Some([0xdd, 0xdd, 0xdd]),
+        ("Maya", "Dummy", "Ocean") => Some([0x14, 0xba, 0xdc]),
+        ("MayaCave", "Background_Far_fill", "BGLayerFar") => Some([0x21, 0x44, 0x21]),
+        ("MayaCave", "Background_Near_fill", "BGLayerNear") => Some([0x11, 0x21, 0x11]),
+        ("MayaCaveDark", "Background_Far_fill", "BGLayerFar") => Some([0x21, 0x44, 0x21]),
+        ("MayaCaveDark", "Background_Near_fill", "BGLayerNear") => Some([0x11, 0x21, 0x11]),
+        ("MayaCave2Dark", "Background_Sky_Fill1", "Background_Sky_Fill1") => {
+            Some([0x04, 0x0b, 0x12])
+        }
+        ("MayaCave2Dark", "Grass_fill", "GroundLayer") => Some([0x42, 0x42, 0x29]),
+        ("MayaTemple", "Background_Sky", "Background_Sky") => Some([0xfd, 0xf8, 0x7b]),
+        ("Morning", "Background_Far_fill", "BGLayerFar") => Some([0x6d, 0x7e, 0x96]),
+        ("Morning", "Background_Near_fill", "BGLayerNear") => Some([0x3f, 0x4b, 0x5b]),
+        ("Morning", "Dummy", "Ocean") => Some([0x4f, 0x5f, 0x82]),
+        ("Morning", "Fill", "BGLayerForeground") => Some([0x11, 0x11, 0x11]),
+        ("Plateau", "Background_Far_fill", "BGLayerFar") => Some([0xcc, 0xaa, 0x21]),
+        ("Plateau", "Background_Near_fill", "BGLayerNear") => Some([0x88, 0x77, 0x21]),
+        ("Plateau", "Fill", "FGLayer") => Some([0x21, 0x44, 0x44]),
+        ("Plateau", "Grass_fill", "GrassLayer") => Some([0x33, 0x77, 0x66]),
+        _ => None,
+    }
+}
+
+fn alpha_blend_override(theme: &str, sprite_name: &str, parent_group: &str, layer: BgLayer) -> bool {
+    match (theme, sprite_name, parent_group, layer) {
+        ("Morning", "Background_Jungle_02", "BGLayerFar", BgLayer::Far) => true,
+        ("Jungle", "Background_Jungle_02", "BGLayerFar", BgLayer::Far) => true,
+        ("Maya", "Background_Maya_01", "BGLayerFar", BgLayer::Far) => true,
+        ("Night", "Moon", _, BgLayer::Camera) => true,
+        ("Halloween", _, _, BgLayer::Camera) => true,
+        _ => false,
+    }
+}
+
+fn uses_own_group_context(theme: &str, sprite_name: &str, parent_group: &str) -> bool {
+    matches!(
+        (theme, sprite_name, parent_group),
+        ("MayaCave2Dark", "Background_Sky_Fill1", "Background_Sky")
+    )
+}
+
+fn asset_filename(asset_name: &str) -> String {
+    format!("{asset_name}.png")
+}
+
+fn is_sky_texture_asset(asset_name: &str) -> bool {
+    asset_name.contains("Sky_Texture") || asset_name.contains("Backgrounds_sky")
+}
+
+fn build_bg_sprite(
+    theme_name: &str,
+    group: &GroupContext,
+    game_object: &GameObjectInfo,
+    world_pos: [f32; 3],
+    world_scale: [f32; 3],
+    sprite_component: &SpriteComponent,
+    material_guid: &str,
+    textureloader_materials: &HashMap<String, String>,
+) -> Option<BgSprite> {
+    let fill_color = fill_color_override(theme_name, &game_object.name, &group.name);
+    let (atlas, sky_texture) = if fill_color.is_some() {
+        (None, None)
+    } else if let Some(asset_name) = textureloader_materials.get(material_guid) {
+        if is_sky_texture_asset(asset_name) {
+            (None, Some(asset_filename(asset_name)))
+        } else {
+            (Some(asset_filename(asset_name)), None)
+        }
+    } else if let Some(atlas_name) = supplemental_atlas_for_material(material_guid) {
+        (Some(atlas_name.to_string()), None)
+    } else {
+        log::warn!(
+            "Missing background material mapping for theme={}, sprite={}, guid={}",
+            theme_name,
+            game_object.name,
+            material_guid
+        );
+        return None;
+    };
+
+    let is_group_root = game_object.name == group.name;
+    Some(BgSprite {
+        name: game_object.name.clone(),
+        atlas,
+        fill_color,
+        sky_texture,
+        uv_x: sprite_component.uv_x,
+        uv_y: sprite_component.uv_y,
+        grid_w: sprite_component.width,
+        grid_h: sprite_component.height,
+        sprite_w: sprite_component.sprite_width,
+        sprite_h: sprite_component.sprite_height,
+        subdiv: sprite_component.subdiv,
+        border: sprite_component.border,
+        world_x: world_pos[0],
+        world_y: world_pos[1],
+        world_z: world_pos[2],
+        scale_x: world_scale[0],
+        scale_y: world_scale[1],
+        layer: group.layer,
+        local_x: if is_group_root {
+            world_pos[0]
+        } else {
+            world_pos[0] - group.origin[0]
+        },
+        local_y: if is_group_root {
+            world_pos[1]
+        } else {
+            world_pos[1] - group.origin[1]
+        },
+        parent_group: group.name.clone(),
+        tint: [1.0, 1.0, 1.0, 1.0],
+        alpha_blend: alpha_blend_override(theme_name, &game_object.name, &group.name, group.layer),
+    })
+}
+
+fn combine_world_pos(parent_pos: [f32; 3], parent_scale: [f32; 3], local_pos: [f32; 3]) -> [f32; 3] {
+    [
+        parent_pos[0] + parent_scale[0] * local_pos[0],
+        parent_pos[1] + parent_scale[1] * local_pos[1],
+        parent_pos[2] + parent_scale[2] * local_pos[2],
+    ]
+}
+
+fn combine_world_scale(parent_scale: [f32; 3], local_scale: [f32; 3]) -> [f32; 3] {
+    [
+        parent_scale[0] * local_scale[0],
+        parent_scale[1] * local_scale[1],
+        parent_scale[2] * local_scale[2],
+    ]
+}
+
+fn traverse_group(
+    theme_name: &str,
+    prefab: &ParsedPrefab,
+    transform_id: &str,
+    parent_pos: [f32; 3],
+    parent_scale: [f32; 3],
+    group: Option<GroupContext>,
+    textureloader_materials: &HashMap<String, String>,
+    group_defaults: &mut HashMap<String, [f32; 3]>,
+    child_order: &mut Vec<String>,
+    sprites: &mut Vec<BgSprite>,
+) {
+    let Some(transform) = prefab.transforms.get(transform_id) else {
+        return;
+    };
+    let Some(game_object) = prefab.game_objects.get(&transform.game_object_id) else {
+        return;
+    };
+    if !game_object.active {
+        return;
+    }
+
+    let world_pos = combine_world_pos(parent_pos, parent_scale, transform.local_pos);
+    let world_scale = combine_world_scale(parent_scale, transform.local_scale);
+    let group = match group {
+        Some(group) => group,
+        None => {
+            group_defaults.insert(game_object.name.clone(), world_pos);
+            child_order.push(game_object.name.clone());
+            GroupContext {
+                name: game_object.name.clone(),
+                layer: classify_group_layer(&game_object.tag, &game_object.name),
+                origin: world_pos,
+            }
+        }
+    };
+
+    let group = if uses_own_group_context(theme_name, &game_object.name, &group.name) {
+        group_defaults
+            .entry(game_object.name.clone())
+            .or_insert(world_pos);
+        GroupContext {
+            name: game_object.name.clone(),
+            layer: classify_group_layer(&game_object.tag, &game_object.name),
+            origin: world_pos,
+        }
+    } else {
+        group
+    };
+
+    if let Some(sprite_component) = prefab.sprites.get(&transform.game_object_id)
+        && let Some(material_guid) = prefab.renderers.get(&transform.game_object_id)
+        && let Some(sprite) = build_bg_sprite(
+            theme_name,
+            &group,
+            game_object,
+            world_pos,
+            world_scale,
+            sprite_component,
+            material_guid,
+            textureloader_materials,
+        )
+    {
+        sprites.push(sprite);
+    }
+
+    let mut children = transform.children.clone();
+    children.sort_by_key(|child_id| {
+        prefab
+            .transforms
+            .get(child_id)
+            .map(|child| child.root_order)
+            .unwrap_or_default()
+    });
+    for child_id in children {
+        traverse_group(
+            theme_name,
+            prefab,
+            &child_id,
+            world_pos,
+            world_scale,
+            Some(group.clone()),
+            textureloader_materials,
+            group_defaults,
+            child_order,
+            sprites,
+        );
+    }
+}
+
+fn build_theme(
+    theme_name: &str,
+    prefab_path: &str,
+    textureloader_materials: &HashMap<String, String>,
+) -> Option<BgTheme> {
+    let raw = read_embedded_text(prefab_path)?;
+    let prefab = parse_prefab(&raw)?;
+    let root_transform = prefab.transforms.get(&prefab.root_transform_id)?;
+
+    let mut group_defaults = HashMap::new();
+    let mut child_order = Vec::new();
+    let mut sprites = Vec::new();
+
+    let mut children = root_transform.children.clone();
+    children.sort_by_key(|child_id| {
+        prefab
+            .transforms
+            .get(child_id)
+            .map(|child| child.root_order)
+            .unwrap_or_default()
+    });
+    for child_id in children {
+        traverse_group(
+            theme_name,
+            &prefab,
+            &child_id,
+            [0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0],
+            None,
+            textureloader_materials,
+            &mut group_defaults,
+            &mut child_order,
+            &mut sprites,
+        );
+    }
+
+    sprites.sort_by(|a, b| {
+        a.layer.order().cmp(&b.layer.order()).then_with(|| {
+            b.world_z
+                .partial_cmp(&a.world_z)
+                .unwrap_or(Ordering::Equal)
+        })
+    });
+
+    Some(BgTheme {
+        sprites,
+        group_defaults,
+        child_order,
+    })
 }
 
 static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
-    let raw = match try_load_themes() {
-        Ok(raw) => raw,
-        Err(error) => {
-            log::error!("Failed to load background themes: {error}");
-            return HashMap::new();
+    let textureloader_materials = load_textureloader_materials();
+    let mut themes = HashMap::with_capacity(BG_THEME_PREFABS.len());
+    for (theme_name, prefab_path) in BG_THEME_PREFABS {
+        match build_theme(theme_name, prefab_path, &textureloader_materials) {
+            Some(theme) => {
+                themes.insert((*theme_name).to_string(), theme);
+            }
+            None => {
+                log::error!(
+                    "Failed to build embedded background theme {} from {}",
+                    theme_name,
+                    prefab_path
+                );
+            }
         }
-    };
-
-    let mut themes = HashMap::with_capacity(raw.len());
-    for (name, theme_toml) in raw {
-        let mut sprites = Vec::with_capacity(theme_toml.sprites.len());
-        for s in &theme_toml.sprites {
-            let layer = match BgLayer::from_str(&s.layer) {
-                Some(l) => l,
-                None => continue,
-            };
-            sprites.push(BgSprite {
-                name: s._name.clone(),
-                atlas: s.atlas.clone(),
-                fill_color: s.fill_color.as_deref().and_then(parse_hex_color),
-                sky_texture: s.sky_texture.clone(),
-                uv_x: s.uv_x as f32,
-                uv_y: s.uv_y as f32,
-                grid_w: s.grid_w as f32,
-                grid_h: s.grid_h as f32,
-                sprite_w: s.sprite_w as f32,
-                sprite_h: s.sprite_h as f32,
-                subdiv: s.subdiv as f32,
-                border: s.border as f32,
-                world_x: s.world_x as f32,
-                world_y: s.world_y as f32,
-                world_z: s.world_z as f32,
-                scale_x: s.world_scale_x as f32,
-                scale_y: s.world_scale_y as f32,
-                layer,
-                local_x: s.local_x as f32,
-                local_y: s.local_y as f32,
-                parent_group: s.parent_group.clone(),
-                tint: s
-                    .tint
-                    .as_deref()
-                    .and_then(parse_hex_color)
-                    .map(|[r, g, b]| [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
-                    .unwrap_or([1.0, 1.0, 1.0, 1.0]),
-                alpha_blend: s.alpha_blend,
-            });
-        }
-        // Sort by layer order then by Z (farther back first)
-        sprites.sort_by(|a, b| {
-            a.layer.order().cmp(&b.layer.order()).then(
-                b.world_z
-                    .partial_cmp(&a.world_z)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-            )
-        });
-        let group_defaults: HashMap<String, [f32; 3]> = theme_toml
-            .group_defaults
-            .iter()
-            .map(|(k, v)| (k.clone(), [v[0] as f32, v[1] as f32, v[2] as f32]))
-            .collect();
-        themes.insert(
-            name,
-            BgTheme {
-                sprites,
-                group_defaults,
-                child_order: theme_toml.child_order,
-            },
-        );
     }
     themes
-}
-
-fn try_load_themes() -> AppResult<HashMap<String, ThemeToml>> {
-    let toml_str = include_str!("../../assets/data/bg-data.toml");
-    toml::from_str(toml_str)
-        .map_err(|error| AppError::invalid_data_key1("error_bg_data_parse", error.to_string()))
 }
 
 /// Get background theme data by name.
@@ -451,4 +974,88 @@ pub fn sky_texture_files() -> &'static [&'static str] {
         "Night_Sky_Texture.png",
         "Plateau_Sky_Texture.png",
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_theme;
+
+    #[test]
+    fn maya_cave2dark_sky_fill_uses_own_group_and_fill_color() {
+        let Some(theme) = get_theme("MayaCave2Dark") else {
+            panic!("missing MayaCave2Dark theme");
+        };
+        let Some(sprite) = theme
+            .sprites
+            .iter()
+            .find(|sprite| sprite.name == "Background_Sky_Fill1")
+        else {
+            panic!("missing Background_Sky_Fill1");
+        };
+
+        assert_eq!(sprite.parent_group, "Background_Sky_Fill1");
+        assert_eq!(sprite.fill_color, Some([0x04, 0x0b, 0x12]));
+        assert!(sprite.atlas.is_none());
+    }
+
+    #[test]
+    fn maya_cave2dark_fg_uses_sheet_02() {
+        let Some(theme) = get_theme("MayaCave2Dark") else {
+            panic!("missing MayaCave2Dark theme");
+        };
+
+        for sprite in theme.sprites.iter().filter(|sprite| {
+            sprite.parent_group == "FGLayer" && matches!(sprite.name.as_str(), "Fill2" | "Pillars01")
+        }) {
+            assert_eq!(
+                sprite.atlas.as_deref(),
+                Some("Background_Maya_Sheet_02.png"),
+                "unexpected atlas for {}",
+                sprite.name
+            );
+        }
+    }
+
+    #[test]
+    fn maya_temple_uses_expected_maya_sheets() {
+        let Some(theme) = get_theme("MayaTemple") else {
+            panic!("missing MayaTemple theme");
+        };
+
+        for sprite in theme.sprites.iter().filter(|sprite| {
+            sprite.parent_group == "FGLayer"
+                && matches!(
+                    sprite.name.as_str(),
+                    "Background_Maya_Temple_FG"
+                        | "Background_Maya_Temple_FG_Fill"
+                        | "Background_Maya_Temple_Near_Base"
+                        | "Background_Maya_Temple_Near_Top"
+                )
+        }) {
+            assert_eq!(
+                sprite.atlas.as_deref(),
+                Some("Background_Maya_Sheet_05.png"),
+                "unexpected FG atlas for {}",
+                sprite.name
+            );
+        }
+
+        for sprite in theme.sprites.iter().filter(|sprite| {
+            sprite.parent_group == "BGLayerNearBottom"
+                && matches!(
+                    sprite.name.as_str(),
+                    "Background_Maya_Temple_Near_01"
+                        | "Background_Maya_Temple_Near_02"
+                        | "Background_Maya_Temple_Near_03"
+                        | "Background_Maya_Temple_Near_04"
+                )
+        }) {
+            assert_eq!(
+                sprite.atlas.as_deref(),
+                Some("Background_Maya_Sheet_04.png"),
+                "unexpected near-bottom atlas for {}",
+                sprite.name
+            );
+        }
+    }
 }

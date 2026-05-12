@@ -66,7 +66,11 @@ fn load_embedded_loaders() -> AppResult<Vec<ParsedLoaderPrefab>> {
     let manifest = read_embedded_text(LOADER_MANIFEST_ASSET)?;
     let mut loaders = Vec::new();
 
-    for relative_path in manifest.lines().map(str::trim).filter(|line| !line.is_empty()) {
+    for relative_path in manifest
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
         let asset_path = format!("{LOADER_ASSET_PREFIX}{relative_path}");
         let text = read_embedded_text(&asset_path)?;
         let Some(loader) = parse_loader_prefab(&text) else {
@@ -108,7 +112,11 @@ fn load_prefab_names_by_file_id() -> AppResult<HashMap<String, String>> {
     let manifest = read_embedded_text(PREFAB_MANIFEST_ASSET)?;
     let mut names_by_file_id = HashMap::new();
 
-    for relative_path in manifest.lines().map(str::trim).filter(|line| !line.is_empty()) {
+    for relative_path in manifest
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
         let asset_path = format!("{PREFAB_ASSET_PREFIX}{relative_path}");
         let text = read_embedded_text(&asset_path)?;
         let prefab_name = Path::new(relative_path)
@@ -118,7 +126,9 @@ fn load_prefab_names_by_file_id() -> AppResult<HashMap<String, String>> {
             .to_string();
 
         for file_id in parse_prefab_game_object_ids(&text) {
-            names_by_file_id.entry(file_id).or_insert_with(|| prefab_name.clone());
+            names_by_file_id
+                .entry(file_id)
+                .or_insert_with(|| prefab_name.clone());
         }
     }
 
@@ -348,13 +358,22 @@ mod tests {
 
     #[test]
     fn level_key_from_filename_strips_bytes_suffix() {
-        assert_eq!(level_key_from_filename("Level_14_data.bytes"), "Level_14_data");
+        assert_eq!(
+            level_key_from_filename("Level_14_data.bytes"),
+            "Level_14_data"
+        );
     }
 
     #[test]
     fn runtime_loader_refs_match_basic_level() {
-        assert_eq!(get_level_ref("Level_14_data", 9), Some("Ground_Rocks_Texture.png"));
-        assert_eq!(get_level_ref("Level_14_data", 10), Some("Ground_Grass_Texture.png"));
+        assert_eq!(
+            get_level_ref("Level_14_data", 9),
+            Some("Ground_Rocks_Texture.png")
+        );
+        assert_eq!(
+            get_level_ref("Level_14_data", 10),
+            Some("Ground_Grass_Texture.png")
+        );
         assert_eq!(
             get_level_ref("Level_14_data", 11),
             Some("Ground_Rocks_Outline_Texture.png")

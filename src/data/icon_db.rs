@@ -134,7 +134,11 @@ fn load() -> HashMap<String, PartInfo> {
     };
 
     let mut map = HashMap::new();
-    for filename in manifest.lines().map(str::trim).filter(|line| !line.is_empty()) {
+    for filename in manifest
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
         if !filename.starts_with("Part_") || !filename.ends_with("_SET.prefab") {
             continue;
         }
@@ -144,7 +148,10 @@ fn load() -> HashMap<String, PartInfo> {
 
         let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
         let Some(text) = read_embedded_text(&asset_path) else {
-            log::warn!("Missing embedded part prefab for icon layers: {}", asset_path);
+            log::warn!(
+                "Missing embedded part prefab for icon layers: {}",
+                asset_path
+            );
             continue;
         };
 
@@ -152,7 +159,9 @@ fn load() -> HashMap<String, PartInfo> {
         let Some(part_type) = parsed.part_type else {
             continue;
         };
-        let custom_part_index = parsed.custom_part_index.unwrap_or(default_custom_part_index);
+        let custom_part_index = parsed
+            .custom_part_index
+            .unwrap_or(default_custom_part_index);
         let layers = build_part_layers(&parsed, &runtime_sprites);
         if layers.is_empty() {
             continue;
@@ -391,12 +400,10 @@ fn traverse_part(
             - (runtime_sprite.uv_x + runtime_sprite.width / 2);
         let dy = (runtime_sprite.selection_y + runtime_sprite.selection_h / 2)
             - (runtime_sprite.uv_y + runtime_sprite.height / 2);
-        let sprite_pivot_x = (sprite.scale_x
-            * (dx + runtime_sprite.pivot_x + sprite.pivot_x as i32) as f32)
-            as i32;
-        let sprite_pivot_y = (sprite.scale_y
-            * (dy + runtime_sprite.pivot_y + sprite.pivot_y as i32) as f32)
-            as i32;
+        let sprite_pivot_x =
+            (sprite.scale_x * (dx + runtime_sprite.pivot_x + sprite.pivot_x as i32) as f32) as i32;
+        let sprite_pivot_y =
+            (sprite.scale_y * (dy + runtime_sprite.pivot_y + sprite.pivot_y as i32) as f32) as i32;
 
         let half_w = mesh_w as f32 * WORLD_SCALE;
         let half_h = mesh_h as f32 * WORLD_SCALE;
@@ -727,15 +734,9 @@ fn parse_named_f32(text: &str, key: &str) -> Option<f32> {
 fn atlas_for_material_guid(material_guid: &str) -> Option<&'static str> {
     let prefix = material_guid.get(..8).unwrap_or(material_guid);
     match prefix {
-        "ce5a9931" | "d645821c" | "125eb5b4" | "0e790fab" | "353dd850" => {
-            Some("IngameAtlas.png")
-        }
-        "211b2b9c" | "aca6a4c6" | "765e60c2" | "4ab535f3" | "4eeb62bc" => {
-            Some("IngameAtlas2.png")
-        }
-        "2a21c011" | "ad767d84" | "7192b13e" | "a6f51d97" | "7975d66d" => {
-            Some("IngameAtlas3.png")
-        }
+        "ce5a9931" | "d645821c" | "125eb5b4" | "0e790fab" | "353dd850" => Some("IngameAtlas.png"),
+        "211b2b9c" | "aca6a4c6" | "765e60c2" | "4ab535f3" | "4eeb62bc" => Some("IngameAtlas2.png"),
+        "2a21c011" | "ad767d84" | "7192b13e" | "a6f51d97" | "7975d66d" => Some("IngameAtlas3.png"),
         _ => None,
     }
 }

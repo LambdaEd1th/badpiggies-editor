@@ -522,21 +522,14 @@ fn draw_prefab_layers(ctx: &DrawCtx<'_>, layers: &[PrefabSpriteLayer], xf: Compo
             .iter()
             .map(|p| p.y)
             .fold(f32::NEG_INFINITY, f32::max);
-        let screen_rect = egui::Rect::from_min_max(
-            egui::pos2(min_x, min_y),
-            egui::pos2(max_x, max_y),
-        );
+        let screen_rect =
+            egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y));
         if !screen_rect.intersects(ctx.canvas_rect) {
             continue;
         }
 
-        let (uv_min, uv_max) = sprite_shader::compute_uvs(
-            &layer.uv,
-            atlas_w as f32,
-            atlas_h as f32,
-            false,
-            false,
-        );
+        let (uv_min, uv_max) =
+            sprite_shader::compute_uvs(&layer.uv, atlas_w as f32, atlas_h as f32, false, false);
         let uvs = [
             egui::pos2(uv_min[0], uv_max[1]),
             egui::pos2(uv_min[0], uv_min[1]),

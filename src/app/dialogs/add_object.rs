@@ -7,9 +7,9 @@ use crate::i18n::locale::I18n;
 
 use super::super::EditorApp;
 use super::{
-    add_data_type_key, add_prefab_default_name, build_default_terrain_data,
+    PrefabOption, add_data_type_key, add_prefab_default_name, build_default_terrain_data,
     current_level_prefab_options, global_prefab_name_options, make_override_data,
-    render_prefab_index_picker, render_vec3_row, PrefabOption,
+    render_prefab_index_picker, render_vec3_row,
 };
 
 fn prefab_option_name(option: &PrefabOption) -> &str {
@@ -26,7 +26,10 @@ fn sync_add_obj_name_to_prefab_index(
     prefab_index: i16,
     prefab_options: &[PrefabOption],
 ) {
-    if let Some(option) = prefab_options.iter().find(|option| option.index == prefab_index) {
+    if let Some(option) = prefab_options
+        .iter()
+        .find(|option| option.index == prefab_index)
+    {
         add_obj_name.clear();
         add_obj_name.push_str(prefab_option_name(option));
     }
@@ -205,9 +208,8 @@ impl EditorApp {
                     ui.label(t.get("add_name"));
                     if self.add_obj_is_parent {
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.add_obj_name).hint_text(
-                                "NewObject",
-                            ),
+                            egui::TextEdit::singleline(&mut self.add_obj_name)
+                                .hint_text("NewObject"),
                         );
                     } else {
                         render_prefab_name_input(

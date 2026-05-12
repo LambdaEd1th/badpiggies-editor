@@ -45,7 +45,6 @@ impl BgLayer {
             BgLayer::Foreground => 20,
         }
     }
-
 }
 
 /// A background sprite ready for rendering.
@@ -91,11 +90,17 @@ const BG_SPRITE_SCRIPT_GUID: &str = "b011dfa16a4475b746a1372ea41fdf05";
 const BG_TEXTURELOADER_ASSET: &str = "unity/resources/textureloader.prefab";
 const BG_THEME_PREFABS: &[(&str, &str)] = &[
     ("Cave", "unity/background/background_cave_01_set 1.prefab"),
-    ("Morning", "unity/background/background_forest_01_set 1.prefab"),
+    (
+        "Morning",
+        "unity/background/background_forest_01_set 1.prefab",
+    ),
     ("Halloween", "unity/background/background_halloween.prefab"),
     ("Jungle", "unity/background/background_jungle_01_set.prefab"),
     ("Maya", "unity/background/background_mm_01_set.prefab"),
-    ("MayaCave", "unity/background/background_mm_cave_01_set.prefab"),
+    (
+        "MayaCave",
+        "unity/background/background_mm_cave_01_set.prefab",
+    ),
     (
         "MayaCaveDark",
         "unity/background/background_mm_cave_01_set_dark.prefab",
@@ -104,13 +109,19 @@ const BG_THEME_PREFABS: &[(&str, &str)] = &[
         "MayaCave2Dark",
         "unity/background/background_mm_cave_02_set_dark.prefab",
     ),
-    ("MayaHigh", "unity/background/background_mm_high_01_set.prefab"),
+    (
+        "MayaHigh",
+        "unity/background/background_mm_high_01_set.prefab",
+    ),
     (
         "MayaTemple",
         "unity/background/background_mm_temple_01_set_01.prefab",
     ),
     ("Night", "unity/background/background_night_01_set 1.prefab"),
-    ("Plateau", "unity/background/background_plateau_01_set.prefab"),
+    (
+        "Plateau",
+        "unity/background/background_plateau_01_set.prefab",
+    ),
 ];
 
 #[derive(Debug, Clone)]
@@ -177,18 +188,14 @@ fn parse_doc_header(header: &str) -> Option<(i32, &str)> {
 fn extract_file_id(value: &str) -> Option<String> {
     let start = value.find("fileID: ")? + "fileID: ".len();
     let tail = &value[start..];
-    let end = tail
-        .find(|c| [',', '}'].contains(&c))
-        .unwrap_or(tail.len());
+    let end = tail.find(|c| [',', '}'].contains(&c)).unwrap_or(tail.len());
     Some(tail[..end].trim().to_string())
 }
 
 fn extract_guid(value: &str) -> Option<String> {
     let start = value.find("guid: ")? + "guid: ".len();
     let tail = &value[start..];
-    let end = tail
-        .find(|c| [',', '}'].contains(&c))
-        .unwrap_or(tail.len());
+    let end = tail.find(|c| [',', '}'].contains(&c)).unwrap_or(tail.len());
     Some(tail[..end].trim().to_string())
 }
 
@@ -264,16 +271,19 @@ fn parse_prefab(raw: &str) -> Option<ParsedPrefab> {
 
         match class_id {
             1001 => {
-                root_game_object_id = field_value(doc, "m_RootGameObject: ").and_then(extract_file_id);
+                root_game_object_id =
+                    field_value(doc, "m_RootGameObject: ").and_then(extract_file_id);
             }
             1 => {
                 let name = field_value(doc, "m_Name: ").unwrap_or(file_id).to_string();
                 let tag = field_value(doc, "m_TagString: ").unwrap_or("").to_string();
-                let active = field_value(doc, "m_IsActive: ").map_or(true, |value| value != "0");
+                let active = field_value(doc, "m_IsActive: ") != Some("0");
                 game_objects.insert(file_id.to_string(), GameObjectInfo { name, tag, active });
             }
             4 => {
-                let Some(game_object_id) = field_value(doc, "m_GameObject: ").and_then(extract_file_id) else {
+                let Some(game_object_id) =
+                    field_value(doc, "m_GameObject: ").and_then(extract_file_id)
+                else {
                     continue;
                 };
                 let local_pos = field_value(doc, "m_LocalPosition: ")
@@ -304,14 +314,21 @@ fn parse_prefab(raw: &str) -> Option<ParsedPrefab> {
                 if !is_enabled(doc) {
                     continue;
                 }
-                let Some(game_object_id) = field_value(doc, "m_GameObject: ").and_then(extract_file_id) else {
+                let Some(game_object_id) =
+                    field_value(doc, "m_GameObject: ").and_then(extract_file_id)
+                else {
                     continue;
                 };
                 let Some(material_guid) = doc.lines().find_map(|line| {
                     line.trim()
                         .strip_prefix("- ")
                         .and_then(extract_guid)
-                        .or_else(|| line.trim().starts_with("m_Materials:").then_some(None).flatten())
+                        .or_else(|| {
+                            line.trim()
+                                .starts_with("m_Materials:")
+                                .then_some(None)
+                                .flatten()
+                        })
                 }) else {
                     continue;
                 };
@@ -321,17 +338,23 @@ fn parse_prefab(raw: &str) -> Option<ParsedPrefab> {
                 if !is_enabled(doc) {
                     continue;
                 }
-                let Some(script_guid) = field_value(doc, "m_Script: ").and_then(extract_guid) else {
+                let Some(script_guid) = field_value(doc, "m_Script: ").and_then(extract_guid)
+                else {
                     continue;
                 };
                 if script_guid != BG_SPRITE_SCRIPT_GUID {
                     continue;
                 }
-                let Some(game_object_id) = field_value(doc, "m_GameObject: ").and_then(extract_file_id) else {
+                let Some(game_object_id) =
+                    field_value(doc, "m_GameObject: ").and_then(extract_file_id)
+                else {
                     continue;
                 };
-                let parse_f32 = |key| field_value(doc, key).and_then(|value| value.parse::<f32>().ok());
-                if parse_f32("m_textureWidth: ").is_none() || parse_f32("m_textureHeight: ").is_none() {
+                let parse_f32 =
+                    |key| field_value(doc, key).and_then(|value| value.parse::<f32>().ok());
+                if parse_f32("m_textureWidth: ").is_none()
+                    || parse_f32("m_textureHeight: ").is_none()
+                {
                     continue;
                 }
                 let Some(sprite_width) = parse_f32("m_spriteWidth: ") else {
@@ -383,7 +406,10 @@ fn parse_prefab(raw: &str) -> Option<ParsedPrefab> {
         })
         .or_else(|| {
             transforms.iter().find_map(|(transform_id, transform)| {
-                transform.parent_id.is_none().then_some(transform_id.clone())
+                transform
+                    .parent_id
+                    .is_none()
+                    .then_some(transform_id.clone())
             })
         })?;
 
@@ -440,7 +466,8 @@ fn classify_group_layer(tag: &str, group_name: &str) -> BgLayer {
                 BgLayer::Far
             } else if lower.contains("near") {
                 BgLayer::Near
-            } else if lower.contains("cloud") || lower.contains("moon") || lower.contains("castle") {
+            } else if lower.contains("cloud") || lower.contains("moon") || lower.contains("castle")
+            {
                 BgLayer::Camera
             } else {
                 BgLayer::Ground
@@ -499,7 +526,12 @@ fn fill_color_override(theme: &str, sprite_name: &str, parent_group: &str) -> Op
     }
 }
 
-fn alpha_blend_override(theme: &str, sprite_name: &str, parent_group: &str, layer: BgLayer) -> bool {
+fn alpha_blend_override(
+    theme: &str,
+    sprite_name: &str,
+    parent_group: &str,
+    layer: BgLayer,
+) -> bool {
     match (theme, sprite_name, parent_group, layer) {
         ("Morning", "Background_Jungle_02", "BGLayerFar", BgLayer::Far) => true,
         ("Jungle", "Background_Jungle_02", "BGLayerFar", BgLayer::Far) => true,
@@ -592,7 +624,11 @@ fn build_bg_sprite(
     })
 }
 
-fn combine_world_pos(parent_pos: [f32; 3], parent_scale: [f32; 3], local_pos: [f32; 3]) -> [f32; 3] {
+fn combine_world_pos(
+    parent_pos: [f32; 3],
+    parent_scale: [f32; 3],
+    local_pos: [f32; 3],
+) -> [f32; 3] {
     [
         parent_pos[0] + parent_scale[0] * local_pos[0],
         parent_pos[1] + parent_scale[1] * local_pos[1],
@@ -735,11 +771,10 @@ fn build_theme(
     }
 
     sprites.sort_by(|a, b| {
-        a.layer.order().cmp(&b.layer.order()).then_with(|| {
-            b.world_z
-                .partial_cmp(&a.world_z)
-                .unwrap_or(Ordering::Equal)
-        })
+        a.layer
+            .order()
+            .cmp(&b.layer.order())
+            .then_with(|| b.world_z.partial_cmp(&a.world_z).unwrap_or(Ordering::Equal))
     });
 
     Some(BgTheme {
@@ -1005,7 +1040,8 @@ mod tests {
         };
 
         for sprite in theme.sprites.iter().filter(|sprite| {
-            sprite.parent_group == "FGLayer" && matches!(sprite.name.as_str(), "Fill2" | "Pillars01")
+            sprite.parent_group == "FGLayer"
+                && matches!(sprite.name.as_str(), "Fill2" | "Pillars01")
         }) {
             assert_eq!(
                 sprite.atlas.as_deref(),

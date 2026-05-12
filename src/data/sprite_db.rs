@@ -100,7 +100,11 @@ fn build_db() -> HashMap<String, SpriteInfo> {
     };
 
     let mut map = HashMap::new();
-    for filename in manifest.lines().map(str::trim).filter(|line| !line.is_empty()) {
+    for filename in manifest
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
         if !filename.ends_with(".prefab") {
             continue;
         }
@@ -109,7 +113,10 @@ fn build_db() -> HashMap<String, SpriteInfo> {
         };
         let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
         let Some(text) = read_embedded_text(&asset_path) else {
-            log::warn!("Missing embedded prefab for sprite database: {}", asset_path);
+            log::warn!(
+                "Missing embedded prefab for sprite database: {}",
+                asset_path
+            );
             continue;
         };
 
@@ -214,13 +221,15 @@ fn find_runtime_sprite_info(
             .runtime_sprites
             .iter()
             .find(|component| component.sprite_id == sprite_id)
-        && let Some(info) = runtime_sprite_info_from_component(prefab_name, parsed, runtime_sprites, component)
+        && let Some(info) =
+            runtime_sprite_info_from_component(prefab_name, parsed, runtime_sprites, component)
     {
         return Some(info);
     }
 
     for component in &parsed.runtime_sprites {
-        if let Some(info) = runtime_sprite_info_from_component(prefab_name, parsed, runtime_sprites, component)
+        if let Some(info) =
+            runtime_sprite_info_from_component(prefab_name, parsed, runtime_sprites, component)
         {
             return Some(info);
         }
@@ -611,21 +620,18 @@ fn preferred_runtime_sprite_id(name: &str) -> Option<&'static str> {
         "AskAboutNotifications" => Some("ab0c6536-dfc1-46a1-8276-59280b355188"),
         "CakeRaceReplayEntry" => Some("a6cac51f-48ca-46da-b2e0-35cb3eacc819"),
         "CoinSalePopup" | "CrateCrazePopup" => Some("d37f6015-afdb-484e-b57f-451218f82ac2"),
-        "ConfirmationErrorDialog" | "NoFreeSlotsPopup" | "RewardPopup" | "SandboxUnlock"
+        "ConfirmationErrorDialog"
+        | "NoFreeSlotsPopup"
+        | "RewardPopup"
+        | "SandboxUnlock"
         | "VideoNotFoundDialog" => Some("690f29d0-ee21-4724-b083-71eb5e27e6ac"),
-        "DailyChallengeDialog" | "SnoutCoinShop" => {
-            Some("ef7ae3f3-3a36-4b57-b209-f630d4837795")
-        }
-        "LeaderboardDialog" | "SeasonEndDialog" => {
-            Some("c41d8f89-5141-453b-8bdb-e42dde37860e")
-        }
+        "DailyChallengeDialog" | "SnoutCoinShop" => Some("ef7ae3f3-3a36-4b57-b209-f630d4837795"),
+        "LeaderboardDialog" | "SeasonEndDialog" => Some("c41d8f89-5141-453b-8bdb-e42dde37860e"),
         "LeaderboardEntry" | "SingleLeaderboardEntry" => {
             Some("1d802ff7-c5a1-45ef-a084-97f81f37f0c8")
         }
         "LevelRowUnlockPanel" => Some("3f47c76b-3891-4685-adae-029a5e655dc5"),
-        "PurchasePiggyPackIAP" | "WatchSnoutCoinAd" => {
-            Some("ab0c6536-dfc1-46a1-8276-59280b355188")
-        }
+        "PurchasePiggyPackIAP" | "WatchSnoutCoinAd" => Some("ab0c6536-dfc1-46a1-8276-59280b355188"),
         "ResourceBar" => Some("eea6164b-a556-4787-9420-d82b390e6675"),
         "ScrapButton" => Some("913d3f55-e5fe-49f7-b072-ad18875d9ce0"),
         "SnoutButton" => Some("dfb4e969-93e2-4d7d-969b-29732cc266c7"),
@@ -637,15 +643,9 @@ fn preferred_runtime_sprite_id(name: &str) -> Option<&'static str> {
 fn atlas_for_material_guid(material_guid: &str) -> Option<&'static str> {
     let prefix = material_guid.get(..8).unwrap_or(material_guid);
     match prefix {
-        "ce5a9931" | "d645821c" | "125eb5b4" | "0e790fab" | "353dd850" => {
-            Some("IngameAtlas.png")
-        }
-        "211b2b9c" | "aca6a4c6" | "765e60c2" | "4ab535f3" | "4eeb62bc" => {
-            Some("IngameAtlas2.png")
-        }
-        "2a21c011" | "ad767d84" | "7192b13e" | "a6f51d97" | "7975d66d" => {
-            Some("IngameAtlas3.png")
-        }
+        "ce5a9931" | "d645821c" | "125eb5b4" | "0e790fab" | "353dd850" => Some("IngameAtlas.png"),
+        "211b2b9c" | "aca6a4c6" | "765e60c2" | "4ab535f3" | "4eeb62bc" => Some("IngameAtlas2.png"),
+        "2a21c011" | "ad767d84" | "7192b13e" | "a6f51d97" | "7975d66d" => Some("IngameAtlas3.png"),
         _ => None,
     }
 }
@@ -703,7 +703,7 @@ pub fn get_sprite_info(name: &str) -> Option<&'static SpriteInfo> {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_sprite_info, WORLD_SCALE};
+    use super::{WORLD_SCALE, get_sprite_info};
 
     fn assert_close(actual: f32, expected: f32) {
         assert!(
@@ -726,7 +726,8 @@ mod tests {
 
     #[test]
     fn goal_area_prefers_runtime_sprite_over_unmanaged_fallback() {
-        let sprite = get_sprite_info("GoalArea_MM_Gold").expect("missing GoalArea_MM_Gold sprite info");
+        let sprite =
+            get_sprite_info("GoalArea_MM_Gold").expect("missing GoalArea_MM_Gold sprite info");
         assert_eq!(sprite.atlas, "IngameAtlas2.png");
         assert_close(sprite.uv.x, 0.5419922);
         assert_close(sprite.uv.y, 0.7719727);
@@ -738,8 +739,8 @@ mod tests {
 
     #[test]
     fn level_row_unlock_panel_uses_background_runtime_sprite() {
-        let sprite =
-            get_sprite_info("LevelRowUnlockPanel").expect("missing LevelRowUnlockPanel sprite info");
+        let sprite = get_sprite_info("LevelRowUnlockPanel")
+            .expect("missing LevelRowUnlockPanel sprite info");
         assert_eq!(sprite.atlas, "Ingame_Sheet_04.png");
         assert_close(sprite.uv.x, 0.7270508);
         assert_close(sprite.uv.y, 0.3481445);

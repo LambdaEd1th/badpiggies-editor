@@ -8,16 +8,151 @@ use crate::i18n::locale::I18n;
 use super::super::EditorApp;
 use super::{
     add_data_type_key, add_prefab_default_name, build_default_terrain_data,
-    current_level_prefab_options, make_override_data, render_prefab_index_picker, render_vec3_row,
+    current_level_prefab_options, global_prefab_name_options, make_override_data,
+    render_prefab_index_picker, render_vec3_row, PrefabOption,
 };
 
+fn prefab_option_name(option: &PrefabOption) -> &str {
+    option
+        .label
+        .split_once(' ')
+        .filter(|(prefix, _)| prefix.starts_with('#'))
+        .map(|(_, name)| name)
+        .unwrap_or(option.label.as_str())
+}
+
+fn sync_add_obj_name_to_prefab_index(
+    add_obj_name: &mut String,
+    prefab_index: i16,
+    prefab_options: &[PrefabOption],
+) {
+    if let Some(option) = prefab_options.iter().find(|option| option.index == prefab_index) {
+        add_obj_name.clear();
+        add_obj_name.push_str(prefab_option_name(option));
+    }
+}
+
+fn sync_add_obj_prefab_index_to_name(
+    add_obj_name: &str,
+    prefab_index: &mut i16,
+    prefab_options: &[PrefabOption],
+) {
+    let Some(option) = prefab_options
+        .iter()
+        .find(|option| prefab_option_name(option) == add_obj_name)
+    else {
+        return;
+    };
+    *prefab_index = option.index;
+}
+
+fn render_prefab_name_input(
+    ui: &mut egui::Ui,
+    add_obj_name: &mut String,
+    prefab_index: &mut i16,
+    prefab_options: &[PrefabOption],
+) -> bool {
+    let changed = ui
+        .add(
+            egui::TextEdit::singleline(add_obj_name)
+                .hint_text("NewObject")
+                .desired_width(ui.available_width().max(180.0)),
+        )
+        .changed();
+    if changed {
+        sync_add_obj_prefab_index_to_name(add_obj_name, prefab_index, prefab_options);
+    }
+    changed
+}
+
+fn render_prefab_name_picker(
+    ui: &mut egui::Ui,
+    combo_id: &str,
+    add_obj_name: &mut String,
+    add_obj_search: &str,
+    prefab_index: &mut i16,
+    prefab_names: &[String],
+    prefab_options: &[PrefabOption],
+    t: &'static I18n,
+) -> bool {
+    if prefab_names.is_empty() {
+        return false;
+    }
+
+    let selected_text = if add_obj_name.trim().is_empty() {
+        "NewObject".to_string()
+    } else {
+        add_obj_name.clone()
+    };
+    let search = add_obj_search.trim().to_ascii_lowercase();
+    let mut changed = false;
+
+    egui::ComboBox::from_id_salt(combo_id)
+        .width(ui.available_width().max(180.0))
+        .selected_text(selected_text)
+        .show_ui(ui, |ui| {
+            let mut any_match = false;
+            egui::ScrollArea::vertical()
+                .max_height(260.0)
+                .show(ui, |ui| {
+                    for prefab_name in prefab_names {
+                        if !search.is_empty()
+                            && !prefab_name.to_ascii_lowercase().contains(search.as_str())
+                        {
+                            continue;
+                        }
+                        any_match = true;
+                        if ui
+                            .selectable_label(add_obj_name == prefab_name, prefab_name)
+                            .clicked()
+                        {
+                            add_obj_name.clear();
+                            add_obj_name.push_str(prefab_name);
+                            sync_add_obj_prefab_index_to_name(
+                                add_obj_name,
+                                prefab_index,
+                                prefab_options,
+                            );
+                            changed = true;
+                        }
+                    }
+                });
+            if !any_match {
+                ui.label(t.get("add_search_no_matches"));
+            }
+        });
+
+    changed
+}
+
+fn render_prefab_search_row(ui: &mut egui::Ui, t: &'static I18n, add_obj_search: &mut String) {
+    ui.horizontal(|ui| {
+        ui.label(t.get("add_search"));
+        ui.add(
+            egui::TextEdit::singleline(add_obj_search)
+                .hint_text(t.get("add_search_hint"))
+                .desired_width(f32::INFINITY),
+        );
+    });
+}
+
 impl EditorApp {
+    fn maybe_sync_add_obj_name_from_index(&mut self, prefab_options: &[PrefabOption]) {
+        if self.add_obj_name.trim().is_empty() {
+            sync_add_obj_name_to_prefab_index(
+                &mut self.add_obj_name,
+                self.add_obj_prefab_index,
+                prefab_options,
+            );
+        }
+    }
+
     /// Add Object dialog.
     pub(in crate::app) fn render_add_obj_dialog(&mut self, ctx: &egui::Context, t: &'static I18n) {
         if !self.show_add_dialog {
             return;
         }
-        let prefab_options = {
+        let current_prefab_options = {
             let tab = &self.tabs[self.active_tab];
             current_level_prefab_options(
                 tab.level.as_ref(),
@@ -25,6 +160,10 @@ impl EditorApp {
                 tab.source_path.as_deref(),
             )
         };
+        let global_prefab_names = global_prefab_name_options();
+        if !self.add_obj_is_parent {
+            self.maybe_sync_add_obj_name_from_index(&current_prefab_options);
+        }
         let mut open = true;
         egui::Window::new(t.get("win_add_object"))
             .collapsible(false)
@@ -64,25 +203,45 @@ impl EditorApp {
                 }
                 ui.horizontal(|ui| {
                     ui.label(t.get("add_name"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.add_obj_name).hint_text(
-                            if self.add_obj_is_parent {
-                                "NewObject"
-                            } else {
-                                add_prefab_default_name(self.add_obj_data_type)
-                            },
-                        ),
-                    );
+                    if self.add_obj_is_parent {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.add_obj_name).hint_text(
+                                "NewObject",
+                            ),
+                        );
+                    } else {
+                        render_prefab_name_input(
+                            ui,
+                            &mut self.add_obj_name,
+                            &mut self.add_obj_prefab_index,
+                            &current_prefab_options,
+                        );
+                    }
                 });
+                if !self.add_obj_is_parent {
+                    render_prefab_search_row(ui, t, &mut self.add_obj_search);
+                    render_prefab_name_picker(
+                        ui,
+                        "add_object_name",
+                        &mut self.add_obj_name,
+                        &self.add_obj_search,
+                        &mut self.add_obj_prefab_index,
+                        global_prefab_names,
+                        &current_prefab_options,
+                        t,
+                    );
+                }
                 if !self.add_obj_is_parent {
                     ui.horizontal(|ui| {
                         ui.label(t.get("add_prefab_index"));
-                        render_prefab_index_picker(
+                        if render_prefab_index_picker(
                             ui,
                             "add_object_prefab_index",
                             &mut self.add_obj_prefab_index,
-                            &prefab_options,
-                        );
+                            &current_prefab_options,
+                        ) {
+                            self.maybe_sync_add_obj_name_from_index(&current_prefab_options);
+                        }
                     });
                 }
                 ui.separator();

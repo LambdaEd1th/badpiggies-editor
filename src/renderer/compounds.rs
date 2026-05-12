@@ -5,10 +5,12 @@
 
 use eframe::egui;
 
+use crate::data::prefab_sprites::PrefabSpriteLayer;
 use crate::data::sprite_db::UvRect;
 
 use super::compound_data::*;
 use super::compound_overrides::{parse_bridge_overrides, parse_fan_overrides};
+use super::sprite_shader;
 use super::{CompoundTransform, DrawCtx};
 
 struct QuadDraw<'a> {
@@ -388,6 +390,16 @@ pub fn draw_compound(
         return true; // skip root sprite (balloon is drawn above)
     }
 
+    if let Some(layers) = crate::data::prefab_sprites::get_multi_sprite_layers(name) {
+        let mut generic_xf = xf;
+        let name_lower = name.to_ascii_lowercase();
+        if name_lower.contains("goal") || name_lower.contains("dessert") {
+            generic_xf.world_y += (time * 3.0).sin() as f32 * 0.25;
+        }
+        draw_prefab_layers(ctx, layers, generic_xf);
+        return true;
+    }
+
     false
 }
 
@@ -465,6 +477,93 @@ fn draw_sub_sprites_rotated(ctx: &DrawCtx, sprites: &[&SubSprite], xf: CompoundT
             },
         );
     }
+}
+
+fn draw_prefab_layers(ctx: &DrawCtx<'_>, layers: &[PrefabSpriteLayer], xf: CompoundTransform) {
+    let cos_r = xf.rotation_z.cos();
+    let sin_r = xf.rotation_z.sin();
+
+    for layer in layers {
+        let Some(tex_id) = ctx.tex_cache.get(&layer.atlas) else {
+            continue;
+        };
+        let Some([atlas_w, atlas_h]) = ctx.tex_cache.texture_size(&layer.atlas) else {
+            continue;
+        };
+
+        let world_to_screen = |vertex: crate::domain::types::Vec2| {
+            let lx = vertex.x * xf.scale_x;
+            let ly = vertex.y * xf.scale_y;
+            let world_x = xf.world_x + lx * cos_r - ly * sin_r;
+            let world_y = xf.world_y + lx * sin_r + ly * cos_r;
+            ctx.camera.world_to_screen(
+                crate::domain::types::Vec2 {
+                    x: world_x,
+                    y: world_y,
+                },
+                ctx.canvas_center,
+            )
+        };
+
+        let positions = [
+            world_to_screen(layer.vertices[0]),
+            world_to_screen(layer.vertices[1]),
+            world_to_screen(layer.vertices[2]),
+            world_to_screen(layer.vertices[3]),
+        ];
+
+        let min_x = positions.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
+        let max_x = positions
+            .iter()
+            .map(|p| p.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_y = positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+        let max_y = positions
+            .iter()
+            .map(|p| p.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let screen_rect = egui::Rect::from_min_max(
+            egui::pos2(min_x, min_y),
+            egui::pos2(max_x, max_y),
+        );
+        if !screen_rect.intersects(ctx.canvas_rect) {
+            continue;
+        }
+
+        let (uv_min, uv_max) = sprite_shader::compute_uvs(
+            &layer.uv,
+            atlas_w as f32,
+            atlas_h as f32,
+            false,
+            false,
+        );
+        let uvs = [
+            egui::pos2(uv_min[0], uv_max[1]),
+            egui::pos2(uv_min[0], uv_min[1]),
+            egui::pos2(uv_max[0], uv_min[1]),
+            egui::pos2(uv_max[0], uv_max[1]),
+        ];
+        let mesh = mesh_quad(tex_id, positions, uvs);
+        ctx.painter.add(egui::Shape::mesh(mesh));
+    }
+}
+
+fn mesh_quad(
+    tex_id: egui::TextureId,
+    positions: [egui::Pos2; 4],
+    uvs: [egui::Pos2; 4],
+) -> egui::Mesh {
+    let mut mesh = egui::Mesh::with_texture(tex_id);
+    let white = egui::Color32::WHITE;
+    for (pos, uv) in positions.into_iter().zip(uvs) {
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos,
+            uv,
+            color: white,
+        });
+    }
+    mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+    mesh
 }
 
 fn draw_uv_quad_rotated(ctx: &DrawCtx, q: QuadDraw<'_>) {

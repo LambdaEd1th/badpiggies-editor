@@ -91,6 +91,9 @@ about_version_prefix = Version:
 # Add object dialog
 add_type = Type:
 add_name = Name:
+add_search = Search:
+add_search_hint = Filter prefab names
+add_search_no_matches = No matching prefabs
 add_prefab_index = Prefab Index:
 add_kind_prefab = Prefab
 add_kind_parent = Parent

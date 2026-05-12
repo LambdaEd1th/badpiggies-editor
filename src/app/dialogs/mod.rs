@@ -6,9 +6,10 @@ mod shortcuts;
 mod tool;
 
 use eframe::egui;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
@@ -219,6 +220,91 @@ fn loader_file_name_for_level(file_name: &str) -> Option<String> {
     (!stem.is_empty()).then(|| format!("{stem}_loader.prefab"))
 }
 
+fn repo_prefabs_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
+        .join("Assets/Prefab")
+}
+
+fn collect_prefab_names(dir: &Path, names: &mut BTreeSet<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_prefab_names(&path, names);
+            continue;
+        }
+        let Some(extension) = path.extension().and_then(|ext| ext.to_str()) else {
+            continue;
+        };
+        if !extension.eq_ignore_ascii_case("prefab") {
+            continue;
+        }
+        let Some(name) = prefab_asset_display_name(&path) else {
+            continue;
+        };
+        if !name.is_empty() {
+            names.insert(name);
+        }
+    }
+}
+
+fn prefab_asset_display_name(path: &Path) -> Option<String> {
+    parse_prefab_root_name(path).or_else(|| {
+        path.file_stem()
+            .and_then(|stem| stem.to_str())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn parse_prefab_root_name(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path).ok()?;
+    let mut root_file_id = None;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        let Some(after) = trimmed.strip_prefix("m_RootGameObject: {fileID: ") else {
+            continue;
+        };
+        let file_id = after.split('}').next()?.trim();
+        if !file_id.is_empty() {
+            root_file_id = Some(file_id.to_string());
+            break;
+        }
+    }
+    let root_file_id = root_file_id?;
+
+    let mut in_root_game_object = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if let Some(after) = trimmed.strip_prefix("--- !u!1 &") {
+            let file_id = after.split_whitespace().next().unwrap_or_default();
+            in_root_game_object = file_id == root_file_id;
+            continue;
+        }
+        if trimmed.starts_with("--- !u!") {
+            in_root_game_object = false;
+            continue;
+        }
+        if !in_root_game_object {
+            continue;
+        }
+        let Some(name) = trimmed.strip_prefix("m_Name:") else {
+            continue;
+        };
+        let name = name.trim();
+        if !name.is_empty() {
+            return Some(name.to_string());
+        }
+    }
+
+    None
+}
+
 fn repo_levels_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -401,6 +487,20 @@ pub(super) fn current_level_prefab_options(
         .into_iter()
         .map(|(index, label)| PrefabOption { index, label })
         .collect()
+}
+
+pub(super) fn global_prefab_name_options() -> &'static [String] {
+    static INSTANCE: OnceLock<Vec<String>> = OnceLock::new();
+    INSTANCE
+        .get_or_init(|| {
+            let mut names = BTreeSet::new();
+            let prefabs_dir = repo_prefabs_dir();
+            if prefabs_dir.is_dir() {
+                collect_prefab_names(&prefabs_dir, &mut names);
+            }
+            names.into_iter().collect()
+        })
+        .as_slice()
 }
 
 impl EditorApp {

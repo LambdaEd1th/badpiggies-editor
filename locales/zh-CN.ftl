@@ -91,6 +91,9 @@ about_version_prefix = 版本：
 # 添加对象对话框
 add_type = 类型:
 add_name = 名称:
+add_search = 搜索:
+add_search_hint = 输入 prefab 名称关键字
+add_search_no_matches = 没有匹配的 prefab
 add_prefab_index = 预制体索引:
 add_kind_prefab = 预制体
 add_kind_parent = 父对象

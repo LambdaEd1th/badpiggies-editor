@@ -91,8 +91,9 @@ pub fn draw_bg_layers(
         };
 
         if let Some(&(block_width, speed)) = cache.tile_info.get(&i) {
+            let phase = cache.tile_phase.get(&i).copied().unwrap_or(0.0);
             let apparent_x = camera.center.x * (1.0 - speed);
-            let shift = (apparent_x / block_width).round() * block_width;
+            let shift = ((apparent_x - phase) / block_width).round() * block_width + phase;
             // Dynamic copy count: enough to cover the viewport at any zoom
             let viewport_w = rect.width() / camera.zoom;
             let n = (viewport_w / block_width).ceil() as i32 + 1;

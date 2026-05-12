@@ -11,6 +11,8 @@ use super::super::bg_shader;
 pub struct BgLayerCache {
     /// Sprite index → (block_width, parallax_speed) for tiled sprite groups.
     pub(super) tile_info: HashMap<usize, (f32, f32)>,
+    /// Sprite index → seam phase offset for tiled sprite groups.
+    pub(super) tile_phase: HashMap<usize, f32>,
     /// Set of sprite indices that are fill-extended singletons.
     pub(super) singleton_set: HashSet<usize>,
     /// Pre-lowercased sprite names (avoids per-frame String allocation).
@@ -30,6 +32,21 @@ impl BgLayerCache {
 
 pub(super) fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
     sprite.sprite_w * WORLD_SCALE * 2.0 * sprite.scale_x.abs()
+}
+
+const MAX_MULTI_NAME_TILE_Y_SPAN: f32 = 10.0;
+const MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD: f32 = 4.0;
+const MAYA_TEMPLE_NEAR_BOTTOM_SEAM_BIAS: f32 = 1.5;
+
+fn forced_tile_group_key(theme_name: &str, sprite: &bg_data::BgSprite) -> Option<String> {
+    match (theme_name, sprite.parent_group.as_str()) {
+        ("MayaTemple", "BGLayerNearBottom") => Some(format!(
+            "forced:g:{}:{}:combined",
+            sprite.parent_group,
+            sprite.layer.order()
+        )),
+        _ => None,
+    }
 }
 
 fn parent_group_z_key(sprite: &bg_data::BgSprite) -> i32 {
@@ -66,6 +83,141 @@ fn tile_block_width(sorted: &[usize], sprites: &[bg_data::BgSprite]) -> Option<f
     let min_left = first.world_x - sprite_display_width(first) * 0.5;
     let max_right = last.world_x + sprite_display_width(last) * 0.5;
     Some(max_right - min_left + median_edge_gap)
+}
+
+fn normalize_phase_offset(mut phase: f32, block_width: f32) -> f32 {
+    while phase <= -block_width * 0.5 {
+        phase += block_width;
+    }
+    while phase > block_width * 0.5 {
+        phase -= block_width;
+    }
+    phase
+}
+
+fn widest_gap_phase_from_bounds(bounds: &[(f32, f32)], block_width: f32) -> Option<f32> {
+    if bounds.len() < 2 {
+        return None;
+    }
+
+    let mut widest_gap = None;
+    for pair in bounds.windows(2) {
+        let gap_start = pair[0].1;
+        let gap_end = pair[1].0;
+        let gap = gap_end - gap_start;
+        if widest_gap.is_none_or(|(best_gap, _, _)| gap > best_gap) {
+            widest_gap = Some((gap, gap_start, gap_end));
+        }
+    }
+
+    let (_, gap_start, gap_end) = widest_gap?;
+    let desired_center = (gap_start + gap_end) * 0.5;
+    let min_left = bounds.first()?.0;
+    let max_right = bounds.last()?.1;
+    let seam_gap = block_width - (max_right - min_left);
+    let current_center = max_right + seam_gap * 0.5;
+    Some(normalize_phase_offset(
+        desired_center - current_center,
+        block_width,
+    ))
+}
+
+fn tile_block_width_clustered(
+    sorted: &[usize],
+    sprites: &[bg_data::BgSprite],
+    x_cluster_threshold: f32,
+) -> Option<f32> {
+    let clusters = clustered_bounds(sorted, sprites, x_cluster_threshold);
+
+    if clusters.len() < 2 {
+        return None;
+    }
+
+    let mut gaps: Vec<f32> = clusters
+        .windows(2)
+        .map(|pair| pair[1].0 - pair[0].1)
+        .collect();
+    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let median_gap = gaps[gaps.len() / 2];
+    let min_left = clusters.first()?.0;
+    let max_right = clusters.last()?.1;
+    Some(max_right - min_left + median_gap)
+}
+
+fn clustered_bounds(
+    sorted: &[usize],
+    sprites: &[bg_data::BgSprite],
+    x_cluster_threshold: f32,
+) -> Vec<(f32, f32)> {
+    let Some(first) = sorted.first().copied() else {
+        return Vec::new();
+    };
+    let first_sprite = &sprites[first];
+    let mut clusters = vec![(
+        first_sprite.world_x - sprite_display_width(first_sprite) * 0.5,
+        first_sprite.world_x + sprite_display_width(first_sprite) * 0.5,
+    )];
+    let mut prev_x = first_sprite.world_x;
+
+    for &idx in &sorted[1..] {
+        let sprite = &sprites[idx];
+        let left = sprite.world_x - sprite_display_width(sprite) * 0.5;
+        let right = sprite.world_x + sprite_display_width(sprite) * 0.5;
+
+        if sprite.world_x - prev_x <= x_cluster_threshold {
+            if let Some((cluster_left, cluster_right)) = clusters.last_mut() {
+                *cluster_left = cluster_left.min(left);
+                *cluster_right = cluster_right.max(right);
+            }
+        } else {
+            clusters.push((left, right));
+        }
+        prev_x = sprite.world_x;
+    }
+
+    clusters
+}
+
+fn forced_tile_block_width(
+    theme_name: &str,
+    group_key: &str,
+    sorted: &[usize],
+    sprites: &[bg_data::BgSprite],
+) -> Option<f32> {
+    if theme_name == "MayaTemple"
+        && group_key == format!(
+            "forced:g:BGLayerNearBottom:{}:combined",
+            bg_data::BgLayer::Near.order()
+        )
+    {
+        return tile_block_width_clustered(sorted, sprites, MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD)
+            .or_else(|| tile_block_width(sorted, sprites));
+    }
+
+    None
+}
+
+fn forced_tile_phase_offset(
+    theme_name: &str,
+    group_key: &str,
+    sorted: &[usize],
+    sprites: &[bg_data::BgSprite],
+    block_width: f32,
+) -> Option<f32> {
+    if theme_name == "MayaTemple"
+        && group_key == format!(
+            "forced:g:BGLayerNearBottom:{}:combined",
+            bg_data::BgLayer::Near.order()
+        )
+    {
+        return widest_gap_phase_from_bounds(
+            &clustered_bounds(sorted, sprites, MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD),
+            block_width,
+        )
+        .map(|phase| normalize_phase_offset(phase + MAYA_TEMPLE_NEAR_BOTTOM_SEAM_BIAS, block_width));
+    }
+
+    None
 }
 
 pub(super) fn tile_group_key(
@@ -152,6 +304,9 @@ pub fn build_bg_layer_cache(
     let mut parent_group_names: HashMap<(String, i32), HashSet<String>> = HashMap::new();
     let mut parent_group_z_name_counts: HashMap<(String, i32, i32), HashMap<String, usize>> =
         HashMap::new();
+    let mut parent_group_z_y_extents: HashMap<(String, i32, i32), (f32, f32)> = HashMap::new();
+    let mut parent_group_z_name_y_extents: HashMap<(String, i32, i32, String), (f32, f32)> =
+        HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
         let nl = sprite.name.to_ascii_lowercase();
@@ -172,6 +327,21 @@ pub fn build_bg_layer_cache(
                 .or_default()
                 .entry(name_lower[i].clone())
                 .or_default() += 1;
+            let y_extents = parent_group_z_y_extents
+                .entry((sprite.parent_group.clone(), layer_key, parent_group_z_key(sprite)))
+                .or_insert((sprite.world_y, sprite.world_y));
+            y_extents.0 = y_extents.0.min(sprite.world_y);
+            y_extents.1 = y_extents.1.max(sprite.world_y);
+            let name_y_extents = parent_group_z_name_y_extents
+                .entry((
+                    sprite.parent_group.clone(),
+                    layer_key,
+                    parent_group_z_key(sprite),
+                    name_lower[i].clone(),
+                ))
+                .or_insert((sprite.world_y, sprite.world_y));
+            name_y_extents.0 = name_y_extents.0.min(sprite.world_y);
+            name_y_extents.1 = name_y_extents.1.max(sprite.world_y);
         }
     }
 
@@ -180,6 +350,10 @@ pub fn build_bg_layer_cache(
             continue;
         }
         if name_lower[i].contains("fill") {
+            continue;
+        }
+        if let Some(group_key) = forced_tile_group_key(theme_name, sprite) {
+            groups.entry(group_key).or_default().push(i);
             continue;
         }
         let (distinct_name_count, split_by_name) = if sprite.parent_group.is_empty() {
@@ -200,6 +374,29 @@ pub fn build_bg_layer_cache(
                 .unwrap_or(false);
             (distinct_name_count, split_by_name)
         };
+        if distinct_name_count > 1 {
+            let layer_key = sprite.layer.order();
+            let z_key = parent_group_z_key(sprite);
+            let y_span = if split_by_name {
+                parent_group_z_name_y_extents
+                    .get(&(
+                        sprite.parent_group.clone(),
+                        layer_key,
+                        z_key,
+                        name_lower[i].clone(),
+                    ))
+                    .map(|(min_y, max_y)| max_y - min_y)
+                    .unwrap_or(0.0)
+            } else {
+                parent_group_z_y_extents
+                    .get(&(sprite.parent_group.clone(), layer_key, z_key))
+                    .map(|(min_y, max_y)| max_y - min_y)
+                    .unwrap_or(0.0)
+            };
+            if y_span > MAX_MULTI_NAME_TILE_Y_SPAN {
+                continue;
+            }
+        }
         let Some(group_key) =
             tile_group_key(sprite, &name_lower[i], distinct_name_count, split_by_name)
         else {
@@ -220,18 +417,24 @@ pub fn build_bg_layer_cache(
     }
 
     let mut tile_info: HashMap<usize, (f32, f32)> = HashMap::new();
-    for indices in groups.values() {
+    let mut tile_phase: HashMap<usize, f32> = HashMap::new();
+    for (group_key, indices) in &groups {
         if indices.len() < 2 {
             continue;
         }
         let mut sorted: Vec<usize> = indices.clone();
         sorted.sort_by(|a, b| sprites[*a].world_x.total_cmp(&sprites[*b].world_x));
-        let Some(block_width) = tile_block_width(&sorted, sprites) else {
+        let Some(block_width) = forced_tile_block_width(theme_name, group_key, &sorted, sprites)
+            .or_else(|| tile_block_width(&sorted, sprites))
+        else {
             continue;
         };
         let speed = sprites[sorted[0]].layer.parallax_speed();
+        let phase = forced_tile_phase_offset(theme_name, group_key, &sorted, sprites, block_width)
+            .unwrap_or(0.0);
         for &idx in &sorted {
             tile_info.insert(idx, (block_width, speed));
+            tile_phase.insert(idx, phase);
         }
     }
 
@@ -251,6 +454,7 @@ pub fn build_bg_layer_cache(
 
     Some(BgLayerCache {
         tile_info,
+        tile_phase,
         singleton_set,
         name_lower,
         sorted_indices: idx,

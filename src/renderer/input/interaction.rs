@@ -346,6 +346,7 @@ impl LevelRenderer {
                             let delta = Self::normalize_angle_delta(sprite.rotation - original_rotation);
                             let delta_degrees = delta.to_degrees();
                             if delta_degrees.abs() > 0.01 {
+                                self.pending_transform_preview = Some(drag.index);
                                 self.rotation_drag_result = Some((drag.index, delta_degrees));
                             }
                         }
@@ -357,6 +358,7 @@ impl LevelRenderer {
                             if (scale.x - original_scale.x).abs() > 0.001
                                 || (scale.y - original_scale.y).abs() > 0.001
                             {
+                                self.pending_transform_preview = Some(drag.index);
                                 self.scale_drag_result = Some((drag.index, scale));
                             }
                         }

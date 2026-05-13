@@ -51,10 +51,16 @@ impl LevelRenderer {
         selected: &BTreeSet<ObjectIndex>,
     ) {
         let t = self.time;
-        let active_transform_index = self.dragging.as_ref().and_then(|drag| match drag.mode {
-            super::DragMode::Rotate { .. } | super::DragMode::Scale { .. } => Some(drag.index),
-            super::DragMode::Move => None,
-        });
+        let active_transform_index = self
+            .dragging
+            .as_ref()
+            .and_then(|drag| match drag.mode {
+                super::DragMode::Rotate { .. } | super::DragMode::Scale { .. } => {
+                    Some(drag.index)
+                }
+                super::DragMode::Move => None,
+            })
+            .or(self.pending_transform_preview);
 
         // Pre-compute world-space visible rect for frustum culling
         let world_half_w = rect.width() * 0.5 / self.camera.zoom;

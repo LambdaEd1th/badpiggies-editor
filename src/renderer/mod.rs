@@ -361,6 +361,9 @@ pub struct LevelRenderer {
     /// Residual camera offset for dragged sprite, kept until drag_result is consumed
     /// (prevents 1-frame snap-back when opaque batch hasn't been rebuilt yet).
     pending_drag_offset: Option<(ObjectIndex, f32, f32)>,
+    /// Residual rotation/scale preview kept until the level is rebuilt.
+    /// This prevents a 1-frame snap-back to the stale opaque batch on release.
+    pending_transform_preview: Option<ObjectIndex>,
     /// Whether to show background layers.
     pub show_bg: bool,
     /// Whether to show the physics ground line.

@@ -29,6 +29,7 @@ impl LevelRenderer {
         self.opaque_batch = None;
         self.opaque_sprite_map.clear();
         self.pending_drag_offset = None;
+        self.pending_transform_preview = None;
 
         self.world_positions.clear();
         self.terrain_data.clear();

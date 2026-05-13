@@ -55,9 +55,7 @@ impl LevelRenderer {
             .dragging
             .as_ref()
             .and_then(|drag| match drag.mode {
-                super::DragMode::Rotate { .. } | super::DragMode::Scale { .. } => {
-                    Some(drag.index)
-                }
+                super::DragMode::Rotate { .. } | super::DragMode::Scale { .. } => Some(drag.index),
                 super::DragMode::Move => None,
             })
             .or(self.pending_transform_preview);

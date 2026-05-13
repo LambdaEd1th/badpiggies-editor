@@ -225,13 +225,18 @@ fn forced_tile_block_width(
     }
 
     if theme_name == "MayaTemple"
-        && group_key == format!(
-            "forced:g:BGLayerNearBottom:{}:combined",
-            bg_data::BgLayer::Near.order()
-        )
+        && group_key
+            == format!(
+                "forced:g:BGLayerNearBottom:{}:combined",
+                bg_data::BgLayer::Near.order()
+            )
     {
-        return tile_block_width_clustered(sorted, sprites, MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD)
-            .or_else(|| tile_block_width(sorted, sprites));
+        return tile_block_width_clustered(
+            sorted,
+            sprites,
+            MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD,
+        )
+        .or_else(|| tile_block_width(sorted, sprites));
     }
 
     None
@@ -255,16 +260,19 @@ fn forced_tile_phase_offset(
     }
 
     if theme_name == "MayaTemple"
-        && group_key == format!(
-            "forced:g:BGLayerNearBottom:{}:combined",
-            bg_data::BgLayer::Near.order()
-        )
+        && group_key
+            == format!(
+                "forced:g:BGLayerNearBottom:{}:combined",
+                bg_data::BgLayer::Near.order()
+            )
     {
         return widest_gap_phase_from_bounds(
             &clustered_bounds(sorted, sprites, MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD),
             block_width,
         )
-        .map(|phase| normalize_phase_offset(phase + MAYA_TEMPLE_NEAR_BOTTOM_SEAM_BIAS, block_width));
+        .map(|phase| {
+            normalize_phase_offset(phase + MAYA_TEMPLE_NEAR_BOTTOM_SEAM_BIAS, block_width)
+        });
     }
 
     None
@@ -378,7 +386,11 @@ pub fn build_bg_layer_cache(
                 .entry(name_lower[i].clone())
                 .or_default() += 1;
             let y_extents = parent_group_z_y_extents
-                .entry((sprite.parent_group.clone(), layer_key, parent_group_z_key(sprite)))
+                .entry((
+                    sprite.parent_group.clone(),
+                    layer_key,
+                    parent_group_z_key(sprite),
+                ))
                 .or_insert((sprite.world_y, sprite.world_y));
             y_extents.0 = y_extents.0.min(sprite.world_y);
             y_extents.1 = y_extents.1.max(sprite.world_y);

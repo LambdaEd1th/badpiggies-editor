@@ -337,14 +337,17 @@ fn build_part_layers(
         .values()
         .map(|renderer| (renderer.game_object_id.as_str(), renderer))
         .collect();
+    let ctx = IconTraverseCtx {
+        parsed,
+        sprite_by_go: &sprite_by_go,
+        renderer_by_go: &renderer_by_go,
+        runtime_sprites,
+    };
 
     let mut layers = Vec::new();
     traverse_part(
         &root_transform_id,
-        parsed,
-        &sprite_by_go,
-        &renderer_by_go,
-        runtime_sprites,
+        &ctx,
         (1.0, 0.0, 0.0, 1.0, 0.0, 0.0),
         0.0,
         true,
@@ -353,19 +356,22 @@ fn build_part_layers(
     layers
 }
 
-#[allow(clippy::too_many_arguments)]
+struct IconTraverseCtx<'a> {
+    parsed: &'a ParsedPrefab,
+    sprite_by_go: &'a HashMap<&'a str, &'a SpriteComponent>,
+    renderer_by_go: &'a HashMap<&'a str, &'a RendererInfo>,
+    runtime_sprites: &'a HashMap<String, RuntimeSpriteMeta>,
+}
+
 fn traverse_part(
     transform_id: &str,
-    parsed: &ParsedPrefab,
-    sprite_by_go: &HashMap<&str, &SpriteComponent>,
-    renderer_by_go: &HashMap<&str, &RendererInfo>,
-    runtime_sprites: &HashMap<String, RuntimeSpriteMeta>,
+    ctx: &IconTraverseCtx<'_>,
     parent_mat: Mat2x3,
     parent_z: f32,
     is_root: bool,
     out_layers: &mut Vec<IconLayer>,
 ) {
-    let Some(transform) = parsed.transforms.get(transform_id) else {
+    let Some(transform) = ctx.parsed.transforms.get(transform_id) else {
         return;
     };
 
@@ -373,24 +379,19 @@ fn traverse_part(
         ((1.0, 0.0, 0.0, 1.0, 0.0, 0.0), 0.0)
     } else {
         let local = make_local_trs(
-            transform.pos_x,
-            transform.pos_y,
-            transform.scale_x,
-            transform.scale_y,
-            transform.qx,
-            transform.qy,
-            transform.qz,
-            transform.qw,
+            [transform.pos_x, transform.pos_y],
+            [transform.scale_x, transform.scale_y],
+            [transform.qx, transform.qy, transform.qz, transform.qw],
         );
         (mat_compose(parent_mat, local), parent_z + transform.pos_z)
     };
 
     let game_object_id = transform.game_object_id.as_str();
     if let (Some(sprite), Some(renderer)) = (
-        sprite_by_go.get(game_object_id),
-        renderer_by_go.get(game_object_id),
+        ctx.sprite_by_go.get(game_object_id),
+        ctx.renderer_by_go.get(game_object_id),
     ) && renderer.enabled
-        && let Some(runtime_sprite) = runtime_sprites.get(&sprite.sprite_id)
+        && let Some(runtime_sprite) = ctx.runtime_sprites.get(&sprite.sprite_id)
         && let Some(atlas) = atlas_for_material_guid(&renderer.material_guid)
     {
         let mesh_w = (sprite.scale_x * runtime_sprite.width as f32) as i32;
@@ -416,7 +417,8 @@ fn traverse_part(
             (pivot_x + half_w, pivot_y - half_h),
         ];
         let baked = base_vertices.map(|(x, y)| mat_apply(current_mat, x, y));
-        let go_name = parsed
+        let go_name = ctx
+            .parsed
             .game_objects
             .get(game_object_id)
             .map(|go| go.name.clone())
@@ -442,17 +444,7 @@ fn traverse_part(
     }
 
     for child_id in &transform.children {
-        traverse_part(
-            child_id,
-            parsed,
-            sprite_by_go,
-            renderer_by_go,
-            runtime_sprites,
-            current_mat,
-            current_z,
-            false,
-            out_layers,
-        );
+        traverse_part(child_id, ctx, current_mat, current_z, false, out_layers);
     }
 }
 
@@ -745,26 +737,17 @@ fn quat_to_z_angle(qx: f32, qy: f32, qz: f32, qw: f32) -> f32 {
     (2.0 * (qw * qz + qx * qy)).atan2(1.0 - 2.0 * (qy * qy + qz * qz))
 }
 
-fn make_local_trs(
-    pos_x: f32,
-    pos_y: f32,
-    scale_x: f32,
-    scale_y: f32,
-    qx: f32,
-    qy: f32,
-    qz: f32,
-    qw: f32,
-) -> Mat2x3 {
-    let angle = quat_to_z_angle(qx, qy, qz, qw);
+fn make_local_trs(position: [f32; 2], scale: [f32; 2], rotation: [f32; 4]) -> Mat2x3 {
+    let angle = quat_to_z_angle(rotation[0], rotation[1], rotation[2], rotation[3]);
     let cos_a = angle.cos();
     let sin_a = angle.sin();
     (
-        cos_a * scale_x,
-        -sin_a * scale_y,
-        sin_a * scale_x,
-        cos_a * scale_y,
-        pos_x,
-        pos_y,
+        cos_a * scale[0],
+        -sin_a * scale[1],
+        sin_a * scale[0],
+        cos_a * scale[1],
+        position[0],
+        position[1],
     )
 }
 

@@ -21,7 +21,7 @@ fn prefab_option_name(option: &PrefabOption) -> &str {
         .unwrap_or(option.label.as_str())
 }
 
-fn current_prefab_name<'a>(prefab_index: i16, prefab_options: &'a [PrefabOption]) -> Option<&'a str> {
+fn current_prefab_name(prefab_index: i16, prefab_options: &[PrefabOption]) -> Option<&str> {
     prefab_options
         .iter()
         .find(|option| option.index == prefab_index)

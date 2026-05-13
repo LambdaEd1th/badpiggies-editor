@@ -287,7 +287,11 @@ fn maya_high_near_core_strip_tiles_continuously() {
         "expected MayaHigh near tiling to use the uniformly spaced 8-sprite core strip"
     );
 
-    let Some(first_width) = cache.tile_info.get(&core_indices[0]).map(|(width, _)| *width) else {
+    let Some(first_width) = cache
+        .tile_info
+        .get(&core_indices[0])
+        .map(|(width, _)| *width)
+    else {
         panic!("expected MayaHigh near core strip to tile");
     };
 
@@ -359,7 +363,11 @@ fn maya_high_near_wrap_gap_matches_internal_edge_gap() {
         .collect();
     let expected_wrap_gap = median(&mut edge_gaps);
 
-    let Some(block_width) = cache.tile_info.get(&near_indices[0]).map(|(width, _)| *width) else {
+    let Some(block_width) = cache
+        .tile_info
+        .get(&near_indices[0])
+        .map(|(width, _)| *width)
+    else {
         panic!("maya high near strip should tile");
     };
     let actual_wrap_gap = block_width - (max_right - min_left);
@@ -389,9 +397,7 @@ fn maya_high_further_variants_share_one_repeat_group() {
         let Some(index) = sprites
             .iter()
             .enumerate()
-            .find(|(_, sprite)| {
-                sprite.name == sprite_name && is_maya_high_further_core(sprite)
-            })
+            .find(|(_, sprite)| sprite.name == sprite_name && is_maya_high_further_core(sprite))
             .map(|(index, _)| index)
         else {
             panic!("missing MayaHigh further sprite {sprite_name}");
@@ -399,11 +405,18 @@ fn maya_high_further_variants_share_one_repeat_group() {
         sample_indices.push(index);
     }
 
-    let Some(first_width) = cache.tile_info.get(&sample_indices[0]).map(|(width, _)| *width)
+    let Some(first_width) = cache
+        .tile_info
+        .get(&sample_indices[0])
+        .map(|(width, _)| *width)
     else {
         panic!("expected MayaHigh further strip to tile");
     };
-    let first_phase = cache.tile_phase.get(&sample_indices[0]).copied().unwrap_or(0.0);
+    let first_phase = cache
+        .tile_phase
+        .get(&sample_indices[0])
+        .copied()
+        .unwrap_or(0.0);
 
     assert!(
         first_width > 77.3 && first_width < 77.5,
@@ -443,14 +456,20 @@ fn maya_high_further_wrap_gap_matches_internal_edge_gap() {
     let core_indices: Vec<usize> = sprites
         .iter()
         .enumerate()
-        .filter(|(_, sprite)| {
-            is_maya_high_further_core(sprite)
-        })
+        .filter(|(_, sprite)| is_maya_high_further_core(sprite))
         .map(|(idx, _)| idx)
         .collect();
-    assert_eq!(core_indices.len(), 7, "expected the exact repeating MayaHigh core strip to contain 7 sprites");
+    assert_eq!(
+        core_indices.len(),
+        7,
+        "expected the exact repeating MayaHigh core strip to contain 7 sprites"
+    );
 
-    let Some(block_width) = cache.tile_info.get(&core_indices[0]).map(|(width, _)| *width) else {
+    let Some(block_width) = cache
+        .tile_info
+        .get(&core_indices[0])
+        .map(|(width, _)| *width)
+    else {
         panic!("maya high further core strip should tile");
     };
     assert!(
@@ -680,11 +699,18 @@ fn maya_temple_near_bottom_pattern_tiles_as_one_block() {
         sample_indices.push(index);
     }
 
-    let Some(pattern_width) = cache.tile_info.get(&sample_indices[0]).map(|(width, _)| *width)
+    let Some(pattern_width) = cache
+        .tile_info
+        .get(&sample_indices[0])
+        .map(|(width, _)| *width)
     else {
         panic!("expected MayaTemple near-bottom pattern to tile as one block");
     };
-    let pattern_phase = cache.tile_phase.get(&sample_indices[0]).copied().unwrap_or(0.0);
+    let pattern_phase = cache
+        .tile_phase
+        .get(&sample_indices[0])
+        .copied()
+        .unwrap_or(0.0);
 
     assert!(
         pattern_width > 239.5 && pattern_width < 240.2,
@@ -749,7 +775,11 @@ fn maya_temple_near_bottom_base_tiles() {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    assert_eq!(base_indices.len(), 9, "expected 9 MayaTemple near-bottom base sprites");
+    assert_eq!(
+        base_indices.len(),
+        9,
+        "expected 9 MayaTemple near-bottom base sprites"
+    );
 
     let Some(first_width) = cache
         .tile_info
@@ -758,7 +788,11 @@ fn maya_temple_near_bottom_base_tiles() {
     else {
         panic!("expected MayaTemple near-bottom base strip to tile");
     };
-    let base_phase = cache.tile_phase.get(&base_indices[0]).copied().unwrap_or(0.0);
+    let base_phase = cache
+        .tile_phase
+        .get(&base_indices[0])
+        .copied()
+        .unwrap_or(0.0);
 
     assert!(
         base_phase > -106.0 && base_phase < -104.5,
@@ -806,7 +840,8 @@ fn maya_temple_near_top_still_tiles() {
         .iter()
         .enumerate()
         .find(|(_, sprite)| {
-            sprite.parent_group == "BGLayerNearTop" && sprite.name == "Background_Maya_Temple_Near_Top"
+            sprite.parent_group == "BGLayerNearTop"
+                && sprite.name == "Background_Maya_Temple_Near_Top"
         })
         .map(|(index, _)| index)
     else {

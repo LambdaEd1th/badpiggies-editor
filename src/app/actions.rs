@@ -180,7 +180,9 @@ impl EditorApp {
         let Some(level_ref) = self.tabs[self.active_tab].level.as_ref() else {
             return;
         };
-        if index >= level_ref.objects.len() || !matches!(level_ref.objects[index], LevelObject::Prefab(_)) {
+        if index >= level_ref.objects.len()
+            || !matches!(level_ref.objects[index], LevelObject::Prefab(_))
+        {
             return;
         }
 

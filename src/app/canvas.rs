@@ -94,8 +94,7 @@ impl EditorApp {
                         tab.renderer.camera = cam;
                     }
                     // Pick up rotation drag result — update prefab rotation.z
-                    if let Some((idx, delta_z_degrees)) = tab.renderer.rotation_drag_result.take()
-                    {
+                    if let Some((idx, delta_z_degrees)) = tab.renderer.rotation_drag_result.take() {
                         let mut indices: Vec<usize> = if tab.selected.contains(&idx) {
                             tab.selected.iter().copied().collect()
                         } else {

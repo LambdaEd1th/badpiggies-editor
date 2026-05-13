@@ -647,9 +647,9 @@ impl LevelRenderer {
             DragMode::Scale { handle, .. } if drag.index == sprite.index => Some(handle),
             _ => None,
         });
-        let hovered_handle = self.hovered_scale_handle.and_then(|target| {
-            (target.index == sprite.index).then_some(target.kind)
-        });
+        let hovered_handle = self
+            .hovered_scale_handle
+            .and_then(|target| (target.index == sprite.index).then_some(target.kind));
         for (kind, anchor, handle_center) in self.scale_handle_positions(sprite, canvas_center) {
             let fill = if active_handle == Some(kind) || hovered_handle == Some(kind) {
                 egui::Color32::from_rgb(140, 230, 255)
@@ -884,7 +884,8 @@ impl LevelRenderer {
         {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
         } else if let Some(target) = self.hovered_scale_handle {
-            ui.ctx().set_cursor_icon(Self::scale_handle_cursor(target.kind));
+            ui.ctx()
+                .set_cursor_icon(Self::scale_handle_cursor(target.kind));
         } else if self.hovered_rotation_handle.is_some() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
         }

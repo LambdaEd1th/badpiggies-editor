@@ -191,7 +191,11 @@ fn atlas_uv_padding(sprite: &BgSprite) -> (f32, f32, f32) {
         default_padding
     };
 
-    (default_padding, extra_right_padding.max(default_padding), default_padding)
+    (
+        default_padding,
+        extra_right_padding.max(default_padding),
+        default_padding,
+    )
 }
 
 fn draw_bg_sprite_offset(

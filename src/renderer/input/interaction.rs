@@ -7,8 +7,8 @@ use eframe::egui;
 use crate::domain::types::{ObjectIndex, Vec2};
 
 use super::super::{
-    BoxSelectResult, CursorMode, DragMode, DragState, LevelRenderer, NodeDragResult,
-    NodeDragState, NodeEditAction,
+    BoxSelectResult, CursorMode, DragMode, DragState, LevelRenderer, NodeDragResult, NodeDragState,
+    NodeEditAction,
 };
 use super::point_to_segment_dist;
 
@@ -297,7 +297,8 @@ impl LevelRenderer {
                         if sprite.index == drag.index {
                             sprite.scale.0 = sign_x * scale_abs_x;
                             sprite.scale.1 = sign_y * scale_abs_y;
-                            sprite.half_size = (base_half_x * scale_abs_x, base_half_y * scale_abs_y);
+                            sprite.half_size =
+                                (base_half_x * scale_abs_x, base_half_y * scale_abs_y);
                             break;
                         }
                     }
@@ -340,10 +341,10 @@ impl LevelRenderer {
                             }
                         }
                         DragMode::Rotate {
-                            original_rotation,
-                            ..
+                            original_rotation, ..
                         } => {
-                            let delta = Self::normalize_angle_delta(sprite.rotation - original_rotation);
+                            let delta =
+                                Self::normalize_angle_delta(sprite.rotation - original_rotation);
                             let delta_degrees = delta.to_degrees();
                             if delta_degrees.abs() > 0.01 {
                                 self.pending_transform_preview = Some(drag.index);

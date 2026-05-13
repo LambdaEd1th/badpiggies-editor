@@ -532,14 +532,18 @@ fn alpha_blend_override(
     parent_group: &str,
     layer: BgLayer,
 ) -> bool {
-    match (theme, sprite_name, parent_group, layer) {
-        ("Morning", "Background_Jungle_02", "BGLayerFar", BgLayer::Far) => true,
-        ("Jungle", "Background_Jungle_02", "BGLayerFar", BgLayer::Far) => true,
-        ("Maya", "Background_Maya_01", "BGLayerFar", BgLayer::Far) => true,
-        ("Night", "Moon", _, BgLayer::Camera) => true,
-        ("Halloween", _, _, BgLayer::Camera) => true,
-        _ => false,
-    }
+    matches!(
+        (theme, sprite_name, parent_group, layer),
+        (
+            "Morning",
+            "Background_Jungle_02",
+            "BGLayerFar",
+            BgLayer::Far
+        ) | ("Jungle", "Background_Jungle_02", "BGLayerFar", BgLayer::Far)
+            | ("Maya", "Background_Maya_01", "BGLayerFar", BgLayer::Far)
+            | ("Night", "Moon", _, BgLayer::Camera)
+            | ("Halloween", _, _, BgLayer::Camera)
+    )
 }
 
 fn uses_own_group_context(theme: &str, sprite_name: &str, parent_group: &str) -> bool {
@@ -557,16 +561,28 @@ fn is_sky_texture_asset(asset_name: &str) -> bool {
     asset_name.contains("Sky_Texture") || asset_name.contains("Backgrounds_sky")
 }
 
-fn build_bg_sprite(
-    theme_name: &str,
-    group: &GroupContext,
-    game_object: &GameObjectInfo,
+struct BgSpriteBuildInput<'a> {
+    theme_name: &'a str,
+    group: &'a GroupContext,
+    game_object: &'a GameObjectInfo,
     world_pos: [f32; 3],
     world_scale: [f32; 3],
-    sprite_component: &SpriteComponent,
-    material_guid: &str,
-    textureloader_materials: &HashMap<String, String>,
-) -> Option<BgSprite> {
+    sprite_component: &'a SpriteComponent,
+    material_guid: &'a str,
+    textureloader_materials: &'a HashMap<String, String>,
+}
+
+fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
+    let BgSpriteBuildInput {
+        theme_name,
+        group,
+        game_object,
+        world_pos,
+        world_scale,
+        sprite_component,
+        material_guid,
+        textureloader_materials,
+    } = input;
     let fill_color = fill_color_override(theme_name, &game_object.name, &group.name);
     let (atlas, sky_texture) = if fill_color.is_some() {
         (None, None)
@@ -644,22 +660,30 @@ fn combine_world_scale(parent_scale: [f32; 3], local_scale: [f32; 3]) -> [f32; 3
     ]
 }
 
+struct BgTraverseCtx<'a> {
+    theme_name: &'a str,
+    prefab: &'a ParsedPrefab,
+    textureloader_materials: &'a HashMap<String, String>,
+}
+
+struct BgTraverseOutput<'a> {
+    group_defaults: &'a mut HashMap<String, [f32; 3]>,
+    child_order: &'a mut Vec<String>,
+    sprites: &'a mut Vec<BgSprite>,
+}
+
 fn traverse_group(
-    theme_name: &str,
-    prefab: &ParsedPrefab,
+    ctx: &BgTraverseCtx<'_>,
     transform_id: &str,
     parent_pos: [f32; 3],
     parent_scale: [f32; 3],
     group: Option<GroupContext>,
-    textureloader_materials: &HashMap<String, String>,
-    group_defaults: &mut HashMap<String, [f32; 3]>,
-    child_order: &mut Vec<String>,
-    sprites: &mut Vec<BgSprite>,
+    out: &mut BgTraverseOutput<'_>,
 ) {
-    let Some(transform) = prefab.transforms.get(transform_id) else {
+    let Some(transform) = ctx.prefab.transforms.get(transform_id) else {
         return;
     };
-    let Some(game_object) = prefab.game_objects.get(&transform.game_object_id) else {
+    let Some(game_object) = ctx.prefab.game_objects.get(&transform.game_object_id) else {
         return;
     };
     if !game_object.active {
@@ -671,8 +695,9 @@ fn traverse_group(
     let group = match group {
         Some(group) => group,
         None => {
-            group_defaults.insert(game_object.name.clone(), world_pos);
-            child_order.push(game_object.name.clone());
+            out.group_defaults
+                .insert(game_object.name.clone(), world_pos);
+            out.child_order.push(game_object.name.clone());
             GroupContext {
                 name: game_object.name.clone(),
                 layer: classify_group_layer(&game_object.tag, &game_object.name),
@@ -681,8 +706,8 @@ fn traverse_group(
         }
     };
 
-    let group = if uses_own_group_context(theme_name, &game_object.name, &group.name) {
-        group_defaults
+    let group = if uses_own_group_context(ctx.theme_name, &game_object.name, &group.name) {
+        out.group_defaults
             .entry(game_object.name.clone())
             .or_insert(world_pos);
         GroupContext {
@@ -694,25 +719,25 @@ fn traverse_group(
         group
     };
 
-    if let Some(sprite_component) = prefab.sprites.get(&transform.game_object_id)
-        && let Some(material_guid) = prefab.renderers.get(&transform.game_object_id)
-        && let Some(sprite) = build_bg_sprite(
-            theme_name,
-            &group,
+    if let Some(sprite_component) = ctx.prefab.sprites.get(&transform.game_object_id)
+        && let Some(material_guid) = ctx.prefab.renderers.get(&transform.game_object_id)
+        && let Some(sprite) = build_bg_sprite(BgSpriteBuildInput {
+            theme_name: ctx.theme_name,
+            group: &group,
             game_object,
             world_pos,
             world_scale,
             sprite_component,
             material_guid,
-            textureloader_materials,
-        )
+            textureloader_materials: ctx.textureloader_materials,
+        })
     {
-        sprites.push(sprite);
+        out.sprites.push(sprite);
     }
 
     let mut children = transform.children.clone();
     children.sort_by_key(|child_id| {
-        prefab
+        ctx.prefab
             .transforms
             .get(child_id)
             .map(|child| child.root_order)
@@ -720,16 +745,12 @@ fn traverse_group(
     });
     for child_id in children {
         traverse_group(
-            theme_name,
-            prefab,
+            ctx,
             &child_id,
             world_pos,
             world_scale,
             Some(group.clone()),
-            textureloader_materials,
-            group_defaults,
-            child_order,
-            sprites,
+            out,
         );
     }
 }
@@ -746,6 +767,11 @@ fn build_theme(
     let mut group_defaults = HashMap::new();
     let mut child_order = Vec::new();
     let mut sprites = Vec::new();
+    let ctx = BgTraverseCtx {
+        theme_name,
+        prefab: &prefab,
+        textureloader_materials,
+    };
 
     let mut children = root_transform.children.clone();
     children.sort_by_key(|child_id| {
@@ -755,19 +781,22 @@ fn build_theme(
             .map(|child| child.root_order)
             .unwrap_or_default()
     });
-    for child_id in children {
-        traverse_group(
-            theme_name,
-            &prefab,
-            &child_id,
-            [0.0, 0.0, 0.0],
-            [1.0, 1.0, 1.0],
-            None,
-            textureloader_materials,
-            &mut group_defaults,
-            &mut child_order,
-            &mut sprites,
-        );
+    {
+        let mut out = BgTraverseOutput {
+            group_defaults: &mut group_defaults,
+            child_order: &mut child_order,
+            sprites: &mut sprites,
+        };
+        for child_id in children {
+            traverse_group(
+                &ctx,
+                &child_id,
+                [0.0, 0.0, 0.0],
+                [1.0, 1.0, 1.0],
+                None,
+                &mut out,
+            );
+        }
     }
 
     sprites.sort_by(|a, b| {

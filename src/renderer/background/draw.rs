@@ -176,6 +176,24 @@ fn foam_offset(time: f64) -> f32 {
     hermite(KEYS, t) - PREFAB_Y
 }
 
+fn atlas_uv_padding(sprite: &BgSprite) -> (f32, f32, f32) {
+    let default_padding = if sprite.border > 0.0 {
+        0.0
+    } else {
+        1.0 / 2048.0
+    };
+
+    let extra_right_padding: f32 = if sprite.parent_group == "BGLayerFurther"
+        && sprite.name == "Background_Maya_High_Further_02"
+    {
+        24.0 / 2048.0
+    } else {
+        default_padding
+    };
+
+    (default_padding, extra_right_padding.max(default_padding), default_padding)
+}
+
 fn draw_bg_sprite_offset(
     ctx: &DrawCtx,
     sprite: &BgSprite,
@@ -315,18 +333,15 @@ fn draw_bg_sprite_offset(
             let cell = 1.0 / sprite.subdiv;
             // When border > 0, border_off alone maps to the exact content
             // boundary; the border pixels duplicate edge content for safe
-            // bilinear filtering.  Extra padding would skip actual content
-            // and create visible seams between adjacent tiled sprites.
-            let padding = if sprite.border > 0.0 {
-                0.0
-            } else {
-                1.0 / 2048.0
-            };
+            // bilinear filtering.  MayaHigh's Further_02 art still leaves a
+            // visible vertical column on its right edge, so trim that side
+            // more aggressively than the left.
+            let (padding_left_x, padding_right_x, padding_y) = atlas_uv_padding(sprite);
             let border_off = sprite.border / 1024.0;
-            let u0 = sprite.uv_x * cell + padding + border_off;
-            let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding - border_off;
-            let v0_unity = sprite.uv_y * cell + padding + border_off;
-            let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding - border_off;
+            let u0 = sprite.uv_x * cell + padding_left_x + border_off;
+            let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding_right_x - border_off;
+            let v0_unity = sprite.uv_y * cell + padding_y + border_off;
+            let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding_y - border_off;
             // UV Y flip: Unity V=0 at bottom, wgpu V=0 at top
             let v0 = 1.0 - v1_unity;
             let v1 = 1.0 - v0_unity;
@@ -399,12 +414,12 @@ fn draw_bg_sprite_offset(
         };
 
         let cell = 1.0 / sprite.subdiv;
-        let padding = 1.0 / 2048.0;
+        let (padding_left_x, padding_right_x, padding_y) = atlas_uv_padding(sprite);
         let border_off = sprite.border / 1024.0;
-        let u0 = sprite.uv_x * cell + padding + border_off;
-        let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding - border_off;
-        let v0_unity = sprite.uv_y * cell + padding + border_off;
-        let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding - border_off;
+        let u0 = sprite.uv_x * cell + padding_left_x + border_off;
+        let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding_right_x - border_off;
+        let v0_unity = sprite.uv_y * cell + padding_y + border_off;
+        let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding_y - border_off;
         // UV Y flip: Unity V=0 at bottom, egui V=0 at top
         let v0 = 1.0 - v1_unity;
         let v1 = 1.0 - v0_unity;

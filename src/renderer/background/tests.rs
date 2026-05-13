@@ -10,6 +10,20 @@ fn median(values: &mut [f32]) -> f32 {
     values[values.len() / 2]
 }
 
+fn is_maya_high_further_core(sprite: &bg_data::BgSprite) -> bool {
+    sprite.parent_group == "BGLayerFurther"
+        && sprite.name.starts_with("Background_Maya_High_Further_")
+        && !sprite.name.contains("Fill")
+        && sprite.local_x >= -58.5
+        && sprite.local_x <= 15.0
+}
+
+fn is_maya_high_near_core(sprite: &bg_data::BgSprite) -> bool {
+    sprite.parent_group == "BGLayerNear"
+        && sprite.name == "Background_Maya_High_Near"
+        && sprite.local_x <= 90.0
+}
+
 #[test]
 fn jungle_far_tiles_share_one_period_across_z() {
     let Some(cache) = build_bg_layer_cache("Jungle", None) else {
@@ -235,6 +249,255 @@ fn morning_cloud_wrap_gap_matches_internal_edge_gap() {
         (actual_wrap_gap - expected_wrap_gap).abs() < 0.001,
         "expected wrap gap {expected_wrap_gap}, got {actual_wrap_gap}"
     );
+}
+
+#[test]
+fn maya_high_near_core_strip_tiles_continuously() {
+    let Some(cache) = build_bg_layer_cache("MayaHigh", None) else {
+        panic!("maya high cache");
+    };
+    let Some(theme) = bg_data::get_theme("MayaHigh") else {
+        panic!("maya high theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let near_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Maya_High_Near"
+        })
+        .map(|(idx, _)| idx)
+        .collect();
+
+    assert_eq!(
+        near_indices.len(),
+        9,
+        "expected the authored MayaHigh near cloud strip to keep its 9 prefab instances"
+    );
+
+    let core_indices: Vec<usize> = near_indices
+        .iter()
+        .copied()
+        .filter(|idx| is_maya_high_near_core(&sprites[*idx]))
+        .collect();
+    assert_eq!(
+        core_indices.len(),
+        8,
+        "expected MayaHigh near tiling to use the uniformly spaced 8-sprite core strip"
+    );
+
+    let Some(first_width) = cache.tile_info.get(&core_indices[0]).map(|(width, _)| *width) else {
+        panic!("expected MayaHigh near core strip to tile");
+    };
+
+    for idx in core_indices {
+        let Some(width) = cache.tile_info.get(&idx).map(|(width, _)| *width) else {
+            panic!("expected every MayaHigh near core sprite to tile");
+        };
+        assert!(
+            (width - first_width).abs() < 0.001,
+            "expected MayaHigh near core sprites to share one repeat width, got {width} vs {first_width}"
+        );
+    }
+
+    let non_core_indices: Vec<usize> = near_indices
+        .into_iter()
+        .filter(|idx| !is_maya_high_near_core(&sprites[*idx]))
+        .collect();
+    assert_eq!(
+        non_core_indices.len(),
+        1,
+        "expected one non-periodic MayaHigh near tail sprite to stay finite"
+    );
+    assert!(
+        !cache.tile_info.contains_key(&non_core_indices[0]),
+        "expected the non-periodic MayaHigh near tail sprite to stay outside the tiled core"
+    );
+}
+
+#[test]
+fn maya_high_near_wrap_gap_matches_internal_edge_gap() {
+    let Some(cache) = build_bg_layer_cache("MayaHigh", None) else {
+        panic!("maya high cache");
+    };
+    let Some(theme) = bg_data::get_theme("MayaHigh") else {
+        panic!("maya high theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let mut near_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| is_maya_high_near_core(sprite))
+        .map(|(idx, _)| idx)
+        .collect();
+    near_indices.sort_by(|a, b| {
+        sprites[*a]
+            .world_x
+            .partial_cmp(&sprites[*b].world_x)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    assert!(
+        near_indices.len() == 8,
+        "expected the MayaHigh near tiled core to contain 8 evenly spaced sprites"
+    );
+    let first = &sprites[near_indices[0]];
+    let last = &sprites[near_indices[near_indices.len() - 1]];
+    let min_left = first.world_x - sprite_display_width(first) * 0.5;
+    let max_right = last.world_x + sprite_display_width(last) * 0.5;
+    let mut edge_gaps: Vec<f32> = near_indices
+        .windows(2)
+        .map(|pair| {
+            let a = &sprites[pair[0]];
+            let b = &sprites[pair[1]];
+            let a_right = a.world_x + sprite_display_width(a) * 0.5;
+            let b_left = b.world_x - sprite_display_width(b) * 0.5;
+            b_left - a_right
+        })
+        .collect();
+    let expected_wrap_gap = median(&mut edge_gaps);
+
+    let Some(block_width) = cache.tile_info.get(&near_indices[0]).map(|(width, _)| *width) else {
+        panic!("maya high near strip should tile");
+    };
+    let actual_wrap_gap = block_width - (max_right - min_left);
+
+    assert!(
+        (actual_wrap_gap - expected_wrap_gap).abs() < 0.001,
+        "expected MayaHigh near wrap gap {expected_wrap_gap}, got {actual_wrap_gap}"
+    );
+}
+
+#[test]
+fn maya_high_further_variants_share_one_repeat_group() {
+    let Some(cache) = build_bg_layer_cache("MayaHigh", None) else {
+        panic!("maya high cache");
+    };
+    let Some(theme) = bg_data::get_theme("MayaHigh") else {
+        panic!("maya high theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let mut sample_indices = Vec::new();
+    for sprite_name in [
+        "Background_Maya_High_Further_01",
+        "Background_Maya_High_Further_02",
+        "Background_Maya_High_Further_03",
+    ] {
+        let Some(index) = sprites
+            .iter()
+            .enumerate()
+            .find(|(_, sprite)| {
+                sprite.name == sprite_name && is_maya_high_further_core(sprite)
+            })
+            .map(|(index, _)| index)
+        else {
+            panic!("missing MayaHigh further sprite {sprite_name}");
+        };
+        sample_indices.push(index);
+    }
+
+    let Some(first_width) = cache.tile_info.get(&sample_indices[0]).map(|(width, _)| *width)
+    else {
+        panic!("expected MayaHigh further strip to tile");
+    };
+    let first_phase = cache.tile_phase.get(&sample_indices[0]).copied().unwrap_or(0.0);
+
+    assert!(
+        first_width > 77.3 && first_width < 77.5,
+        "expected MayaHigh further core strip width near the exact repeated 77.4-world translation, got {first_width}"
+    );
+    assert!(
+        first_phase.abs() < 0.001,
+        "expected MayaHigh further core strip to repeat without an extra phase offset, got {first_phase}"
+    );
+
+    for idx in sample_indices {
+        let Some(width) = cache.tile_info.get(&idx).map(|(width, _)| *width) else {
+            panic!("expected every MayaHigh further variant to tile");
+        };
+        let phase = cache.tile_phase.get(&idx).copied().unwrap_or(0.0);
+        assert!(
+            (width - first_width).abs() < 0.001,
+            "expected MayaHigh further variants to share one block width, got {width} vs {first_width}"
+        );
+        assert!(
+            (phase - first_phase).abs() < 0.001,
+            "expected MayaHigh further variants to share one seam phase"
+        );
+    }
+}
+
+#[test]
+fn maya_high_further_wrap_gap_matches_internal_edge_gap() {
+    let Some(cache) = build_bg_layer_cache("MayaHigh", None) else {
+        panic!("maya high cache");
+    };
+    let Some(theme) = bg_data::get_theme("MayaHigh") else {
+        panic!("maya high theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let core_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            is_maya_high_further_core(sprite)
+        })
+        .map(|(idx, _)| idx)
+        .collect();
+    assert_eq!(core_indices.len(), 7, "expected the exact repeating MayaHigh core strip to contain 7 sprites");
+
+    let Some(block_width) = cache.tile_info.get(&core_indices[0]).map(|(width, _)| *width) else {
+        panic!("maya high further core strip should tile");
+    };
+    assert!(
+        block_width > 77.3 && block_width < 77.5,
+        "expected MayaHigh core strip to use the authored 77.4-world repeat, got {block_width}"
+    );
+
+    let mut exact_repeat_matches = 0;
+    for &idx in &core_indices {
+        let sprite = &sprites[idx];
+        if cache.tile_info.get(&idx).is_none() {
+            panic!("every MayaHigh core sprite should tile");
+        }
+        if sprites.iter().any(|other| {
+            other.name == sprite.name
+                && other.parent_group == sprite.parent_group
+                && (other.local_x - (sprite.local_x + block_width)).abs() < 0.2
+        }) {
+            exact_repeat_matches += 1;
+        }
+    }
+    assert!(
+        exact_repeat_matches >= 6,
+        "expected most MayaHigh core sprites to have an authored sibling one block-width to the right, got {exact_repeat_matches}"
+    );
+
+    let non_core_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "BGLayerFurther"
+                && sprite.name.starts_with("Background_Maya_High_Further_")
+                && !sprite.name.contains("Fill")
+                && !is_maya_high_further_core(sprite)
+        })
+        .map(|(idx, _)| idx)
+        .collect();
+    assert!(
+        !non_core_indices.is_empty(),
+        "expected non-repeating MayaHigh lead-in sprites to remain outside the tiled core"
+    );
+    for idx in non_core_indices {
+        assert!(
+            !cache.tile_info.contains_key(&idx),
+            "expected non-core MayaHigh decoration sprites to stay finite"
+        );
+    }
 }
 
 #[test]

@@ -35,11 +35,41 @@ pub(super) fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
 }
 
 const MAX_MULTI_NAME_TILE_Y_SPAN: f32 = 10.0;
+const MAYA_HIGH_NEAR_CORE_MAX_LOCAL_X: f32 = 90.0;
+const MAYA_HIGH_FURTHER_CORE_MIN_LOCAL_X: f32 = -58.5;
+const MAYA_HIGH_FURTHER_CORE_MAX_LOCAL_X: f32 = 15.0;
+const MAYA_HIGH_FURTHER_CORE_BLOCK_WIDTH: f32 = 77.4;
 const MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD: f32 = 4.0;
 const MAYA_TEMPLE_NEAR_BOTTOM_SEAM_BIAS: f32 = 1.5;
 
+fn is_maya_high_near_core_sprite(sprite: &bg_data::BgSprite) -> bool {
+    sprite.parent_group == "BGLayerNear"
+        && sprite.name == "Background_Maya_High_Near"
+        && sprite.local_x <= MAYA_HIGH_NEAR_CORE_MAX_LOCAL_X
+}
+
+fn is_maya_high_further_core_sprite(sprite: &bg_data::BgSprite) -> bool {
+    sprite.parent_group == "BGLayerFurther"
+        && sprite.name.starts_with("Background_Maya_High_Further_")
+        && !sprite.name.contains("Fill")
+        && sprite.local_x >= MAYA_HIGH_FURTHER_CORE_MIN_LOCAL_X
+        && sprite.local_x <= MAYA_HIGH_FURTHER_CORE_MAX_LOCAL_X
+}
+
 fn forced_tile_group_key(theme_name: &str, sprite: &bg_data::BgSprite) -> Option<String> {
     match (theme_name, sprite.parent_group.as_str()) {
+        ("MayaHigh", "BGLayerNear") if is_maya_high_near_core_sprite(sprite) => Some(format!(
+            "forced:g:{}:{}:core8",
+            sprite.parent_group,
+            sprite.layer.order()
+        )),
+        ("MayaHigh", "BGLayerFurther") if is_maya_high_further_core_sprite(sprite) => {
+            Some(format!(
+                "forced:g:{}:{}:core77",
+                sprite.parent_group,
+                sprite.layer.order()
+            ))
+        }
         ("MayaTemple", "BGLayerNearBottom") => Some(format!(
             "forced:g:{}:{}:combined",
             sprite.parent_group,
@@ -184,6 +214,16 @@ fn forced_tile_block_width(
     sorted: &[usize],
     sprites: &[bg_data::BgSprite],
 ) -> Option<f32> {
+    if theme_name == "MayaHigh"
+        && group_key
+            == format!(
+                "forced:g:BGLayerFurther:{}:core77",
+                bg_data::BgLayer::Further.order()
+            )
+    {
+        return Some(MAYA_HIGH_FURTHER_CORE_BLOCK_WIDTH);
+    }
+
     if theme_name == "MayaTemple"
         && group_key == format!(
             "forced:g:BGLayerNearBottom:{}:combined",
@@ -204,6 +244,16 @@ fn forced_tile_phase_offset(
     sprites: &[bg_data::BgSprite],
     block_width: f32,
 ) -> Option<f32> {
+    if theme_name == "MayaHigh"
+        && group_key
+            == format!(
+                "forced:g:BGLayerFurther:{}:core77",
+                bg_data::BgLayer::Further.order()
+            )
+    {
+        return Some(0.0);
+    }
+
     if theme_name == "MayaTemple"
         && group_key == format!(
             "forced:g:BGLayerNearBottom:{}:combined",
@@ -350,6 +400,19 @@ pub fn build_bg_layer_cache(
             continue;
         }
         if name_lower[i].contains("fill") {
+            continue;
+        }
+        if theme_name == "MayaHigh"
+            && sprite.parent_group == "BGLayerNear"
+            && sprite.name == "Background_Maya_High_Near"
+            && !is_maya_high_near_core_sprite(sprite)
+        {
+            continue;
+        }
+        if theme_name == "MayaHigh"
+            && sprite.parent_group == "BGLayerFurther"
+            && !is_maya_high_further_core_sprite(sprite)
+        {
             continue;
         }
         if let Some(group_key) = forced_tile_group_key(theme_name, sprite) {

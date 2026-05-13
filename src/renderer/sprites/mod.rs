@@ -51,6 +51,10 @@ impl LevelRenderer {
         selected: &BTreeSet<ObjectIndex>,
     ) {
         let t = self.time;
+        let active_transform_index = self.dragging.as_ref().and_then(|drag| match drag.mode {
+            super::DragMode::Rotate { .. } | super::DragMode::Scale { .. } => Some(drag.index),
+            super::DragMode::Move => None,
+        });
 
         // Pre-compute world-space visible rect for frustum culling
         let world_half_w = rect.width() * 0.5 / self.camera.zoom;
@@ -141,6 +145,7 @@ impl LevelRenderer {
                 let opaque_idx = self.opaque_sprite_map.get(si).copied().flatten();
                 // Props sprites: render via GPU opaque shader (exact Unity shader port)
                 if let Some(oidx) = opaque_idx
+                    && active_transform_index != Some(sprite.index)
                     && let (Some(_resources), Some(_batch)) =
                         (&self.opaque_resources, &self.opaque_batch)
                 {
@@ -258,6 +263,22 @@ impl LevelRenderer {
                     is_gpu_rendered = true;
                 }
                 let gpu_rendered = is_gpu_rendered;
+                if !gpu_rendered
+                    && active_transform_index == Some(sprite.index)
+                    && let Some(atlas_name) = sprite.atlas.as_deref()
+                    && self.tex_cache.get(atlas_name).is_none()
+                {
+                    let sprite_key = format!("sprites/{atlas_name}");
+                    if self
+                        .tex_cache
+                        .load_texture(painter.ctx(), &sprite_key, atlas_name)
+                        .is_none()
+                    {
+                        let props_key = format!("props/{atlas_name}");
+                        self.tex_cache
+                            .load_texture(painter.ctx(), &props_key, atlas_name);
+                    }
+                }
                 let tex_id = if gpu_rendered {
                     None
                 } else {
@@ -447,6 +468,11 @@ impl LevelRenderer {
                 bird.bsx,
                 bird.bsy,
             );
+        }
+
+        if let Some(sprite) = self.selected_transform_sprite(selected) {
+            self.draw_rotation_handle(painter, sprite, canvas_center);
+            self.draw_scale_handle(painter, sprite, canvas_center);
         }
     }
 

@@ -7,8 +7,8 @@ use eframe::egui;
 use crate::domain::types::{ObjectIndex, Vec2};
 
 use super::super::{
-    BoxSelectResult, CursorMode, DragState, LevelRenderer, NodeDragResult, NodeDragState,
-    NodeEditAction,
+    BoxSelectResult, CursorMode, DragMode, DragState, LevelRenderer, NodeDragResult,
+    NodeDragState, NodeEditAction,
 };
 use super::point_to_segment_dist;
 
@@ -27,12 +27,16 @@ impl LevelRenderer {
         self.clicked_object = None;
         self.clicked_empty = false;
         self.drag_result = None;
+        self.rotation_drag_result = None;
+        self.scale_drag_result = None;
         self.node_drag_result = None;
         self.node_edit_action = None;
         self.box_select_result = None;
         self.draw_terrain_result = None;
         self.bounds_drag_result = None;
         self.suppress_context_menu_this_frame = false;
+        self.hovered_rotation_handle = None;
+        self.hovered_scale_handle = None;
 
         // Level bounds dragging takes priority (available in all modes when visible)
         if self.handle_bounds_drag(response, canvas_center) {
@@ -69,6 +73,13 @@ impl LevelRenderer {
         is_shift: bool,
         is_alt: bool,
     ) {
+        self.hovered_scale_handle = response
+            .hover_pos()
+            .and_then(|pointer| self.scale_handle_hit(pointer, canvas_center, selected));
+        self.hovered_rotation_handle = response
+            .hover_pos()
+            .and_then(|pointer| self.rotation_handle_hit(pointer, canvas_center, selected));
+
         // Start drag on primary press (without shift/alt)
         if response.drag_started_by(egui::PointerButton::Primary)
             && !is_shift
@@ -77,8 +88,63 @@ impl LevelRenderer {
         {
             let world = self.camera.screen_to_world(pointer, canvas_center);
 
+            if let Some(target) = self.hovered_scale_handle {
+                if let Some(sprite) = self
+                    .sprite_data
+                    .iter()
+                    .find(|sprite| sprite.index == target.index)
+                {
+                    let center = self.camera.world_to_screen(
+                        Vec2 {
+                            x: sprite.world_pos.x,
+                            y: sprite.world_pos.y,
+                        },
+                        canvas_center,
+                    );
+                    self.dragging = Some(DragState {
+                        index: target.index,
+                        start_mouse: world,
+                        original_pos: sprite.world_pos,
+                        mode: DragMode::Scale {
+                            handle: target.kind,
+                            start_pointer_local: Self::pointer_local(
+                                center,
+                                pointer,
+                                sprite.rotation,
+                            ),
+                            original_scale: Vec2 {
+                                x: sprite.scale.0,
+                                y: sprite.scale.1,
+                            },
+                            original_half_size: sprite.half_size,
+                            original_rotation: sprite.rotation,
+                        },
+                    });
+                    self.clicked_object = Some(target.index);
+                }
+            } else if let Some(idx) = self.hovered_rotation_handle {
+                if let Some(sprite) = self.sprite_data.iter().find(|sprite| sprite.index == idx) {
+                    let center = self.camera.world_to_screen(
+                        Vec2 {
+                            x: sprite.world_pos.x,
+                            y: sprite.world_pos.y,
+                        },
+                        canvas_center,
+                    );
+                    self.dragging = Some(DragState {
+                        index: idx,
+                        start_mouse: world,
+                        original_pos: sprite.world_pos,
+                        mode: DragMode::Rotate {
+                            start_pointer_angle: Self::pointer_angle(center, pointer),
+                            original_rotation: sprite.rotation,
+                        },
+                    });
+                    self.clicked_object = Some(idx);
+                }
+            }
             // Check if we're starting a terrain node drag
-            if let Some((obj_idx, node_idx)) = self.hovered_terrain_node {
+            else if let Some((obj_idx, node_idx)) = self.hovered_terrain_node {
                 // Find the world offset of this terrain
                 let (tdx, tdy) = self.terrain_drag_offset(obj_idx);
                 if let Some(td) = self.terrain_data.iter().find(|t| t.object_index == obj_idx) {
@@ -105,6 +171,7 @@ impl LevelRenderer {
                     index: idx,
                     start_mouse: world,
                     original_pos: orig,
+                    mode: DragMode::Move,
                 });
                 self.clicked_object = Some(idx);
             }
@@ -132,16 +199,108 @@ impl LevelRenderer {
         if let Some(ref drag) = self.dragging
             && let Some(pointer) = response.interact_pointer_pos()
         {
-            let current = self.camera.screen_to_world(pointer, canvas_center);
-            let dx = current.x - drag.start_mouse.x;
-            let dy = current.y - drag.start_mouse.y;
-            let tidx = drag.index;
-            let orig = drag.original_pos;
-            for sprite in &mut self.sprite_data {
-                if sprite.index == tidx {
-                    sprite.world_pos.x = orig.x + dx;
-                    sprite.world_pos.y = orig.y + dy;
-                    break;
+            match drag.mode {
+                DragMode::Move => {
+                    let current = self.camera.screen_to_world(pointer, canvas_center);
+                    let dx = current.x - drag.start_mouse.x;
+                    let dy = current.y - drag.start_mouse.y;
+                    let tidx = drag.index;
+                    let orig = drag.original_pos;
+                    for sprite in &mut self.sprite_data {
+                        if sprite.index == tidx {
+                            sprite.world_pos.x = orig.x + dx;
+                            sprite.world_pos.y = orig.y + dy;
+                            break;
+                        }
+                    }
+                }
+                DragMode::Rotate {
+                    start_pointer_angle,
+                    original_rotation,
+                } => {
+                    let center = self.camera.world_to_screen(
+                        Vec2 {
+                            x: drag.original_pos.x,
+                            y: drag.original_pos.y,
+                        },
+                        canvas_center,
+                    );
+                    let current_angle = Self::pointer_angle(center, pointer);
+                    let delta = Self::normalize_angle_delta(current_angle - start_pointer_angle);
+                    for sprite in &mut self.sprite_data {
+                        if sprite.index == drag.index {
+                            sprite.rotation = original_rotation + delta;
+                            break;
+                        }
+                    }
+                }
+                DragMode::Scale {
+                    handle,
+                    start_pointer_local,
+                    original_scale,
+                    original_half_size,
+                    original_rotation,
+                } => {
+                    let center = self.camera.world_to_screen(
+                        Vec2 {
+                            x: drag.original_pos.x,
+                            y: drag.original_pos.y,
+                        },
+                        canvas_center,
+                    );
+                    let current_local = Self::pointer_local(center, pointer, original_rotation);
+                    let start_abs_x = start_pointer_local.x.abs().max(1.0);
+                    let start_abs_y = start_pointer_local.y.abs().max(1.0);
+                    let mut scale_abs_x = original_scale.x.abs();
+                    let mut scale_abs_y = original_scale.y.abs();
+                    match handle {
+                        super::super::ScaleHandleKind::Horizontal => {
+                            scale_abs_x = (original_scale.x.abs()
+                                * (current_local.x.abs().max(1.0) / start_abs_x))
+                                .max(super::super::MIN_OBJECT_SCALE);
+                        }
+                        super::super::ScaleHandleKind::Vertical => {
+                            scale_abs_y = (original_scale.y.abs()
+                                * (current_local.y.abs().max(1.0) / start_abs_y))
+                                .max(super::super::MIN_OBJECT_SCALE);
+                        }
+                        super::super::ScaleHandleKind::Corner => {
+                            scale_abs_x = (original_scale.x.abs()
+                                * (current_local.x.abs().max(1.0) / start_abs_x))
+                                .max(super::super::MIN_OBJECT_SCALE);
+                            scale_abs_y = (original_scale.y.abs()
+                                * (current_local.y.abs().max(1.0) / start_abs_y))
+                                .max(super::super::MIN_OBJECT_SCALE);
+                        }
+                    }
+                    let sign_x = if original_scale.x.is_sign_negative() {
+                        -1.0
+                    } else {
+                        1.0
+                    };
+                    let sign_y = if original_scale.y.is_sign_negative() {
+                        -1.0
+                    } else {
+                        1.0
+                    };
+                    let base_half_x = if original_scale.x.abs() > 0.0001 {
+                        original_half_size.0 / original_scale.x.abs()
+                    } else {
+                        original_half_size.0
+                    };
+                    let base_half_y = if original_scale.y.abs() > 0.0001 {
+                        original_half_size.1 / original_scale.y.abs()
+                    } else {
+                        original_half_size.1
+                    };
+                    for sprite in &mut self.sprite_data {
+                        if sprite.index == drag.index {
+                            sprite.scale.0 = sign_x * scale_abs_x;
+                            sprite.scale.1 = sign_y * scale_abs_y;
+                            sprite.half_size = (base_half_x * scale_abs_x, base_half_y * scale_abs_y);
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -170,12 +329,37 @@ impl LevelRenderer {
         {
             for sprite in &self.sprite_data {
                 if sprite.index == drag.index {
-                    let dx = sprite.world_pos.x - drag.original_pos.x;
-                    let dy = sprite.world_pos.y - drag.original_pos.y;
-                    if dx.abs() > 0.001 || dy.abs() > 0.001 {
-                        self.drag_result = Some((drag.index, Vec2 { x: dx, y: dy }));
-                        // Keep camera offset active until batch is rebuilt
-                        self.pending_drag_offset = Some((drag.index, dx, dy));
+                    match drag.mode {
+                        DragMode::Move => {
+                            let dx = sprite.world_pos.x - drag.original_pos.x;
+                            let dy = sprite.world_pos.y - drag.original_pos.y;
+                            if dx.abs() > 0.001 || dy.abs() > 0.001 {
+                                self.drag_result = Some((drag.index, Vec2 { x: dx, y: dy }));
+                                // Keep camera offset active until batch is rebuilt
+                                self.pending_drag_offset = Some((drag.index, dx, dy));
+                            }
+                        }
+                        DragMode::Rotate {
+                            original_rotation,
+                            ..
+                        } => {
+                            let delta = Self::normalize_angle_delta(sprite.rotation - original_rotation);
+                            let delta_degrees = delta.to_degrees();
+                            if delta_degrees.abs() > 0.01 {
+                                self.rotation_drag_result = Some((drag.index, delta_degrees));
+                            }
+                        }
+                        DragMode::Scale { original_scale, .. } => {
+                            let scale = Vec2 {
+                                x: sprite.scale.0,
+                                y: sprite.scale.1,
+                            };
+                            if (scale.x - original_scale.x).abs() > 0.001
+                                || (scale.y - original_scale.y).abs() > 0.001
+                            {
+                                self.scale_drag_result = Some((drag.index, scale));
+                            }
+                        }
                     }
                     break;
                 }
@@ -217,8 +401,14 @@ impl LevelRenderer {
             && !self.panning
             && let Some(click_pos) = response.interact_pointer_pos()
         {
-            let click_world = self.camera.screen_to_world(click_pos, canvas_center);
-            self.clicked_object = self.hit_test(click_world, selected);
+            if let Some(target) = self.scale_handle_hit(click_pos, canvas_center, selected) {
+                self.clicked_object = Some(target.index);
+            } else if let Some(idx) = self.rotation_handle_hit(click_pos, canvas_center, selected) {
+                self.clicked_object = Some(idx);
+            } else {
+                let click_world = self.camera.screen_to_world(click_pos, canvas_center);
+                self.clicked_object = self.hit_test(click_world, selected);
+            }
             self.clicked_empty = self.clicked_object.is_none();
             self.clicked_with_cmd = ui.input(|i| i.modifiers.command);
         }

@@ -77,6 +77,7 @@ impl LevelRenderer {
     pub(in crate::renderer) fn terrain_drag_offset(&self, object_index: ObjectIndex) -> (f32, f32) {
         if let Some(ref drag) = self.dragging {
             if drag.index == object_index
+                && matches!(drag.mode, super::super::DragMode::Move)
                 && let Some(sprite) = self.sprite_data.iter().find(|s| s.index == object_index)
             {
                 return (

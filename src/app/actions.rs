@@ -146,6 +146,60 @@ impl EditorApp {
         tab.renderer.camera = cam;
     }
 
+    pub(super) fn rotate_objects_z(&mut self, indices: &[ObjectIndex], delta_z_degrees: f32) {
+        let Some(level_ref) = self.tabs[self.active_tab].level.as_ref() else {
+            return;
+        };
+        let valid = Self::valid_object_indices(level_ref, indices);
+        let rotatable: Vec<ObjectIndex> = valid
+            .into_iter()
+            .filter(|&idx| matches!(level_ref.objects[idx], LevelObject::Prefab(_)))
+            .collect();
+        if rotatable.is_empty() {
+            return;
+        }
+
+        self.push_undo();
+
+        let tab = &mut self.tabs[self.active_tab];
+        let Some(level) = tab.level.as_mut() else {
+            return;
+        };
+        for idx in rotatable {
+            if let LevelObject::Prefab(prefab) = &mut level.objects[idx] {
+                prefab.rotation.z += delta_z_degrees;
+            }
+        }
+
+        let cam = tab.renderer.camera.clone();
+        tab.renderer.set_level(level);
+        tab.renderer.camera = cam;
+    }
+
+    pub(super) fn set_object_scale_xy(&mut self, index: ObjectIndex, scale_xy: Vec2) {
+        let Some(level_ref) = self.tabs[self.active_tab].level.as_ref() else {
+            return;
+        };
+        if index >= level_ref.objects.len() || !matches!(level_ref.objects[index], LevelObject::Prefab(_)) {
+            return;
+        }
+
+        self.push_undo();
+
+        let tab = &mut self.tabs[self.active_tab];
+        let Some(level) = tab.level.as_mut() else {
+            return;
+        };
+        if let LevelObject::Prefab(prefab) = &mut level.objects[index] {
+            prefab.scale.x = scale_xy.x;
+            prefab.scale.y = scale_xy.y;
+        }
+
+        let cam = tab.renderer.camera.clone();
+        tab.renderer.set_level(level);
+        tab.renderer.camera = cam;
+    }
+
     pub(super) fn request_delete_objects(&mut self, indices: &[ObjectIndex]) {
         let tab = &mut self.tabs[self.active_tab];
         let Some(level) = &tab.level else {

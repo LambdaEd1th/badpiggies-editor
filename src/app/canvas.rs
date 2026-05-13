@@ -23,6 +23,8 @@ impl EditorApp {
         } else {
             let mut canvas_context_action = None;
             let mut canvas_context_selected_object = None;
+            let mut canvas_rotation_drag_result = None;
+            let mut canvas_scale_drag_result = None;
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 let tab = &mut self.tabs[active_tab];
                 if tab.level.is_some() {
@@ -90,6 +92,22 @@ impl EditorApp {
                         let cam = tab.renderer.camera.clone();
                         tab.renderer.set_level(level);
                         tab.renderer.camera = cam;
+                    }
+                    // Pick up rotation drag result — update prefab rotation.z
+                    if let Some((idx, delta_z_degrees)) = tab.renderer.rotation_drag_result.take()
+                    {
+                        let mut indices: Vec<usize> = if tab.selected.contains(&idx) {
+                            tab.selected.iter().copied().collect()
+                        } else {
+                            vec![idx]
+                        };
+                        indices.sort_unstable();
+                        indices.dedup();
+                        canvas_rotation_drag_result = Some((indices, delta_z_degrees));
+                    }
+                    // Pick up scale drag result — update prefab scale.x/scale.y
+                    if let Some((idx, scale_xy)) = tab.renderer.scale_drag_result.take() {
+                        canvas_scale_drag_result = Some((idx, scale_xy));
                     }
                     // Pick up terrain node drag result
                     if let Some(result) = tab.renderer.node_drag_result.take()
@@ -354,6 +372,13 @@ impl EditorApp {
                     });
                 }
             });
+
+            if let Some((indices, delta_z_degrees)) = canvas_rotation_drag_result {
+                self.rotate_objects_z(&indices, delta_z_degrees);
+            }
+            if let Some((index, scale_xy)) = canvas_scale_drag_result {
+                self.set_object_scale_xy(index, scale_xy);
+            }
 
             if let Some(action) = canvas_context_action {
                 match action {

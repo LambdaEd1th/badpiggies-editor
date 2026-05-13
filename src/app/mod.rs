@@ -40,7 +40,6 @@ pub struct EditorApp {
     add_obj_is_parent: bool,
     add_obj_data_type: DataType,
     add_obj_name: String,
-    add_obj_search: String,
     add_obj_prefab_index: i16,
     add_obj_position: Vec3,
     add_obj_rotation: Vec3,
@@ -103,7 +102,6 @@ impl EditorApp {
             add_obj_is_parent: false,
             add_obj_data_type: DataType::None,
             add_obj_name: String::new(),
-            add_obj_search: String::new(),
             add_obj_prefab_index: 0,
             add_obj_position: Vec3::default(),
             add_obj_rotation: Vec3::default(),
@@ -145,7 +143,6 @@ impl EditorApp {
         self.add_obj_is_parent = false;
         self.add_obj_data_type = DataType::None;
         self.add_obj_name.clear();
-        self.add_obj_search.clear();
         self.add_obj_prefab_index = self.next_add_prefab_index();
         self.add_obj_position = world_pos.map_or_else(Vec3::default, |pos| Vec3 {
             x: pos.x,

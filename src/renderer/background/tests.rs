@@ -480,7 +480,7 @@ fn maya_high_further_wrap_gap_matches_internal_edge_gap() {
     let mut exact_repeat_matches = 0;
     for &idx in &core_indices {
         let sprite = &sprites[idx];
-        if cache.tile_info.get(&idx).is_none() {
+        if !cache.tile_info.contains_key(&idx) {
             panic!("every MayaHigh core sprite should tile");
         }
         if sprites.iter().any(|other| {

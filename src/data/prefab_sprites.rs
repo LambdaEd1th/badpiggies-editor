@@ -1,7 +1,8 @@
 //! Unity prefab multi-sprite database.
 //!
-//! Parses prefab child Sprite components from the decompiled Unity project and
-//! exposes baked local quads for prefabs that render as multiple sprites.
+//! Parses prefab child Sprite and unmanaged atlas components from the decompiled
+//! Unity project and exposes baked local quads for prefabs that render as one
+//! or more visible child sprites.
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -16,6 +17,7 @@ const SPRITES_BYTES_ASSET: &str = "unity/resources/guisystem/Sprites.bytes";
 const SPRITE_MAPPING_ASSET: &str = "unity/resources/guisystem/spritemapping.bytes";
 const PREFAB_MANIFEST_ASSET: &str = "unity/prefabs/manifest.txt";
 const PREFAB_DIR_ASSET: &str = "unity/prefabs";
+const UNMANAGED_ATLAS: &str = "Props_Generic_Sheet_01.png";
 const WORLD_SCALE: f32 = 10.0 / 768.0;
 
 type Mat2x3 = (f32, f32, f32, f32, f32, f32);
@@ -46,6 +48,7 @@ struct RuntimeSpriteMeta {
 
 #[derive(Debug, Clone)]
 struct GameObjectInfo {
+    name: String,
     active: bool,
 }
 
@@ -82,12 +85,20 @@ struct RendererInfo {
     enabled: bool,
 }
 
+#[derive(Debug, Clone)]
+struct UnmanagedSpriteComponent {
+    uv: UvRect,
+    world_w: f32,
+    world_h: f32,
+}
+
 #[derive(Default)]
 struct ParsedPrefab {
     game_objects: HashMap<String, GameObjectInfo>,
     transforms: HashMap<String, TransformInfo>,
     sprites: HashMap<String, SpriteComponent>,
     renderers: HashMap<String, RendererInfo>,
+    unmanaged_sprites: HashMap<String, UnmanagedSpriteComponent>,
 }
 
 fn read_embedded_text(path: &str) -> Option<String> {
@@ -241,10 +252,10 @@ fn load_multi_sprite_prefabs() -> HashMap<String, Vec<PrefabSpriteLayer>> {
             continue;
         };
         let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
-        let Some(layers) = parse_prefab_layers(&asset_path, runtime) else {
+        let Some(layers) = parse_prefab_layers(&name, &asset_path, runtime) else {
             continue;
         };
-        if layers.len() > 1 {
+        if layers.len() > 1 || (name.starts_with("GoalArea") && !layers.is_empty()) {
             prefabs.insert(name, layers);
         }
     }
@@ -252,6 +263,7 @@ fn load_multi_sprite_prefabs() -> HashMap<String, Vec<PrefabSpriteLayer>> {
 }
 
 fn parse_prefab_layers(
+    prefab_name: &str,
     asset_path: &str,
     runtime: &HashMap<String, RuntimeSpriteMeta>,
 ) -> Option<Vec<PrefabSpriteLayer>> {
@@ -279,6 +291,7 @@ fn parse_prefab_layers(
         sprite_by_go: &sprite_by_go,
         renderer_by_go: &renderer_by_go,
         runtime,
+        root_name: prefab_name,
     };
 
     let identity = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
@@ -294,6 +307,7 @@ struct PrefabTraverseCtx<'a> {
     sprite_by_go: &'a HashMap<&'a str, &'a SpriteComponent>,
     renderer_by_go: &'a HashMap<&'a str, &'a RendererInfo>,
     runtime: &'a HashMap<String, RuntimeSpriteMeta>,
+    root_name: &'a str,
 }
 
 fn traverse_prefab(
@@ -331,10 +345,13 @@ fn traverse_prefab(
         return;
     }
 
-    if let (Some(sprite), Some(renderer)) = (
-        ctx.sprite_by_go.get(game_object_id),
-        ctx.renderer_by_go.get(game_object_id),
-    ) && renderer.enabled
+    let skip_goal_glow = ctx.root_name.starts_with("GoalArea") && game_object.name == "Glow";
+
+    if !skip_goal_glow
+        && let (Some(sprite), Some(renderer)) = (
+            ctx.sprite_by_go.get(game_object_id),
+            ctx.renderer_by_go.get(game_object_id),
+        ) && renderer.enabled
         && let Some(runtime_sprite) = ctx.runtime.get(&sprite.sprite_id)
         && let Some(atlas) = atlas_for_material_guid(&renderer.material_guid)
     {
@@ -386,6 +403,43 @@ fn traverse_prefab(
         });
     }
 
+    if !skip_goal_glow
+        && let Some(renderer) = ctx.renderer_by_go.get(game_object_id)
+        && renderer.enabled
+        && let Some(sprite) = ctx.parsed.unmanaged_sprites.get(game_object_id)
+    {
+        let base_vertices = [
+            Vec2 {
+                x: -sprite.world_w,
+                y: -sprite.world_h,
+            },
+            Vec2 {
+                x: -sprite.world_w,
+                y: sprite.world_h,
+            },
+            Vec2 {
+                x: sprite.world_w,
+                y: sprite.world_h,
+            },
+            Vec2 {
+                x: sprite.world_w,
+                y: -sprite.world_h,
+            },
+        ];
+
+        let vertices = base_vertices.map(|vertex| {
+            let (x, y) = mat_apply(current_mat, vertex.x, vertex.y);
+            Vec2 { x, y }
+        });
+
+        out_layers.push(PrefabSpriteLayer {
+            atlas: UNMANAGED_ATLAS.to_string(),
+            uv: sprite.uv,
+            z_local: current_z,
+            vertices,
+        });
+    }
+
     for child_id in &transform.children {
         traverse_prefab(child_id, ctx, current_mat, current_z, false, out_layers);
     }
@@ -405,7 +459,7 @@ fn parse_prefab(text: &str) -> ParsedPrefab {
             1 => parse_game_object(doc, &file_id, &mut parsed.game_objects),
             4 => parse_transform(doc, &file_id, &mut parsed.transforms),
             23 => parse_renderer(doc, &file_id, &mut parsed.renderers),
-            114 => parse_sprite_component(doc, &file_id, &mut parsed.sprites),
+            114 => parse_mono_behaviour(doc, &file_id, &mut parsed),
             _ => {}
         }
     }
@@ -434,8 +488,8 @@ fn parse_game_object(doc: &str, file_id: &str, game_objects: &mut HashMap<String
             active = value.trim() != "0";
         }
     }
-    if name.is_some() {
-        game_objects.insert(file_id.to_string(), GameObjectInfo { active });
+    if let Some(name) = name {
+        game_objects.insert(file_id.to_string(), GameObjectInfo { name, active });
     }
 }
 
@@ -568,10 +622,10 @@ fn parse_renderer(doc: &str, file_id: &str, renderers: &mut HashMap<String, Rend
     );
 }
 
-fn parse_sprite_component(
+fn parse_mono_behaviour(
     doc: &str,
     file_id: &str,
-    sprites: &mut HashMap<String, SpriteComponent>,
+    parsed: &mut ParsedPrefab,
 ) {
     let mut game_object_id = None;
     let mut script_guid = None;
@@ -580,6 +634,14 @@ fn parse_sprite_component(
     let mut scale_y = 1.0;
     let mut pivot_x = 0.0;
     let mut pivot_y = 0.0;
+    let mut uv_x = None;
+    let mut uv_y = None;
+    let mut grid_w = None;
+    let mut grid_h = None;
+    let mut sprite_w = None;
+    let mut sprite_h = None;
+    let mut subdiv_x = None;
+    let mut subdiv_y = None;
 
     for line in doc.lines() {
         let trimmed = line.trim();
@@ -611,24 +673,89 @@ fn parse_sprite_component(
             pivot_y = value.trim().parse().unwrap_or(0.0);
             continue;
         }
+        if let Some(value) = trimmed.strip_prefix("m_UVx:") {
+            uv_x = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_UVy:") {
+            uv_y = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_width:") {
+            grid_w = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_height:") {
+            grid_h = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_spriteWidth:") {
+            sprite_w = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_spriteHeight:") {
+            sprite_h = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_atlasGridSubdivisions:") {
+            let parsed_value = value.trim().parse::<f32>().ok();
+            subdiv_x = parsed_value;
+            subdiv_y = parsed_value;
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_subdivisionsX:") {
+            subdiv_x = value.trim().parse::<f32>().ok();
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("m_subdivisionsY:") {
+            subdiv_y = value.trim().parse::<f32>().ok();
+            continue;
+        }
     }
 
-    if script_guid.as_deref() != Some(SPRITE_SCRIPT_GUID) {
-        return;
-    }
-    let (Some(game_object_id), Some(sprite_id)) = (game_object_id, sprite_id) else {
+    let Some(game_object_id) = game_object_id else {
         return;
     };
 
-    sprites.insert(
-        file_id.to_string(),
-        SpriteComponent {
-            game_object_id,
-            sprite_id,
-            scale_x,
-            scale_y,
-            pivot_x,
-            pivot_y,
+    if script_guid.as_deref() == Some(SPRITE_SCRIPT_GUID)
+        && let Some(sprite_id) = sprite_id
+    {
+        parsed.sprites.insert(
+            file_id.to_string(),
+            SpriteComponent {
+                game_object_id,
+                sprite_id,
+                scale_x,
+                scale_y,
+                pivot_x,
+                pivot_y,
+            },
+        );
+        return;
+    }
+
+    let (Some(uv_x), Some(uv_y), Some(grid_w), Some(grid_h), Some(sprite_w), Some(sprite_h)) =
+        (uv_x, uv_y, grid_w, grid_h, sprite_w, sprite_h)
+    else {
+        return;
+    };
+    let subdiv_x = subdiv_x.unwrap_or(0.0);
+    let subdiv_y = subdiv_y.unwrap_or(subdiv_x);
+    if subdiv_x <= 0.0 || subdiv_y <= 0.0 {
+        return;
+    }
+
+    parsed.unmanaged_sprites.insert(
+        game_object_id,
+        UnmanagedSpriteComponent {
+            uv: UvRect {
+                x: uv_x / subdiv_x,
+                y: uv_y / subdiv_y,
+                w: grid_w / subdiv_x,
+                h: grid_h / subdiv_y,
+            },
+            world_w: sprite_w * WORLD_SCALE,
+            world_h: sprite_h * WORLD_SCALE,
         },
     );
 }
@@ -709,6 +836,13 @@ fn mat_apply(m: Mat2x3, x: f32, y: f32) -> (f32, f32) {
 mod tests {
     use super::get_multi_sprite_layers;
 
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-6,
+            "expected {expected}, got {actual}"
+        );
+    }
+
     #[test]
     fn embedded_icon_pig_prefab_has_multiple_layers() {
         let Some(layers) = get_multi_sprite_layers("Icon_Pig_01") else {
@@ -718,5 +852,56 @@ mod tests {
             layers.len() >= 3,
             "expected Icon_Pig_01 to keep multiple embedded sprite layers"
         );
+    }
+
+    #[test]
+    fn goal_area_mm_gold_prefab_keeps_runtime_icon_layer() {
+        let Some(layers) = get_multi_sprite_layers("GoalArea_MM_Gold") else {
+            panic!("expected prefab layers for GoalArea_MM_Gold");
+        };
+        let Some(icon_layer) = layers
+            .iter()
+            .find(|layer| layer.atlas == "IngameAtlas2.png")
+        else {
+            panic!("expected GoalArea_MM_Gold icon layer");
+        };
+        assert_close(icon_layer.uv.x, 0.5419922);
+        assert_close(icon_layer.uv.y, 0.7719727);
+        assert_close(icon_layer.uv.w, 0.02929688);
+        assert_close(icon_layer.uv.h, 0.06054688);
+    }
+
+    #[test]
+    fn goal_area_01_prefab_keeps_achievement_icon_layer() {
+        let Some(layers) = get_multi_sprite_layers("GoalArea_01") else {
+            panic!("expected prefab layers for GoalArea_01");
+        };
+        let Some(icon_layer) = layers
+            .iter()
+            .find(|layer| layer.atlas == "Props_Generic_Sheet_01.png")
+        else {
+            panic!("expected GoalArea_01 achievement icon layer");
+        };
+        assert_close(icon_layer.uv.x, 0.0);
+        assert_close(icon_layer.uv.y, 0.0);
+        assert_close(icon_layer.uv.w, 0.125);
+        assert_close(icon_layer.uv.h, 0.125);
+    }
+
+    #[test]
+    fn goal_area_star_level_prefab_keeps_hat_layer() {
+        let Some(layers) = get_multi_sprite_layers("GoalArea_StarLevel") else {
+            panic!("expected prefab layers for GoalArea_StarLevel");
+        };
+        let Some(hat_layer) = layers
+            .iter()
+            .find(|layer| layer.atlas == "Props_Generic_Sheet_01.png")
+        else {
+            panic!("expected GoalArea_StarLevel hat layer");
+        };
+        assert_close(hat_layer.uv.x, 0.75);
+        assert_close(hat_layer.uv.y, 0.25);
+        assert_close(hat_layer.uv.w, 0.125);
+        assert_close(hat_layer.uv.h, 0.125);
     }
 }

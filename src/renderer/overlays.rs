@@ -315,11 +315,7 @@ impl LevelRenderer {
             if self.tex_cache.get(atlas).is_none() {
                 let sprite_key = format!("sprites/{}", atlas);
                 let props_key = format!("props/{}", atlas);
-                // Props_Generic_Sheet is rendered via wgpu opaque shader (GPU pipeline),
-                // so skip egui texture loading for it entirely.
-                if atlas == &"Props_Generic_Sheet_01.png" {
-                    continue;
-                } else if self
+                if self
                     .tex_cache
                     .load_texture(ctx, &sprite_key, atlas)
                     .is_none()

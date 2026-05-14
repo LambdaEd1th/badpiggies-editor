@@ -281,7 +281,7 @@ fn default_texture_name_for_guid(guid: &str) -> Option<&'static str> {
         "88e44c05da33a0b449016bd36686ac9c" => Some("Ground_Temple_Dark_Texture_02.png"),
         "8d268126cfbbe69b4159e555b69bcc4f" => Some("Ground_Maya_cave_texture_bg.png"),
         "8e6d64dad7ef5ea54fbb77d86cb9a9d7" => Some("Ground_Maya_cave_texture.png"),
-        "977533b9ad59c2ae434820adb5b74076" => Some("Ground_Rocks_Outline_Texture_06.png"),
+        "977533b9ad59c2ae434820adb5b74076" => Some("Border_Maya_Cave.png"),
         "9d4aad58526c159f4299c3ad34644a92" => Some("Ground_Rocks_Outline_Texture_02.png"),
         "9e649cc7317c24aa4527db7d09a07ddf" => Some("Ground_Grass_Texture.png"),
         "a435b589ae7331a44ec02c7af798fd77" => Some("Ground_Rocks_Texture_06.png"),
@@ -297,7 +297,7 @@ fn default_texture_name_for_guid(guid: &str) -> Option<&'static str> {
         "d3e2c0cc9fb321af40057511249fa805" => Some("Ground_Halloween_Texture.png"),
         "d87e8f561e24ac9245b3a51e0e611a08" => Some("Ground_Rocks_Outline_Texture_06.png"),
         "f02b58597a8fa8b549c6d1e3fec2651a" => Some("Ground_Temple_Rock_Texture.png"),
-        "f2ac7f939745a094490b25021eef34be" => Some("Ground_Rocks_Outline_Texture_05.png"),
+        "f2ac7f939745a094490b25021eef34be" => Some("Ground_Rocks_Outline_Texture_03.png"),
         _ => None,
     }
 }
@@ -354,7 +354,10 @@ pub fn get_prefab_override(level_key: &str, prefab_index: i16) -> Option<&'stati
 
 #[cfg(test)]
 mod tests {
-    use super::{get_level_ref, get_prefab_override, level_key_from_filename};
+    use super::{
+        default_texture_name_for_guid, get_level_ref, get_prefab_override,
+        level_key_from_filename,
+    };
 
     #[test]
     fn level_key_from_filename_strips_bytes_suffix() {
@@ -389,6 +392,22 @@ mod tests {
         assert_eq!(
             get_level_ref("Episode_6_Ice Sandbox_data", 161),
             Some("Ground_Temple_Rock_Texture.png")
+        );
+    }
+
+    #[test]
+    fn runtime_loader_refs_use_correct_outline_pathnames() {
+        assert_eq!(
+            default_texture_name_for_guid("977533b9ad59c2ae434820adb5b74076"),
+            Some("Border_Maya_Cave.png")
+        );
+        assert_eq!(
+            default_texture_name_for_guid("f2ac7f939745a094490b25021eef34be"),
+            Some("Ground_Rocks_Outline_Texture_03.png")
+        );
+        assert_eq!(
+            get_level_ref("scenario_12_data", 17),
+            Some("Ground_Rocks_Outline_Texture_03.png")
         );
     }
 

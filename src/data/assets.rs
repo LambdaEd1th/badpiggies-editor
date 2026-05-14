@@ -121,7 +121,7 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_04", "Ground_Rocks_Outline_Texture_04.png"),
             (
                 "e2dTerrainBase_05_night",
-                "Ground_Rocks_Outline_Texture_05.png",
+                "Ground_Rocks_Outline_Texture_03.png",
             ),
             (
                 "e2dTerrainBase_Halloween",
@@ -138,7 +138,7 @@ fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
             ("e2dTerrainBase_MM_caveSand", "Border_Maya_Cave.png"),
             // Dark variants with different Splat1 than their base
             ("e2dTerrainDark_02", "Ground_Rocks_Outline_Texture.png"),
-            ("e2dTerrainDark_03", "Ground_Rocks_Outline_Texture_05.png"),
+            ("e2dTerrainDark_03", "Ground_Rocks_Outline_Texture_03.png"),
             (
                 "e2dTerrainDark_05_night(150)",
                 "Ground_Rocks_Outline_Texture_04.png",
@@ -689,6 +689,22 @@ mod tests {
         assert_eq!(
             get_terrain_splat1("e2dTerrainDark_MM_rock"),
             Some("Border.png")
+        );
+    }
+
+    #[test]
+    fn night_outline_defaults_match_prefab_curve_textures() {
+        assert_eq!(
+            get_terrain_splat1("e2dTerrainBase_05_night"),
+            Some("Ground_Rocks_Outline_Texture_03.png")
+        );
+        assert_eq!(
+            get_terrain_splat1("e2dTerrainDark_03"),
+            Some("Ground_Rocks_Outline_Texture_03.png")
+        );
+        assert_eq!(
+            get_terrain_splat1_for_level("scenario_12_data", "e2dTerrainBase_05_night"),
+            Some("Ground_Rocks_Outline_Texture_03.png")
         );
     }
 

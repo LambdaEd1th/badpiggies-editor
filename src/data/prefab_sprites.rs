@@ -31,6 +31,14 @@ pub struct PrefabSpriteLayer {
     pub vertices: [Vec2; 4],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PrefabLocalBounds {
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_y: f32,
+    pub max_y: f32,
+}
+
 #[derive(Debug, Clone)]
 struct RuntimeSpriteMeta {
     selection_x: i32,
@@ -121,6 +129,30 @@ pub fn get_multi_sprite_layers(name: &str) -> Option<&'static [PrefabSpriteLayer
     db.get(name)
         .or_else(|| name.split(" (").next().and_then(|base| db.get(base)))
         .map(Vec::as_slice)
+}
+
+pub fn get_prefab_local_bounds(name: &str) -> Option<PrefabLocalBounds> {
+    let layers = get_multi_sprite_layers(name)?;
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for layer in layers {
+        for vertex in layer.vertices {
+            min_x = min_x.min(vertex.x);
+            max_x = max_x.max(vertex.x);
+            min_y = min_y.min(vertex.y);
+            max_y = max_y.max(vertex.y);
+        }
+    }
+
+    (min_x.is_finite() && min_y.is_finite()).then_some(PrefabLocalBounds {
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+    })
 }
 
 fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
@@ -345,9 +377,12 @@ fn traverse_prefab(
         return;
     }
 
-    let skip_goal_glow = ctx.root_name.starts_with("GoalArea") && game_object.name == "Glow";
+    let skip_special_glow = game_object.name == "Glow"
+        && (ctx.root_name.starts_with("GoalArea")
+            || ctx.root_name == "BoxChallenge"
+            || ctx.root_name == "DynamicBoxChallenge");
 
-    if !skip_goal_glow
+    if !skip_special_glow
         && let (Some(sprite), Some(renderer)) = (
             ctx.sprite_by_go.get(game_object_id),
             ctx.renderer_by_go.get(game_object_id),
@@ -403,7 +438,7 @@ fn traverse_prefab(
         });
     }
 
-    if !skip_goal_glow
+    if !skip_special_glow
         && let Some(renderer) = ctx.renderer_by_go.get(game_object_id)
         && renderer.enabled
         && let Some(sprite) = ctx.parsed.unmanaged_sprites.get(game_object_id)
@@ -903,5 +938,11 @@ mod tests {
         assert_close(hat_layer.uv.y, 0.25);
         assert_close(hat_layer.uv.w, 0.125);
         assert_close(hat_layer.uv.h, 0.125);
+    }
+
+    #[test]
+    fn box_challenge_prefab_does_not_reemit_glow_layer() {
+        assert!(get_multi_sprite_layers("BoxChallenge").is_none());
+        assert!(get_multi_sprite_layers("DynamicBoxChallenge").is_none());
     }
 }

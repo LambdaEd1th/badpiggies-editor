@@ -3,14 +3,13 @@
 use eframe::egui;
 
 use crate::data::assets;
+use crate::data::prefab_sprites;
 use crate::data::sprite_db;
 use crate::domain::types::*;
 use crate::goal_animation::{GoalAnimationState, parse_goal_animation_state};
+use crate::renderer::goal_flag;
 
 use super::{bird_sleep_duration, dessert_y_offset};
-
-const GOAL_AREA_HALF_WIDTH: f32 = 1.328125 * 0.5;
-const GOAL_AREA_HALF_HEIGHT: f32 = 2.65625 * 0.5;
 
 pub struct SpriteDrawData {
     /// World position.
@@ -45,6 +44,22 @@ pub struct SpriteDrawData {
     pub name_lower: String,
     /// GoalArea animation mode derived from override data.
     pub goal_animation_state: GoalAnimationState,
+}
+
+fn combined_goal_area_half_size(name: &str, scale_x: f32, scale_y: f32) -> (f32, f32) {
+    let (mut min_x, mut max_x, mut min_y, mut max_y) = goal_flag::goal_flag_local_bounds();
+
+    if let Some(bounds) = prefab_sprites::get_prefab_local_bounds(name) {
+        min_x = min_x.min(bounds.min_x);
+        max_x = max_x.max(bounds.max_x);
+        min_y = min_y.min(bounds.min_y);
+        max_y = max_y.max(bounds.max_y);
+    }
+
+    (
+        min_x.abs().max(max_x.abs()) * scale_x,
+        min_y.abs().max(max_y.abs()) * scale_y,
+    )
 }
 
 /// Build sprite draw data for a prefab instance.
@@ -101,20 +116,21 @@ pub fn build_sprite(
 
     // Try to get real sprite size from database
     let sprite_info = sprite_db::get_sprite_info(sprite_name);
-    let (half_w, half_h, atlas, uv) = if let Some(info) = sprite_info {
+    let (half_w, half_h, atlas, uv) = if sprite_name.starts_with("GoalArea") {
+        let (half_w, half_h) = combined_goal_area_half_size(sprite_name, sx, sy);
+        let (atlas, uv) = if let Some(info) = sprite_info {
+            (Some(info.atlas.clone()), Some(info.uv))
+        } else {
+            (None, None)
+        };
+        (half_w, half_h, atlas, uv)
+    } else if let Some(info) = sprite_info {
         // world_w/world_h are half-extents; scale by instance scale
         (
             info.world_w * sx,
             info.world_h * sy,
             Some(info.atlas.clone()),
             Some(info.uv),
-        )
-    } else if sprite_name.starts_with("GoalArea") {
-        (
-            GOAL_AREA_HALF_WIDTH * sx,
-            GOAL_AREA_HALF_HEIGHT * sy,
-            None,
-            None,
         )
     } else {
         // Fallback: 0.3 world units half-extent
@@ -162,4 +178,30 @@ pub struct SpriteDrawOpts {
     pub atlas_size: Option<[usize; 2]>,
     pub fan_angle: Option<f32>,
     pub opaque_rendered: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::combined_goal_area_half_size;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-6,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn goal_area_mm_composite_bounds_include_goal_sprite_mesh() {
+        let (half_w, half_h) = combined_goal_area_half_size("GoalArea_MM", 1.0, 1.0);
+        assert_close(half_w, 0.65);
+        assert_close(half_h, 1.321756);
+    }
+
+    #[test]
+    fn goal_area_01_composite_bounds_include_offset_map_layer() {
+        let (half_w, half_h) = combined_goal_area_half_size("GoalArea_01", 1.0, 1.0);
+        assert_close(half_w, 0.67436504);
+        assert_close(half_h, 1.321756);
+    }
 }

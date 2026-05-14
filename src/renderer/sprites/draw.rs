@@ -13,6 +13,31 @@ fn with_alpha(color: egui::Color32, alpha: f32) -> egui::Color32 {
     egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), scaled_alpha)
 }
 
+fn selection_outline_metrics(
+    sprite: &SpriteDrawData,
+    camera: &super::super::Camera,
+    canvas_center: egui::Vec2,
+    animated_center: egui::Pos2,
+    animated_hw: f32,
+    animated_hh: f32,
+) -> (egui::Pos2, f32, f32) {
+    if sprite.name_lower.starts_with("goalarea") {
+        (
+            camera.world_to_screen(
+                Vec2 {
+                    x: sprite.world_pos.x,
+                    y: sprite.world_pos.y,
+                },
+                canvas_center,
+            ),
+            (sprite.half_size.0 * camera.zoom).max(2.0),
+            (sprite.half_size.1 * camera.zoom).max(2.0),
+        )
+    } else {
+        (animated_center, animated_hw, animated_hh)
+    }
+}
+
 pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawOpts) {
     let painter = ctx.painter;
     let camera = ctx.camera;
@@ -201,15 +226,23 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 
     // Selection highlight
     if is_selected {
+        let (sel_center, sel_hw, sel_hh) = selection_outline_metrics(
+            sprite,
+            camera,
+            canvas_center,
+            center,
+            hw,
+            hh,
+        );
         if sprite.rotation.abs() > 0.001 {
             let cos_r = sprite.rotation.cos();
             let sin_r = sprite.rotation.sin();
-            let ehw = hw + 2.0;
-            let ehh = hh + 2.0;
+            let ehw = sel_hw + 2.0;
+            let ehh = sel_hh + 2.0;
             let rot = |dx: f32, dy: f32| -> egui::Pos2 {
                 egui::pos2(
-                    center.x + dx * cos_r + dy * sin_r,
-                    center.y - dx * sin_r + dy * cos_r,
+                    sel_center.x + dx * cos_r + dy * sin_r,
+                    sel_center.y - dx * sin_r + dy * cos_r,
                 )
             };
             let points = vec![
@@ -224,8 +257,9 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
                 egui::Stroke::new(2.0, egui::Color32::YELLOW),
             ));
         } else {
+            let sel_rect = egui::Rect::from_center_size(sel_center, egui::vec2(sel_hw * 2.0, sel_hh * 2.0));
             painter.rect_stroke(
-                rect.expand(2.0),
+                sel_rect.expand(2.0),
                 2.0,
                 egui::Stroke::new(2.0, egui::Color32::YELLOW),
                 egui::StrokeKind::Outside,
@@ -304,5 +338,72 @@ pub(in crate::renderer::sprites) fn dessert_y_offset(name: &str) -> f32 {
         "CreamyBun" => 0.3125,
         "IcecreamBalls" => 0.6771,
         _ => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::selection_outline_metrics;
+    use crate::domain::types::Vec3;
+    use crate::renderer::Camera;
+
+    use super::super::data::SpriteDrawData;
+    use crate::goal_animation::GoalAnimationState;
+
+    fn test_sprite(name: &str) -> SpriteDrawData {
+        SpriteDrawData {
+            world_pos: Vec3 {
+                x: 10.0,
+                y: 20.0,
+                z: 0.0,
+            },
+            color: egui::Color32::WHITE,
+            half_size: (1.0, 2.0),
+            scale: (1.0, 1.0),
+            name: name.to_string(),
+            index: 0,
+            is_terrain: false,
+            atlas: None,
+            uv: None,
+            is_hidden: false,
+            parent: None,
+            override_text: None,
+            rotation: 0.0,
+            bird_phase: 0.0,
+            name_lower: name.to_ascii_lowercase(),
+            goal_animation_state: GoalAnimationState::Idle,
+        }
+    }
+
+    #[test]
+    fn goal_area_selection_outline_ignores_animated_center() {
+        let camera = Camera::default();
+        let sprite = test_sprite("GoalArea_Night");
+        let canvas_center = egui::vec2(100.0, 100.0);
+        let animated_center = egui::pos2(130.0, 170.0);
+        let (sel_center, sel_hw, sel_hh) =
+            selection_outline_metrics(&sprite, &camera, canvas_center, animated_center, 5.0, 6.0);
+
+        let expected_center = camera.world_to_screen(
+            crate::domain::types::Vec2 { x: 10.0, y: 20.0 },
+            canvas_center,
+        );
+        assert_eq!(sel_center, expected_center);
+        assert_eq!(sel_hw, 40.0);
+        assert_eq!(sel_hh, 80.0);
+    }
+
+    #[test]
+    fn non_goal_selection_outline_keeps_animated_center() {
+        let camera = Camera::default();
+        let sprite = test_sprite("BoxChallenge");
+        let canvas_center = egui::vec2(100.0, 100.0);
+        let animated_center = egui::pos2(130.0, 170.0);
+        let (sel_center, sel_hw, sel_hh) =
+            selection_outline_metrics(&sprite, &camera, canvas_center, animated_center, 5.0, 6.0);
+
+        assert_eq!(sel_center, animated_center);
+        assert_eq!(sel_hw, 5.0);
+        assert_eq!(sel_hh, 6.0);
     }
 }

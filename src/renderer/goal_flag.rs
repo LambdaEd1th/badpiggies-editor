@@ -101,6 +101,24 @@ const GOAL_FLAG_IDX: &[u32] = &[
     26, 31, 21, 9, 12, 25, 9, 25, 32, 9, 32, 2,
 ];
 
+pub(in crate::renderer) fn goal_flag_local_bounds() -> (f32, f32, f32, f32) {
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for pair in GOAL_FLAG_POS.chunks_exact(2) {
+        let x = pair[0];
+        let y = pair[1];
+        min_x = min_x.min(x);
+        max_x = max_x.max(x);
+        min_y = min_y.min(y);
+        max_y = max_y.max(y);
+    }
+
+    (min_x, max_x, min_y, max_y)
+}
+
 /// Draw the Goal flag mesh with UV scroll animation.
 pub(super) fn draw_goal_flag(
     painter: &egui::Painter,

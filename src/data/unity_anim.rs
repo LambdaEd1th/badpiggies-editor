@@ -1,8 +1,5 @@
 use std::sync::OnceLock;
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
-
 use serde::Deserialize;
 
 use super::assets;
@@ -175,27 +172,7 @@ fn sanitize_unity_yaml(text: &str) -> String {
 }
 
 fn read_animation_text(asset_key: &str) -> Option<String> {
-    if let Some(bytes) = assets::read_asset(asset_key) {
-        return Some(String::from_utf8_lossy(bytes.as_ref()).into_owned());
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Some(text) = read_workspace_animation_text(asset_key) {
-            return Some(text);
-        }
-    }
-
-    None
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn read_workspace_animation_text(asset_key: &str) -> Option<String> {
-    let filename = asset_key.strip_prefix("unity/animation/")?;
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("unity_assets/AnimationClip")
-        .join(filename);
-    std::fs::read_to_string(path).ok()
+    assets::read_asset_text(asset_key)
 }
 
 #[derive(Debug, Deserialize)]
@@ -439,6 +416,10 @@ struct UnityVec4Yaml {
 mod tests {
     use super::*;
 
+    fn asset_text(asset_key: &str) -> String {
+        assets::read_asset_text(asset_key).expect("missing embedded animation clip")
+    }
+
     fn assert_close(actual: f32, expected: f32) {
         assert!(
             (actual - expected).abs() < 1e-6,
@@ -448,8 +429,7 @@ mod tests {
 
     #[test]
     fn parses_bird_sleep2_root_curves() {
-        let clip = parse_clip(include_str!("../../unity_assets/AnimationClip/BirdSleep2.anim"))
-            .expect("BirdSleep2.anim should parse");
+        let clip = parse_clip(&asset_text(BIRD_SLEEP2_ASSET)).expect("BirdSleep2.anim should parse");
         let position = clip.root_position().expect("root position curve should exist");
         let scale = clip.root_scale().expect("root scale curve should exist");
 
@@ -479,8 +459,7 @@ mod tests {
 
     #[test]
     fn parses_achievement_popup_enter_position_curve() {
-        let clip =
-            parse_clip(include_str!("../../unity_assets/AnimationClip/AchievementPopupEnter.anim"))
+        let clip = parse_clip(&asset_text(ACHIEVEMENT_POPUP_ENTER_ASSET))
             .expect("AchievementPopupEnter.anim should parse");
         let position = clip.root_position().expect("root position curve should exist");
 
@@ -493,7 +472,7 @@ mod tests {
 
     #[test]
     fn parses_goal_vanishing_position_scale_and_alpha_curves() {
-        let clip = parse_clip(include_str!("../../unity_assets/AnimationClip/GoalVanishing.anim"))
+        let clip = parse_clip(&asset_text(GOAL_VANISHING_ASSET))
             .expect("GoalVanishing.anim should parse");
         let position = clip.root_position().expect("root position curve should exist");
         let scale = clip.root_scale().expect("root scale curve should exist");
@@ -514,7 +493,7 @@ mod tests {
 
     #[test]
     fn parses_rotating_glow_rotation_and_float_curves() {
-        let clip = parse_clip(include_str!("../../unity_assets/AnimationClip/RotatingGlow.anim"))
+        let clip = parse_clip(&asset_text(ROTATING_GLOW_ASSET))
             .expect("RotatingGlow.anim should parse");
         let rotation = clip.root_rotation().expect("root rotation curve should exist");
         let euler_z = clip

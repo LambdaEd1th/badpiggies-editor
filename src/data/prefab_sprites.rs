@@ -380,7 +380,8 @@ fn traverse_prefab(
     let skip_special_glow = game_object.name == "Glow"
         && (ctx.root_name.starts_with("GoalArea")
             || ctx.root_name == "BoxChallenge"
-            || ctx.root_name == "DynamicBoxChallenge");
+            || ctx.root_name == "DynamicBoxChallenge"
+            || ctx.root_name.contains("StarBox"));
 
     if !skip_special_glow
         && let (Some(sprite), Some(renderer)) = (
@@ -944,5 +945,11 @@ mod tests {
     fn box_challenge_prefab_does_not_reemit_glow_layer() {
         assert!(get_multi_sprite_layers("BoxChallenge").is_none());
         assert!(get_multi_sprite_layers("DynamicBoxChallenge").is_none());
+    }
+
+    #[test]
+    fn star_box_prefab_does_not_reemit_glow_layer() {
+        assert!(get_multi_sprite_layers("StarBox").is_none());
+        assert!(get_multi_sprite_layers("DynamicStarBox").is_none());
     }
 }

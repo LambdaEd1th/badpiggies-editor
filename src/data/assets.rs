@@ -2,16 +2,11 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
-use std::fs;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use eframe::egui;
 
-/// Project assets embedded for wasm and read directly from disk on native.
-#[cfg(target_arch = "wasm32")]
+/// Project assets exposed through rust-embed on all targets.
 #[derive(rust_embed::RustEmbed)]
 #[folder = "unity_assets/"]
 pub struct ProjectAssets;
@@ -24,6 +19,23 @@ pub fn read_asset(key: &str) -> Option<Cow<'static, [u8]>> {
 
     let mapped = map_asset_key(key)?;
     read_project_asset(mapped.as_ref())
+}
+
+pub fn read_asset_text(key: &str) -> Option<String> {
+    read_asset(key).map(|bytes| String::from_utf8_lossy(bytes.as_ref()).into_owned())
+}
+
+pub fn list_asset_paths(prefix: &str, suffix: &str) -> Vec<String> {
+    let mut files: Vec<String> = ProjectAssets::iter()
+        .filter_map(|path| {
+            let path = path.as_ref();
+            path.strip_prefix(prefix)
+                .filter(|path| path.ends_with(suffix))
+                .map(str::to_string)
+        })
+        .collect();
+    files.sort();
+    files
 }
 
 fn generated_asset_text(key: &str) -> Option<String> {
@@ -87,84 +99,15 @@ fn map_asset_key(key: &str) -> Option<Cow<'static, str>> {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn read_project_asset(path: &str) -> Option<Cow<'static, [u8]>> {
-    fs::read(project_assets_root().join(path)).ok().map(Cow::Owned)
-}
-
-#[cfg(target_arch = "wasm32")]
-fn read_project_asset(path: &str) -> Option<Cow<'static, [u8]>> {
     ProjectAssets::get(path).map(|f| f.data)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn project_assets_root() -> &'static Path {
-    static ROOT: OnceLock<PathBuf> = OnceLock::new();
-    ROOT.get_or_init(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("unity_assets"))
-        .as_path()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 fn prefab_manifest_text() -> String {
-    collect_relative_files(&project_assets_root().join("Prefab"), ".prefab").join("\n")
+    list_asset_paths("Prefab/", ".prefab").join("\n")
 }
 
-#[cfg(target_arch = "wasm32")]
-fn prefab_manifest_text() -> String {
-    let mut files: Vec<String> = ProjectAssets::iter()
-        .filter_map(|path| {
-            let path = path.as_ref();
-            path.strip_prefix("Prefab/")
-                .filter(|path| path.ends_with(".prefab"))
-                .map(str::to_string)
-        })
-        .collect();
-    files.sort();
-    files.join("\n")
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 fn loader_manifest_text() -> String {
-    collect_relative_files(&project_assets_root().join("Resources/levels"), "_loader.prefab")
-        .join("\n")
-}
-
-#[cfg(target_arch = "wasm32")]
-fn loader_manifest_text() -> String {
-    let mut files: Vec<String> = ProjectAssets::iter()
-        .filter_map(|path| {
-            let path = path.as_ref();
-            path.strip_prefix("Resources/levels/")
-                .filter(|path| path.ends_with("_loader.prefab"))
-                .map(str::to_string)
-        })
-        .collect();
-    files.sort();
-    files.join("\n")
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn collect_relative_files(root: &Path, suffix: &str) -> Vec<String> {
-    let mut files = Vec::new();
-    collect_relative_files_inner(root, root, suffix, &mut files);
-    files.sort();
-    files
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn collect_relative_files_inner(root: &Path, dir: &Path, suffix: &str, out: &mut Vec<String>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_relative_files_inner(root, &path, suffix, out);
-        } else if let Some(relative) = path.strip_prefix(root).ok().and_then(Path::to_str)
-            && relative.ends_with(suffix)
-        {
-            out.push(relative.replace('\\', "/"));
-        }
-    }
+    list_asset_paths("Resources/levels/", "_loader.prefab").join("\n")
 }
 
 /// Build an `egui::ColorImage` with gamma-space premultiplied alpha.
@@ -819,9 +762,22 @@ impl TextureCache {
 #[cfg(test)]
 mod tests {
     use super::{
-        get_terrain_splat1, get_terrain_splat1_for_level,
+        get_terrain_splat1, get_terrain_splat1_for_level, list_asset_paths, read_asset_text,
         terrain_splat1_prefers_prefab_over_level_refs,
     };
+
+    #[test]
+    fn embedded_asset_listing_includes_goal_area_prefab() {
+        assert!(list_asset_paths("Prefab/", ".prefab")
+            .iter()
+            .any(|path| path == "GoalArea_01.prefab"));
+    }
+
+    #[test]
+    fn embedded_asset_text_reads_animation_clip() {
+        let text = read_asset_text("unity/animation/BirdSleep2.anim").expect("missing anim");
+        assert!(text.contains("AnimationClip"));
+    }
 
     #[test]
     fn mm_maya_splat1_defaults_match_prefab_border_textures_for_cave_dark_groups() {

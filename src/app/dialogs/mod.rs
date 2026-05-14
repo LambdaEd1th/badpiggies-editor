@@ -8,9 +8,10 @@ mod tool;
 use eframe::egui;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 
+use crate::data::assets;
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, TerrainPresetShape};
@@ -220,27 +221,9 @@ fn loader_file_name_for_level(file_name: &str) -> Option<String> {
     (!stem.is_empty()).then(|| format!("{stem}_loader.prefab"))
 }
 
-fn project_prefabs_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("unity_assets/Prefab")
-}
-
-fn collect_prefab_names(dir: &Path, names: &mut BTreeSet<String>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_prefab_names(&path, names);
-            continue;
-        }
-        let Some(extension) = path.extension().and_then(|ext| ext.to_str()) else {
-            continue;
-        };
-        if !extension.eq_ignore_ascii_case("prefab") {
-            continue;
-        }
-        let Some(name) = prefab_asset_display_name(&path) else {
+fn collect_prefab_names(names: &mut BTreeSet<String>) {
+    for relative_path in assets::list_asset_paths("Prefab/", ".prefab") {
+        let Some(name) = prefab_asset_display_name(&relative_path) else {
             continue;
         };
         if !name.is_empty() {
@@ -249,9 +232,10 @@ fn collect_prefab_names(dir: &Path, names: &mut BTreeSet<String>) {
     }
 }
 
-fn prefab_asset_display_name(path: &Path) -> Option<String> {
-    parse_prefab_root_name(path).or_else(|| {
-        path.file_stem()
+fn prefab_asset_display_name(relative_path: &str) -> Option<String> {
+    parse_prefab_root_name(relative_path).or_else(|| {
+        Path::new(relative_path)
+            .file_stem()
             .and_then(|stem| stem.to_str())
             .map(str::trim)
             .filter(|name| !name.is_empty())
@@ -259,8 +243,8 @@ fn prefab_asset_display_name(path: &Path) -> Option<String> {
     })
 }
 
-fn parse_prefab_root_name(path: &Path) -> Option<String> {
-    let text = fs::read_to_string(path).ok()?;
+fn parse_prefab_root_name(relative_path: &str) -> Option<String> {
+    let text = assets::read_asset_text(&format!("unity/prefabs/{relative_path}"))?;
     let mut root_file_id = None;
     for line in text.lines() {
         let trimmed = line.trim();
@@ -302,27 +286,17 @@ fn parse_prefab_root_name(path: &Path) -> Option<String> {
     None
 }
 
-fn project_levels_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("unity_assets/Resources/levels")
-}
-
-fn collect_matching_loaders(dir: &Path, target_name: &str, matches: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_matching_loaders(&path, target_name, matches);
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
-        };
-        if name.eq_ignore_ascii_case(target_name) {
-            matches.push(path);
-        }
-    }
+fn collect_matching_loaders(target_name: &str, matches: &mut Vec<String>) {
+    matches.extend(
+        assets::list_asset_paths("Resources/levels/", "_loader.prefab")
+            .into_iter()
+            .filter(|relative_path| {
+                Path::new(relative_path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.eq_ignore_ascii_case(target_name))
+            }),
+    );
 }
 
 fn loader_search_hint(source_path: Option<&str>) -> Option<String> {
@@ -342,47 +316,46 @@ fn loader_search_hint(source_path: Option<&str>) -> Option<String> {
     .map(str::to_string)
 }
 
-fn resolve_loader_prefab_path(
+fn resolve_loader_prefab_text(
     file_name: Option<&str>,
     source_path: Option<&str>,
-) -> Option<PathBuf> {
+) -> Option<String> {
     let target_name = loader_file_name_for_level(file_name?)?;
     if let Some(source_path) = source_path {
         let source = Path::new(source_path);
         if let Some(parent) = source.parent() {
             let sibling = parent.join(&target_name);
             if sibling.is_file() {
-                return Some(sibling);
+                return fs::read_to_string(sibling).ok();
             }
         }
     }
 
-    let levels_dir = project_levels_dir();
-    if !levels_dir.is_dir() {
-        return None;
-    }
-
     let mut matches = Vec::new();
-    collect_matching_loaders(&levels_dir, &target_name, &mut matches);
+    collect_matching_loaders(&target_name, &mut matches);
     match matches.len() {
         0 => None,
-        1 => matches.into_iter().next(),
+        1 => matches
+            .pop()
+            .and_then(|path| assets::read_asset_text(&format!("unity/levels/{path}"))),
         _ => {
             let hint = loader_search_hint(source_path);
             if let Some(hint) = hint
                 && let Some(path) = matches
                     .iter()
-                    .find(|path| path.to_string_lossy().to_ascii_lowercase().contains(&hint))
+                    .find(|path| path.to_ascii_lowercase().contains(&hint))
             {
-                return Some(path.clone());
+                return assets::read_asset_text(&format!("unity/levels/{path}"));
             }
-            matches.into_iter().next()
+            matches
+                .into_iter()
+                .next()
+                .and_then(|path| assets::read_asset_text(&format!("unity/levels/{path}")))
         }
     }
 }
 
-fn parse_loader_prefab_count(loader_path: &Path) -> Option<i16> {
-    let text = fs::read_to_string(loader_path).ok()?;
+fn parse_loader_prefab_count(text: &str) -> Option<i16> {
     let mut in_prefabs = false;
     let mut base_indent = 0usize;
     let mut count = 0usize;
@@ -400,7 +373,7 @@ fn parse_loader_prefab_count(loader_path: &Path) -> Option<i16> {
         if trimmed.is_empty() {
             continue;
         }
-        if indent <= base_indent {
+        if indent < base_indent || (indent == base_indent && !trimmed.starts_with("- ")) {
             break;
         }
         if trimmed.starts_with("- ") {
@@ -451,7 +424,7 @@ pub(super) fn current_level_prefab_options(
 ) -> Vec<PrefabOption> {
     let used_labels = level.map(build_used_prefab_labels).unwrap_or_default();
     let level_key = file_name.map(crate::domain::level::refs::level_key_from_filename);
-    let loader_count = resolve_loader_prefab_path(file_name, source_path)
+    let loader_count = resolve_loader_prefab_text(file_name, source_path)
         .as_deref()
         .and_then(parse_loader_prefab_count);
     let max_index = used_labels.keys().next_back().copied();
@@ -488,10 +461,7 @@ pub(super) fn global_prefab_name_options() -> &'static [String] {
     INSTANCE
         .get_or_init(|| {
             let mut names = BTreeSet::new();
-            let prefabs_dir = project_prefabs_dir();
-            if prefabs_dir.is_dir() {
-                collect_prefab_names(&prefabs_dir, &mut names);
-            }
+            collect_prefab_names(&mut names);
             names.into_iter().collect()
         })
         .as_slice()
@@ -596,5 +566,31 @@ pub(super) fn update_camera_limits_in_level(level: &mut LevelData, vals: [f32; 4
             }
             return;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{global_prefab_name_options, parse_loader_prefab_count};
+    use crate::data::assets;
+
+    #[test]
+    fn embedded_prefab_name_options_include_goal_area() {
+        assert!(global_prefab_name_options()
+            .iter()
+            .any(|name| name == "GoalArea_01"));
+    }
+
+    #[test]
+    fn embedded_loader_prefab_count_parses_valid_loader() {
+        let has_loader_with_prefabs = assets::list_asset_paths("Resources/levels/", "_loader.prefab")
+            .into_iter()
+            .filter_map(|relative_path| {
+                assets::read_asset_text(&format!("unity/levels/{relative_path}"))
+            })
+            .filter_map(|text| parse_loader_prefab_count(&text))
+            .any(|count| count > 0);
+
+        assert!(has_loader_with_prefabs);
     }
 }

@@ -484,6 +484,19 @@ mod tests {
     use super::*;
     use std::f32::consts::PI;
 
+    const ROUNDTRIP_LEVEL_ASSET: &str =
+        "assetbundles/episode_1_levels.unity3d/Level_05_data.bytes";
+
+    #[derive(rust_embed::RustEmbed)]
+    #[folder = "../test_levels/"]
+    struct ParserTestAssets;
+
+    fn read_test_asset(path: &str) -> Vec<u8> {
+        ParserTestAssets::get(path)
+            .map(|file| file.data.into_owned())
+            .unwrap_or_else(|| panic!("test asset not found: {path}"))
+    }
+
     #[test]
     fn test_7bit_roundtrip() {
         let mut w = BinaryWriter::new();
@@ -554,13 +567,7 @@ mod tests {
     #[test]
     fn test_level_roundtrip() {
         // Use a real level file for roundtrip testing
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../test_levels/assetbundles/episode_1_levels.unity3d/Level_05_data.bytes"
-        );
-        let Ok(data) = std::fs::read(path) else {
-            panic!("test level file not found");
-        };
+        let data = read_test_asset(ROUNDTRIP_LEVEL_ASSET);
         let original = data.clone();
 
         let Ok(level) = parse_level(data) else {

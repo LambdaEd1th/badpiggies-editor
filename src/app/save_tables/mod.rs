@@ -20,6 +20,7 @@ pub(in crate::app) struct SaveTableEditCtx<'a> {
     pub scroll_to_xml_entry: &'a mut Option<usize>,
     pub highlighted_xml_line: &'a mut Option<usize>,
     pub xml_entry_line_offset: usize,
+    pub achievement_popup_request: Option<&'a mut Option<String>>,
     pub t: &'static I18n,
 }
 

@@ -3,6 +3,7 @@
 use eframe::egui;
 
 use crate::domain::types::*;
+use crate::goal_animation::{GoalAnimationState, GoalVisualState, goal_visual_state};
 
 use super::Camera;
 use super::sprites::SpriteDrawData;
@@ -110,10 +111,15 @@ pub(super) fn draw_goal_flag(
     time: f64,
     tex_id: egui::TextureId,
 ) {
-    // Flag mesh is stationary (no bobbing); only the GoalArea sprite bobs.
-    // The flag gets UV-scroll animation only, matching the TS editor.
+    let visual = goal_flag_visual_state(sprite.goal_animation_state, time, sprite.index);
+    if visual.alpha <= 0.0 {
+        return;
+    }
+
+    // Idle flag stays stationary; only the GoalArea body bobs.
+    // Vanishing reuses the same root pose as the goal body.
     let base_x = sprite.world_pos.x;
-    let base_y = sprite.world_pos.y;
+    let base_y = sprite.world_pos.y + visual.y_offset;
 
     // Quick frustum cull (flag is ~1.3 x 2.65 world units)
     let center_screen = camera.world_to_screen(
@@ -140,8 +146,8 @@ pub(super) fn draw_goal_flag(
     mesh.vertices.reserve(num_verts);
 
     for i in 0..num_verts {
-        let wx = base_x + GOAL_FLAG_POS[i * 2];
-        let wy = base_y + GOAL_FLAG_POS[i * 2 + 1];
+        let wy = base_y + GOAL_FLAG_POS[i * 2 + 1] * visual.scale_y;
+        let wx = base_x + GOAL_FLAG_POS[i * 2] * visual.scale_x;
         let screen_pos = camera.world_to_screen(Vec2 { x: wx, y: wy }, canvas_center);
 
         // UV: flip U (1-u) due to Unity rotation, scroll V
@@ -153,7 +159,12 @@ pub(super) fn draw_goal_flag(
         mesh.vertices.push(egui::epaint::Vertex {
             pos: screen_pos,
             uv: egui::pos2(u, v),
-            color: egui::Color32::WHITE,
+            color: egui::Color32::from_rgba_unmultiplied(
+                255,
+                255,
+                255,
+                (255.0 * visual.alpha) as u8,
+            ),
         });
     }
 
@@ -163,4 +174,41 @@ pub(super) fn draw_goal_flag(
     }
 
     painter.add(egui::Shape::mesh(mesh));
+}
+
+fn goal_flag_visual_state(
+    state: GoalAnimationState,
+    time: f64,
+    preview_seed: usize,
+) -> GoalVisualState {
+    match state {
+        GoalAnimationState::Idle => GoalVisualState {
+            y_offset: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            alpha: 1.0,
+        },
+        GoalAnimationState::Vanishing => goal_visual_state(state, time, preview_seed),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-6,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn goal_flag_idle_stays_stationary() {
+        let visual = goal_flag_visual_state(GoalAnimationState::Idle, 12.34, 7);
+        assert_close(visual.y_offset, 0.0);
+        assert_close(visual.scale_x, 1.0);
+        assert_close(visual.scale_y, 1.0);
+        assert_close(visual.alpha, 1.0);
+    }
 }

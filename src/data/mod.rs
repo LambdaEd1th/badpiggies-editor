@@ -6,3 +6,4 @@ pub mod icon_db;
 pub mod level_db;
 pub mod prefab_sprites;
 pub mod sprite_db;
+pub mod unity_anim;

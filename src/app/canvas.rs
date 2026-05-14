@@ -16,10 +16,16 @@ impl EditorApp {
         let cursor_mode = self.cursor_mode;
         let active_tab = self.active_tab;
         let has_clipboard = self.clipboard.is_some();
-        if let Some(ref mut sv) = self.tabs[active_tab].save_view {
+        if self.tabs[active_tab].save_view.is_some() {
+            let mut achievement_popup_request = None;
             egui::CentralPanel::default().show_inside(ui, |ui| {
-                sv.render_save_panels(ui, t);
+                if let Some(sv) = self.tabs[active_tab].save_view.as_mut() {
+                    sv.render_save_panels(ui, t, &mut achievement_popup_request);
+                }
             });
+            if let Some(achievement_id) = achievement_popup_request {
+                self.show_achievement_popup(achievement_id, ui.ctx().input(|i| i.time));
+            }
         } else {
             let mut canvas_context_action = None;
             let mut canvas_context_selected_object = None;

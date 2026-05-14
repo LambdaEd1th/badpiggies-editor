@@ -499,7 +499,12 @@ impl SaveViewerData {
     }
 
     /// Render the save editor using top-level panels so left/right split works correctly.
-    pub fn render_save_panels(&mut self, ui: &mut egui::Ui, t: &'static I18n) {
+    pub fn render_save_panels(
+        &mut self,
+        ui: &mut egui::Ui,
+        t: &'static I18n,
+        achievement_popup_request: &mut Option<String>,
+    ) {
         // Top: header + toolbar
         egui::Panel::top("save_top_bar").show_inside(ui, |ui| {
             // Header
@@ -590,6 +595,7 @@ impl SaveViewerData {
                                     scroll_to_xml_entry: &mut *scroll_to_xml_entry,
                                     highlighted_xml_line: &mut *highlighted_xml_line,
                                     xml_entry_line_offset,
+                                    achievement_popup_request: None,
                                     t,
                                 },
                             );
@@ -605,6 +611,7 @@ impl SaveViewerData {
                                     scroll_to_xml_entry: &mut *scroll_to_xml_entry,
                                     highlighted_xml_line: &mut *highlighted_xml_line,
                                     xml_entry_line_offset,
+                                    achievement_popup_request: None,
                                     t,
                                 },
                             );
@@ -620,6 +627,7 @@ impl SaveViewerData {
                                     scroll_to_xml_entry: &mut *scroll_to_xml_entry,
                                     highlighted_xml_line: &mut *highlighted_xml_line,
                                     xml_entry_line_offset,
+                                    achievement_popup_request: Some(achievement_popup_request),
                                     t,
                                 },
                             );

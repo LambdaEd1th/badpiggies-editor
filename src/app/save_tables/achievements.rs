@@ -7,6 +7,12 @@ use crate::io::save::parser::*;
 use super::super::save_viewer::Filter;
 use super::{SaveTableEditCtx, duplicate_indices, handle_row_click};
 
+fn request_achievement_popup(request: &mut Option<&mut Option<String>>, achievement_id: &str) {
+    if let Some(slot) = request.as_deref_mut() {
+        *slot = Some(achievement_id.to_string());
+    }
+}
+
 pub(in crate::app) fn edit_achievements(
     filter: &Filter,
     ui: &mut egui::Ui,
@@ -19,6 +25,7 @@ pub(in crate::app) fn edit_achievements(
         scroll_to_xml_entry,
         highlighted_xml_line,
         xml_entry_line_offset,
+        mut achievement_popup_request,
         t,
     } = ctx;
 
@@ -40,15 +47,28 @@ pub(in crate::app) fn edit_achievements(
     let mut changed = false;
     let mut to_delete: Vec<usize> = Vec::new();
     let mut duplicate_selected = false;
+    let preview_idx = (selected.len() == 1)
+        .then(|| selected.iter().next().copied())
+        .flatten();
 
-    // Reserve bottom area for add button
+    // Reserve bottom area for add/preview actions
     let mut add_clicked = false;
-    egui::Panel::bottom("achievements_add_btn")
+    egui::Panel::bottom("achievements_actions")
         .show_separator_line(false)
         .show_inside(ui, |ui| {
-            if ui.small_button(t.get("save_editor_add_entry")).clicked() {
-                add_clicked = true;
-            }
+            ui.horizontal(|ui| {
+                if ui.small_button(t.get("save_editor_add_entry")).clicked() {
+                    add_clicked = true;
+                }
+                if ui
+                    .add_enabled(preview_idx.is_some(), egui::Button::new("Preview Popup"))
+                    .clicked()
+                    && let Some(idx) = preview_idx
+                    && let Some(entry) = entries.get(idx)
+                {
+                    request_achievement_popup(&mut achievement_popup_request, &entry.id);
+                }
+            });
         });
 
     let spacing_x = ui.spacing().item_spacing.x;
@@ -135,6 +155,11 @@ pub(in crate::app) fn edit_achievements(
                     *last_clicked = Some(idx);
                 }
                 resp.context_menu(|ui| {
+                    if ui.button("Preview Popup").clicked() {
+                        request_achievement_popup(&mut achievement_popup_request, &entries[idx].id);
+                        ui.close();
+                    }
+                    ui.separator();
                     if ui.button(t.get("save_viewer_reveal_xml")).clicked() {
                         *scroll_to_xml_entry = Some(idx);
                         *highlighted_xml_line = Some(idx + xml_entry_line_offset);

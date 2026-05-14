@@ -1,5 +1,6 @@
 //! egui application — main editor UI with three-panel layout.
 
+mod achievement_popup;
 mod actions;
 mod app_loop;
 mod canvas;
@@ -19,9 +20,11 @@ use state::{Clipboard, Snapshot, Tab, UNDO_MAX};
 
 use eframe::egui;
 
+use crate::data::assets::TextureCache;
 use crate::domain::types::*;
 use crate::i18n::locale::{I18n, Language};
 use crate::renderer::{CursorMode, LevelRenderer, TerrainPresetShape};
+use achievement_popup::AchievementPopupPreview;
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
@@ -66,6 +69,10 @@ pub struct EditorApp {
     cursor_mode: CursorMode,
     /// Whether the tool panel is visible.
     show_tools: bool,
+    /// Animated preview for AchievementPopupEnter.anim.
+    achievement_popup: Option<AchievementPopupPreview>,
+    /// Texture cache for achievement popup icon previews.
+    achievement_popup_tex_cache: TextureCache,
 }
 
 impl EditorApp {
@@ -122,6 +129,8 @@ impl EditorApp {
             lang,
             cursor_mode: CursorMode::default(),
             show_tools: false,
+            achievement_popup: None,
+            achievement_popup_tex_cache: TextureCache::new(),
         }
     }
 

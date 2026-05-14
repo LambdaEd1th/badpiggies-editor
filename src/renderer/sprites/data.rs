@@ -5,8 +5,12 @@ use eframe::egui;
 use crate::data::assets;
 use crate::data::sprite_db;
 use crate::domain::types::*;
+use crate::goal_animation::{GoalAnimationState, parse_goal_animation_state};
 
-use super::{BIRD_SLEEP_DURATION, dessert_y_offset};
+use super::{bird_sleep_duration, dessert_y_offset};
+
+const GOAL_AREA_HALF_WIDTH: f32 = 1.328125 * 0.5;
+const GOAL_AREA_HALF_HEIGHT: f32 = 2.65625 * 0.5;
 
 pub struct SpriteDrawData {
     /// World position.
@@ -35,10 +39,12 @@ pub struct SpriteDrawData {
     pub override_text: Option<String>,
     /// Z-axis rotation in radians.
     pub rotation: f32,
-    /// Bird sleep animation phase offset (random per bird, 0..BIRD_SLEEP_DURATION).
+    /// Bird sleep animation phase offset (random per bird, 0..clip duration).
     pub bird_phase: f32,
     /// Pre-computed lowercase name (avoids per-frame String allocation).
     pub name_lower: String,
+    /// GoalArea animation mode derived from override data.
+    pub goal_animation_state: GoalAnimationState,
 }
 
 /// Build sprite draw data for a prefab instance.
@@ -103,6 +109,13 @@ pub fn build_sprite(
             Some(info.atlas.clone()),
             Some(info.uv),
         )
+    } else if sprite_name.starts_with("GoalArea") {
+        (
+            GOAL_AREA_HALF_WIDTH * sx,
+            GOAL_AREA_HALF_HEIGHT * sy,
+            None,
+            None,
+        )
     } else {
         // Fallback: 0.3 world units half-extent
         (0.3 * sx, 0.3 * sy, None, None)
@@ -129,11 +142,15 @@ pub fn build_sprite(
         bird_phase: if sprite_name.starts_with("Bird_") && !sprite_name.starts_with("BirdCompass") {
             // Deterministic random phase per bird based on position
             let seed = (world_pos.x * 1000.0) as u32 ^ (world_pos.y * 1000.0) as u32;
-            (seed % (BIRD_SLEEP_DURATION as u32 * 1000)) as f32 / 1000.0
+            let duration_ms = (bird_sleep_duration() * 1000.0).round().max(1.0) as u32;
+            (seed % duration_ms) as f32 / 1000.0
         } else {
             0.0
         },
         name_lower: sprite_name.to_ascii_lowercase(),
+        goal_animation_state: parse_goal_animation_state(
+            prefab.override_data.as_ref().map(|od| od.raw_text.as_str()),
+        ),
     }
 }
 

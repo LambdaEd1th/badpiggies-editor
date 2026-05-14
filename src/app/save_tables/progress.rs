@@ -19,6 +19,7 @@ pub(in crate::app) fn edit_progress(
         scroll_to_xml_entry,
         highlighted_xml_line,
         xml_entry_line_offset,
+        achievement_popup_request: _,
         t,
     } = ctx;
 

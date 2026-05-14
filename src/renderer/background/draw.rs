@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::data::assets;
+use crate::data::{assets, unity_anim};
 use crate::data::bg_data::{self, BgSprite};
 use crate::domain::types::Vec2;
 
@@ -143,15 +143,21 @@ pub(in crate::renderer) fn hermite(keys: &[(f32, f32, f32, f32)], time: f32) -> 
 
 /// Wave Y offset (6-second hermite loop).
 fn wave_offset(time: f64) -> f32 {
-    // (t, value, inSlope, outSlope)
-    const KEYS: &[(f32, f32, f32, f32)] = &[
+    const KEYS: &[unity_anim::HermiteKey] = &[
         (0.0, 0.0, -0.006681, -0.006681),
         (2.366667, 1.0, 0.001194, 0.001194),
         (3.7, 0.6954712, -0.383697, -0.383697),
         (6.0, 0.0, 0.0, 0.0),
     ];
-    let t = (time % 6.0) as f32;
-    hermite(KEYS, t)
+    sample_clip_curve(
+        time,
+        unity_anim::ocean_animation_clip(),
+        unity_anim::ocean_animation_clip()
+            .and_then(|clip| clip.root_position())
+            .map(|curve| curve.y.as_slice()),
+        6.0,
+        KEYS,
+    )
 }
 
 /// Foam Y offset (6-second hermite loop).
@@ -162,7 +168,7 @@ fn wave_offset(time: f64) -> f32 {
 /// *prefab* value 1.146046.  We subtract the prefab Y so the returned
 /// delta is relative to the baked position.
 fn foam_offset(time: f64) -> f32 {
-    const KEYS: &[(f32, f32, f32, f32)] = &[
+    const KEYS: &[unity_anim::HermiteKey] = &[
         (0.0, 0.774923, 0.0, 0.0),
         (0.016667, 0.774923, 0.0, 0.0),
         (2.466667, 1.796472, 0.332467, 0.332467),
@@ -172,8 +178,29 @@ fn foam_offset(time: f64) -> f32 {
     ];
     // FoamAnimRoot prefab localY (baked into bg-data.toml worldY).
     const PREFAB_Y: f32 = 1.146046;
-    let t = (time % 6.0) as f32;
-    hermite(KEYS, t) - PREFAB_Y
+    sample_clip_curve(
+        time,
+        unity_anim::ocean_foam_animation_clip(),
+        unity_anim::ocean_foam_animation_clip()
+            .and_then(|clip| clip.root_position())
+            .map(|curve| curve.y.as_slice()),
+        6.0,
+        KEYS,
+    ) - PREFAB_Y
+}
+
+fn sample_clip_curve(
+    time: f64,
+    clip: Option<&unity_anim::UnityAnimationClip>,
+    curve: Option<&[unity_anim::HermiteKey]>,
+    fallback_duration: f32,
+    fallback_curve: &[unity_anim::HermiteKey],
+) -> f32 {
+    if let (Some(clip), Some(curve)) = (clip, curve.filter(|curve| !curve.is_empty())) {
+        hermite(curve, clip.sample_time(time, 0.0))
+    } else {
+        hermite(fallback_curve, (time as f32).rem_euclid(fallback_duration))
+    }
 }
 
 fn atlas_uv_padding(sprite: &BgSprite) -> (f32, f32, f32) {

@@ -3,12 +3,15 @@
 use eframe::egui;
 
 use crate::domain::types::*;
+use crate::goal_animation::goal_visual_state;
 
 use super::super::DrawCtx;
-use super::{
-    BIRD_SLEEP_DURATION, BIRD_SLEEP_POS_Y, BIRD_SLEEP_SCALE_X, BIRD_SLEEP_SCALE_Y, SpriteDrawData,
-    SpriteDrawOpts,
-};
+use super::{bird_sleep_scale_factors, bird_sleep_y_offset, SpriteDrawData, SpriteDrawOpts};
+
+fn with_alpha(color: egui::Color32, alpha: f32) -> egui::Color32 {
+    let scaled_alpha = ((color.a() as f32) * alpha.clamp(0.0, 1.0)).round() as u8;
+    egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), scaled_alpha)
+}
 
 pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawOpts) {
     let painter = ctx.painter;
@@ -33,17 +36,26 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
         return;
     }
 
-    // Goal bobbing animation: sine wave on Y
     let name_lower = &sprite.name_lower;
-    let y_offset = if name_lower.contains("goal") || name_lower.contains("dessert") {
+    let goal_visual = name_lower
+        .starts_with("goalarea")
+        .then(|| goal_visual_state(sprite.goal_animation_state, time, sprite.index));
+    let y_offset = if let Some(visual) = goal_visual {
+        visual.y_offset
+    } else if name_lower.contains("dessert") {
         (time * 3.0).sin() as f32 * 0.25
     } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-        // BirdSleep2.anim: vertical bob via hermite pos.y curve
-        let t = ((time as f32 + sprite.bird_phase) % BIRD_SLEEP_DURATION).max(0.0);
-        super::background::hermite(BIRD_SLEEP_POS_Y, t)
+        bird_sleep_y_offset(time, sprite.bird_phase)
     } else {
         0.0
     };
+    let draw_color = with_alpha(
+        sprite.color,
+        goal_visual.map(|visual| visual.alpha).unwrap_or(1.0),
+    );
+    if draw_color.a() == 0 && !is_selected {
+        return;
+    }
 
     let center = camera.world_to_screen(
         Vec2 {
@@ -63,8 +75,11 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
         return;
     }
 
-    let hw = sprite.half_size.0 * camera.zoom;
-    let hh = sprite.half_size.1 * camera.zoom;
+    let (goal_scale_x, goal_scale_y) = goal_visual
+        .map(|visual| (visual.scale_x.max(0.0), visual.scale_y.max(0.0)))
+        .unwrap_or((1.0, 1.0));
+    let hw = sprite.half_size.0 * goal_scale_x * camera.zoom;
+    let hh = sprite.half_size.1 * goal_scale_y * camera.zoom;
 
     // Fan propeller rotation: foreshorten X via cos(angle) from state machine
     let (hw, hh) = if sprite.name == "Fan" {
@@ -72,10 +87,7 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
         let foreshorten = angle.cos().abs().max(0.05);
         (hw * foreshorten, hh)
     } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-        // BirdSleep2.anim: 4-second hermite spline cycle
-        let t = ((time as f32 + sprite.bird_phase) % 4.0).max(0.0);
-        let sx = super::background::hermite(BIRD_SLEEP_SCALE_X, t);
-        let sy = super::background::hermite(BIRD_SLEEP_SCALE_Y, t);
+        let (sx, sy) = bird_sleep_scale_factors(time, sprite.bird_phase);
         (hw * sx, hh * sy)
     } else {
         (hw, hh)
@@ -86,6 +98,7 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
     let hh = hh.max(2.0);
 
     let rect = egui::Rect::from_center_size(center, egui::vec2(hw * 2.0, hh * 2.0));
+    let skip_goal_fallback_body = name_lower.starts_with("goalarea") && sprite.uv.is_none();
 
     // Glow is drawn in a separate pass before terrain (see draw_glow).
 
@@ -93,6 +106,9 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
     // Skip if already rendered via GPU opaque shader.
     if opaque_rendered {
         // Sprite body already drawn by wgpu opaque pipeline — only selection/label below.
+    } else if skip_goal_fallback_body {
+        // Regular GoalArea prefabs use the dedicated GoalSprite mesh/flag path.
+        // Suppress the colored fallback quad when there is no rectangular sprite body.
     } else if let (Some(tid), Some(uv)) = (tex_id, &sprite.uv) {
         // UV Y flip: Unity V=0 at bottom, egui V=0 at top
         let uv_min = egui::pos2(uv.x, 1.0 - uv.y - uv.h);
@@ -135,33 +151,32 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
             let tr = rot(hw, -hh);
             let br = rot(hw, hh);
             let bl = rot(-hw, hh);
-            let white = egui::Color32::WHITE;
             let i = mesh.vertices.len() as u32;
             mesh.vertices.push(egui::epaint::Vertex {
                 pos: tl,
                 uv: egui::pos2(u0, v0),
-                color: white,
+                color: draw_color,
             });
             mesh.vertices.push(egui::epaint::Vertex {
                 pos: tr,
                 uv: egui::pos2(u1, v0),
-                color: white,
+                color: draw_color,
             });
             mesh.vertices.push(egui::epaint::Vertex {
                 pos: br,
                 uv: egui::pos2(u1, v1),
-                color: white,
+                color: draw_color,
             });
             mesh.vertices.push(egui::epaint::Vertex {
                 pos: bl,
                 uv: egui::pos2(u0, v1),
-                color: white,
+                color: draw_color,
             });
             mesh.indices
                 .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
         } else {
             let uv_rect = egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1));
-            mesh.add_rect_with_uv(rect, uv_rect, egui::Color32::WHITE);
+            mesh.add_rect_with_uv(rect, uv_rect, draw_color);
         }
         painter.add(egui::Shape::mesh(mesh));
     } else if sprite.rotation.abs() > 0.001 {
@@ -177,11 +192,11 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
         let points = vec![rot(-hw, -hh), rot(hw, -hh), rot(hw, hh), rot(-hw, hh)];
         painter.add(egui::Shape::convex_polygon(
             points,
-            sprite.color,
+            draw_color,
             egui::Stroke::NONE,
         ));
     } else {
-        painter.rect_filled(rect, 1.0, sprite.color);
+        painter.rect_filled(rect, 1.0, draw_color);
     }
 
     // Selection highlight

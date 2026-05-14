@@ -258,6 +258,7 @@ impl eframe::App for EditorApp {
             self.render_properties_panel(ui);
         }
         self.render_canvas(ui);
+        self.render_achievement_popup(&ctx);
 
         // Contraption preview floating window
         let tab = &mut self.tabs[self.active_tab];

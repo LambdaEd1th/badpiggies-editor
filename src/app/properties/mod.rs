@@ -5,6 +5,7 @@ mod overrides;
 use eframe::egui;
 
 use crate::domain::types::*;
+use crate::goal_animation::{GoalAnimationState, parse_goal_animation_state, set_goal_animation_state};
 use crate::i18n::locale::I18n;
 
 use super::{
@@ -153,6 +154,40 @@ fn show_properties_editable(
                     changed = true;
                 }
             });
+
+            if p.name.to_ascii_lowercase().starts_with("goalarea") {
+                ui.horizontal(|ui| {
+                    ui.label("Goal animation");
+                    let current_state = parse_goal_animation_state(
+                        p.override_data.as_ref().map(|od| od.raw_text.as_str()),
+                    );
+                    let mut goal_state = current_state;
+                    egui::ComboBox::from_id_salt("properties_goal_animation")
+                        .selected_text(goal_state.label())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut goal_state,
+                                GoalAnimationState::Idle,
+                                GoalAnimationState::Idle.label(),
+                            );
+                            ui.selectable_value(
+                                &mut goal_state,
+                                GoalAnimationState::Vanishing,
+                                GoalAnimationState::Vanishing.label(),
+                            );
+                        });
+                    if goal_state != current_state {
+                        if p.override_data.is_none() {
+                            apply_data_type_change(p, DataType::PrefabOverrides);
+                        }
+                        if let Some(od) = p.override_data.as_mut() {
+                            set_goal_animation_state(&mut od.raw_text, goal_state);
+                            od.raw_bytes = od.raw_text.as_bytes().to_vec();
+                            changed = true;
+                        }
+                    }
+                });
+            }
 
             if let Some(ref mut td) = p.terrain_data {
                 ui.separator();

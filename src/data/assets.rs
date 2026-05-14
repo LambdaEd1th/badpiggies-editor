@@ -2,18 +2,169 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use eframe::egui;
 
-/// Embedded game assets (compiled into the binary).
+/// Project assets embedded for wasm and read directly from disk on native.
+#[cfg(target_arch = "wasm32")]
 #[derive(rust_embed::RustEmbed)]
-#[folder = "embedded_assets/"]
-pub struct EmbeddedAssets;
+#[folder = "unity_assets/"]
+pub struct ProjectAssets;
 
 /// Read asset bytes by relative path (e.g. "sprites/IngameAtlas.png").
 pub fn read_asset(key: &str) -> Option<Cow<'static, [u8]>> {
-    EmbeddedAssets::get(key).map(|f| f.data)
+    if let Some(text) = generated_asset_text(key) {
+        return Some(Cow::Owned(text.into_bytes()));
+    }
+
+    let mapped = map_asset_key(key)?;
+    read_project_asset(mapped.as_ref())
+}
+
+fn generated_asset_text(key: &str) -> Option<String> {
+    match key {
+        "unity/prefabs/manifest.txt" => Some(prefab_manifest_text()),
+        "unity/levels/loader-manifest.txt" => Some(loader_manifest_text()),
+        _ => None,
+    }
+}
+
+fn map_asset_key(key: &str) -> Option<Cow<'static, str>> {
+    if key.starts_with("Texture2D/")
+        || key.starts_with("Resources/")
+        || key.starts_with("Prefab/")
+        || key.starts_with("AnimationClip/")
+    {
+        return Some(Cow::Owned(key.to_string()));
+    }
+
+    if let Some(filename) = key
+        .strip_prefix("sprites/")
+        .or_else(|| key.strip_prefix("props/"))
+        .or_else(|| key.strip_prefix("bg/"))
+        .or_else(|| key.strip_prefix("sky/"))
+        .or_else(|| key.strip_prefix("ground/"))
+        .or_else(|| key.strip_prefix("particles/"))
+    {
+        return Some(Cow::Owned(format!("Texture2D/{filename}")));
+    }
+
+    if let Some(filename) = key.strip_prefix("unity/animation/") {
+        return Some(Cow::Owned(format!("AnimationClip/{filename}")));
+    }
+
+    if let Some(path) = key.strip_prefix("unity/background/") {
+        return Some(Cow::Owned(format!(
+            "Resources/environment/background/{path}"
+        )));
+    }
+
+    if let Some(path) = key.strip_prefix("unity/levels/") {
+        return Some(Cow::Owned(format!("Resources/levels/{path}")));
+    }
+
+    if let Some(path) = key.strip_prefix("unity/prefabs/") {
+        return Some(Cow::Owned(format!("Prefab/{path}")));
+    }
+
+    match key {
+        "unity/resources/textureloader.prefab" => {
+            Some(Cow::Borrowed("Resources/prefabs/textureloader.prefab"))
+        }
+        "unity/resources/guisystem/Sprites.bytes" => {
+            Some(Cow::Borrowed("Resources/guisystem/sprites.bytes"))
+        }
+        _ => key
+            .strip_prefix("unity/resources/")
+            .map(|path| Cow::Owned(format!("Resources/{path}"))),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_project_asset(path: &str) -> Option<Cow<'static, [u8]>> {
+    fs::read(project_assets_root().join(path)).ok().map(Cow::Owned)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn read_project_asset(path: &str) -> Option<Cow<'static, [u8]>> {
+    ProjectAssets::get(path).map(|f| f.data)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn project_assets_root() -> &'static Path {
+    static ROOT: OnceLock<PathBuf> = OnceLock::new();
+    ROOT.get_or_init(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("unity_assets"))
+        .as_path()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn prefab_manifest_text() -> String {
+    collect_relative_files(&project_assets_root().join("Prefab"), ".prefab").join("\n")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn prefab_manifest_text() -> String {
+    let mut files: Vec<String> = ProjectAssets::iter()
+        .filter_map(|path| {
+            let path = path.as_ref();
+            path.strip_prefix("Prefab/")
+                .filter(|path| path.ends_with(".prefab"))
+                .map(str::to_string)
+        })
+        .collect();
+    files.sort();
+    files.join("\n")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn loader_manifest_text() -> String {
+    collect_relative_files(&project_assets_root().join("Resources/levels"), "_loader.prefab")
+        .join("\n")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn loader_manifest_text() -> String {
+    let mut files: Vec<String> = ProjectAssets::iter()
+        .filter_map(|path| {
+            let path = path.as_ref();
+            path.strip_prefix("Resources/levels/")
+                .filter(|path| path.ends_with("_loader.prefab"))
+                .map(str::to_string)
+        })
+        .collect();
+    files.sort();
+    files.join("\n")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn collect_relative_files(root: &Path, suffix: &str) -> Vec<String> {
+    let mut files = Vec::new();
+    collect_relative_files_inner(root, root, suffix, &mut files);
+    files.sort();
+    files
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn collect_relative_files_inner(root: &Path, dir: &Path, suffix: &str, out: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_relative_files_inner(root, &path, suffix, out);
+        } else if let Some(relative) = path.strip_prefix(root).ok().and_then(Path::to_str)
+            && relative.ends_with(suffix)
+        {
+            out.push(relative.replace('\\', "/"));
+        }
+    }
 }
 
 /// Build an `egui::ColorImage` with gamma-space premultiplied alpha.

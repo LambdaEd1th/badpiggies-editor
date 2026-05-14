@@ -16,30 +16,89 @@ use std::collections::BTreeSet;
 
 use eframe::egui;
 
-use crate::data::assets;
+use crate::data::{assets, unity_anim};
 use crate::domain::types::*;
 
 use super::compounds;
 use super::{CompoundTransform, DrawCtx, LevelRenderer};
 use super::{background, opaque_shader, sprite_shader};
 
-// ── BirdSleep2.anim hermite keyframes (t, value, inSlope, outSlope) ──
-pub const BIRD_SLEEP_DURATION: f32 = 4.0;
-pub const BIRD_SLEEP_POS_Y: &[(f32, f32, f32, f32)] = &[
+// BirdSleep2.anim fallback curves (t, value, inSlope, outSlope).
+const DEFAULT_BIRD_SLEEP_DURATION: f32 = 4.0;
+const DEFAULT_BIRD_SLEEP_POS_Y: &[unity_anim::HermiteKey] = &[
     (0.0, 0.0, -0.03356487, -0.03356487),
     (1.833333, -0.061, -0.00255944, -0.00255944),
     (4.0, 0.0, 0.02840104, 0.02840104),
 ];
-pub const BIRD_SLEEP_SCALE_X: &[(f32, f32, f32, f32)] = &[
+const DEFAULT_BIRD_SLEEP_SCALE_X: &[unity_anim::HermiteKey] = &[
     (0.0, 1.0, 0.05454547, 0.05454547),
     (1.833333, 1.1, 0.004195808, 0.004195808),
     (4.0, 1.0, -0.04615385, -0.04615385),
 ];
-pub const BIRD_SLEEP_SCALE_Y: &[(f32, f32, f32, f32)] = &[
+const DEFAULT_BIRD_SLEEP_SCALE_Y: &[unity_anim::HermiteKey] = &[
     (0.0, 1.0, -0.05454547, -0.05454547),
     (1.833333, 0.9, -0.004195808, -0.004195808),
     (4.0, 1.0, 0.04615385, 0.04615385),
 ];
+
+pub(super) fn bird_sleep_duration() -> f32 {
+    unity_anim::bird_sleep_clip()
+        .map(|clip| clip.duration)
+        .filter(|duration| *duration > 0.0)
+        .unwrap_or(DEFAULT_BIRD_SLEEP_DURATION)
+}
+
+fn bird_sleep_loops() -> bool {
+    unity_anim::bird_sleep_clip()
+        .map(|clip| clip.loops)
+        .unwrap_or(true)
+}
+
+fn bird_sleep_pos_y_curve() -> &'static [unity_anim::HermiteKey] {
+    unity_anim::bird_sleep_clip()
+        .and_then(|clip| clip.root_position())
+        .map(|curve| curve.y.as_slice())
+        .filter(|curve| !curve.is_empty())
+        .unwrap_or(DEFAULT_BIRD_SLEEP_POS_Y)
+}
+
+fn bird_sleep_scale_x_curve() -> &'static [unity_anim::HermiteKey] {
+    unity_anim::bird_sleep_clip()
+        .and_then(|clip| clip.root_scale())
+        .map(|curve| curve.x.as_slice())
+        .filter(|curve| !curve.is_empty())
+        .unwrap_or(DEFAULT_BIRD_SLEEP_SCALE_X)
+}
+
+fn bird_sleep_scale_y_curve() -> &'static [unity_anim::HermiteKey] {
+    unity_anim::bird_sleep_clip()
+        .and_then(|clip| clip.root_scale())
+        .map(|curve| curve.y.as_slice())
+        .filter(|curve| !curve.is_empty())
+        .unwrap_or(DEFAULT_BIRD_SLEEP_SCALE_Y)
+}
+
+fn bird_sleep_time(time: f64, phase: f32) -> f32 {
+    let raw_time = time as f32 + phase;
+    let duration = bird_sleep_duration();
+    if bird_sleep_loops() {
+        raw_time.rem_euclid(duration)
+    } else {
+        raw_time.clamp(0.0, duration)
+    }
+}
+
+pub(super) fn bird_sleep_y_offset(time: f64, phase: f32) -> f32 {
+    background::hermite(bird_sleep_pos_y_curve(), bird_sleep_time(time, phase))
+}
+
+pub(super) fn bird_sleep_scale_factors(time: f64, phase: f32) -> (f32, f32) {
+    let sleep_time = bird_sleep_time(time, phase);
+    (
+        background::hermite(bird_sleep_scale_x_curve(), sleep_time),
+        background::hermite(bird_sleep_scale_y_curve(), sleep_time),
+    )
+}
 
 impl LevelRenderer {
     /// Draw all sprites with GPU batching, compound sub-sprites, and bird face deferral.
@@ -103,6 +162,8 @@ impl LevelRenderer {
                 continue;
             }
 
+            let is_goal_area = sprite.name_lower.starts_with("goalarea");
+
             let is_sel = selected.contains(&sprite.index)
                 || (sprite.is_hidden
                     && sprite.parent.is_some()
@@ -110,7 +171,8 @@ impl LevelRenderer {
 
             // Early world-space frustum cull
             if !is_sel {
-                let margin = sprite.half_size.0.max(sprite.half_size.1) + 2.0;
+                let margin = sprite.half_size.0.max(sprite.half_size.1)
+                    + if is_goal_area { 16.0 } else { 2.0 };
                 let sx = sprite.world_pos.x;
                 let sy = sprite.world_pos.y;
                 if sx + margin < visible_min_x
@@ -149,6 +211,7 @@ impl LevelRenderer {
                 let opaque_idx = self.opaque_sprite_map.get(si).copied().flatten();
                 // Props sprites: render via GPU opaque shader (exact Unity shader port)
                 if let Some(oidx) = opaque_idx
+                    && !is_goal_area
                     && active_transform_index != Some(sprite.index)
                     && let (Some(_resources), Some(_batch)) =
                         (&self.opaque_resources, &self.opaque_batch)
@@ -161,8 +224,7 @@ impl LevelRenderer {
                     } else if sprite.name.starts_with("Bird_")
                         && !sprite.name.starts_with("BirdCompass")
                     {
-                        let bt = ((t as f32 + sprite.bird_phase) % BIRD_SLEEP_DURATION).max(0.0);
-                        background::hermite(BIRD_SLEEP_POS_Y, bt)
+                        bird_sleep_y_offset(t, sprite.bird_phase)
                     } else {
                         0.0
                     };
@@ -194,6 +256,7 @@ impl LevelRenderer {
                 // Non-Props sprites: render via GPU transparent sprite shader
                 let mut _sprite_gpu_rendered = false;
                 if (is_sel || !sprite.is_hidden)
+                    && !is_goal_area
                     && opaque_idx.is_none()
                     && let (Some(atlas_name), Some(uv)) = (&sprite.atlas, &sprite.uv)
                     && let (Some(resources), Some(device), Some(queue)) =
@@ -214,8 +277,7 @@ impl LevelRenderer {
                     } else if sprite.name.starts_with("Bird_")
                         && !sprite.name.starts_with("BirdCompass")
                     {
-                        let bt = ((t as f32 + sprite.bird_phase) % BIRD_SLEEP_DURATION).max(0.0);
-                        background::hermite(BIRD_SLEEP_POS_Y, bt)
+                        bird_sleep_y_offset(t, sprite.bird_phase)
                     } else {
                         0.0
                     };
@@ -228,9 +290,7 @@ impl LevelRenderer {
                     } else if sprite.name.starts_with("Bird_")
                         && !sprite.name.starts_with("BirdCompass")
                     {
-                        let bt = ((t as f32 + sprite.bird_phase) % 4.0).max(0.0);
-                        let sx = background::hermite(BIRD_SLEEP_SCALE_X, bt);
-                        let sy = background::hermite(BIRD_SLEEP_SCALE_Y, bt);
+                        let (sx, sy) = bird_sleep_scale_factors(t, sprite.bird_phase);
                         (sprite.half_size.0 * sx, sprite.half_size.1 * sy)
                     } else {
                         sprite.half_size
@@ -318,10 +378,8 @@ impl LevelRenderer {
 
             // Bird face: defer if GPU-rendered so faces draw after batch callback
             if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-                let bt = ((t as f32 + sprite.bird_phase) % BIRD_SLEEP_DURATION).max(0.0);
-                let breath_y = background::hermite(BIRD_SLEEP_POS_Y, bt);
-                let breath_sx = background::hermite(BIRD_SLEEP_SCALE_X, bt);
-                let breath_sy = background::hermite(BIRD_SLEEP_SCALE_Y, bt);
+                let breath_y = bird_sleep_y_offset(t, sprite.bird_phase);
+                let (breath_sx, breath_sy) = bird_sleep_scale_factors(t, sprite.bird_phase);
                 if is_gpu_rendered {
                     deferred_birds.push(DeferredBird {
                         name: sprite.name.clone(),
@@ -501,6 +559,11 @@ impl LevelRenderer {
                     continue;
                 }
                 let glow_margin = 2.0;
+                let glow_margin = if sprite.name_lower.starts_with("goalarea") {
+                    16.0
+                } else {
+                    glow_margin
+                };
                 if sprite.world_pos.x + glow_margin < visible_min_x
                     || sprite.world_pos.x - glow_margin > visible_max_x
                     || sprite.world_pos.y + glow_margin < visible_min_y
@@ -527,7 +590,7 @@ impl LevelRenderer {
                 if !sprite.name_lower.starts_with("goalarea") {
                     continue;
                 }
-                let margin = 1.5;
+                let margin = 16.0;
                 if sprite.world_pos.x + margin < visible_min_x
                     || sprite.world_pos.x - margin > visible_max_x
                     || sprite.world_pos.y + margin < visible_min_y

@@ -220,11 +220,8 @@ fn loader_file_name_for_level(file_name: &str) -> Option<String> {
     (!stem.is_empty()).then(|| format!("{stem}_loader.prefab"))
 }
 
-fn repo_prefabs_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
-        .join("Assets/Prefab")
+fn project_prefabs_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("unity_assets/Prefab")
 }
 
 fn collect_prefab_names(dir: &Path, names: &mut BTreeSet<String>) {
@@ -305,11 +302,8 @@ fn parse_prefab_root_name(path: &Path) -> Option<String> {
     None
 }
 
-fn repo_levels_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
-        .join("Assets/Resources/levels")
+fn project_levels_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("unity_assets/Resources/levels")
 }
 
 fn collect_matching_loaders(dir: &Path, target_name: &str, matches: &mut Vec<PathBuf>) {
@@ -363,7 +357,7 @@ fn resolve_loader_prefab_path(
         }
     }
 
-    let levels_dir = repo_levels_dir();
+    let levels_dir = project_levels_dir();
     if !levels_dir.is_dir() {
         return None;
     }
@@ -494,7 +488,7 @@ pub(super) fn global_prefab_name_options() -> &'static [String] {
     INSTANCE
         .get_or_init(|| {
             let mut names = BTreeSet::new();
-            let prefabs_dir = repo_prefabs_dir();
+            let prefabs_dir = project_prefabs_dir();
             if prefabs_dir.is_dir() {
                 collect_prefab_names(&prefabs_dir, &mut names);
             }

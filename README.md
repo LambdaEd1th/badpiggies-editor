@@ -43,7 +43,7 @@ Release build:
 cargo build --release
 ```
 
-The editor looks for game asset textures in an `assets/` directory next to the executable. The repository ships with pre-extracted textures under `assets/`.
+The editor looks for extracted Unity content in a `unity_assets/` directory next to the executable. The repository ships with pre-extracted game assets under `unity_assets/`, while editor-only icons and fonts live under `editor_assets/`.
 
 ### WASM (browser)
 
@@ -158,16 +158,14 @@ editor/
 │       ├── bg_shader.rs     # Parallax background shader
 │       ├── particles.rs     # Particle rendering helpers
 │       └── grid.rs          # Editor grid overlay
-├── assets/              # Game assets — all embedded at compile time (rust-embed)
-│   ├── data/            # Embedded TOML metadata (backgrounds, sprites, icons, level refs)
-│   ├── ui/              # SVG icons for toolbars and drop targets
-│   ├── bg/              # Background layer textures
-│   ├── ground/          # Terrain fill textures
-│   ├── props/           # Props atlas textures
-│   ├── sky/             # Sky textures
-│   ├── sprites/         # Sprite atlas textures
-│   ├── particles/       # Particle textures
-│   └── fonts/           # Embedded UI fonts
+├── editor_assets/       # Editor-only SVG icons and bundled fonts
+│   ├── fonts/
+│   └── ui/
+├── unity_assets/        # Extracted Unity assets used by the runtime loaders
+│   ├── AnimationClip/
+│   ├── Prefab/
+│   ├── Resources/
+│   └── Texture2D/
 ├── locales/             # Fluent translation files (embedded via include_str!)
 │   ├── zh-CN.ftl        # Chinese (Simplified)
 │   └── en-US.ftl        # English

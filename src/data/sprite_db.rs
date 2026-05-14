@@ -122,7 +122,7 @@ fn build_db() -> HashMap<String, SpriteInfo> {
 
         let parsed = parse_prefab(&text);
         let info = find_runtime_sprite_info(name, &parsed, &runtime_sprites)
-            .or_else(|| find_unmanaged_sprite_info(&parsed));
+            .or_else(|| find_unmanaged_sprite_info(name, &parsed));
         if let Some(info) = info {
             map.insert(name.to_string(), info);
         }
@@ -259,7 +259,14 @@ fn runtime_sprite_info_from_component(
     })
 }
 
-fn find_unmanaged_sprite_info(parsed: &ParsedPrefab) -> Option<SpriteInfo> {
+fn find_unmanaged_sprite_info(prefab_name: &str, parsed: &ParsedPrefab) -> Option<SpriteInfo> {
+    // Regular GoalArea prefabs render their cloth via the dedicated GoalSprite mesh,
+    // not via a rectangular sprite component. Falling back to the goal-achievement
+    // child here produces the bogus square that regressed after GoalArea left the GPU path.
+    if prefab_name.starts_with("GoalArea") {
+        return None;
+    }
+
     let root_transform_id = parsed
         .transforms
         .iter()
@@ -735,6 +742,13 @@ mod tests {
         assert_close(sprite.uv.h, 0.06054688);
         assert_close(sprite.world_w, 60.0 * 0.4 * WORLD_SCALE);
         assert_close(sprite.world_h, 124.0 * 0.4 * WORLD_SCALE);
+    }
+
+    #[test]
+    fn goal_area_mesh_prefabs_do_not_reuse_achievement_sprite() {
+        assert!(get_sprite_info("GoalArea_01").is_none());
+        assert!(get_sprite_info("GoalArea_02").is_none());
+        assert!(get_sprite_info("GoalArea_StarLevel").is_none());
     }
 
     #[test]

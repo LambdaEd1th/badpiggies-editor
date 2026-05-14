@@ -12,6 +12,21 @@ use super::super::{
 };
 use super::point_to_segment_dist;
 
+fn corner_uniform_scale(
+    original_scale: Vec2,
+    start_pointer_local: Vec2,
+    current_local: Vec2,
+) -> (f32, f32) {
+    let start_abs_x = start_pointer_local.x.abs().max(1.0);
+    let start_abs_y = start_pointer_local.y.abs().max(1.0);
+    let ratio_x = current_local.x.abs().max(1.0) / start_abs_x;
+    let ratio_y = current_local.y.abs().max(1.0) / start_abs_y;
+    let uniform_ratio = ratio_x.max(ratio_y);
+    let scale_abs_x = (original_scale.x.abs() * uniform_ratio).max(super::super::MIN_OBJECT_SCALE);
+    let scale_abs_y = (original_scale.y.abs() * uniform_ratio).max(super::super::MIN_OBJECT_SCALE);
+    (scale_abs_x, scale_abs_y)
+}
+
 impl LevelRenderer {
     pub(in crate::renderer) fn handle_interaction(
         &mut self,
@@ -265,12 +280,11 @@ impl LevelRenderer {
                                 .max(super::super::MIN_OBJECT_SCALE);
                         }
                         super::super::ScaleHandleKind::Corner => {
-                            scale_abs_x = (original_scale.x.abs()
-                                * (current_local.x.abs().max(1.0) / start_abs_x))
-                                .max(super::super::MIN_OBJECT_SCALE);
-                            scale_abs_y = (original_scale.y.abs()
-                                * (current_local.y.abs().max(1.0) / start_abs_y))
-                                .max(super::super::MIN_OBJECT_SCALE);
+                            (scale_abs_x, scale_abs_y) = corner_uniform_scale(
+                                original_scale,
+                                start_pointer_local,
+                                current_local,
+                            );
                         }
                     }
                     let sign_x = if original_scale.x.is_sign_negative() {
@@ -547,5 +561,38 @@ impl LevelRenderer {
         }
 
         self.panning = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::corner_uniform_scale;
+    use crate::domain::types::Vec2;
+    use crate::renderer::MIN_OBJECT_SCALE;
+
+    #[test]
+    fn corner_handle_uses_shared_ratio() {
+        let original_scale = Vec2 { x: 2.0, y: 3.0 };
+        let start_pointer_local = Vec2 { x: 40.0, y: 20.0 };
+        let current_local = Vec2 { x: 50.0, y: 40.0 };
+
+        let (scale_x, scale_y) =
+            corner_uniform_scale(original_scale, start_pointer_local, current_local);
+
+        assert_eq!(scale_x, 4.0);
+        assert_eq!(scale_y, 6.0);
+    }
+
+    #[test]
+    fn corner_handle_respects_min_scale() {
+        let original_scale = Vec2 { x: 0.2, y: 0.3 };
+        let start_pointer_local = Vec2 { x: 40.0, y: 20.0 };
+        let current_local = Vec2 { x: 0.0, y: 0.0 };
+
+        let (scale_x, scale_y) =
+            corner_uniform_scale(original_scale, start_pointer_local, current_local);
+
+        assert_eq!(scale_x, MIN_OBJECT_SCALE);
+        assert_eq!(scale_y, MIN_OBJECT_SCALE);
     }
 }

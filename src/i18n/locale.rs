@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use fluent_bundle::{FluentBundle, FluentResource};
+use fluent_bundle::{FluentResource, concurrent::FluentBundle};
 
 /// Supported UI languages.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -14,11 +14,6 @@ pub enum Language {
 pub struct I18n {
     bundle: FluentBundle<FluentResource>,
 }
-
-// SAFETY: FluentBundle uses Rc internally and is not Send/Sync.
-// Our statics are written once (LazyLock) and only read afterwards.
-unsafe impl Send for I18n {}
-unsafe impl Sync for I18n {}
 
 impl I18n {
     fn new(source: &'static str, lang_tag: &'static str) -> Self {
@@ -35,12 +30,14 @@ impl I18n {
             Err(error) => {
                 log::error!("invalid language tag {lang_tag}: {error}");
                 return I18n {
-                    bundle: FluentBundle::new(Vec::<unic_langid::LanguageIdentifier>::new()),
+                    bundle: FluentBundle::new_concurrent(
+                        Vec::<unic_langid::LanguageIdentifier>::new(),
+                    ),
                 };
             }
         };
 
-        let mut bundle = FluentBundle::new(vec![lid]);
+        let mut bundle = FluentBundle::new_concurrent(vec![lid]);
         if let Err(errors) = bundle.add_resource(res) {
             log::error!("FTL add_resource error for {lang_tag}: {errors:?}");
         }

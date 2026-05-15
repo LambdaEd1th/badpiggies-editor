@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Bad Piggies Level Editor — Rust/egui rewrite.
 //! Supports both native desktop and WASM (GitHub Pages) targets.
 //!

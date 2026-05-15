@@ -49,6 +49,7 @@ pub(crate) enum AttachedEffectKind {
     RocketFire,
     TurboCharger,
     Magnet,
+    FlySwarm,
 }
 
 pub(crate) struct AttachedEffectEmitter {
@@ -94,6 +95,8 @@ pub(crate) fn attached_effect_kind_for_sprite_name(name: &str) -> Option<Attache
         Some(AttachedEffectKind::TurboCharger)
     } else if matches!(name, "MagnetEffect" | "SuperMagnet") {
         Some(AttachedEffectKind::Magnet)
+    } else if name.starts_with("FlySwarm") {
+        Some(AttachedEffectKind::FlySwarm)
     } else {
         None
     }
@@ -158,6 +161,9 @@ pub(crate) fn attached_effect_systems(kind: AttachedEffectKind) -> &'static [Uni
             .systems,
         AttachedEffectKind::Magnet => &unity_particles::magnet_effect_prefab()
             .expect("Magnet effect particle prefab should be available")
+            .systems,
+        AttachedEffectKind::FlySwarm => &unity_particles::fly_swarm_prefab()
+            .expect("Fly swarm particle prefab should be available")
             .systems,
     }
 }
@@ -1498,6 +1504,10 @@ mod tests {
         assert_eq!(
             super::attached_effect_kind_for_sprite_name("SuperMagnet"),
             Some(super::AttachedEffectKind::Magnet)
+        );
+        assert_eq!(
+            super::attached_effect_kind_for_sprite_name("FlySwarm"),
+            Some(super::AttachedEffectKind::FlySwarm)
         );
         assert_eq!(super::attached_effect_kind_for_sprite_name("Fan"), None);
     }

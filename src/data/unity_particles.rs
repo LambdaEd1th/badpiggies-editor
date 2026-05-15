@@ -10,6 +10,7 @@ use super::unity_anim::HermiteKey;
 
 const BIRD_SLEEP_PREFAB_ASSET: &str = "unity/prefabs/Bird_Red.prefab";
 const FAN_PREFAB_ASSET: &str = "unity/prefabs/Fan.prefab";
+const FLY_SWARM_PREFAB_ASSET: &str = "unity/prefabs/FlySwarm.prefab";
 const MAGNET_EFFECT_PREFAB_ASSET: &str = "unity/prefabs/MagnetEffect.prefab";
 const ROCKET_FIRE_PREFAB_ASSET: &str = "unity/prefabs/Particles_RocketFire_01_SET.prefab";
 const TURBO_CHARGER_PREFAB_ASSET: &str = "unity/prefabs/TurboChargerEffect.prefab";
@@ -17,6 +18,7 @@ const WIND_AREA_PREFAB_ASSET: &str = "unity/prefabs/WindArea.prefab";
 
 static BIRD_SLEEP_PREFAB: OnceLock<Option<BirdSleepParticlePrefab>> = OnceLock::new();
 static FAN_PUFF_PREFAB: OnceLock<Option<FanPuffParticlePrefab>> = OnceLock::new();
+static FLY_SWARM_PREFAB: OnceLock<Option<GenericParticlePrefab>> = OnceLock::new();
 static MAGNET_EFFECT_PREFAB: OnceLock<Option<GenericParticlePrefab>> = OnceLock::new();
 static ROCKET_FIRE_PREFAB: OnceLock<Option<GenericParticlePrefab>> = OnceLock::new();
 static TURBO_CHARGER_PREFAB: OnceLock<Option<GenericParticlePrefab>> = OnceLock::new();
@@ -284,6 +286,12 @@ pub fn bird_sleep_prefab() -> Option<&'static BirdSleepParticlePrefab> {
 pub fn fan_puff_prefab() -> Option<&'static FanPuffParticlePrefab> {
     FAN_PUFF_PREFAB
         .get_or_init(|| load_fan_puff_prefab(FAN_PREFAB_ASSET))
+        .as_ref()
+}
+
+pub fn fly_swarm_prefab() -> Option<&'static GenericParticlePrefab> {
+    FLY_SWARM_PREFAB
+        .get_or_init(|| load_generic_particle_prefab(FLY_SWARM_PREFAB_ASSET))
         .as_ref()
 }
 
@@ -1120,7 +1128,8 @@ mod tests {
     use crate::domain::types::Vec3;
 
     use super::{
-        bird_sleep_prefab, fan_puff_prefab, magnet_effect_prefab, rocket_fire_prefab,
+        bird_sleep_prefab, fan_puff_prefab, fly_swarm_prefab, magnet_effect_prefab,
+        rocket_fire_prefab,
         turbo_charger_prefab, wind_area_prefab, ParticleColor,
     };
 
@@ -1304,5 +1313,13 @@ mod tests {
         let color_mid = prefab.systems[0].color_over_lifetime.sample(0.5, 0.0);
         assert!(color_mid.g > 0.4);
         assert!(color_mid.b > 0.7);
+    }
+
+    #[test]
+    fn fly_swarm_prefab_loads_particle_systems() {
+        let prefab = fly_swarm_prefab().expect("fly swarm prefab should parse");
+
+        assert!(!prefab.systems.is_empty());
+        assert!(prefab.systems.iter().all(|system| !system.name.is_empty()));
     }
 }

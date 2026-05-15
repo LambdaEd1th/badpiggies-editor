@@ -3,10 +3,25 @@
 use eframe::egui;
 
 use crate::i18n::locale::I18n;
-use crate::renderer::{CursorMode, TerrainPresetShape};
+use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
 
 use super::super::EditorApp;
 use super::{terrain_preset_icon, terrain_preset_label_key, tool_mode_icon};
+
+fn preview_tool_target_name(app: &EditorApp) -> Option<String> {
+    let tab = app.tabs.get(app.active_tab)?;
+    let level = tab.level.as_ref()?;
+    if tab.is_save_tab() || tab.selected.len() != 1 {
+        return None;
+    }
+    let index = *tab.selected.iter().next()?;
+    let object = level.objects.get(index)?;
+    let name = match object {
+        crate::domain::types::LevelObject::Prefab(prefab) => prefab.name.as_str(),
+        crate::domain::types::LevelObject::Parent(parent) => parent.name.as_str(),
+    };
+    (name == "Fan" || name.starts_with("WindArea")).then(|| name.to_string())
+}
 
 impl EditorApp {
     /// Tool mode selector window.
@@ -37,12 +52,20 @@ impl EditorApp {
         } else {
             base_window_width
         };
-        let window_height = if show_terrain_presets {
-            button_size.y + 126.0
+        let preview_tool_target = preview_tool_target_name(self);
+        let show_preview_controls = preview_tool_target.is_some();
+        let preview_state = if show_preview_controls {
+            self.tabs[self.active_tab].renderer.preview_playback_state()
         } else {
-            button_size.y + 16.0
+            PreviewPlaybackState::Build
+        };
+        let window_height = if show_terrain_presets {
+            button_size.y + 126.0 + if show_preview_controls { 42.0 } else { 0.0 }
+        } else {
+            button_size.y + 16.0 + if show_preview_controls { 42.0 } else { 0.0 }
         };
         let mut queued_preset = None;
+        let mut queued_preview_state = None;
         egui::Window::new(t.get("tool_window_title"))
             .collapsible(true)
             .movable(true)
@@ -113,6 +136,36 @@ impl EditorApp {
                         );
                     });
                 }
+
+                if show_preview_controls {
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+                    let preview_title = if let Some(name) = preview_tool_target.as_deref() {
+                        format!("{}: {}", t.get("tool_preview_title"), name)
+                    } else {
+                        t.get("tool_preview_title")
+                    };
+                    ui.label(preview_title);
+                    ui.horizontal(|ui| {
+                        for (state, key) in [
+                            (PreviewPlaybackState::Build, "tool_preview_build"),
+                            (PreviewPlaybackState::Play, "tool_preview_play"),
+                            (PreviewPlaybackState::Pause, "tool_preview_pause"),
+                        ] {
+                            if ui
+                                .add(
+                                    egui::Button::new(t.get(key))
+                                        .selected(preview_state == state)
+                                        .min_size(egui::vec2(68.0, 28.0)),
+                                )
+                                .clicked()
+                            {
+                                queued_preview_state = Some(state);
+                            }
+                        }
+                    });
+                }
             });
 
         if show_terrain_presets && terrain_round_segments != initial_round_segments {
@@ -123,6 +176,12 @@ impl EditorApp {
 
         if let Some(shape) = queued_preset {
             self.toggle_active_terrain_preset(shape);
+        }
+
+        if let Some(state) = queued_preview_state {
+            self.tabs[self.active_tab]
+                .renderer
+                .set_preview_playback_state(state);
         }
     }
 }

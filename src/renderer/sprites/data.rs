@@ -8,6 +8,8 @@ use crate::data::sprite_db;
 use crate::domain::types::*;
 use crate::goal_animation::{GoalAnimationState, parse_goal_animation_state};
 use crate::renderer::goal_flag;
+use crate::renderer::particles::WindAreaDef;
+use crate::renderer::PreviewPlaybackState;
 
 use super::{bird_sleep_duration, dessert_y_offset};
 
@@ -177,6 +179,8 @@ pub struct SpriteDrawOpts {
     pub tex_id: Option<egui::TextureId>,
     pub atlas_size: Option<[usize; 2]>,
     pub fan_angle: Option<f32>,
+    pub(super) wind_area: Option<WindAreaDef>,
+    pub(super) preview_state: PreviewPlaybackState,
     pub opaque_rendered: bool,
 }
 

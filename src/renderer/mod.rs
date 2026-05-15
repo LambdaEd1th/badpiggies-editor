@@ -205,6 +205,14 @@ pub enum CursorMode {
     Pan,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PreviewPlaybackState {
+    #[default]
+    Build,
+    Play,
+    Pause,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TerrainPresetShape {
     Circle,
@@ -310,6 +318,8 @@ pub struct LevelRenderer {
     pub mouse_world: Option<Vec2>,
     /// Elapsed time for animations (seconds).
     pub time: f64,
+    /// Runtime preview state for play/build/pause-sensitive effects.
+    preview_playback_state: PreviewPlaybackState,
     /// Active drag state for object manipulation.
     dragging: Option<DragState>,
     /// Active terrain node drag state.
@@ -398,6 +408,10 @@ pub struct LevelRenderer {
     zzz_emit_accum: Vec<f32>,
     /// Bird positions for Zzz spawning.
     bird_positions: Vec<Vec2>,
+    /// Attached particle emitters for rocket, turbo, and magnet effects.
+    attached_effect_emitters: Vec<particles::AttachedEffectEmitter>,
+    /// Active attached-effect particles.
+    attached_effect_particles: Vec<particles::AttachedEffectParticle>,
     /// Individual cloud sprite instances.
     cloud_instances: Vec<CloudInstance>,
     /// wgpu device for GPU resource creation.
@@ -682,6 +696,55 @@ impl LevelRenderer {
         }
     }
 
+    pub fn preview_playback_state(&self) -> PreviewPlaybackState {
+        self.preview_playback_state
+    }
+
+    pub fn set_preview_playback_state(&mut self, state: PreviewPlaybackState) {
+        if self.preview_playback_state == state {
+            return;
+        }
+
+        let was_build = self.preview_playback_state == PreviewPlaybackState::Build;
+        match state {
+            PreviewPlaybackState::Build => self.reset_runtime_preview(),
+            PreviewPlaybackState::Play if was_build => self.start_runtime_preview(),
+            PreviewPlaybackState::Play | PreviewPlaybackState::Pause => {}
+        }
+
+        self.preview_playback_state = state;
+    }
+
+    fn reset_runtime_preview(&mut self) {
+        for emitter in &mut self.fan_emitters {
+            reset_fan_emitter_for_build(emitter);
+        }
+        self.fan_particles.clear();
+        self.wind_particles.clear();
+        self.wind_spawn_accum = vec![
+            0.0;
+            self.wind_areas.len() * crate::renderer::particles::wind_area_particle_system_count()
+        ];
+        self.zzz_particles.clear();
+        self.zzz_emit_accum = vec![0.0; self.bird_positions.len()];
+        self.attached_effect_particles.clear();
+        for emitter in &mut self.attached_effect_emitters {
+            emitter.system_time.fill(0.0);
+            emitter.spawn_accum.fill(0.0);
+        }
+    }
+
+    fn start_runtime_preview(&mut self) {
+        for emitter in &mut self.fan_emitters {
+            start_fan_emitter_for_play(emitter);
+        }
+        self.fan_particles.clear();
+        self.zzz_particles.clear();
+        self.zzz_emit_accum = vec![0.0; self.bird_positions.len()];
+        self.seed_attached_effect_particles();
+        self.seed_wind_particles();
+    }
+
     /// Set the level-refs key (derived from filename) for prefab name overrides.
     pub fn set_level_key(&mut self, filename: &str) {
         self.level_key = crate::domain::level::refs::level_key_from_filename(filename);
@@ -789,7 +852,9 @@ impl LevelRenderer {
 
         // ── Particle simulation (fan, wind, zzz) ──
         let dt = ui.input(|i| i.stable_dt);
-        self.update_particles(dt);
+        if self.preview_playback_state == PreviewPlaybackState::Play {
+            self.update_particles(dt);
+        }
 
         // Draw Zzz particles BEFORE sprites — in Unity emitter is at z=+0.5 (behind bird body)
         particles::draw_zzz_particles(
@@ -812,6 +877,16 @@ impl LevelRenderer {
             canvas_center,
             rect,
             self.tex_cache.get(GLOW_ATLAS),
+        );
+
+        particles::draw_attached_effect_particles(
+            &self.attached_effect_particles,
+            &self.camera,
+            &painter,
+            canvas_center,
+            rect,
+            self.tex_cache
+                .load_texture(ui.ctx(), "particles/Particles_Sheet_01.png", "Particles_Sheet_01"),
         );
 
         // ── Dark level overlay with LitArea cutouts ──

@@ -15,11 +15,13 @@ use super::super::fill_shader;
 use super::super::grid;
 use super::super::opaque_shader;
 use super::super::particles::{
-    FanEmitter, FanState, WindAreaDef, pseudo_random, spawn_wind_particle,
+    AttachedEffectEmitter, FanEmitter, FanState, WindAreaDef, WIND_AREA_HALF_H,
+    WIND_AREA_HALF_W, WIND_AREA_POWER_FACTOR, wind_area_local_direction,
+    attached_effect_kind_for_sprite_name, pseudo_random, wind_area_particle_system_count,
 };
 use super::super::sprites;
 use super::super::terrain;
-
+use super::super::PreviewPlaybackState;
 use super::{compute_world_position, find_bg_override_text, load_raw_rgba, parse_camera_limits};
 
 impl LevelRenderer {
@@ -42,6 +44,8 @@ impl LevelRenderer {
         self.zzz_particles.clear();
         self.zzz_emit_accum.clear();
         self.bird_positions.clear();
+        self.attached_effect_emitters.clear();
+        self.attached_effect_particles.clear();
         self.cloud_instances.clear();
         self.dark_level = false;
         self.lit_area_polygons.clear();
@@ -322,8 +326,11 @@ impl LevelRenderer {
                     state: init_state,
                     counter: 0.0,
                     force: 0.0,
+                    target_force: ovr.target_force.unwrap_or(115.0),
                     emitting: init_state == FanState::SpinUp,
                     angle: 0.0,
+                    spin_down_start_force: 0.0,
+                    spin_down_angle_left: 0.0,
                     world_x: sprite.world_pos.x,
                     world_y: sprite.world_pos.y,
                     rot: sprite.rotation,
@@ -337,13 +344,18 @@ impl LevelRenderer {
             }
             // Collect WindArea zones
             if sprite.name.starts_with("WindArea") {
-                let sx = sprite.scale.0.abs().max(1.0);
-                let sy = sprite.scale.1.abs().max(1.0);
+                let dir = wind_area_local_direction();
+                let cos_r = sprite.rotation.cos();
+                let sin_r = sprite.rotation.sin();
                 self.wind_areas.push(WindAreaDef {
+                    sprite_index: i,
                     center_x: sprite.world_pos.x,
                     center_y: sprite.world_pos.y,
-                    half_w: 20.0 * sx,
-                    half_h: 7.5 * sy,
+                    half_w: WIND_AREA_HALF_W * sprite.scale.0.abs().max(1.0),
+                    half_h: WIND_AREA_HALF_H * sprite.scale.1.abs().max(1.0),
+                    dir_x: dir.x * cos_r - dir.y * sin_r,
+                    dir_y: dir.x * sin_r + dir.y * cos_r,
+                    power_factor: WIND_AREA_POWER_FACTOR,
                 });
             }
             // Collect Bird positions for Zzz particles
@@ -353,23 +365,21 @@ impl LevelRenderer {
                     y: sprite.world_pos.y,
                 });
             }
-        }
-        self.wind_spawn_accum = vec![0.0; self.wind_areas.len()];
-        // Pre-spawn some wind particles
-        for area_idx in 0..self.wind_areas.len() {
-            let count = ((self.wind_areas[area_idx].half_w * self.wind_areas[area_idx].half_h * 2.0
-                / 300.0) as usize)
-                .max(3);
-            for _ in 0..count {
-                spawn_wind_particle(&self.wind_areas[area_idx], &mut self.wind_particles);
-                if let Some(p) = self.wind_particles.last_mut() {
-                    let frac = pseudo_random(p.x as u32) * 0.8;
-                    p.age = p.lifetime * frac;
-                    p.x += p.vx * p.age;
-                    p.y += p.vy * p.age;
-                }
+            if let Some(kind) = attached_effect_kind_for_sprite_name(&sprite.name) {
+                let system_count = super::super::particles::attached_effect_systems(kind).len();
+                self.attached_effect_emitters.push(AttachedEffectEmitter {
+                    world_x: sprite.world_pos.x,
+                    world_y: sprite.world_pos.y,
+                    rot: sprite.rotation,
+                    kind,
+                    system_time: vec![0.0; system_count],
+                    spawn_accum: vec![0.0; system_count],
+                });
             }
         }
+        self.wind_spawn_accum = vec![0.0; self.wind_areas.len() * wind_area_particle_system_count()];
+        self.preview_playback_state = PreviewPlaybackState::Play;
+        self.start_runtime_preview();
 
         self.zzz_emit_accum = vec![0.0; self.bird_positions.len()];
 

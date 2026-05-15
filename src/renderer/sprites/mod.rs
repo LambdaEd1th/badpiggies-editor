@@ -127,11 +127,19 @@ impl LevelRenderer {
         let visible_min_y = self.camera.center.y - world_half_h;
         let visible_max_y = self.camera.center.y + world_half_h;
 
-        // Build fan angle lookup (avoids O(sprites × fans) per-frame scan)
-        let mut fan_angle_map: Vec<Option<f32>> = vec![None; self.sprite_data.len()];
+        // Build fan state lookup (avoids O(sprites × fans) per-frame scan)
+        let mut fan_angle_map: Vec<Option<(f32, f32)>> = vec![None; self.sprite_data.len()];
         for e in &self.fan_emitters {
             if e.sprite_index < fan_angle_map.len() {
-                fan_angle_map[e.sprite_index] = Some(e.angle);
+                fan_angle_map[e.sprite_index] = Some((e.angle, e.force));
+            }
+        }
+
+        let mut wind_area_map: Vec<Option<super::particles::WindAreaDef>> =
+            vec![None; self.sprite_data.len()];
+        for area in &self.wind_areas {
+            if area.sprite_index < wind_area_map.len() {
+                wind_area_map[area.sprite_index] = Some(*area);
             }
         }
 
@@ -184,7 +192,10 @@ impl LevelRenderer {
                 }
             }
 
-            let fan_angle = fan_angle_map[si];
+            let fan_state = fan_angle_map[si];
+            let fan_angle = fan_state.map(|state| state.0);
+            let fan_force = fan_state.map(|state| state.1);
+            let wind_area = wind_area_map[si];
             let skip_root = compounds::draw_compound(
                 &DrawCtx {
                     painter,
@@ -203,7 +214,29 @@ impl LevelRenderer {
                 },
                 t,
                 sprite.override_text.as_deref(),
+                fan_angle,
             );
+
+            if sprite.name == "Fan" && is_sel {
+                draw::draw_fan_field_overlay(
+                    &DrawCtx {
+                        painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
+                    CompoundTransform {
+                        world_x: sprite.world_pos.x,
+                        world_y: sprite.world_pos.y,
+                        scale_x: sprite.scale.0,
+                        scale_y: sprite.scale.1,
+                        rotation_z: sprite.rotation,
+                    },
+                    fan_force,
+                    self.preview_playback_state,
+                );
+            }
 
             let mut is_gpu_rendered = false;
 
@@ -371,6 +404,8 @@ impl LevelRenderer {
                         tex_id,
                         atlas_size,
                         fan_angle,
+                        wind_area,
+                        preview_state: self.preview_playback_state,
                         opaque_rendered: gpu_rendered,
                     },
                 );

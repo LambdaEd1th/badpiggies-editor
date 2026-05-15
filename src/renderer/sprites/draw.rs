@@ -5,7 +5,8 @@ use eframe::egui;
 use crate::domain::types::*;
 use crate::goal_animation::goal_visual_state;
 
-use super::super::DrawCtx;
+use super::super::particles::{FAN_FIELD_CENTER_Y, FAN_FIELD_HALF_H, FAN_FIELD_HALF_W, WindAreaDef};
+use super::super::{CompoundTransform, DrawCtx, PreviewPlaybackState};
 use super::{bird_sleep_scale_factors, bird_sleep_y_offset, SpriteDrawData, SpriteDrawOpts};
 
 fn with_alpha(color: egui::Color32, alpha: f32) -> egui::Color32 {
@@ -49,6 +50,8 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
         tex_id,
         atlas_size,
         fan_angle,
+        wind_area,
+        preview_state,
         opaque_rendered,
     } = opts;
     if sprite.is_terrain {
@@ -287,44 +290,174 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 
     // Particle/animation stubs
     // WindArea: semi-transparent zone + direction arrows
-    if name_lower.starts_with("windarea") {
-        let zone_hw = 20.0 * sprite.scale.0.abs() * camera.zoom;
-        let zone_hh = 7.5 * sprite.scale.1.abs() * camera.zoom;
-        let zone_rect =
-            egui::Rect::from_center_size(center, egui::vec2(zone_hw * 2.0, zone_hh * 2.0));
-        painter.rect_filled(
-            zone_rect,
-            0.0,
-            egui::Color32::from_rgba_unmultiplied(100, 200, 255, 20),
-        );
-        painter.rect_stroke(
-            zone_rect,
-            0.0,
-            egui::Stroke::new(
-                1.0,
-                egui::Color32::from_rgba_unmultiplied(100, 200, 255, 60),
-            ),
-            egui::StrokeKind::Outside,
-        );
-        // Wind direction arrow (pointing right, wind blows in +X direction)
-        let arrow_y = center.y;
-        let arrow_len = zone_hw.min(40.0);
-        let arrow_start = egui::pos2(center.x - arrow_len * 0.5, arrow_y);
-        let arrow_end = egui::pos2(center.x + arrow_len * 0.5, arrow_y);
-        let arrow_color = egui::Color32::from_rgba_unmultiplied(100, 200, 255, 100);
-        painter.line_segment(
-            [arrow_start, arrow_end],
-            egui::Stroke::new(2.0, arrow_color),
-        );
-        // Arrowhead
-        painter.line_segment(
-            [arrow_end, egui::pos2(arrow_end.x - 6.0, arrow_y - 4.0)],
-            egui::Stroke::new(2.0, arrow_color),
-        );
-        painter.line_segment(
-            [arrow_end, egui::pos2(arrow_end.x - 6.0, arrow_y + 4.0)],
-            egui::Stroke::new(2.0, arrow_color),
-        );
+    if name_lower.starts_with("windarea") && let Some(area) = wind_area {
+        draw_wind_area_overlay(ctx, area, preview_state);
+    }
+}
+
+fn draw_arrow(
+    painter: &egui::Painter,
+    start: egui::Pos2,
+    end: egui::Pos2,
+    color: egui::Color32,
+    stroke_width: f32,
+) {
+    painter.line_segment([start, end], egui::Stroke::new(stroke_width, color));
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let len = (dx * dx + dy * dy).sqrt().max(1.0);
+    let ux = dx / len;
+    let uy = dy / len;
+    let head = 5.0;
+    let side = 3.0;
+    painter.line_segment(
+        [
+            end,
+            egui::pos2(end.x - ux * head - uy * side, end.y - uy * head + ux * side),
+        ],
+        egui::Stroke::new(stroke_width, color),
+    );
+    painter.line_segment(
+        [
+            end,
+            egui::pos2(end.x - ux * head + uy * side, end.y - uy * head - ux * side),
+        ],
+        egui::Stroke::new(stroke_width, color),
+    );
+}
+
+pub fn draw_wind_area_overlay(
+    ctx: &DrawCtx<'_>,
+    area: WindAreaDef,
+    preview_state: PreviewPlaybackState,
+) {
+    let center = ctx.camera.world_to_screen(
+        Vec2 {
+            x: area.center_x,
+            y: area.center_y,
+        },
+        ctx.canvas_center,
+    );
+    let zone_rect = egui::Rect::from_center_size(
+        center,
+        egui::vec2(
+            area.half_w * ctx.camera.zoom * 2.0,
+            area.half_h * ctx.camera.zoom * 2.0,
+        ),
+    );
+    let active_alpha = if preview_state == PreviewPlaybackState::Play {
+        1.0
+    } else {
+        0.35
+    };
+    ctx.painter.rect_filled(
+        zone_rect,
+        0.0,
+        egui::Color32::from_rgba_unmultiplied(100, 200, 255, (20.0 * active_alpha) as u8),
+    );
+    ctx.painter.rect_stroke(
+        zone_rect,
+        0.0,
+        egui::Stroke::new(
+            1.0,
+            egui::Color32::from_rgba_unmultiplied(100, 200, 255, (70.0 * active_alpha) as u8),
+        ),
+        egui::StrokeKind::Outside,
+    );
+
+    let dir_len = (area.dir_x * area.dir_x + area.dir_y * area.dir_y)
+        .sqrt()
+        .max(f32::EPSILON);
+    let dir_x = area.dir_x / dir_len;
+    let dir_y = area.dir_y / dir_len;
+    let arrow_world_len = 2.4 * area.power_factor.max(0.5);
+    let arrow_color = egui::Color32::from_rgba_unmultiplied(120, 220, 255, (110.0 * active_alpha) as u8);
+    let mut local_y = -area.half_h;
+    while local_y <= area.half_h + 0.001 {
+        let mut local_x = -area.half_w;
+        while local_x <= area.half_w + 0.001 {
+            let start = ctx.camera.world_to_screen(
+                Vec2 {
+                    x: area.center_x + local_x,
+                    y: area.center_y + local_y,
+                },
+                ctx.canvas_center,
+            );
+            let end = ctx.camera.world_to_screen(
+                Vec2 {
+                    x: area.center_x + local_x + dir_x * arrow_world_len,
+                    y: area.center_y + local_y + dir_y * arrow_world_len,
+                },
+                ctx.canvas_center,
+            );
+            draw_arrow(ctx.painter, start, end, arrow_color, 1.5);
+            local_x += 8.0;
+        }
+        local_y += 8.0;
+    }
+}
+
+fn fan_field_point(xf: CompoundTransform, local_x: f32, local_y: f32) -> Vec2 {
+    let cos_r = xf.rotation_z.cos();
+    let sin_r = xf.rotation_z.sin();
+    Vec2 {
+        x: xf.world_x + local_x * cos_r - local_y * sin_r,
+        y: xf.world_y + local_x * sin_r + local_y * cos_r,
+    }
+}
+
+pub fn draw_fan_field_overlay(
+    ctx: &DrawCtx<'_>,
+    xf: CompoundTransform,
+    fan_force: Option<f32>,
+    preview_state: PreviewPlaybackState,
+) {
+    let field_half_w = FAN_FIELD_HALF_W * xf.scale_x.abs();
+    let field_half_h = FAN_FIELD_HALF_H * xf.scale_y.abs();
+    let field_center_y = FAN_FIELD_CENTER_Y * xf.scale_y;
+    let outline = [
+        fan_field_point(xf, -field_half_w, field_center_y - field_half_h),
+        fan_field_point(xf, field_half_w, field_center_y - field_half_h),
+        fan_field_point(xf, field_half_w, field_center_y + field_half_h),
+        fan_field_point(xf, -field_half_w, field_center_y + field_half_h),
+        fan_field_point(xf, -field_half_w, field_center_y - field_half_h),
+    ]
+    .map(|p| ctx.camera.world_to_screen(p, ctx.canvas_center))
+    .to_vec();
+    ctx.painter.add(egui::Shape::line(
+        outline,
+        egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(120, 220, 255, 110)),
+    ));
+
+    let preview_scale = if preview_state == PreviewPlaybackState::Play {
+        fan_force.unwrap_or(0.0).clamp(0.0, 10.0) / 10.0
+    } else {
+        0.0
+    };
+    let active_scale = preview_scale.max(0.2);
+    let cols = 5;
+    let rows = 4;
+    for row in 0..rows {
+        let v = (row as f32 + 0.5) / rows as f32;
+        let local_y = field_center_y - field_half_h + v * field_half_h * 2.0;
+        for col in 0..cols {
+            let u = (col as f32 + 0.5) / cols as f32;
+            let local_x = -field_half_w + u * field_half_w * 2.0;
+            let horizontal = 1.0 - (local_x.abs() / field_half_w.max(f32::EPSILON));
+            let vertical = v;
+            let weight = (horizontal * vertical).clamp(0.0, 1.0);
+            let arrow_world_len = (0.5 + 1.0 * weight * active_scale) * xf.scale_y.abs().max(1.0);
+            let start = fan_field_point(xf, local_x, local_y);
+            let end = fan_field_point(xf, local_x, local_y + arrow_world_len);
+            let alpha = (50.0 + 150.0 * weight * active_scale) as u8;
+            draw_arrow(
+                ctx.painter,
+                ctx.camera.world_to_screen(start, ctx.canvas_center),
+                ctx.camera.world_to_screen(end, ctx.canvas_center),
+                egui::Color32::from_rgba_unmultiplied(120, 220, 255, alpha),
+                1.5,
+            );
+        }
     }
 }
 

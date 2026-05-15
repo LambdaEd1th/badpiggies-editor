@@ -12,7 +12,7 @@ use super::edge_shader;
 use super::fill_shader;
 use super::opaque_shader;
 use super::sprite_shader;
-use super::{Camera, LevelRenderer};
+use super::{Camera, LevelRenderer, PreviewPlaybackState};
 
 impl LevelRenderer {
     pub fn new(render_state: Option<&egui_wgpu::RenderState>) -> Self {
@@ -72,6 +72,7 @@ impl LevelRenderer {
             clicked_with_cmd: false,
             mouse_world: None,
             time: 0.0,
+            preview_playback_state: PreviewPlaybackState::Play,
             dragging: None,
             node_dragging: None,
             drag_result: None,
@@ -115,6 +116,8 @@ impl LevelRenderer {
             zzz_particles: Vec::new(),
             zzz_emit_accum: Vec::new(),
             bird_positions: Vec::new(),
+            attached_effect_emitters: Vec::new(),
+            attached_effect_particles: Vec::new(),
             cloud_instances: Vec::new(),
             wgpu_device,
             wgpu_queue,
@@ -170,6 +173,7 @@ impl LevelRenderer {
             clicked_with_cmd: false,
             mouse_world: None,
             time: 0.0,
+            preview_playback_state: PreviewPlaybackState::Play,
             dragging: None,
             node_dragging: None,
             drag_result: None,
@@ -213,6 +217,8 @@ impl LevelRenderer {
             zzz_particles: Vec::new(),
             zzz_emit_accum: Vec::new(),
             bird_positions: Vec::new(),
+            attached_effect_emitters: Vec::new(),
+            attached_effect_particles: Vec::new(),
             cloud_instances: Vec::new(),
             wgpu_device: self.wgpu_device.clone(),
             wgpu_queue: self.wgpu_queue.clone(),

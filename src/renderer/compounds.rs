@@ -31,6 +31,7 @@ struct QuadDraw<'a> {
 pub fn parse_fan_override_public(raw_text: Option<&str>) -> FanOverridesPublic {
     let ovr = parse_fan_overrides(raw_text);
     FanOverridesPublic {
+        target_force: ovr.target_force,
         start_time: ovr.start_time,
         on_time: ovr.on_time,
         off_time: ovr.off_time,
@@ -41,6 +42,7 @@ pub fn parse_fan_override_public(raw_text: Option<&str>) -> FanOverridesPublic {
 
 /// Parsed fan override values (public subset).
 pub struct FanOverridesPublic {
+    pub target_force: Option<f32>,
     pub start_time: Option<f32>,
     pub on_time: Option<f32>,
     pub off_time: Option<f32>,
@@ -56,6 +58,7 @@ pub fn draw_compound(
     xf: CompoundTransform,
     time: f64,
     override_text: Option<&str>,
+    fan_angle: Option<f32>,
 ) -> bool {
     if name == "Slingshot" {
         draw_sub_sprites_rotated(
@@ -69,7 +72,7 @@ pub fn draw_compound(
     if name == "Fan" {
         // Unity Z-order: propeller (Z=0, back) → engine (Z=-0.05) → frame (Z=-0.1, front)
         // Draw propeller first with foreshortening animation
-        let angle = (time * 10.472) as f32;
+        let angle = fan_angle.unwrap_or((time * 10.472) as f32);
         let foreshorten = angle.cos().abs().max(0.05);
         let cos_r = xf.rotation_z.cos();
         let sin_r = xf.rotation_z.sin();

@@ -27,6 +27,14 @@ fn corner_uniform_scale(
     (scale_abs_x, scale_abs_y)
 }
 
+fn axis_side(value: f32) -> f32 {
+    if value < 0.0 { -1.0 } else { 1.0 }
+}
+
+fn dragged_scale_sign(original_scale_axis: f32, start_axis: f32, current_axis: f32) -> f32 {
+    axis_side(original_scale_axis) * axis_side(start_axis) * axis_side(current_axis)
+}
+
 impl LevelRenderer {
     pub(in crate::renderer) fn handle_interaction(
         &mut self,
@@ -287,16 +295,10 @@ impl LevelRenderer {
                             );
                         }
                     }
-                    let sign_x = if original_scale.x.is_sign_negative() {
-                        -1.0
-                    } else {
-                        1.0
-                    };
-                    let sign_y = if original_scale.y.is_sign_negative() {
-                        -1.0
-                    } else {
-                        1.0
-                    };
+                    let sign_x =
+                        dragged_scale_sign(original_scale.x, start_pointer_local.x, current_local.x);
+                    let sign_y =
+                        dragged_scale_sign(original_scale.y, start_pointer_local.y, current_local.y);
                     let base_half_x = if original_scale.x.abs() > 0.0001 {
                         original_half_size.0 / original_scale.x.abs()
                     } else {
@@ -566,7 +568,7 @@ impl LevelRenderer {
 
 #[cfg(test)]
 mod tests {
-    use super::corner_uniform_scale;
+    use super::{axis_side, corner_uniform_scale, dragged_scale_sign};
     use crate::domain::types::Vec2;
     use crate::renderer::MIN_OBJECT_SCALE;
 
@@ -594,5 +596,24 @@ mod tests {
 
         assert_eq!(scale_x, MIN_OBJECT_SCALE);
         assert_eq!(scale_y, MIN_OBJECT_SCALE);
+    }
+
+    #[test]
+    fn axis_side_keeps_zero_on_positive_side() {
+        assert_eq!(axis_side(0.0), 1.0);
+        assert_eq!(axis_side(3.0), 1.0);
+        assert_eq!(axis_side(-3.0), -1.0);
+    }
+
+    #[test]
+    fn dragged_scale_sign_flips_when_pointer_crosses_center() {
+        assert_eq!(dragged_scale_sign(2.0, 40.0, 10.0), 1.0);
+        assert_eq!(dragged_scale_sign(2.0, 40.0, -10.0), -1.0);
+    }
+
+    #[test]
+    fn dragged_scale_sign_preserves_existing_flip_until_crossing_back() {
+        assert_eq!(dragged_scale_sign(-2.0, 40.0, 10.0), -1.0);
+        assert_eq!(dragged_scale_sign(-2.0, 40.0, -10.0), 1.0);
     }
 }

@@ -9,7 +9,8 @@ use crate::data::prefab_sprites::PrefabSpriteLayer;
 use crate::data::sprite_db::UvRect;
 
 use super::compound_data::*;
-use super::compound_overrides::{parse_bridge_overrides, parse_fan_overrides};
+use super::compound_overrides::{project_bridge_runtime, project_fan_runtime};
+use super::particles::fan_propeller_visual_angle;
 use super::sprite_shader;
 use super::{CompoundTransform, DrawCtx};
 
@@ -27,27 +28,27 @@ struct QuadDraw<'a> {
 
 // ─── Public API ─────────────────────────────────────────────────────────
 
-/// Public wrapper for fan override parsing (used by mod.rs for state machine init).
-pub fn parse_fan_override_public(raw_text: Option<&str>) -> FanOverridesPublic {
-    let ovr = parse_fan_overrides(raw_text);
-    FanOverridesPublic {
-        target_force: ovr.target_force,
-        start_time: ovr.start_time,
-        on_time: ovr.on_time,
-        off_time: ovr.off_time,
-        delayed_start: ovr.delayed_start,
-        always_on: ovr.always_on,
+/// Public wrapper for fan runtime config (used by mod.rs for state machine init).
+pub fn project_fan_runtime_public(raw_text: Option<&str>) -> FanRuntimePublic {
+    let runtime = project_fan_runtime(raw_text);
+    FanRuntimePublic {
+        target_force: runtime.target_force,
+        start_time: runtime.start_time,
+        on_time: runtime.on_time,
+        off_time: runtime.off_time,
+        delayed_start: runtime.delayed_start,
+        always_on: runtime.always_on,
     }
 }
 
-/// Parsed fan override values (public subset).
-pub struct FanOverridesPublic {
-    pub target_force: Option<f32>,
-    pub start_time: Option<f32>,
-    pub on_time: Option<f32>,
-    pub off_time: Option<f32>,
-    pub delayed_start: Option<f32>,
-    pub always_on: Option<bool>,
+/// Effective fan runtime config (public subset).
+pub struct FanRuntimePublic {
+    pub target_force: f32,
+    pub start_time: f32,
+    pub on_time: f32,
+    pub off_time: f32,
+    pub delayed_start: f32,
+    pub always_on: bool,
 }
 
 /// Draw a compound prefab's sub-sprites.
@@ -72,7 +73,7 @@ pub fn draw_compound(
     if name == "Fan" {
         // Unity Z-order: propeller (Z=0, back) → engine (Z=-0.05) → frame (Z=-0.1, front)
         // Draw propeller first with foreshortening animation
-        let angle = fan_angle.unwrap_or((time * 10.472) as f32);
+        let angle = fan_propeller_visual_angle(fan_angle);
         let foreshorten = angle.cos().abs().max(0.05);
         let cos_r = xf.rotation_z.cos();
         let sin_r = xf.rotation_z.sin();
@@ -214,16 +215,13 @@ pub fn draw_compound(
     }
 
     if name == "Bridge" {
-        // Parse override data for bridge parameters
-        let ovr = parse_bridge_overrides(override_text);
-        let step_length = ovr.step_length.unwrap_or(1.0);
-        let step_gap = ovr.step_gap.unwrap_or(0.2);
-        let endpoint_x = ovr.end_point_x.unwrap_or(2.561546);
-        let endpoint_y = ovr.end_point_y.unwrap_or(0.0);
-        let dist = (endpoint_x * endpoint_x + endpoint_y * endpoint_y).sqrt();
-        let stride = step_length + step_gap;
-        let step_count = (dist / stride).floor() as i32;
-        let angle = endpoint_y.atan2(endpoint_x);
+        let runtime = project_bridge_runtime(override_text);
+        let step_length = runtime.step_length;
+        let endpoint_x = runtime.runtime_end_point_x;
+        let endpoint_y = runtime.runtime_end_point_y;
+        let stride = runtime.stride;
+        let step_count = runtime.step_count;
+        let angle = runtime.angle;
         let cos_a = angle.cos();
         let sin_a = angle.sin();
 

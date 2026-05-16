@@ -14,6 +14,7 @@ use eframe::egui;
 
 use crate::data::assets::TextureCache;
 use crate::data::sprite_db;
+use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 use crate::domain::types::*;
 
 use super::Camera;
@@ -80,14 +81,18 @@ pub struct ConstructionGrid {
     pub cell_style: ConstructionGridCellStyle,
 }
 
-fn parse_grid_cell_style(text: &str) -> ConstructionGridCellStyle {
-    for line in text.lines() {
-        let trimmed = line.trim_start_matches('\t').trim();
-        if trimmed.starts_with("ObjectReference m_gridCellPrefab = ") {
-            return ConstructionGridCellStyle::Light;
-        }
+fn parse_grid_cell_style(document: &RuntimeOverrideDocument) -> ConstructionGridCellStyle {
+    if document.roots.iter().any(|root| {
+        root.find_descendant(&|node| {
+            node.node_type == "ObjectReference" && node.name == "m_gridCellPrefab"
+        })
+        .is_some()
+    })
+    {
+        ConstructionGridCellStyle::Light
+    } else {
+        ConstructionGridCellStyle::Default
     }
-    ConstructionGridCellStyle::Default
 }
 
 /// Try to parse the construction grid from level data.
@@ -122,35 +127,28 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
 
     let text = lm_override?;
 
-    let cell_style = parse_grid_cell_style(text);
-
-    // Find m_constructionGridRows array and its size
-    let size_pattern = "m_constructionGridRows";
-    let grid_start = text.find(size_pattern)?;
-    let after = &text[grid_start..];
-
-    // Parse "ArraySize size = N"
-    let size_match = after.find("size = ")?;
-    let after_size = &after[size_match + 7..];
-    let end = after_size.find(|c: char| !c.is_ascii_digit())?;
-    let row_count: usize = after_size[..end].parse().ok()?;
+    let document = RuntimeOverrideDocument::parse(text);
+    let cell_style = parse_grid_cell_style(&document);
+    let rows_node = document.roots.iter().find_map(|root| {
+        root.find_descendant(&|node| {
+            node.node_type == "Array" && node.name == "m_constructionGridRows"
+        })
+    })?;
+    let rows_array = rows_node.as_array()?;
+    let row_count = rows_array.size?;
 
     if row_count == 0 {
         return None;
     }
 
-    // Extract "Integer data = N" values
     let mut rows = Vec::with_capacity(row_count);
-    let mut search = after_size;
-    for _ in 0..row_count {
-        let data_pos = search.find("data = ")?;
-        let after_data = &search[data_pos + 7..];
-        let end = after_data
-            .find(|c: char| !c.is_ascii_digit() && c != '-')
-            .unwrap_or(after_data.len());
-        let val: i32 = after_data[..end].parse().ok()?;
-        rows.push(val);
-        search = &after_data[end..];
+    for element in rows_array.iter() {
+        let value = read_grid_row_value(&element.value)?;
+        rows.push(value);
+    }
+
+    if rows.len() != row_count {
+        return None;
     }
 
     // Compute grid dimensions
@@ -182,6 +180,78 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
         x_min,
         cell_style,
     })
+}
+
+fn read_grid_row_value(node: &RuntimeOverrideNode) -> Option<i32> {
+    if node.node_type == "Integer" && node.name == "data" {
+        node.value_as_i32()
+    } else {
+        node.find_descendant(&|child| child.node_type == "Integer" && child.name == "data")
+            .and_then(RuntimeOverrideNode::value_as_i32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_construction_grid, ConstructionGridCellStyle};
+    use crate::domain::types::{
+        DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
+    };
+
+    const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tArray m_constructionGridRows\n\t\t\tArraySize size = 4\n\t\t\tElement 0\n\t\t\t\tInteger data = 15\n\t\t\tElement 1\n\t\t\t\tInteger data = 15\n\t\t\tElement 2\n\t\t\t\tInteger data = 0\n\t\t\tElement 3\n\t\t\t\tInteger data = 2\n\t\tObjectReference m_gridCellPrefab = 6\n";
+
+    #[test]
+    fn parses_construction_grid_rows_and_light_cell_style_from_ast() {
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab("LevelManager", Vec3::default(), LEVEL_MANAGER_OVERRIDE)),
+                LevelObject::Prefab(prefab(
+                    "LevelStart",
+                    Vec3 {
+                        x: 3.0,
+                        y: 4.0,
+                        z: 0.0,
+                    },
+                    "",
+                )),
+            ],
+            roots: vec![0, 1],
+        };
+
+        let grid = parse_construction_grid(&level).expect("expected construction grid");
+        assert_eq!(grid.rows, vec![15, 15, 0, 2]);
+        assert_eq!(grid.base_x, 3.0);
+        assert_eq!(grid.base_y, 4.0);
+        assert_eq!(grid.grid_width, 4);
+        assert_eq!(grid.grid_height, 4);
+        assert_eq!(grid.x_min, -1);
+        assert_eq!(grid.cell_style, ConstructionGridCellStyle::Light);
+    }
+
+    fn prefab(name: &str, position: Vec3, raw_text: &str) -> PrefabInstance {
+        PrefabInstance {
+            name: name.to_string(),
+            position,
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: if raw_text.is_empty() {
+                None
+            } else {
+                Some(PrefabOverrideData {
+                    raw_text: raw_text.to_string(),
+                    raw_bytes: raw_text.as_bytes().to_vec(),
+                })
+            },
+            parent: None,
+        }
+    }
 }
 
 /// Draw the construction grid matching Unity's rendering.

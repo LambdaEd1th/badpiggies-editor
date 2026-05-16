@@ -15,8 +15,9 @@ use super::super::fill_shader;
 use super::super::grid;
 use super::super::opaque_shader;
 use super::super::particles::{
-    AttachedEffectEmitter, FanEmitter, FanState, build_wind_area_def,
-    attached_effect_kind_for_sprite_name, pseudo_random, wind_area_particle_system_count,
+    AttachedEffectEmitter, FanEmitter, FanState, attached_effect_kind_for_sprite_name,
+    build_wind_area_def, reset_fan_emitter_for_build,
+    wind_area_particle_system_count,
 };
 use super::super::sprites;
 use super::super::terrain;
@@ -309,37 +310,29 @@ impl LevelRenderer {
         // Build fan emitter state machines + wind area definitions
         for (i, sprite) in self.sprite_data.iter().enumerate() {
             if sprite.name == "Fan" {
-                let ovr = compounds::parse_fan_override_public(sprite.override_text.as_deref());
-                let on_time = ovr.on_time.unwrap_or(4.0);
-                let delayed_start = ovr.delayed_start.unwrap_or(1.0) + on_time;
-                let always_on = ovr.always_on.unwrap_or(true);
-                let init_state = if always_on {
-                    FanState::SpinUp
-                } else if delayed_start > 0.0 {
-                    FanState::DelayedStart
-                } else {
-                    FanState::SpinUp
-                };
-                self.fan_emitters.push(FanEmitter {
+                let fan = compounds::project_fan_runtime_public(sprite.override_text.as_deref());
+                let mut emitter = FanEmitter {
                     sprite_index: i,
-                    state: init_state,
+                    state: FanState::Inactive,
                     counter: 0.0,
                     force: 0.0,
-                    target_force: ovr.target_force.unwrap_or(115.0),
-                    emitting: init_state == FanState::SpinUp,
+                    target_force: fan.target_force,
+                    emitting: false,
                     angle: 0.0,
                     spin_down_start_force: 0.0,
                     spin_down_angle_left: 0.0,
                     world_x: sprite.world_pos.x,
                     world_y: sprite.world_pos.y,
                     rot: sprite.rotation,
-                    burst_time: pseudo_random(i as u32 * 997), // stagger bursts across fans
-                    start_time: ovr.start_time.unwrap_or(2.0),
-                    on_time,
-                    off_time: ovr.off_time.unwrap_or(2.0),
-                    delayed_start,
-                    always_on,
-                });
+                    burst_time: 0.0,
+                    start_time: fan.start_time,
+                    on_time: fan.on_time,
+                    off_time: fan.off_time,
+                    delayed_start: fan.delayed_start,
+                    always_on: fan.always_on,
+                };
+                reset_fan_emitter_for_build(&mut emitter);
+                self.fan_emitters.push(emitter);
             }
             // Collect WindArea zones
             if sprite.name.starts_with("WindArea") {
@@ -436,5 +429,99 @@ impl LevelRenderer {
 
         // Fit camera to level bounds
         self.fit_to_level();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::types::{
+        DataType, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
+    };
+    use crate::renderer::particles::{AttachedEffectKind, FanState};
+
+    const FAN_OVERRIDE: &str = "GameObject Fan\n\tComponent Fan\n\t\tFloat targetForce = 12.5\n\t\tFloat startTime = 1\n\t\tFloat onTime = 2\n\t\tFloat offTime = 3\n\t\tFloat delayedStart = 4\n\t\tBoolean alwaysOn = False\n";
+
+    #[test]
+    fn set_level_initializes_fan_emitter_from_prefab_defaults() {
+        let mut renderer = LevelRenderer::new(None);
+        let level = LevelData {
+            objects: vec![LevelObject::Prefab(prefab("Fan", None))],
+            roots: vec![0],
+        };
+
+        renderer.set_level(&level);
+
+        assert_eq!(renderer.fan_emitters.len(), 1);
+        let emitter = &renderer.fan_emitters[0];
+        assert_eq!(emitter.state, FanState::SpinUp);
+        assert_eq!(emitter.target_force, 115.0);
+        assert_eq!(emitter.start_time, 2.0);
+        assert_eq!(emitter.on_time, 4.0);
+        assert_eq!(emitter.off_time, 2.0);
+        assert_eq!(emitter.delayed_start, 5.0);
+        assert_eq!(emitter.burst_time, 0.0);
+        assert!(emitter.always_on);
+    }
+
+    #[test]
+    fn set_level_merges_fan_override_and_unity_init_delay() {
+        let mut renderer = LevelRenderer::new(None);
+        let level = LevelData {
+            objects: vec![LevelObject::Prefab(prefab("Fan", Some(FAN_OVERRIDE)))],
+            roots: vec![0],
+        };
+
+        renderer.set_level(&level);
+
+        assert_eq!(renderer.fan_emitters.len(), 1);
+        let emitter = &renderer.fan_emitters[0];
+        assert_eq!(emitter.state, FanState::DelayedStart);
+        assert_eq!(emitter.target_force, 12.5);
+        assert_eq!(emitter.start_time, 1.0);
+        assert_eq!(emitter.on_time, 2.0);
+        assert_eq!(emitter.off_time, 3.0);
+        assert_eq!(emitter.delayed_start, 6.0);
+        assert_eq!(emitter.burst_time, 0.0);
+        assert!(!emitter.always_on);
+        assert!(!emitter.emitting);
+    }
+
+    #[test]
+    fn set_level_only_registers_attached_effect_emitters_when_prefab_has_effect_refs() {
+        let mut renderer = LevelRenderer::new(None);
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab("Part_EngineBig_03_SET", None)),
+                LevelObject::Prefab(prefab("Part_EngineSmall_05_SET", None)),
+            ],
+            roots: vec![0, 1],
+        };
+
+        renderer.set_level(&level);
+
+        assert_eq!(renderer.attached_effect_emitters.len(), 1);
+        assert_eq!(renderer.attached_effect_emitters[0].kind, AttachedEffectKind::TurboCharger);
+    }
+
+    fn prefab(name: &str, raw_text: Option<&str>) -> PrefabInstance {
+        PrefabInstance {
+            name: name.to_string(),
+            position: Vec3::default(),
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: raw_text.map(|text| PrefabOverrideData {
+                raw_text: text.to_string(),
+                raw_bytes: text.as_bytes().to_vec(),
+            }),
+            parent: None,
+        }
     }
 }

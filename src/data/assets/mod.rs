@@ -19,11 +19,21 @@ pub use theme::{
     skip_props_tint, sky_top_color, theme_name_for_background_prefab,
 };
 
+pub fn effect_texture_name_for_material_guid(material_guid: &str) -> Option<&'static str> {
+    match material_guid {
+        // Glow, wind, fan, and several world particle prefabs all point at the
+        // shared Particles_Sheet_01 material family.
+        "884b9b90b5f2e49343f6ec0608bc01c9" => Some("Particles_Sheet_01.png"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::terrain::get_terrain_splat1;
     use super::{
-        get_terrain_splat1_for_level, list_asset_paths, read_asset_text,
+        effect_texture_name_for_material_guid, get_terrain_splat1_for_level, list_asset_paths,
+        read_asset_text,
         terrain_splat1_prefers_prefab_over_level_refs,
     };
 
@@ -41,14 +51,22 @@ mod tests {
     }
 
     #[test]
+    fn shared_particle_effect_material_guid_maps_to_particles_sheet() {
+        assert_eq!(
+            effect_texture_name_for_material_guid("884b9b90b5f2e49343f6ec0608bc01c9"),
+            Some("Particles_Sheet_01.png")
+        );
+    }
+
+    #[test]
     fn mm_maya_splat1_defaults_match_prefab_curve_textures() {
         assert_eq!(
             get_terrain_splat1("e2dTerrainBase_MM_rock"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
         assert_eq!(
             get_terrain_splat1("e2dTerrainBase_MM_sand"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
         assert_eq!(
             get_terrain_splat1("e2dTerrainBase_MM_TempleDarkRock"),
@@ -56,7 +74,7 @@ mod tests {
         );
         assert_eq!(
             get_terrain_splat1("e2dTerrainDark_MM_rock"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
     }
 
@@ -80,15 +98,15 @@ mod tests {
     fn mm_maya_splat1_level_fallback_uses_prefab_defaults() {
         assert_eq!(
             get_terrain_splat1_for_level("episode_6_level_5_data", "e2dTerrainBase_MM_sand"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
         assert_eq!(
             get_terrain_splat1_for_level("Episode_6_Dark Sandbox_data", "e2dTerrainBase_MM_rock"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
         assert_eq!(
             get_terrain_splat1_for_level("episode_6_level_10_data", "e2dTerrainBase_MM_rock"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
         assert_eq!(
             get_terrain_splat1_for_level("episode_6_level_18_data", "e2dTerrainDark_MM"),
@@ -96,22 +114,22 @@ mod tests {
         );
         assert_eq!(
             get_terrain_splat1_for_level("episode_6_level_18_data", "e2dTerrainDark_MM_rock"),
-            Some("Ground_Rocks_Outline_Texture_03.png")
+            Some("Border.png")
         );
     }
 
     #[test]
-    fn mm_maya_cave_dark_groups_no_longer_override_loader_refs() {
-        assert!(!terrain_splat1_prefers_prefab_over_level_refs(
+    fn mm_maya_cave_dark_groups_keep_prefab_border_splat1() {
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
             "e2dTerrainBase_MM_rock"
         ));
-        assert!(!terrain_splat1_prefers_prefab_over_level_refs(
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
             "e2dTerrainBase_MM_sand"
         ));
-        assert!(!terrain_splat1_prefers_prefab_over_level_refs(
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
             "e2dTerrainBase_MM_TempleDarkRock"
         ));
-        assert!(!terrain_splat1_prefers_prefab_over_level_refs(
+        assert!(terrain_splat1_prefers_prefab_over_level_refs(
             "e2dTerrainDark_MM_rock"
         ));
         assert!(!terrain_splat1_prefers_prefab_over_level_refs(

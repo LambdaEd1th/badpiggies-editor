@@ -46,6 +46,7 @@ fn map_asset_key(key: &str) -> Option<Cow<'static, str>> {
     if key.starts_with("Texture2D/")
         || key.starts_with("Resources/")
         || key.starts_with("Prefab/")
+        || key.starts_with("ScriptableObject/")
         || key.starts_with("AnimationClip/")
     {
         return Some(Cow::Owned(key.to_string()));
@@ -78,6 +79,10 @@ fn map_asset_key(key: &str) -> Option<Cow<'static, str>> {
 
     if let Some(path) = key.strip_prefix("unity/prefabs/") {
         return Some(Cow::Owned(format!("Prefab/{path}")));
+    }
+
+    if let Some(path) = key.strip_prefix("unity/scriptableobject/") {
+        return Some(Cow::Owned(format!("ScriptableObject/{path}")));
     }
 
     match key {

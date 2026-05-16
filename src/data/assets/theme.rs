@@ -2,6 +2,8 @@
 
 use eframe::egui;
 
+use crate::domain::prefab_override_runtime::RuntimeOverrideDocument;
+
 const BG_THEME_PATTERNS: &[(&str, &str)] = &[
     ("MM_Cave_02_SET_DARK", "MayaCave2Dark"),
     ("MM_Cave_01_SET_DARK", "MayaCaveDark"),
@@ -53,12 +55,24 @@ fn detect_bg_theme_from_name(name: &str) -> Option<&'static str> {
 }
 
 fn background_prefab_ref_index(raw: &str) -> Option<i32> {
-    raw.lines().find_map(|line| {
-        line.trim_start_matches('\u{feff}')
-            .trim()
-            .strip_prefix("ObjectReference prefab = ")
-            .and_then(|value| value.trim().parse::<i32>().ok())
-    })
+    let document = RuntimeOverrideDocument::parse(raw);
+    document
+        .roots
+        .iter()
+        .find_map(|root| {
+            root.find_descendant(&|node| {
+                node.node_type == "ObjectReference" && node.name == "prefab"
+            })
+        })
+        .and_then(|node| node.value_as_i32())
+}
+
+fn background_override_root_name(raw: &str) -> Option<String> {
+    RuntimeOverrideDocument::parse(raw)
+        .roots
+        .into_iter()
+        .find(|node| node.node_type == "GameObject" && !node.name.is_empty())
+        .map(|node| node.name)
 }
 
 fn background_prefab_name(level_key: &str, bg_override_text: Option<&str>) -> Option<&'static str> {
@@ -73,10 +87,18 @@ pub fn detect_bg_theme(
     object_names: &[String],
     bg_override_text: Option<&str>,
 ) -> Option<&'static str> {
-    if let Some(prefab_name) = background_prefab_name(level_key, bg_override_text)
-        && let Some(theme) = detect_bg_theme_from_name(prefab_name)
-    {
-        return Some(theme);
+    if let Some(raw) = bg_override_text {
+        if let Some(prefab_name) = background_prefab_name(level_key, Some(raw))
+            && let Some(theme) = detect_bg_theme_from_name(prefab_name)
+        {
+            return Some(theme);
+        }
+
+        if let Some(root_name) = background_override_root_name(raw)
+            && let Some(theme) = detect_bg_theme_from_name(&root_name)
+        {
+            return Some(theme);
+        }
     }
 
     detect_bg_theme_from_names(object_names)
@@ -84,7 +106,10 @@ pub fn detect_bg_theme(
 
 #[cfg(test)]
 mod tests {
-    use super::detect_bg_theme;
+    use super::{
+        background_override_root_name, background_prefab_name, background_prefab_ref_index,
+        detect_bg_theme,
+    };
     use crate::domain::parser::parse_level;
     use crate::domain::types::LevelObject;
     use std::path::Path;
@@ -182,6 +207,34 @@ mod tests {
                 parsed_bg_override(tower_path).as_deref(),
             ),
             Some("Maya")
+        );
+    }
+
+    #[test]
+    fn episode1_sandbox_cave_background_override_is_detected() {
+        let path = "assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes";
+        let names = parsed_object_names(path);
+        let bg_override = parsed_bg_override(path).expect("missing BackgroundObject override");
+
+        assert!(
+            background_prefab_ref_index(&bg_override).is_none(),
+            "expected legacy transform override without prefab ref index"
+        );
+        assert_eq!(
+            background_prefab_name("Level_Sandbox_01_data", Some(&bg_override)),
+            None
+        );
+        assert_eq!(
+            background_override_root_name(&bg_override).as_deref(),
+            Some("Background_Cave_01_SET 1")
+        );
+        assert_eq!(
+            detect_bg_theme("Level_Sandbox_01_data", &names, Some(&bg_override)),
+            Some("Cave")
+        );
+        assert_eq!(
+            detect_bg_theme("Level_Sandbox_01_data", &names, None),
+            Some("Jungle")
         );
     }
 }

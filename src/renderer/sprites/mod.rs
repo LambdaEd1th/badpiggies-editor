@@ -10,7 +10,8 @@ mod glow;
 pub use data::{SpriteDrawData, SpriteDrawOpts, build_sprite};
 pub(in crate::renderer::sprites) use draw::dessert_y_offset;
 pub use draw::draw_sprite;
-pub use glow::{draw_glow, has_glow};
+pub use glow::draw_glow;
+use glow::{glow_texture_name, glow_world_radius};
 
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
@@ -269,12 +270,14 @@ impl LevelRenderer {
                 let source_sprite_index = wind_render_queue[wind_render_cursor].1;
                 super::particles::draw_wind_particles(
                     &self.wind_particles,
+                    &self.wind_areas,
                     Some(source_sprite_index),
                     &self.camera,
                     painter,
                     canvas_center,
                     rect,
-                    self.tex_cache.get(super::GLOW_ATLAS),
+                    super::particles::wind_particle_texture_name()
+                        .and_then(|name| self.tex_cache.get(name)),
                 );
                 wind_render_cursor += 1;
             }
@@ -444,7 +447,7 @@ impl LevelRenderer {
 
                     // Animated half-size (Fan foreshorten, Bird scale)
                     let (hw, hh) = if sprite.name == "Fan" {
-                        let angle = fan_angle.unwrap_or((t * 10.472) as f32);
+                        let angle = super::particles::fan_propeller_visual_angle(fan_angle);
                         let foreshorten = angle.cos().abs().max(0.05);
                         (sprite.half_size.0 * foreshorten, sprite.half_size.1)
                     } else if sprite.name.starts_with("Bird_")
@@ -604,12 +607,14 @@ impl LevelRenderer {
             let source_sprite_index = wind_render_queue[wind_render_cursor].1;
             super::particles::draw_wind_particles(
                 &self.wind_particles,
+                &self.wind_areas,
                 Some(source_sprite_index),
                 &self.camera,
                 painter,
                 canvas_center,
                 rect,
-                self.tex_cache.get(super::GLOW_ATLAS),
+                super::particles::wind_particle_texture_name()
+                    .and_then(|name| self.tex_cache.get(name)),
             );
             wind_render_cursor += 1;
         }
@@ -645,7 +650,7 @@ impl LevelRenderer {
 
     /// Draw glow starbursts and goal flags before collider terrain.
     pub(super) fn draw_pre_terrain_effects(
-        &self,
+        &mut self,
         painter: &egui::Painter,
         canvas_center: egui::Vec2,
         rect: egui::Rect,
@@ -658,34 +663,44 @@ impl LevelRenderer {
         let visible_max_y = self.camera.center.y + world_half_h;
 
         // Glow starbursts behind collider terrain
-        if let Some(glow_id) = self.tex_cache.get(super::GLOW_ATLAS) {
-            for sprite in &self.sprite_data {
-                if !has_glow(&sprite.name) {
-                    continue;
-                }
-                let glow_margin = 2.0;
-                let glow_margin = if sprite.name_lower.starts_with("goalarea") {
-                    16.0
-                } else {
-                    glow_margin
-                };
-                if sprite.world_pos.x + glow_margin < visible_min_x
-                    || sprite.world_pos.x - glow_margin > visible_max_x
-                    || sprite.world_pos.y + glow_margin < visible_min_y
-                    || sprite.world_pos.y - glow_margin > visible_max_y
-                {
-                    continue;
-                }
-                draw_glow(
-                    painter,
-                    sprite,
-                    &self.camera,
-                    canvas_center,
-                    rect,
-                    self.time,
-                    glow_id,
-                );
+        for sprite in &self.sprite_data {
+            let Some(glow_margin) = glow_world_radius(sprite, self.time) else {
+                continue;
+            };
+            if sprite.world_pos.x + glow_margin < visible_min_x
+                || sprite.world_pos.x - glow_margin > visible_max_x
+                || sprite.world_pos.y + glow_margin < visible_min_y
+                || sprite.world_pos.y - glow_margin > visible_max_y
+            {
+                continue;
             }
+
+            let Some(glow_texture_name) = glow_texture_name(sprite) else {
+                continue;
+            };
+            let glow_id = self
+                .tex_cache
+                .get(glow_texture_name)
+                .or_else(|| {
+                    self.tex_cache.load_texture(
+                        painter.ctx(),
+                        &format!("particles/{}", glow_texture_name),
+                        glow_texture_name,
+                    )
+                });
+            let Some(glow_id) = glow_id else {
+                continue;
+            };
+
+            draw_glow(
+                painter,
+                sprite,
+                &self.camera,
+                canvas_center,
+                rect,
+                self.time,
+                glow_id,
+            );
         }
 
         // Goal flag meshes: draw BEFORE collider terrain so terrain edge

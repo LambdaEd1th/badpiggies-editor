@@ -1,4 +1,8 @@
 use crate::data::unity_anim;
+use crate::domain::prefab_override::{
+    OverrideNode, find_first_node_mut, parse_override_text, serialize_override_tree,
+};
+use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 
 pub const GOAL_ANIMATION_OVERRIDE_NAME: &str = "bp_goalAnimation";
 const GOAL_ANIMATION_IDLE_VALUE: &str = "Idle";
@@ -43,45 +47,31 @@ pub struct GoalVisualState {
 pub fn parse_goal_animation_state(raw_text: Option<&str>) -> GoalAnimationState {
     raw_text
         .and_then(goal_animation_override_value)
+        .as_deref()
         .map(GoalAnimationState::from_override_value)
         .unwrap_or(GoalAnimationState::Idle)
 }
 
 pub fn set_goal_animation_state(raw_text: &mut String, state: GoalAnimationState) {
-    let mut result = Vec::new();
-    let mut replaced = false;
-    let value = state.override_value();
+    let mut nodes = parse_override_text(raw_text);
 
-    for line in raw_text.lines() {
-        let trimmed = line.trim_start_matches('\u{feff}').trim();
-        if trimmed.starts_with("String ")
-            && trimmed
-                .strip_prefix("String ")
-                .is_some_and(|rest| rest.starts_with(&format!("{GOAL_ANIMATION_OVERRIDE_NAME} = ")))
-        {
-            replaced = true;
-            if let Some(value) = value {
-                let indent_len = line.len() - line.trim_start_matches('\t').len();
-                let indent = "\t".repeat(indent_len);
-                result.push(format!(
-                    "{indent}String {GOAL_ANIMATION_OVERRIDE_NAME} = {value}"
-                ));
+    match state.override_value() {
+        Some(value) => {
+            if let Some(node) = find_first_node_mut(&mut nodes, &is_goal_animation_node) {
+                node.value = Some(value.to_string());
+            } else {
+                nodes.push(OverrideNode {
+                    node_type: "String".to_string(),
+                    name: GOAL_ANIMATION_OVERRIDE_NAME.to_string(),
+                    value: Some(value.to_string()),
+                    children: Vec::new(),
+                });
             }
-            continue;
         }
-        result.push(line.to_string());
+        None => remove_goal_animation_nodes(&mut nodes),
     }
 
-    if !replaced && let Some(value) = value {
-        result.push(format!(
-            "String {GOAL_ANIMATION_OVERRIDE_NAME} = {value}"
-        ));
-    }
-
-    *raw_text = result.join("\n");
-    if !raw_text.is_empty() {
-        raw_text.push('\n');
-    }
+    *raw_text = serialize_override_tree(&nodes);
 }
 
 pub fn goal_visual_state(state: GoalAnimationState, time: f64, preview_seed: usize) -> GoalVisualState {
@@ -120,13 +110,29 @@ impl GoalAnimationState {
     }
 }
 
-fn goal_animation_override_value(raw_text: &str) -> Option<&str> {
-    raw_text.lines().find_map(|line| {
-        let trimmed = line.trim_start_matches('\u{feff}').trim();
-        trimmed
-            .strip_prefix(&format!("String {GOAL_ANIMATION_OVERRIDE_NAME} = "))
-            .map(str::trim)
-    })
+fn goal_animation_override_value(raw_text: &str) -> Option<String> {
+    let document = RuntimeOverrideDocument::parse(raw_text);
+    document
+        .roots
+        .iter()
+        .find_map(|root| root.find_descendant(&is_goal_animation_runtime_node))
+        .and_then(|node| node.value_as_str())
+        .map(ToOwned::to_owned)
+}
+
+fn is_goal_animation_node(node: &OverrideNode) -> bool {
+    node.node_type == "String" && node.name == GOAL_ANIMATION_OVERRIDE_NAME
+}
+
+fn is_goal_animation_runtime_node(node: &RuntimeOverrideNode) -> bool {
+    node.node_type == "String" && node.name == GOAL_ANIMATION_OVERRIDE_NAME
+}
+
+fn remove_goal_animation_nodes(nodes: &mut Vec<OverrideNode>) {
+    nodes.retain(|node| !is_goal_animation_node(node));
+    for node in nodes {
+        remove_goal_animation_nodes(&mut node.children);
+    }
 }
 
 fn goal_vanishing_visual_state(time: f64, preview_seed: usize) -> GoalVisualState {
@@ -262,6 +268,22 @@ mod tests {
         );
 
         set_goal_animation_state(&mut raw, GoalAnimationState::Idle);
+        assert_eq!(parse_goal_animation_state(Some(&raw)), GoalAnimationState::Idle);
+    }
+
+    #[test]
+    fn goal_animation_ast_parser_reads_and_removes_nested_override() {
+        let mut raw =
+            "Component GoalArea\n\tString bp_goalAnimation = Vanishing\n".to_string();
+
+        assert_eq!(
+            parse_goal_animation_state(Some(&raw)),
+            GoalAnimationState::Vanishing
+        );
+
+        set_goal_animation_state(&mut raw, GoalAnimationState::Idle);
+
+        assert_eq!(raw, "Component GoalArea\n");
         assert_eq!(parse_goal_animation_state(Some(&raw)), GoalAnimationState::Idle);
     }
 }

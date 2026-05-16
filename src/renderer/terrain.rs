@@ -127,7 +127,9 @@ pub fn build_terrain(
     };
     let fallback_edge_splat1 =
         assets::get_terrain_splat1_for_level(level_key, &prefab.name).map(|s| s.to_string());
-    let edge_splat1 = if td.curve_textures.len() > 1 {
+    let edge_splat1 = if assets::terrain_splat1_prefers_prefab_over_level_refs(&prefab.name) {
+        fallback_edge_splat1.clone()
+    } else if td.curve_textures.len() > 1 {
         crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
             .filter(|name| crate::data::assets::read_asset(&format!("ground/{}", name)).is_some())
             .map(|s| s.to_string())
@@ -618,6 +620,91 @@ impl LevelRenderer {
                 &self.tex_cache,
                 &mut self.terrain_scratch_mesh,
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_terrain;
+    use crate::domain::level::refs::get_level_ref;
+    use crate::domain::types::{
+        Color, CurveTexture, DataType, PrefabInstance, TerrainData, TerrainMesh, Vec2, Vec3,
+    };
+
+    #[test]
+    fn mm_sand_edge_splat1_prefers_border_over_loader_outline() {
+        assert_eq!(
+            get_level_ref("scenario_12_data", 17),
+            Some("Ground_Rocks_Outline_Texture_03.png")
+        );
+
+        let prefab = terrain_prefab("e2dTerrainBase_MM_sand", 17);
+        let draw = build_terrain(&prefab, Vec3::default(), "scenario_12_data", 0);
+
+        assert_eq!(draw.edge_splat1.as_deref(), Some("Border.png"));
+    }
+
+    fn terrain_prefab(name: &str, splat1_texture_index: i32) -> PrefabInstance {
+        PrefabInstance {
+            name: name.to_string(),
+            position: Vec3::default(),
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::Terrain,
+            terrain_data: Some(Box::new(TerrainData {
+                fill_texture_tile_offset_x: 0.0,
+                fill_texture_tile_offset_y: 0.0,
+                fill_mesh: TerrainMesh {
+                    vertices: vec![
+                        Vec2 { x: 0.0, y: 0.0 },
+                        Vec2 { x: 1.0, y: 0.0 },
+                        Vec2 { x: 0.0, y: -1.0 },
+                    ],
+                    indices: vec![0, 1, 2],
+                },
+                fill_color: Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 1.0,
+                },
+                fill_texture_index: -1,
+                curve_mesh: TerrainMesh {
+                    vertices: vec![
+                        Vec2 { x: 0.0, y: 0.0 },
+                        Vec2 { x: 0.0, y: -1.0 },
+                        Vec2 { x: 1.0, y: 0.0 },
+                        Vec2 { x: 1.0, y: -1.0 },
+                    ],
+                    indices: vec![0, 2, 3, 0, 3, 1],
+                },
+                curve_textures: vec![
+                    CurveTexture {
+                        texture_index: -1,
+                        size: Vec2 { x: 0.1, y: 0.5 },
+                        fixed_angle: false,
+                        fade_threshold: 0.0,
+                    },
+                    CurveTexture {
+                        texture_index: splat1_texture_index,
+                        size: Vec2 { x: 0.1, y: 0.5 },
+                        fixed_angle: false,
+                        fade_threshold: 0.0,
+                    },
+                ],
+                control_texture_count: 0,
+                control_texture_data: None,
+                has_collider: true,
+                fill_boundary: None,
+            })),
+            override_data: None,
+            parent: None,
         }
     }
 }

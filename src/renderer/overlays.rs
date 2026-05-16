@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::domain::types::{ObjectIndex, Vec2};
 
-use super::{ATLAS_FILES, CursorMode, GLOW_ATLAS, GOAL_FLAG_TEXTURE, LevelRenderer};
+use super::{ATLAS_FILES, CursorMode, GLOW_ATLAS, GOAL_FLAG_TEXTURE, LevelRenderer, particles};
 
 impl LevelRenderer {
     /// Draw terrain triangulation wireframe overlay.
@@ -368,7 +368,23 @@ impl LevelRenderer {
                 GOAL_FLAG_TEXTURE,
             );
         }
-        // Glow/starburst particle atlas
+        for texture_name in [
+            particles::zzz_particle_texture_name(),
+            particles::fan_particle_texture_name(),
+            particles::wind_particle_texture_name(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if self.tex_cache.get(texture_name).is_none() {
+                self.tex_cache.load_texture(
+                    ctx,
+                    &format!("particles/{}", texture_name),
+                    texture_name,
+                );
+            }
+        }
+
         if self.tex_cache.get(GLOW_ATLAS).is_none() {
             self.tex_cache
                 .load_texture(ctx, &format!("particles/{}", GLOW_ATLAS), GLOW_ATLAS);

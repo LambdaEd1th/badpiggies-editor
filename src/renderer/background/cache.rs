@@ -331,18 +331,9 @@ pub fn build_bg_layer_cache(
     let theme = bg_data::get_theme(theme_name)?;
 
     let effective_sprites = if let Some(raw) = bg_override_text {
-        // Try Transform-based overrides first (EP1-5 style)
-        let overrides = bg_data::parse_bg_overrides(raw);
+        let overrides = bg_data::parse_runtime_bg_overrides(raw, &theme.child_order);
         if !overrides.groups.is_empty() || !overrides.sprites.is_empty() {
             Some(bg_data::apply_bg_overrides(theme, &overrides))
-        } else if !theme.child_order.is_empty() {
-            // Try PositionSerializer-based overrides (EP6 style)
-            let overrides = bg_data::parse_position_serializer_overrides(raw, &theme.child_order);
-            if !overrides.groups.is_empty() {
-                Some(bg_data::apply_bg_overrides(theme, &overrides))
-            } else {
-                None
-            }
         } else {
             None
         }

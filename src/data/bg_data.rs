@@ -11,7 +11,7 @@ mod types;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-pub use overrides::{apply_bg_overrides, parse_bg_overrides, parse_position_serializer_overrides};
+pub use overrides::{apply_bg_overrides, parse_runtime_bg_overrides};
 pub use tables::{bg_atlas_files, sky_texture_files};
 pub use theme::get_theme;
 pub use types::{BgLayer, BgSprite, BgTheme};

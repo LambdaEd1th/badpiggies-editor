@@ -25,6 +25,11 @@ fn wind_area_prefab_loads_particle_values() {
     let system = prefab.systems.first().expect("wind area particle system");
 
     assert_eq!(prefab.systems.len(), 3);
+    assert!(prefab.systems.iter().all(|system| {
+        system.material_guid.as_deref() == Some("884b9b90b5f2e49343f6ec0608bc01c9")
+            && system.texture_name() == Some("Particles_Sheet_01.png")
+    }));
+    assert_close(system.duration, 5.0);
     assert_close(prefab.wind_direction.x, 4.8851843);
     assert_close(prefab.wind_direction.y, -6.33522);
     assert_close(prefab.power_factor, 1.5);
@@ -64,6 +69,11 @@ fn bird_sleep_prefab_loads_particle_values() {
     let prefab = bird_sleep_prefab().expect("bird sleep prefab should parse");
     let system = &prefab.system;
 
+    assert_eq!(
+        system.material_guid.as_deref(),
+        Some("884b9b90b5f2e49343f6ec0608bc01c9")
+    );
+    assert_eq!(system.texture_name(), Some("Particles_Sheet_01.png"));
     assert!(!system.play_on_awake);
     assert!(!system.prewarm);
     assert_close(system.local_position.y, 0.5);
@@ -94,6 +104,11 @@ fn fan_puff_prefab_loads_particle_values() {
     let system = &prefab.system;
 
     assert_eq!(system.name, "Particles");
+    assert_eq!(
+        system.material_guid.as_deref(),
+        Some("884b9b90b5f2e49343f6ec0608bc01c9")
+    );
+    assert_eq!(system.texture_name(), Some("Particles_Sheet_01.png"));
     assert_close(system.duration, 1.0);
     assert!(!system.play_on_awake);
     assert!(system.looping);
@@ -129,6 +144,11 @@ fn rocket_fire_prefab_loads_particle_values() {
 
     assert_eq!(prefab.systems.len(), 1);
     assert_eq!(system.name, "Particles_RocketFire_01_SET");
+    assert_eq!(
+        system.material_guid.as_deref(),
+        Some("884b9b90b5f2e49343f6ec0608bc01c9")
+    );
+    assert_eq!(system.texture_name(), Some("Particles_Sheet_01.png"));
     assert_close(system.duration, 0.5);
     assert!(system.play_on_awake);
     assert!(system.prewarm);
@@ -153,6 +173,11 @@ fn turbo_charger_prefab_parses_enabled_color_gradient() {
 
     assert_eq!(prefab.systems.len(), 1);
     assert_eq!(system.name, "TurboChargerEffect");
+    assert_eq!(
+        system.material_guid.as_deref(),
+        Some("884b9b90b5f2e49343f6ec0608bc01c9")
+    );
+    assert_eq!(system.texture_name(), Some("Particles_Sheet_01.png"));
     assert!(system.color_over_lifetime_enabled);
     assert_eq!(system.uv_module.tiles_x, 8);
     assert_eq!(system.uv_module.tiles_y, 8);
@@ -178,6 +203,10 @@ fn magnet_effect_prefab_loads_multiple_particle_systems() {
     assert_eq!(prefab.systems[0].name, "MagnetEffect");
     assert_eq!(prefab.systems[1].name, "MagnetBolts");
     assert_eq!(prefab.systems[2].name, "Particle System");
+    assert!(prefab.systems.iter().all(|system| {
+        system.material_guid.as_deref() == Some("884b9b90b5f2e49343f6ec0608bc01c9")
+            && system.texture_name() == Some("Particles_Sheet_01.png")
+    }));
     assert_eq!(prefab.systems[0].bursts.len(), 2);
     assert_eq!(prefab.systems[0].uv_module.tiles_x, 16);
     assert_eq!(prefab.systems[0].uv_module.tiles_y, 8);
@@ -193,4 +222,8 @@ fn fly_swarm_prefab_loads_particle_systems() {
 
     assert!(!prefab.systems.is_empty());
     assert!(prefab.systems.iter().all(|system| !system.name.is_empty()));
+    assert!(prefab.systems.iter().all(|system| {
+        system.material_guid.as_deref() == Some("884b9b90b5f2e49343f6ec0608bc01c9")
+            && system.texture_name() == Some("Particles_Sheet_01.png")
+    }));
 }

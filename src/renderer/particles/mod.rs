@@ -1,6 +1,11 @@
 //! Particle systems: fan wind, leaf wind, bird Zzz particles.
 
+use std::sync::OnceLock;
+
+use crate::data::assets;
 use crate::data::unity_particles;
+use crate::data::unity_anim::HermiteKey;
+use crate::domain::prefab_asset::PrefabAssetDocument;
 use crate::domain::types::Vec2;
 
 use super::Camera;
@@ -11,18 +16,21 @@ mod wind;
 mod zzz;
 
 pub(crate) use attached::{
-    AttachedEffectEmitter, AttachedEffectParticle, attached_effect_kind_for_sprite_name,
-    attached_effect_systems, draw_attached_effect_particles,
+    AttachedEffectEmitter, AttachedEffectKind, AttachedEffectParticle,
+    attached_effect_draw_texture_names,
+    attached_effect_kind_for_sprite_name, attached_effect_systems,
+    draw_attached_effect_particles,
 };
 pub(crate) use fan::{
-    FanEmitter, FanParticle, FanState, draw_fan_particles, reset_fan_emitter_for_build,
+    FanEmitter, FanParticle, FanState, draw_fan_particles, fan_particle_texture_name,
+    reset_fan_emitter_for_build,
     start_fan_emitter_for_play,
 };
 pub(crate) use wind::{
     WindAreaDef, WindParticle, build_wind_area_def, draw_wind_particles,
-    wind_area_particle_system_count,
+    wind_area_particle_system_count, wind_particle_texture_name,
 };
-pub(super) use zzz::{ZzzParticle, draw_zzz_particles};
+pub(super) use zzz::{ZzzParticle, draw_zzz_particles, zzz_particle_texture_name};
 
 /// Simple pseudo-random [0, 1) from u32 seed.
 pub(crate) fn pseudo_random(seed: u32) -> f32 {
@@ -30,9 +38,158 @@ pub(crate) fn pseudo_random(seed: u32) -> f32 {
     ((n >> 16) & 0x7fff) as f32 / 32768.0
 }
 
-pub(super) const FAN_FIELD_HALF_W: f32 = 1.905;
-pub(super) const FAN_FIELD_HALF_H: f32 = 4.8251266;
-pub(super) const FAN_FIELD_CENTER_Y: f32 = 4.825125;
+const FAN_PREFAB_ASSET: &str = "unity/prefabs/Fan.prefab";
+const FALLBACK_FAN_FIELD_SIZE: [f32; 3] = [3.81, 9.650253, 0.0];
+const FALLBACK_FAN_FIELD_CENTER: [f32; 3] = [-7.271767e-06, 4.825125, 0.0];
+
+#[derive(Clone, Copy)]
+pub(super) struct FanFieldDefaults {
+    pub half_w: f32,
+    pub half_h: f32,
+    pub center_x: f32,
+    pub center_y: f32,
+}
+
+#[derive(Clone)]
+struct FanFieldProfile {
+    defaults: FanFieldDefaults,
+    vertical_ramp: Vec<HermiteKey>,
+    horizontal_ramp: Vec<HermiteKey>,
+    spinup_ramp: Vec<HermiteKey>,
+}
+
+const FAN_RAMP_FALLBACK: &[HermiteKey] = &[(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 2.0, 2.0)];
+
+fn fan_field_profile() -> &'static FanFieldProfile {
+    static PROFILE: OnceLock<FanFieldProfile> = OnceLock::new();
+
+    PROFILE.get_or_init(load_fan_field_profile)
+}
+
+pub(super) fn fan_field_defaults() -> FanFieldDefaults {
+    fan_field_profile().defaults
+}
+
+pub(super) fn fan_field_profile_weight(local_x: f32, local_y: f32) -> f32 {
+    let profile = fan_field_profile();
+    let defaults = profile.defaults;
+    let normalized_x = (1.0
+        - ((local_x - defaults.center_x).abs() / defaults.half_w.max(f32::EPSILON)))
+        .clamp(0.0, 1.0);
+    let normalized_y = ((defaults.center_y + defaults.half_h - local_y)
+        / (defaults.half_h * 2.0).max(f32::EPSILON))
+        .clamp(0.0, 1.0);
+
+    sample_hermite(&profile.vertical_ramp, normalized_y)
+        * sample_hermite(&profile.horizontal_ramp, normalized_x)
+}
+
+pub(crate) fn fan_propeller_visual_angle(fan_angle: Option<f32>) -> f32 {
+    fan_angle.unwrap_or(0.0)
+}
+
+pub(super) fn fan_spinup_profile_weight(time: f32) -> f32 {
+    sample_hermite(&fan_field_profile().spinup_ramp, time.clamp(0.0, 1.0))
+}
+
+fn load_fan_field_profile() -> FanFieldProfile {
+    let fallback_defaults = fallback_fan_field_defaults();
+    let mut vertical_ramp = FAN_RAMP_FALLBACK.to_vec();
+    let mut horizontal_ramp = FAN_RAMP_FALLBACK.to_vec();
+    let mut spinup_ramp = FAN_RAMP_FALLBACK.to_vec();
+    let Some(text) = assets::read_asset_text(FAN_PREFAB_ASSET) else {
+        return FanFieldProfile {
+            defaults: fallback_defaults,
+            vertical_ramp,
+            horizontal_ramp,
+            spinup_ramp,
+        };
+    };
+    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
+        return FanFieldProfile {
+            defaults: fallback_defaults,
+            vertical_ramp,
+            horizontal_ramp,
+            spinup_ramp,
+        };
+    };
+    let Some(collider) = prefab.root_component("BoxCollider") else {
+        return FanFieldProfile {
+            defaults: fallback_defaults,
+            vertical_ramp,
+            horizontal_ramp,
+            spinup_ramp,
+        };
+    };
+
+    let size = collider.field_vec3("m_Size").unwrap_or(FALLBACK_FAN_FIELD_SIZE);
+    let center = collider
+        .field_vec3("m_Center")
+        .unwrap_or(FALLBACK_FAN_FIELD_CENTER);
+
+    if let Some(fan) = prefab.root_component("Fan") {
+        if let Some(curve) = fan.field_curve("verticalRamp") {
+            vertical_ramp = curve;
+        }
+        if let Some(curve) = fan.field_curve("horizontalRamp") {
+            horizontal_ramp = curve;
+        }
+        if let Some(curve) = fan.field_curve("spinupRamp") {
+            spinup_ramp = curve;
+        }
+    }
+
+    FanFieldProfile {
+        defaults: FanFieldDefaults {
+            half_w: size[0].abs() * 0.5,
+            half_h: size[1].abs() * 0.5,
+            center_x: center[0],
+            center_y: center[1],
+        },
+        vertical_ramp,
+        horizontal_ramp,
+        spinup_ramp,
+    }
+}
+
+fn fallback_fan_field_defaults() -> FanFieldDefaults {
+    FanFieldDefaults {
+        half_w: FALLBACK_FAN_FIELD_SIZE[0] * 0.5,
+        half_h: FALLBACK_FAN_FIELD_SIZE[1] * 0.5,
+        center_x: FALLBACK_FAN_FIELD_CENTER[0],
+        center_y: FALLBACK_FAN_FIELD_CENTER[1],
+    }
+}
+
+fn sample_hermite(keys: &[HermiteKey], time: f32) -> f32 {
+    let count = keys.len();
+    if count == 0 {
+        return 1.0;
+    }
+    if time <= keys[0].0 {
+        return keys[0].1;
+    }
+    if time >= keys[count - 1].0 {
+        return keys[count - 1].1;
+    }
+
+    let mut index = 0;
+    while index < count - 2 && keys[index + 1].0 < time {
+        index += 1;
+    }
+
+    let (t0, v0, _, out_slope) = keys[index];
+    let (t1, v1, in_slope, _) = keys[index + 1];
+    let dt = (t1 - t0).max(f32::EPSILON);
+    let s = (time - t0) / dt;
+    let s2 = s * s;
+    let s3 = s2 * s;
+
+    (2.0 * s3 - 3.0 * s2 + 1.0) * v0
+        + (s3 - 2.0 * s2 + s) * (out_slope * dt)
+        + (-2.0 * s3 + 3.0 * s2) * v1
+        + (s3 - s2) * (in_slope * dt)
+}
 
 pub(super) fn particle_sheet_uv_rect(
     tiles_x: f32,
@@ -123,7 +280,43 @@ impl LevelRenderer {
 
 #[cfg(test)]
 mod tests {
-    use super::particle_sheet_uv_rect;
+    use super::{
+        fan_field_defaults, fan_field_profile_weight, fan_propeller_visual_angle,
+        fan_spinup_profile_weight, particle_sheet_uv_rect,
+    };
+
+    #[test]
+    fn fan_field_defaults_match_embedded_prefab() {
+        let defaults = fan_field_defaults();
+
+        assert!((defaults.half_w - 1.905).abs() < 0.0001);
+        assert!((defaults.half_h - 4.8251266).abs() < 0.0001);
+        assert!(defaults.center_x.abs() < 0.0001);
+        assert!((defaults.center_y - 4.825125).abs() < 0.0001);
+    }
+
+    #[test]
+    fn fan_field_profile_matches_unity_ramp_orientation() {
+        let defaults = fan_field_defaults();
+
+        assert_eq!(fan_field_profile_weight(defaults.center_x, defaults.center_y + defaults.half_h), 0.0);
+        assert!((fan_field_profile_weight(defaults.center_x, defaults.center_y) - 0.25).abs() < 0.0001);
+        assert!((fan_field_profile_weight(defaults.center_x, defaults.center_y - defaults.half_h) - 1.0).abs() < 0.0001);
+        assert_eq!(fan_field_profile_weight(defaults.center_x + defaults.half_w, defaults.center_y), 0.0);
+    }
+
+    #[test]
+    fn fan_spinup_profile_matches_embedded_prefab_curve() {
+        assert_eq!(fan_spinup_profile_weight(0.0), 0.0);
+        assert!((fan_spinup_profile_weight(0.5) - 0.25).abs() < 0.0001);
+        assert_eq!(fan_spinup_profile_weight(1.0), 1.0);
+    }
+
+    #[test]
+    fn fan_propeller_visual_angle_defaults_to_idle_pose_without_runtime_state() {
+        assert_eq!(fan_propeller_visual_angle(None), 0.0);
+        assert_eq!(fan_propeller_visual_angle(Some(1.25)), 1.25);
+    }
 
     #[test]
     fn particle_sheet_uv_rect_matches_previous_correct_hardcoded_rows() {

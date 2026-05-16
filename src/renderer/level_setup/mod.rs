@@ -5,6 +5,7 @@ mod set_level;
 use std::sync::Arc;
 
 use crate::data::assets;
+use crate::domain::prefab_override_runtime::RuntimeOverrideDocument;
 use crate::domain::types::{LevelData, LevelObject, ObjectIndex, Vec2, Vec3};
 
 use super::bg_shader;
@@ -311,8 +312,7 @@ pub(super) fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
         if let LevelObject::Prefab(inst) = obj
             && inst.name.contains("Background")
             && let Some(ref od) = inst.override_data
-            && (od.raw_text.contains("Component UnityEngine.Transform")
-                || od.raw_text.contains("PositionSerializer"))
+            && background_override_has_transform_or_serializer(&od.raw_text)
         {
             return Some(od.raw_text.clone());
         }
@@ -327,42 +327,100 @@ pub(super) fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
         if let LevelObject::Prefab(p) = obj
             && p.name == "LevelManager"
             && let Some(ref od) = p.override_data
-            && let Some(pos) = od.raw_text.find("m_cameraLimits")
         {
-            let after = &od.raw_text[pos..];
-            // Parse topLeft x, y and size x, y
-            // Format: "Float x = V" / "Float y = V" in order: tl.x, tl.y, sz.x, sz.y
-            let mut vals = [0f32; 4];
-            let mut search = after;
-            for v in vals.iter_mut() {
-                // Find whichever of "Float x = " or "Float y = " comes first
-                let fx = search.find("Float x = ");
-                let fy = search.find("Float y = ");
-                let fp = match (fx, fy) {
-                    (Some(a), Some(b)) => Some(a.min(b)),
-                    (Some(a), None) => Some(a),
-                    (None, Some(b)) => Some(b),
-                    (None, None) => None,
-                };
-                if let Some(fp) = fp {
-                    let eq = &search[fp..];
-                    if let Some(eq_pos) = eq.find("= ") {
-                        let num_start = &eq[eq_pos + 2..];
-                        let end = num_start
-                            .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                            .unwrap_or(num_start.len());
-                        if let Ok(val) = num_start[..end].parse::<f32>() {
-                            *v = val;
-                        }
-                        search = &num_start[end..];
-                    }
-                }
-            }
-            // Only return if size is non-zero
+            let document = RuntimeOverrideDocument::parse(&od.raw_text);
+            let camera_limits = document.roots.iter().find_map(|root| {
+                root.find_descendant(&|node| {
+                    node.node_type == "Generic" && node.name == "m_cameraLimits"
+                })
+            })?;
+            let top_left = camera_limits.child("Vector2", "topLeft")?.value_as_vec2()?;
+            let size = camera_limits.child("Vector2", "size")?.value_as_vec2()?;
+            let vals = [top_left.x, top_left.y, size.x, size.y];
             if vals[2] > 0.0 && vals[3] > 0.0 {
                 return Some(vals);
             }
         }
     }
     None
+}
+
+fn background_override_has_transform_or_serializer(raw_text: &str) -> bool {
+    let document = RuntimeOverrideDocument::parse(raw_text);
+    document.roots.iter().any(|root| {
+        root.find_descendant(&|node| {
+            (node.node_type == "Component"
+                && node
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(|name| name == "Transform" || name == "PositionSerializer"))
+                || node.name == "childLocalPositions"
+        })
+        .is_some()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{find_bg_override_text, parse_camera_limits};
+    use crate::domain::types::{
+        DataType, LevelData, LevelObject, ParentObject, PrefabInstance, PrefabOverrideData, Vec3,
+    };
+
+    const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n\t\tGeneric m_cameraLimits\n\t\t\tVector2 topLeft\n\t\t\t\tFloat x = -202.43\n\t\t\t\tFloat y = 28.3\n\t\t\tVector2 size\n\t\t\t\tFloat x = 96.5\n\t\t\t\tFloat y = 49.7\n";
+
+    const BG_OVERRIDE: &str = "GameObject Background_Cave_01_SET 1\n\tComponent PositionSerializer\n\t\tArray childLocalPositions\n\t\t\tArraySize size = 1\n";
+
+    #[test]
+    fn parses_camera_limits_from_level_manager_override_ast() {
+        let level = LevelData {
+            objects: vec![LevelObject::Prefab(prefab("LevelManager", LEVEL_MANAGER_OVERRIDE))],
+            roots: vec![0],
+        };
+
+        assert_eq!(
+            parse_camera_limits(&level),
+            Some([-202.43, 28.3, 96.5, 49.7])
+        );
+    }
+
+    #[test]
+    fn finds_background_override_via_position_serializer_ast() {
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab("Background_Cave_01_SET", BG_OVERRIDE)),
+                LevelObject::Parent(ParentObject {
+                    name: "Other".to_string(),
+                    position: Vec3::default(),
+                    children: vec![],
+                    parent: None,
+                }),
+            ],
+            roots: vec![0, 1],
+        };
+
+        assert_eq!(find_bg_override_text(&level.objects), Some(BG_OVERRIDE.to_string()));
+    }
+
+    fn prefab(name: &str, raw_text: &str) -> PrefabInstance {
+        PrefabInstance {
+            name: name.to_string(),
+            position: Vec3::default(),
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: Some(PrefabOverrideData {
+                raw_bytes: raw_text.as_bytes().to_vec(),
+                raw_text: raw_text.to_string(),
+            }),
+            parent: None,
+        }
+    }
 }

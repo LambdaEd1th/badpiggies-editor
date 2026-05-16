@@ -72,6 +72,7 @@ struct ParsedParticlePrefab {
     root_game_object_id: Option<String>,
     game_objects: HashMap<String, GameObjectInfo>,
     transforms: HashMap<String, TransformInfo>,
+    particle_renderer_materials: HashMap<String, Option<String>>,
     particle_systems: Vec<ParticleSystemDoc>,
     mono_behaviours: Vec<MonoBehaviourDoc>,
 }
@@ -88,7 +89,15 @@ pub(super) fn load_bird_sleep_prefab(asset_key: &str) -> Option<BirdSleepParticl
             .transforms
             .values()
             .find(|transform| transform.game_object_id == doc.game_object_id)?;
-        Some(build_particle_system(doc, game_object, transform))
+        Some(build_particle_system(
+            doc,
+            game_object,
+            transform,
+            parsed
+                .particle_renderer_materials
+                .get(&doc.game_object_id)
+                .and_then(|guid| guid.as_deref()),
+        ))
     })?;
     Some(BirdSleepParticlePrefab { system })
 }
@@ -105,7 +114,15 @@ pub(super) fn load_fan_puff_prefab(asset_key: &str) -> Option<FanPuffParticlePre
             .transforms
             .values()
             .find(|transform| transform.game_object_id == doc.game_object_id)?;
-        Some(build_particle_system(doc, game_object, transform))
+        Some(build_particle_system(
+            doc,
+            game_object,
+            transform,
+            parsed
+                .particle_renderer_materials
+                .get(&doc.game_object_id)
+                .and_then(|guid| guid.as_deref()),
+        ))
     })?;
     Some(FanPuffParticlePrefab { system })
 }
@@ -139,10 +156,42 @@ pub(super) fn load_generic_particle_prefab(asset_key: &str) -> Option<GenericPar
         } else {
             transform.clone()
         };
-        systems.push(build_particle_system(doc, game_object, &transform));
+        systems.push(build_particle_system(
+            doc,
+            game_object,
+            &transform,
+            parsed
+                .particle_renderer_materials
+                .get(&doc.game_object_id)
+                .and_then(|guid| guid.as_deref()),
+        ));
     }
 
     (!systems.is_empty()).then_some(GenericParticlePrefab { systems })
+}
+
+pub(super) fn load_rocket_fire_prefab(
+    effect_asset_key: &str,
+    rocket_part_asset_key: &str,
+) -> Option<GenericParticlePrefab> {
+    let mut prefab = load_generic_particle_prefab(effect_asset_key)?;
+    if prefab.systems.iter().all(|system| system.material_guid.is_some()) {
+        return Some(prefab);
+    }
+
+    let text = assets::read_asset_text(rocket_part_asset_key)?;
+    let parsed = parse_prefab(&text);
+    let material_guid = embedded_particle_material_guid(&parsed, "Particles_RocketFire_01_SET");
+
+    if let Some(material_guid) = material_guid {
+        for system in &mut prefab.systems {
+            if system.material_guid.is_none() {
+                system.material_guid = Some(material_guid.clone());
+            }
+        }
+    }
+
+    Some(prefab)
 }
 
 pub(super) fn load_wind_area_prefab(asset_key: &str) -> Option<WindAreaParticlePrefab> {
@@ -186,7 +235,15 @@ pub(super) fn load_wind_area_prefab(asset_key: &str) -> Option<WindAreaParticleP
         else {
             continue;
         };
-        systems.push(build_particle_system(doc, game_object, transform));
+        systems.push(build_particle_system(
+            doc,
+            game_object,
+            transform,
+            parsed
+                .particle_renderer_materials
+                .get(&doc.game_object_id)
+                .and_then(|guid| guid.as_deref()),
+        ));
     }
 
     (!systems.is_empty()).then_some(WindAreaParticlePrefab {
@@ -200,11 +257,13 @@ fn build_particle_system(
     doc: &ParticleSystemDoc,
     game_object: &GameObjectInfo,
     transform: &TransformInfo,
+    material_guid: Option<&str>,
 ) -> UnityParticleSystemDef {
     UnityParticleSystemDef {
         name: game_object.name.clone(),
         local_position: transform.local_position,
         local_rotation: transform.local_rotation,
+        material_guid: material_guid.map(str::to_owned),
         duration: doc.duration,
         play_on_awake: doc.play_on_awake,
         prewarm: doc.prewarm,
@@ -272,6 +331,14 @@ fn parse_prefab(text: &str) -> ParsedParticlePrefab {
             (198, "ParticleSystem") => {
                 if let Some(info) = parse_particle_system(fields) {
                     parsed.particle_systems.push(info);
+                }
+            }
+            (199, "ParticleSystemRenderer") => {
+                if let Some((game_object_id, material_guid)) = parse_particle_system_renderer(fields)
+                {
+                    parsed
+                        .particle_renderer_materials
+                        .insert(game_object_id, material_guid);
                 }
             }
             (114, "MonoBehaviour") => {
@@ -500,6 +567,31 @@ fn parse_particle_bursts(map: &Mapping) -> Vec<ParticleBurst> {
         .collect()
 }
 
+fn embedded_particle_material_guid(
+    parsed: &ParsedParticlePrefab,
+    game_object_name: &str,
+) -> Option<String> {
+    parsed.particle_systems.iter().find_map(|doc| {
+        let game_object = parsed.game_objects.get(&doc.game_object_id)?;
+        if !game_object.active || game_object.name != game_object_name {
+            return None;
+        }
+        parsed
+            .particle_renderer_materials
+            .get(&doc.game_object_id)
+            .cloned()
+            .flatten()
+    })
+}
+
+fn parse_particle_system_renderer(fields: &Mapping) -> Option<(String, Option<String>)> {
+    let game_object_id = parse_file_id(map_get(fields, "m_GameObject")?)?;
+    let material_guid = map_get(fields, "m_Materials")
+        .and_then(Value::as_sequence)
+        .and_then(|materials| materials.iter().find_map(value_as_guid));
+    Some((game_object_id, material_guid))
+}
+
 fn parse_mono_behaviour(fields: &Mapping) -> Option<MonoBehaviourDoc> {
     let game_object_id = parse_file_id(map_get(fields, "m_GameObject")?)?;
     Some(MonoBehaviourDoc {
@@ -694,6 +786,11 @@ fn value_as_f32(value: &Value) -> Option<f32> {
         .map(|value| value as f32)
         .or_else(|| value.as_i64().map(|value| value as f32))
         .or_else(|| value.as_str()?.parse::<f32>().ok())
+}
+
+fn value_as_guid(value: &Value) -> Option<String> {
+    let mapping = value.as_mapping()?;
+    map_get(mapping, "guid")?.as_str().map(str::to_owned)
 }
 
 fn value_as_vec3(value: &Value) -> Option<Vec3> {

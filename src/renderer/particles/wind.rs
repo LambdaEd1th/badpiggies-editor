@@ -1,11 +1,15 @@
 //! Wind area particle systems: spawn, update, draw.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use eframe::egui;
 
+use crate::data::assets;
 use crate::data::unity_particles;
 use crate::data::unity_particles::{ParticleCurve, UnityParticleSystemDef};
+use crate::domain::prefab_asset::PrefabAssetDocument;
+use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 use crate::domain::types::{Vec2, Vec3};
 
 use super::{
@@ -29,9 +33,25 @@ pub(crate) struct WindAreaDef {
     pub systems: Vec<UnityParticleSystemDef>,
 }
 
-pub(crate) const WIND_AREA_HALF_W: f32 = 20.0;
-pub(crate) const WIND_AREA_HALF_H: f32 = 7.5;
-pub(crate) const WIND_AREA_POWER_FACTOR: f32 = 1.5;
+const WIND_AREA_PREFAB_ASSET: &str = "unity/prefabs/WindArea.prefab";
+const FALLBACK_WIND_AREA_BOX_SIZE: Vec3 = Vec3 {
+    x: 40.0,
+    y: 15.0,
+    z: 10.0,
+};
+const FALLBACK_WIND_AREA_LOCAL_DIR: Vec2 = Vec2 {
+    x: 0.61064816,
+    y: -0.79190195,
+};
+const FALLBACK_WIND_AREA_POWER_FACTOR: f32 = 1.5;
+const WIND_EMISSION_SPAWN_EPSILON: f32 = 1e-4;
+
+#[derive(Clone, Copy)]
+struct WindAreaPrefabDefaults {
+    box_size: Vec3,
+    local_dir: Vec2,
+    power_factor: f32,
+}
 
 #[derive(Default)]
 struct WindAreaOverrideData {
@@ -85,8 +105,14 @@ pub(crate) fn wind_area_particle_system_count() -> usize {
     wind_area_particle_systems().len()
 }
 
-fn wind_system_spawn_phase(sprite_index: usize, system_index: usize) -> f32 {
-    pseudo_random(sprite_index as u32 * 4099 + system_index as u32 * 977 + 17)
+pub(crate) fn wind_particle_texture_name() -> Option<&'static str> {
+    let prefab = unity_particles::wind_area_prefab()?;
+    let texture_name = prefab.systems.first()?.texture_name()?;
+    prefab
+        .systems
+        .iter()
+        .all(|system| system.texture_name() == Some(texture_name))
+        .then_some(texture_name)
 }
 
 fn wind_area_particle_system(
@@ -109,22 +135,68 @@ fn wind_area_particle_max_count(area: &WindAreaDef, system_index: usize) -> usiz
     wind_area_particle_system(area, system_index).max_particles
 }
 
-fn wind_area_particle_prewarm_count(area: &WindAreaDef, system_index: usize) -> usize {
-    let system = wind_area_particle_system(area, system_index);
-    if !system.prewarm {
-        0
-    } else {
-        let average_lifetime =
-            (system.start_lifetime.sample(0.0, 0.0) + system.start_lifetime.sample(0.0, 1.0))
-                * 0.5;
-        let seeded = (wind_area_particle_spawn_rate(area, system_index) * average_lifetime)
-            .round() as usize;
-        seeded.max(1).min(wind_area_particle_max_count(area, system_index))
-    }
+pub(crate) fn wind_area_local_direction() -> Vec2 {
+    wind_area_prefab_defaults().local_dir
 }
 
-pub(crate) fn wind_area_local_direction() -> Vec2 {
-    normalize_vec2(wind_area_prefab().wind_direction)
+fn wind_area_prefab_defaults() -> WindAreaPrefabDefaults {
+    static DEFAULTS: OnceLock<WindAreaPrefabDefaults> = OnceLock::new();
+
+    *DEFAULTS.get_or_init(load_wind_area_prefab_defaults)
+}
+
+fn load_wind_area_prefab_defaults() -> WindAreaPrefabDefaults {
+    let particle_prefab = wind_area_prefab();
+    let fallback = WindAreaPrefabDefaults {
+        box_size: FALLBACK_WIND_AREA_BOX_SIZE,
+        local_dir: Some(normalize_vec2(particle_prefab.wind_direction))
+            .filter(|dir| dir.x != 0.0 || dir.y != 0.0)
+            .unwrap_or(FALLBACK_WIND_AREA_LOCAL_DIR),
+        power_factor: if particle_prefab.power_factor.abs() > f32::EPSILON {
+            particle_prefab.power_factor
+        } else {
+            FALLBACK_WIND_AREA_POWER_FACTOR
+        },
+    };
+
+    let Some(text) = assets::read_asset_text(WIND_AREA_PREFAB_ASSET) else {
+        return fallback;
+    };
+    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
+        return fallback;
+    };
+
+    let box_size = prefab
+        .root_component("BoxCollider")
+        .and_then(|component| component.field_vec3("m_Size"))
+        .map(|size| Vec3 {
+            x: size[0],
+            y: size[1],
+            z: size[2],
+        })
+        .unwrap_or(fallback.box_size);
+    let power_factor = prefab
+        .root_component("WindArea")
+        .and_then(|component| component.field_f32("m_windPowerFactor"))
+        .unwrap_or(fallback.power_factor);
+    let local_dir = prefab
+        .root_component("WindArea")
+        .and_then(|component| component.field_vec3("windDirectionHandle"))
+        .zip(prefab.root_transform())
+        .map(|(handle, root_transform)| {
+            normalize_vec2(Vec2 {
+                x: handle[0] - root_transform.local_pos[0],
+                y: handle[1] - root_transform.local_pos[1],
+            })
+        })
+        .filter(|dir| dir.x != 0.0 || dir.y != 0.0)
+        .unwrap_or(fallback.local_dir);
+
+    WindAreaPrefabDefaults {
+        box_size,
+        local_dir,
+        power_factor,
+    }
 }
 
 fn wind_particle_emitter_offsets(area: &WindAreaDef, system_index: usize) -> (f32, f32) {
@@ -186,10 +258,8 @@ fn wind_particle_uv_column(area: &WindAreaDef, system_index: usize, random: f32)
         .sample_frame_index(random) as u8
 }
 
-fn wind_particle_uv_layout() -> (f32, f32, u32) {
-    let system = wind_area_particle_systems()
-        .first()
-        .expect("WindArea should contain a WindEffect particle system");
+fn wind_particle_uv_layout(area: &WindAreaDef, system_index: usize) -> (f32, f32, u32) {
+    let system = wind_area_particle_system(area, system_index);
     (
         system.uv_module.tiles_x as f32,
         system.uv_module.tiles_y as f32,
@@ -212,135 +282,85 @@ fn normalize_vec2(vec: Vec2) -> Vec2 {
     }
 }
 
-fn vec3_set_axis(vec: &mut Vec3, axis: &str, value: f32) {
-    match axis {
-        "x" => vec.x = value,
-        "y" => vec.y = value,
-        "z" => vec.z = value,
-        _ => {}
-    }
-}
-
-fn quat_set_axis(quat: &mut [f32; 4], axis: &str, value: f32) {
-    match axis {
-        "x" => quat[0] = value,
-        "y" => quat[1] = value,
-        "z" => quat[2] = value,
-        "w" => quat[3] = value,
-        _ => {}
-    }
-}
-
-fn parse_float_assignment(trimmed: &str) -> Option<(&str, f32)> {
-    let rest = trimmed.strip_prefix("Float ")?;
-    let (field, value) = rest.split_once('=')?;
-    Some((field.trim(), value.trim().parse::<f32>().ok()?))
-}
-
 fn parse_wind_area_overrides(raw_text: Option<&str>) -> WindAreaOverrideData {
     let Some(text) = raw_text else {
         return WindAreaOverrideData::default();
     };
 
     let mut result = WindAreaOverrideData::default();
-    let mut path: Vec<String> = Vec::new();
+    let document = RuntimeOverrideDocument::parse(text);
 
-    for line in text.lines() {
-        let stripped = line.trim_start_matches('\t');
-        let depth = line.len() - stripped.len();
-        let trimmed = stripped.trim();
-        if trimmed.is_empty() {
-            continue;
+    for root in document.roots_of_type("GameObject") {
+        if let Some(size) = read_vec3_field(root, "BoxCollider", "m_Size") {
+            result.box_size = Some(size);
         }
 
-        if path.len() <= depth {
-            path.resize(depth + 1, String::new());
-        }
-        path[depth] = trimmed.to_string();
-        path.truncate(depth + 1);
-
-        let Some((field, value)) = parse_float_assignment(trimmed) else {
-            continue;
-        };
-
-        if path.len() >= 4
-            && path[1] == "Component UnityEngine.BoxCollider"
-            && path[2] == "Vector3 m_Size"
+        if let Some(handle) = root
+            .component("WindArea")
+            .and_then(|component| component.child("Vector3", "windDirectionHandle"))
+            .and_then(RuntimeOverrideNode::value_as_vec3)
         {
-            let vec = result.box_size.get_or_insert(Vec3::default());
-            vec3_set_axis(vec, field, value);
-            continue;
+            result.handle_world = Some(handle);
         }
 
-        if path.len() >= 4 && path[1] == "Component WindArea" && path[2] == "Vector3 windDirectionHandle" {
-            let vec = result.handle_world.get_or_insert(Vec3::default());
-            vec3_set_axis(vec, field, value);
-            continue;
-        }
-
-        if path.len() >= 3 && path[1] == "Component WindArea" && field == "m_windPowerFactor" {
-            result.power_factor = Some(value);
-            continue;
-        }
-
-        let Some(child_name) = path.get(1).and_then(|entry| entry.strip_prefix("GameObject ")) else {
-            continue;
-        };
-        if !child_name.starts_with("WindEffect") {
-            continue;
-        }
-
-        let system = result.systems.entry(child_name.to_string()).or_default();
-
-        if path.len() >= 5
-            && path[2] == "Component UnityEngine.Transform"
-            && path[3] == "Vector3 m_LocalPosition"
+        if let Some(power_factor) = root
+            .component("WindArea")
+            .and_then(|component| component.child("Float", "m_windPowerFactor"))
+            .and_then(RuntimeOverrideNode::value_as_f32)
         {
-            let vec = system.local_position.get_or_insert(Vec3::default());
-            vec3_set_axis(vec, field, value);
-            continue;
+            result.power_factor = Some(power_factor);
         }
 
-        if path.len() >= 5
-            && path[2] == "Component UnityEngine.Transform"
-            && path[3] == "Quaternion m_LocalRotation"
-        {
-            let quat = system.local_rotation.get_or_insert([0.0, 0.0, 0.0, 0.0]);
-            quat_set_axis(quat, field, value);
-            continue;
-        }
+        for child in root.children_of_type("GameObject") {
+            if !child.name.starts_with("WindEffect") {
+                continue;
+            }
 
-        if path.len() >= 6
-            && path[2] == "Component UnityEngine.ParticleSystem"
-            && path[3] == "Generic InitialModule"
-            && path[4] == "Generic startLifetime"
-            && field == "scalar"
-        {
-            system.start_lifetime_scalar = Some(value);
-            continue;
-        }
-
-        if path.len() >= 6
-            && path[2] == "Component UnityEngine.ParticleSystem"
-            && path[3] == "Generic InitialModule"
-            && path[4] == "Generic startSpeed"
-            && field == "scalar"
-        {
-            system.start_speed_scalar = Some(value);
-            continue;
-        }
-
-        if path.len() >= 6
-            && path[2] == "Component UnityEngine.ParticleSystem"
-            && path[3] == "Generic EmissionModule"
-            && path[4] == "Generic rate"
-            && field == "scalar"
-        {
-            system.emission_rate_scalar = Some(value);
+            let system = result.systems.entry(child.name.clone()).or_default();
+            system.local_position = read_vec3_field(child, "Transform", "m_LocalPosition");
+            system.local_rotation =
+                read_quaternion_field(child, "Transform", "m_LocalRotation");
+            system.start_lifetime_scalar =
+                read_scalar_curve(child, "InitialModule", "startLifetime");
+            system.start_speed_scalar = read_scalar_curve(child, "InitialModule", "startSpeed");
+            system.emission_rate_scalar = read_scalar_curve(child, "EmissionModule", "rate");
         }
     }
 
     result
+}
+
+fn read_vec3_field(
+    node: &RuntimeOverrideNode,
+    component_suffix: &str,
+    field_name: &str,
+) -> Option<Vec3> {
+    node.component(component_suffix)
+        .and_then(|component| component.child("Vector3", field_name))
+        .and_then(RuntimeOverrideNode::value_as_vec3)
+}
+
+fn read_quaternion_field(
+    node: &RuntimeOverrideNode,
+    component_suffix: &str,
+    field_name: &str,
+) -> Option<[f32; 4]> {
+    node
+        .component(component_suffix)
+        .and_then(|component| component.child("Quaternion", field_name))
+        .and_then(RuntimeOverrideNode::value_as_quaternion)
+}
+
+fn read_scalar_curve(
+    node: &RuntimeOverrideNode,
+    module_name: &str,
+    field_name: &str,
+) -> Option<f32> {
+    node.component("ParticleSystem")
+        .and_then(|component| component.child("Generic", module_name))
+        .and_then(|module| module.child("Generic", field_name))
+        .and_then(|field| field.child("Float", "scalar"))
+        .and_then(RuntimeOverrideNode::value_as_f32)
 }
 
 fn apply_wind_area_system_override(
@@ -392,6 +412,7 @@ pub(crate) fn build_wind_area_def(
     override_text: Option<&str>,
 ) -> WindAreaDef {
     let overrides = parse_wind_area_overrides(override_text);
+    let defaults = wind_area_prefab_defaults();
     let default_local_dir = wind_area_local_direction();
     let local_dir = overrides
         .handle_world
@@ -408,11 +429,7 @@ pub(crate) fn build_wind_area_def(
         .filter(|dir| dir.x != 0.0 || dir.y != 0.0)
         .unwrap_or(default_local_dir);
     let world_dir = rotate_vec2(local_dir, rotation);
-    let box_size = overrides.box_size.unwrap_or(Vec3 {
-        x: WIND_AREA_HALF_W * 2.0,
-        y: WIND_AREA_HALF_H * 2.0,
-        z: 10.0,
-    });
+    let box_size = overrides.box_size.unwrap_or(defaults.box_size);
     let mut systems = default_wind_area_systems();
     for system in &mut systems {
         apply_wind_area_system_override(
@@ -434,33 +451,92 @@ pub(crate) fn build_wind_area_def(
         local_dir_y: local_dir.y,
         dir_x: world_dir.x,
         dir_y: world_dir.y,
-        power_factor: overrides
-            .power_factor
-            .unwrap_or(WIND_AREA_POWER_FACTOR),
+        power_factor: overrides.power_factor.unwrap_or(defaults.power_factor),
         systems,
     }
 }
 
-fn wind_particle_side_velocity(t: f32) -> f32 {
-    wind_area_particle_systems()[0].velocity_y.sample(t, 0.0)
+fn wind_particle_side_velocity(area: &WindAreaDef, system_index: usize, t: f32) -> f32 {
+    wind_area_particle_system(area, system_index)
+        .velocity_y
+        .sample(t, 0.0)
 }
 
-fn wind_particle_size_scale(t: f32) -> f32 {
-    wind_area_particle_systems()[0].size_over_lifetime.sample(t, 0.0)
+fn wind_particle_size_scale(area: &WindAreaDef, system_index: usize, t: f32) -> f32 {
+    wind_area_particle_system(area, system_index)
+        .size_over_lifetime
+        .sample(t, 0.0)
 }
 
-fn update_wind_particle(particle: &mut WindParticle, dt: f32) -> bool {
+fn update_wind_particle(particle: &mut WindParticle, area: &WindAreaDef, dt: f32) -> bool {
     particle.age += dt;
     if particle.age >= particle.lifetime {
         return false;
     }
 
     let t_frac = particle.age / particle.lifetime;
-    let side_velocity = wind_particle_side_velocity(t_frac);
+    let side_velocity = wind_particle_side_velocity(area, particle.source_system_index, t_frac);
     particle.x += (particle.vx + particle.side_x * side_velocity) * dt;
     particle.y += (particle.vy + particle.side_y * side_velocity) * dt;
     particle.rot += particle.rot_speed * dt;
     true
+}
+
+fn prewarm_wind_particle(particle: &mut WindParticle, area: &WindAreaDef, target_age: f32) {
+    let target_age = target_age.clamp(0.0, (particle.lifetime - f32::EPSILON).max(0.0));
+    while particle.age < target_age {
+        let step = (target_age - particle.age).min(1.0 / 60.0);
+        if !update_wind_particle(particle, area, step) {
+            break;
+        }
+    }
+}
+
+fn prewarm_wind_system(
+    area: &WindAreaDef,
+    area_index: usize,
+    system_index: usize,
+    particles: &mut Vec<WindParticle>,
+) -> f32 {
+    let system = wind_area_particle_system(area, system_index);
+    if !system.prewarm {
+        return 0.0;
+    }
+
+    let duration = system.duration.max(f32::EPSILON);
+    let mut local_particles = Vec::new();
+    let mut spawn_accum = 0.0;
+    let mut spawn_serial = 0u32;
+    let mut remaining = duration;
+
+    while remaining > 0.0 {
+        let dt = remaining.min(1.0 / 60.0);
+        spawn_accum += dt * wind_area_particle_spawn_rate(area, system_index);
+        while spawn_accum + WIND_EMISSION_SPAWN_EPSILON >= 1.0
+            && local_particles.len() < wind_area_particle_max_count(area, system_index)
+        {
+            spawn_accum = (spawn_accum - 1.0).max(0.0);
+            let seed = area_index as u32 * 1009
+                + system_index as u32 * 313
+                + spawn_serial * 17;
+            spawn_wind_particle(area, system_index, &mut local_particles, seed);
+            spawn_serial = spawn_serial.wrapping_add(1);
+        }
+
+        let mut particle_index = 0;
+        while particle_index < local_particles.len() {
+            if !update_wind_particle(&mut local_particles[particle_index], area, dt) {
+                local_particles.swap_remove(particle_index);
+                continue;
+            }
+            particle_index += 1;
+        }
+
+        remaining -= dt;
+    }
+
+    particles.extend(local_particles);
+    spawn_accum
 }
 
 /// Spawn a wind leaf particle in the given area/system.
@@ -519,28 +595,12 @@ impl LevelRenderer {
     pub(crate) fn seed_wind_particles(&mut self) {
         self.wind_particles.clear();
         let system_count = wind_area_particle_system_count();
-        self.wind_spawn_accum = self
-            .wind_areas
-            .iter()
-            .flat_map(|area| {
-                (0..system_count)
-                    .map(move |system_index| wind_system_spawn_phase(area.sprite_index, system_index))
-            })
-            .collect();
+        self.wind_spawn_accum = vec![0.0; self.wind_areas.len() * system_count];
         for (area_index, area) in self.wind_areas.iter().enumerate() {
             for system_index in 0..system_count {
-                for prewarm_index in 0..wind_area_particle_prewarm_count(area, system_index) {
-                    let seed = area_index as u32 * 1009
-                        + system_index as u32 * 313
-                        + prewarm_index as u32 * 17;
-                    spawn_wind_particle(area, system_index, &mut self.wind_particles, seed);
-                    if let Some(p) = self.wind_particles.last_mut() {
-                        let frac = pseudo_random(
-                            seed.wrapping_add(29) ^ p.x.to_bits() ^ p.y.to_bits(),
-                        );
-                        p.age = p.lifetime * frac;
-                    }
-                }
+                let accum_index = area_index * system_count + system_index;
+                self.wind_spawn_accum[accum_index] =
+                    prewarm_wind_system(area, area_index, system_index, &mut self.wind_particles);
             }
         }
     }
@@ -561,10 +621,11 @@ impl LevelRenderer {
                             && p.source_system_index == system_index
                     })
                     .count();
-                while self.wind_spawn_accum[accum_index] >= 1.0
+                while self.wind_spawn_accum[accum_index] + WIND_EMISSION_SPAWN_EPSILON >= 1.0
                     && area_count < wind_area_particle_max_count(&self.wind_areas[a], system_index)
                 {
-                    self.wind_spawn_accum[accum_index] -= 1.0;
+                    self.wind_spawn_accum[accum_index] =
+                        (self.wind_spawn_accum[accum_index] - 1.0).max(0.0);
                     let seed = (self.time * 1000.0) as u32
                         + a as u32 * 977
                         + system_index as u32 * 313
@@ -580,10 +641,19 @@ impl LevelRenderer {
             }
         }
         // Update particles
+        let area_lookup: HashMap<usize, &WindAreaDef> = self
+            .wind_areas
+            .iter()
+            .map(|area| (area.sprite_index, area))
+            .collect();
         let mut i = 0;
         while i < self.wind_particles.len() {
             let p = &mut self.wind_particles[i];
-            if !update_wind_particle(p, dt) {
+            let Some(area) = area_lookup.get(&p.source_sprite_index).copied() else {
+                self.wind_particles.swap_remove(i);
+                continue;
+            };
+            if !update_wind_particle(p, area, dt) {
                 self.wind_particles.swap_remove(i);
                 continue;
             }
@@ -595,6 +665,7 @@ impl LevelRenderer {
 /// Draw wind leaf particles (from Particles_Sheet_01.png 16×16 grid).
 pub(crate) fn draw_wind_particles(
     particles: &[WindParticle],
+    wind_areas: &[WindAreaDef],
     source_sprite_index: Option<usize>,
     camera: &Camera,
     painter: &egui::Painter,
@@ -603,13 +674,25 @@ pub(crate) fn draw_wind_particles(
     tex_id: Option<egui::TextureId>,
 ) {
     let Some(leaf_tex) = tex_id else { return };
-    let (tiles_x, tiles_y, row_index) = wind_particle_uv_layout();
+    let selected_area = source_sprite_index
+        .and_then(|sprite_index| wind_areas.iter().find(|area| area.sprite_index == sprite_index));
     for p in particles {
-        if source_sprite_index.is_some_and(|sprite_index| p.source_sprite_index != sprite_index) {
-            continue;
-        }
+        let area = if let Some(area) = selected_area {
+            if p.source_sprite_index != area.sprite_index {
+                continue;
+            }
+            area
+        } else {
+            let Some(area) = wind_areas
+                .iter()
+                .find(|area| area.sprite_index == p.source_sprite_index)
+            else {
+                continue;
+            };
+            area
+        };
         let t_frac = p.age / p.lifetime;
-        let size_scale = wind_particle_size_scale(t_frac);
+        let size_scale = wind_particle_size_scale(area, p.source_system_index, t_frac);
         let alpha = size_scale.clamp(0.0, 1.0);
         let sz = p.size * size_scale * camera.zoom;
         if sz < 0.5 {
@@ -620,8 +703,9 @@ pub(crate) fn draw_wind_particles(
             continue;
         }
 
-        let (u0, u1, v0, v1) =
-            particle_sheet_uv_rect(tiles_x, tiles_y, row_index, p.leaf_col);
+        let (tiles_x, tiles_y, row_index) =
+            wind_particle_uv_layout(area, p.source_system_index);
+        let (u0, u1, v0, v1) = particle_sheet_uv_rect(tiles_x, tiles_y, row_index, p.leaf_col);
 
         let hw = sz * 0.5;
         let hh = sz * 0.5;
@@ -703,11 +787,24 @@ mod tests {
     }
 
     #[test]
+    fn wind_area_prefab_defaults_match_embedded_prefab() {
+        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+
+        assert!((area.half_w - 20.0).abs() < 0.0001);
+        assert!((area.half_h - 7.5).abs() < 0.0001);
+        assert!((area.power_factor - 1.5).abs() < 0.0001);
+        assert!((area.local_dir_x - 0.61064816).abs() < 0.0001);
+        assert!((area.local_dir_y - (-0.79190195)).abs() < 0.0001);
+    }
+
+    #[test]
     fn wind_particle_side_velocity_curve_matches_unity_prefab_sign_changes() {
-        assert!(wind_particle_side_velocity(0.0) < 0.0);
-        assert!(wind_particle_side_velocity(0.06) > 0.0);
-        assert!(wind_particle_side_velocity(0.30) < 0.0);
-        assert!(wind_particle_side_velocity(0.75) > 0.0);
+        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+
+        assert!(wind_particle_side_velocity(&area, 0, 0.0) < 0.0);
+        assert!(wind_particle_side_velocity(&area, 0, 0.06) > 0.0);
+        assert!(wind_particle_side_velocity(&area, 0, 0.30) < 0.0);
+        assert!(wind_particle_side_velocity(&area, 0, 0.75) > 0.0);
     }
 
     #[test]
@@ -720,10 +817,24 @@ mod tests {
 
     #[test]
     fn wind_particle_size_curve_matches_unity_prefab_envelope() {
-        assert_eq!(wind_particle_size_scale(0.0), 0.0);
-        assert!(wind_particle_size_scale(0.03) > 0.5);
-        assert!((wind_particle_size_scale(0.5) - 1.0889437).abs() < 0.001);
-        assert!(wind_particle_size_scale(0.95) < 0.5);
+        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+
+        assert_eq!(wind_particle_size_scale(&area, 0, 0.0), 0.0);
+        assert!(wind_particle_size_scale(&area, 0, 0.03) > 0.5);
+        assert!((wind_particle_size_scale(&area, 0, 0.5) - 1.0889437).abs() < 0.001);
+        assert!(wind_particle_size_scale(&area, 0, 0.95) < 0.5);
+    }
+
+    #[test]
+    fn wind_particle_runtime_uses_source_system_specific_curves() {
+        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+
+        assert_eq!(area.systems[0].uv_module.sample_frame_index(0.0), 4);
+        assert_eq!(area.systems[2].uv_module.sample_frame_index(0.0), 5);
+        assert_ne!(
+            wind_particle_size_scale(&area, 0, 0.01).to_bits(),
+            wind_particle_size_scale(&area, 2, 0.01).to_bits()
+        );
     }
 
     #[test]
@@ -747,7 +858,7 @@ mod tests {
             source_system_index: 0,
         };
 
-        assert!(update_wind_particle(&mut particle, lifetime * 0.02));
+        assert!(update_wind_particle(&mut particle, &area, lifetime * 0.02));
         assert!(particle.x.abs() > 0.01);
         assert!(particle.y > 0.5);
     }
@@ -816,11 +927,36 @@ mod tests {
     }
 
     #[test]
-    fn wind_system_spawn_phases_are_desynchronized() {
-        let phase0 = wind_system_spawn_phase(0, 0);
-        let phase1 = wind_system_spawn_phase(0, 1);
-        let phase2 = wind_system_spawn_phase(0, 2);
-        assert_ne!(phase0.to_bits(), phase1.to_bits());
-        assert_ne!(phase1.to_bits(), phase2.to_bits());
+    fn wind_prewarm_advances_particle_state() {
+        let area = test_wind_area(0.0, 8.0);
+        let mut particles = Vec::new();
+        spawn_wind_particle(&area, 0, &mut particles, 123);
+
+        let mut particle = particles.pop().expect("wind particle should spawn");
+        let initial_x = particle.x;
+        let initial_y = particle.y;
+        let initial_rot = particle.rot;
+        let target_age = particle.lifetime * 0.5;
+
+        prewarm_wind_particle(&mut particle, &area, target_age);
+
+        assert!(particle.age > 0.0);
+        assert!(
+            (particle.x - initial_x).abs() > 0.0001
+                || (particle.y - initial_y).abs() > 0.0001
+                || (particle.rot - initial_rot).abs() > 0.0001
+        );
+    }
+
+    #[test]
+    fn wind_prewarm_tracks_emission_phase_from_prefab_duration() {
+        let area = test_wind_area(0.0, 8.0);
+        let mut particles = Vec::new();
+
+        let spawn_accum = prewarm_wind_system(&area, 0, 0, &mut particles);
+
+        assert_eq!(particles.len(), 5);
+        assert!(spawn_accum.abs() < 0.01);
+        assert!(particles.iter().all(|particle| particle.age > 0.0));
     }
 }

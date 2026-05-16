@@ -5,7 +5,9 @@ use eframe::egui;
 use crate::domain::types::*;
 use crate::data::goal_animation::goal_visual_state;
 
-use super::super::particles::{FAN_FIELD_CENTER_Y, FAN_FIELD_HALF_H, FAN_FIELD_HALF_W, WindAreaDef};
+use super::super::particles::{
+    WindAreaDef, fan_field_defaults, fan_field_profile_weight, fan_propeller_visual_angle,
+};
 use super::super::{CompoundTransform, DrawCtx, PreviewPlaybackState};
 use super::{bird_sleep_scale_factors, bird_sleep_y_offset, SpriteDrawData, SpriteDrawOpts};
 
@@ -111,7 +113,7 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 
     // Fan propeller rotation: foreshorten X via cos(angle) from state machine
     let (hw, hh) = if sprite.name == "Fan" {
-        let angle = fan_angle.unwrap_or((time * 10.472) as f32);
+        let angle = fan_propeller_visual_angle(fan_angle);
         let foreshorten = angle.cos().abs().max(0.05);
         (hw * foreshorten, hh)
     } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
@@ -412,15 +414,37 @@ pub fn draw_fan_field_overlay(
     fan_force: Option<f32>,
     preview_state: PreviewPlaybackState,
 ) {
-    let field_half_w = FAN_FIELD_HALF_W * xf.scale_x.abs();
-    let field_half_h = FAN_FIELD_HALF_H * xf.scale_y.abs();
-    let field_center_y = FAN_FIELD_CENTER_Y * xf.scale_y;
+    let defaults = fan_field_defaults();
+    let field_half_w = defaults.half_w * xf.scale_x.abs();
+    let field_half_h = defaults.half_h * xf.scale_y.abs();
+    let field_center_x = defaults.center_x * xf.scale_x;
+    let field_center_y = defaults.center_y * xf.scale_y;
     let outline = [
-        fan_field_point(xf, -field_half_w, field_center_y - field_half_h),
-        fan_field_point(xf, field_half_w, field_center_y - field_half_h),
-        fan_field_point(xf, field_half_w, field_center_y + field_half_h),
-        fan_field_point(xf, -field_half_w, field_center_y + field_half_h),
-        fan_field_point(xf, -field_half_w, field_center_y - field_half_h),
+        fan_field_point(
+            xf,
+            field_center_x - field_half_w,
+            field_center_y - field_half_h,
+        ),
+        fan_field_point(
+            xf,
+            field_center_x + field_half_w,
+            field_center_y - field_half_h,
+        ),
+        fan_field_point(
+            xf,
+            field_center_x + field_half_w,
+            field_center_y + field_half_h,
+        ),
+        fan_field_point(
+            xf,
+            field_center_x - field_half_w,
+            field_center_y + field_half_h,
+        ),
+        fan_field_point(
+            xf,
+            field_center_x - field_half_w,
+            field_center_y - field_half_h,
+        ),
     ]
     .map(|p| ctx.camera.world_to_screen(p, ctx.canvas_center))
     .to_vec();
@@ -442,10 +466,8 @@ pub fn draw_fan_field_overlay(
         let local_y = field_center_y - field_half_h + v * field_half_h * 2.0;
         for col in 0..cols {
             let u = (col as f32 + 0.5) / cols as f32;
-            let local_x = -field_half_w + u * field_half_w * 2.0;
-            let horizontal = 1.0 - (local_x.abs() / field_half_w.max(f32::EPSILON));
-            let vertical = v;
-            let weight = (horizontal * vertical).clamp(0.0, 1.0);
+            let local_x = field_center_x - field_half_w + u * field_half_w * 2.0;
+            let weight = fan_field_profile_weight(local_x, local_y).clamp(0.0, 1.0);
             let arrow_world_len = (0.5 + 1.0 * weight * active_scale) * xf.scale_y.abs().max(1.0);
             let start = fan_field_point(xf, local_x, local_y);
             let end = fan_field_point(xf, local_x, local_y + arrow_world_len);

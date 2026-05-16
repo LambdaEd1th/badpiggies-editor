@@ -1,5 +1,6 @@
 //! Unity particle system data types (color/curve/system definitions).
 
+use crate::data::assets;
 use crate::data::unity_anim::HermiteKey;
 use crate::domain::types::{Vec2, Vec3};
 
@@ -171,6 +172,7 @@ pub struct UnityParticleSystemDef {
     pub name: String,
     pub local_position: Vec3,
     pub local_rotation: [f32; 4],
+    pub material_guid: Option<String>,
     pub duration: f32,
     pub play_on_awake: bool,
     pub prewarm: bool,
@@ -201,6 +203,12 @@ pub struct UnityParticleSystemDef {
 }
 
 impl UnityParticleSystemDef {
+    pub fn texture_name(&self) -> Option<&'static str> {
+        self.material_guid
+            .as_deref()
+            .and_then(assets::effect_texture_name_for_material_guid)
+    }
+
     pub fn projected_right_xy(&self) -> Vec2 {
         let (right, _, _) = quaternion_axes(self.local_rotation);
         normalize_xy(right.0, right.1)

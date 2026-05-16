@@ -14,14 +14,11 @@ use super::{
 pub(crate) struct ZzzParticle {
     pub x: f32,
     pub y: f32,
-    pub vy: f32,
     pub velocity_x_random: f32,
     pub velocity_y_random: f32,
     pub age: f32,
     pub lifetime: f32,
     pub start_size: f32,
-    pub wobble_phase: f32,
-    pub wobble_freq: f32,
     pub rot: f32,
     pub rot_speed: f32,
     pub uv_col: u8,
@@ -31,6 +28,10 @@ fn bird_sleep_system() -> &'static unity_particles::UnityParticleSystemDef {
     &unity_particles::bird_sleep_prefab()
         .expect("Bird sleep particle prefab should be available")
         .system
+}
+
+pub(crate) fn zzz_particle_texture_name() -> Option<&'static str> {
+    bird_sleep_system().texture_name()
 }
 
 fn zzz_emit_rate() -> f32 {
@@ -71,14 +72,14 @@ fn zzz_rotation_speed(random: f32) -> f32 {
         .sample(0.0, random)
 }
 
-fn zzz_velocity_x(life_t: f32, random: f32, wobble_phase: f32, wobble_freq: f32, age: f32) -> f32 {
-    let _ = (wobble_phase, wobble_freq, age);
-    sample_particle_world_velocity_xy(bird_sleep_system(), life_t, random, random, random).x
-}
-
-fn zzz_velocity_y(life_t: f32, random: f32, fallback_vy: f32) -> f32 {
-    let _ = fallback_vy;
-    sample_particle_world_velocity_xy(bird_sleep_system(), life_t, random, random, random).y
+fn zzz_velocity_xy(life_t: f32, velocity_x_random: f32, velocity_y_random: f32) -> Vec2 {
+    sample_particle_world_velocity_xy(
+        bird_sleep_system(),
+        life_t,
+        velocity_x_random,
+        velocity_y_random,
+        velocity_x_random,
+    )
 }
 
 fn zzz_force_xy(life_t: f32, x_random: f32, y_random: f32) -> Vec2 {
@@ -128,14 +129,11 @@ impl LevelRenderer {
                     self.zzz_particles.push(ZzzParticle {
                         x: bx + spawn_offset.x + (r1 - 0.5) * 2.0 * spawn_spread.x,
                         y: by + spawn_offset.y + (r2 - 0.5) * 2.0 * spawn_spread.y,
-                        vy: 0.31 + r3 * 0.18,
                         velocity_x_random: r3,
                         velocity_y_random: r4,
                         age: 0.0,
                         lifetime: zzz_lifetime(r4),
                         start_size: zzz_start_size(r3),
-                        wobble_phase: r5 * std::f32::consts::TAU,
-                        wobble_freq: 0.8 + pseudo_random(seed.wrapping_add(5)) * 0.4,
                         rot: zzz_start_rotation(r5),
                         rot_speed: zzz_rotation_speed(pseudo_random(seed.wrapping_add(6))),
                         uv_col: zzz_uv_column(r1),
@@ -153,9 +151,9 @@ impl LevelRenderer {
                 continue;
             }
             let life_t = p.age / p.lifetime;
-            p.x += zzz_velocity_x(life_t, p.velocity_x_random, p.wobble_phase, p.wobble_freq, p.age)
-                * dt;
-            p.y += zzz_velocity_y(life_t, p.velocity_y_random, p.vy) * dt;
+            let velocity = zzz_velocity_xy(life_t, p.velocity_x_random, p.velocity_y_random);
+            p.x += velocity.x * dt;
+            p.y += velocity.y * dt;
             let force = zzz_force_xy(life_t, p.velocity_x_random, p.velocity_y_random);
             p.x += 0.5 * force.x * dt * dt;
             p.y += 0.5 * force.y * dt * dt;
@@ -230,5 +228,28 @@ pub(crate) fn draw_zzz_particles(
                 .extend_from_slice(&[i, i + 1, i + 2, i, i + 2, i + 3]);
             painter.add(egui::Shape::mesh(mesh));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zzz_velocity_helpers_use_prefab_velocity_curves() {
+        let low_random = zzz_velocity_xy(0.0, 0.0, 0.0);
+        let high_random = zzz_velocity_xy(0.0, 1.0, 1.0);
+
+        assert!((low_random.y - 0.49414596).abs() < 0.0001);
+        assert!((high_random.y - 0.3103452).abs() < 0.0001);
+    }
+
+    #[test]
+    fn zzz_size_and_rotation_helpers_match_bird_sleep_prefab() {
+        assert!((zzz_start_size(0.0) - 0.7).abs() < 0.0001);
+        assert!((zzz_lifetime(0.0) - 1.0).abs() < 0.0001);
+        assert!((zzz_lifetime(1.0) - 2.0).abs() < 0.0001);
+        assert_eq!(zzz_uv_column(0.0), 6);
+        assert!((zzz_rotation_speed(1.0) - std::f32::consts::FRAC_PI_6).abs() < 0.0001);
     }
 }

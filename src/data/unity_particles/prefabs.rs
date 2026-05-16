@@ -6,7 +6,7 @@ use crate::domain::types::Vec2;
 
 use super::parse::{
     load_bird_sleep_prefab, load_fan_puff_prefab, load_generic_particle_prefab,
-    load_wind_area_prefab,
+    load_rocket_fire_prefab, load_wind_area_prefab,
 };
 use super::types::UnityParticleSystemDef;
 
@@ -15,6 +15,7 @@ const FAN_PREFAB_ASSET: &str = "unity/prefabs/Fan.prefab";
 const FLY_SWARM_PREFAB_ASSET: &str = "unity/prefabs/FlySwarm.prefab";
 const MAGNET_EFFECT_PREFAB_ASSET: &str = "unity/prefabs/MagnetEffect.prefab";
 const ROCKET_FIRE_PREFAB_ASSET: &str = "unity/prefabs/Particles_RocketFire_01_SET.prefab";
+const ROCKET_FIRE_PART_PREFAB_ASSET: &str = "unity/prefabs/Part_Rocket_01_SET.prefab";
 const TURBO_CHARGER_PREFAB_ASSET: &str = "unity/prefabs/TurboChargerEffect.prefab";
 const WIND_AREA_PREFAB_ASSET: &str = "unity/prefabs/WindArea.prefab";
 
@@ -74,7 +75,9 @@ pub fn magnet_effect_prefab() -> Option<&'static GenericParticlePrefab> {
 
 pub fn rocket_fire_prefab() -> Option<&'static GenericParticlePrefab> {
     ROCKET_FIRE_PREFAB
-        .get_or_init(|| load_generic_particle_prefab(ROCKET_FIRE_PREFAB_ASSET))
+        .get_or_init(|| {
+            load_rocket_fire_prefab(ROCKET_FIRE_PREFAB_ASSET, ROCKET_FIRE_PART_PREFAB_ASSET)
+        })
         .as_ref()
 }
 

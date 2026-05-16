@@ -12,6 +12,9 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use crate::data::assets;
+use crate::domain::prefab_override::{
+    find_first_node_mut, parse_override_text, serialize_override_tree, OverrideNode,
+};
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, TerrainPresetShape};
@@ -519,60 +522,112 @@ impl EditorApp {
 
 /// Update (or create) `m_cameraLimits` in the LevelManager override data.
 pub(super) fn update_camera_limits_in_level(level: &mut LevelData, vals: [f32; 4]) {
-    // Find LevelManager with override data
     for obj in level.objects.iter_mut() {
         if let LevelObject::Prefab(p) = obj
             && p.name == "LevelManager"
-            && let Some(ref mut od) = p.override_data
         {
-            if let Some(pos) = od.raw_text.find("m_cameraLimits") {
-                // Replace existing float values in-place
-                let mut result = od.raw_text[..pos].to_string();
-                let after = &od.raw_text[pos..];
-                let mut remaining = after;
-                let mut val_idx = 0;
-                while val_idx < 4 {
-                    let fx = remaining.find("Float x = ");
-                    let fy = remaining.find("Float y = ");
-                    let fp = match (fx, fy) {
-                        (Some(a), Some(b)) => Some(a.min(b)),
-                        (Some(a), None) => Some(a),
-                        (None, Some(b)) => Some(b),
-                        (None, None) => None,
-                    };
-                    if let Some(fp) = fp {
-                        let eq = &remaining[fp..];
-                        if let Some(eq_pos) = eq.find("= ") {
-                            let before_num = &remaining[..fp + eq_pos + 2];
-                            result.push_str(before_num);
-                            let num_start = &eq[eq_pos + 2..];
-                            let end = num_start
-                                .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                                .unwrap_or(num_start.len());
-                            // Write new value
-                            result.push_str(&format!("{}", vals[val_idx]));
-                            remaining = &num_start[end..];
-                            val_idx += 1;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                result.push_str(remaining);
-                od.raw_bytes = result.as_bytes().to_vec();
-                od.raw_text = result;
-            }
+            let od = p.override_data.get_or_insert_with(|| PrefabOverrideData {
+                raw_text: "GameObject LevelManager\n\tComponent LevelManager\n".to_string(),
+                raw_bytes: b"GameObject LevelManager\n\tComponent LevelManager\n".to_vec(),
+            });
+
+            let mut nodes = parse_override_text(&od.raw_text);
+            let level_manager = ensure_level_manager_component(&mut nodes);
+            let camera_limits = ensure_child_node(level_manager, "Generic", "m_cameraLimits");
+            let top_left = ensure_child_node(camera_limits, "Vector2", "topLeft");
+            set_float_child(top_left, "x", vals[0]);
+            set_float_child(top_left, "y", vals[1]);
+
+            let size = ensure_child_node(camera_limits, "Vector2", "size");
+            set_float_child(size, "x", vals[2]);
+            set_float_child(size, "y", vals[3]);
+
+            let result = serialize_override_tree(&nodes);
+            od.raw_bytes = result.as_bytes().to_vec();
+            od.raw_text = result;
             return;
         }
     }
 }
 
+fn ensure_level_manager_component(nodes: &mut Vec<OverrideNode>) -> &mut OverrideNode {
+    if find_first_node_mut(nodes, &|node| {
+        node.node_type == "Component"
+            && node
+                .name
+                .rsplit('.')
+                .next()
+                .is_some_and(|name| name == "LevelManager")
+    })
+    .is_none()
+    {
+        let root_index = nodes
+            .iter()
+            .position(|node| node.node_type == "GameObject" && node.name.starts_with("LevelManager"))
+            .unwrap_or_else(|| {
+                nodes.push(OverrideNode {
+                    node_type: "GameObject".to_string(),
+                    name: "LevelManager".to_string(),
+                    value: None,
+                    children: Vec::new(),
+                });
+                nodes.len() - 1
+            });
+        nodes[root_index].children.push(OverrideNode {
+            node_type: "Component".to_string(),
+            name: "LevelManager".to_string(),
+            value: None,
+            children: Vec::new(),
+        });
+    }
+
+    find_first_node_mut(nodes, &|node| {
+        node.node_type == "Component"
+            && node
+                .name
+                .rsplit('.')
+                .next()
+                .is_some_and(|name| name == "LevelManager")
+    })
+    .expect("LevelManager component should exist")
+}
+
+fn ensure_child_node<'a>(
+    parent: &'a mut OverrideNode,
+    node_type: &str,
+    name: &str,
+) -> &'a mut OverrideNode {
+    if parent.child(node_type, name).is_none() {
+        parent.children.push(OverrideNode {
+            node_type: node_type.to_string(),
+            name: name.to_string(),
+            value: None,
+            children: Vec::new(),
+        });
+    }
+
+    parent
+        .child_mut(node_type, name)
+        .expect("child node should exist")
+}
+
+fn set_float_child(parent: &mut OverrideNode, name: &str, value: f32) {
+    let child = ensure_child_node(parent, "Float", name);
+    child.value = Some(value.to_string());
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{global_prefab_name_options, parse_loader_prefab_count};
+    use super::{
+        global_prefab_name_options, parse_loader_prefab_count, update_camera_limits_in_level,
+    };
     use crate::data::assets;
+    use crate::domain::prefab_override::{find_first_node, parse_override_text, OverrideNode};
+    use crate::domain::types::{
+        DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
+    };
+
+    const EXISTING_CAMERA_LIMITS: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tGeneric m_cameraLimits\n\t\t\tVector2 topLeft\n\t\t\t\tFloat x = 1\n\t\t\t\tFloat y = 2\n\t\t\tVector2 size\n\t\t\t\tFloat x = 3\n\t\t\t\tFloat y = 4\n";
 
     #[test]
     fn embedded_prefab_name_options_include_goal_area() {
@@ -592,5 +647,92 @@ mod tests {
             .any(|count| count > 0);
 
         assert!(has_loader_with_prefabs);
+    }
+
+    #[test]
+    fn update_camera_limits_rewrites_existing_override_tree() {
+        let mut level = LevelData {
+            objects: vec![LevelObject::Prefab(prefab(Some(EXISTING_CAMERA_LIMITS)))],
+            roots: vec![0],
+        };
+
+        update_camera_limits_in_level(&mut level, [-10.0, 20.0, 30.5, 40.5]);
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let camera_limits = find_first_node(&nodes, &|node| {
+            node.node_type == "Generic" && node.name == "m_cameraLimits"
+        })
+        .expect("missing camera limits");
+
+        assert_eq!(read_vec2(camera_limits.child("Vector2", "topLeft").unwrap()), [-10.0, 20.0]);
+        assert_eq!(read_vec2(camera_limits.child("Vector2", "size").unwrap()), [30.5, 40.5]);
+    }
+
+    #[test]
+    fn update_camera_limits_creates_missing_override_data() {
+        let mut level = LevelData {
+            objects: vec![LevelObject::Prefab(prefab(None))],
+            roots: vec![0],
+        };
+
+        update_camera_limits_in_level(&mut level, [1.0, 2.0, 3.0, 4.0]);
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let camera_limits = find_first_node(&nodes, &|node| {
+            node.node_type == "Generic" && node.name == "m_cameraLimits"
+        })
+        .expect("missing camera limits");
+
+        assert_eq!(read_vec2(camera_limits.child("Vector2", "topLeft").unwrap()), [1.0, 2.0]);
+        assert_eq!(read_vec2(camera_limits.child("Vector2", "size").unwrap()), [3.0, 4.0]);
+        assert_eq!(
+            level.objects[0]
+                .as_prefab()
+                .and_then(|prefab| prefab.override_data.as_ref())
+                .map(|od| od.raw_bytes.as_slice()),
+            Some(raw_text.as_bytes())
+        );
+    }
+
+    fn prefab(raw_text: Option<&str>) -> PrefabInstance {
+        PrefabInstance {
+            name: "LevelManager".to_string(),
+            position: Vec3::default(),
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: raw_text.map(|text| PrefabOverrideData {
+                raw_text: text.to_string(),
+                raw_bytes: text.as_bytes().to_vec(),
+            }),
+            parent: None,
+        }
+    }
+
+    fn read_vec2(node: &OverrideNode) -> [f32; 2] {
+        [
+            node.child("Float", "x")
+                .and_then(OverrideNode::value_as_f32)
+                .expect("missing x"),
+            node.child("Float", "y")
+                .and_then(OverrideNode::value_as_f32)
+                .expect("missing y"),
+        ]
     }
 }

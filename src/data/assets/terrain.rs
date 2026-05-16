@@ -197,20 +197,46 @@ pub fn get_terrain_splat0(terrain_name: &str) -> Option<&'static str> {
 
 /// Get Splat1 (outline) texture filename.
 pub fn get_terrain_splat1(terrain_name: &str) -> Option<&'static str> {
-    let key = resolve_terrain_prefab_key(terrain_name)?;
-    terrain_texture_sets().get(key)?.splat1.as_deref()
+    get_terrain_splat1_for_level("", terrain_name)
 }
 
-/// Get Splat1 (outline) texture filename with an Episode 6 MM/Maya fallback rule.
+/// Get Splat1 (outline) texture filename with Unity-aligned MM/Maya fallback rules.
+///
+/// Episode 6 loader refs frequently point Maya/MM terrains at shared outline
+/// textures, but runtime visuals keep specific Border assets for these prefab
+/// families. Preserve those authored Border choices here.
 pub fn get_terrain_splat1_for_level(_level_key: &str, terrain_name: &str) -> Option<&'static str> {
-    get_terrain_splat1(terrain_name)
+    let key = resolve_terrain_prefab_key(terrain_name)?;
+
+    match key {
+        "e2dTerrainBase_MM_rock" | "e2dTerrainBase_MM_sand" | "e2dTerrainDark_MM_rock" => {
+            Some("Border.png")
+        }
+        "e2dTerrainBase_MM_TempleDarkRock"
+        | "e2dTerrainBase_MM_caveSand"
+        | "e2dTerrainDark_MM"
+        | "e2dTerrainDark_MM_CaveSand"
+        | "e2dTerrainDark_MM_TempleDarkRock" => Some("Border_Maya_Cave.png"),
+        _ => terrain_texture_sets().get(key)?.splat1.as_deref(),
+    }
 }
 
 /// Some Maya cave / temple / dark prefabs should keep their prefab-authored
 /// Border splat1 even when level refs point at a shared outline texture.
 pub fn terrain_splat1_prefers_prefab_over_level_refs(terrain_name: &str) -> bool {
-    let _ = terrain_name;
-    false
+    matches!(
+        resolve_terrain_prefab_key(terrain_name),
+        Some(
+            "e2dTerrainBase_MM_rock"
+                | "e2dTerrainBase_MM_sand"
+                | "e2dTerrainBase_MM_TempleDarkRock"
+                | "e2dTerrainBase_MM_caveSand"
+                | "e2dTerrainDark_MM"
+                | "e2dTerrainDark_MM_CaveSand"
+                | "e2dTerrainDark_MM_TempleDarkRock"
+                | "e2dTerrainDark_MM_rock"
+        )
+    )
 }
 
 /// Whether this is a "dark" terrain (underground fill).

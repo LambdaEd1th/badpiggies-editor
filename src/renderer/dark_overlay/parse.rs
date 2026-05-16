@@ -1,9 +1,14 @@
 //! Parsing of LitArea / PointLight prefabs and ConstructionGrid into lit-area polygons.
 
+use crate::data::assets;
+use crate::domain::prefab_asset::PrefabAssetDocument;
+use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 use crate::domain::types::*;
 
 use super::super::grid::ConstructionGrid;
 use super::{LIT_AREA_BORDER_ALPHA, LitAreaPolygon, POINT_LIGHT_BORDER_ALPHA};
+
+const CONSTRUCTION_GRID_START_LIGHT_BORDER_WIDTH: f32 = 0.5;
 
 /// Parse `m_darkLevel` from LevelManager and LitArea bezier curves from the level.
 pub(in crate::renderer) fn parse_dark_level_data(
@@ -19,14 +24,20 @@ pub(in crate::renderer) fn parse_dark_level_data(
             // Check LevelManager for m_darkLevel
             if p.name == "LevelManager"
                 && let Some(ref od) = p.override_data
-                && let Some(pos) = od.raw_text.find("m_darkLevel")
             {
-                let after = &od.raw_text[pos..];
-                if let Some(eq) = after.find("= ") {
-                    let val = after[eq + 2..].trim_start();
-                    if val.starts_with("True") || val.starts_with("true") {
-                        *dark_level = true;
-                    }
+                let document = RuntimeOverrideDocument::parse(&od.raw_text);
+                if document
+                    .roots
+                    .iter()
+                    .find_map(|root| {
+                        root.find_descendant(&|node| {
+                            node.node_type == "Boolean" && node.name == "m_darkLevel"
+                        })
+                    })
+                    .and_then(RuntimeOverrideNode::value_as_bool)
+                .unwrap_or(false)
+                {
+                    *dark_level = true;
                 }
             }
 
@@ -48,31 +59,26 @@ pub(in crate::renderer) fn parse_dark_level_data(
 /// Parse a LitArea prefab's override data to extract bezier curve polygon vertices.
 fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     let od = prefab.override_data.as_ref()?;
-    let text = &od.raw_text;
-
-    // Find bezier node array
-    let nodes_start = text.find("Array nodes")?;
-    let after_nodes = &text[nodes_start..];
-
-    // Get array size
-    let size_pos = after_nodes.find("size = ")?;
-    let after_size = &after_nodes[size_pos + 7..];
-    let end = after_size.find(|c: char| !c.is_ascii_digit())?;
-    let node_count: usize = after_size[..end].parse().ok()?;
+    let document = RuntimeOverrideDocument::parse(&od.raw_text);
+    let bezier_curve = document
+        .roots
+        .iter()
+        .find_map(|root| root.component("BezierCurve"))?;
+    let nodes_array = bezier_curve
+        .child("Generic", "bezierCurve")?
+        .child("Array", "nodes")?
+        .as_array()?;
+    let node_count = nodes_array.size?;
     if node_count < 2 {
         return None;
     }
 
-    // Parse bezierPointCount
-    let bpc = if let Some(bpc_pos) = text.find("bezierPointCount = ") {
-        let after_bpc = &text[bpc_pos + 19..];
-        let end = after_bpc
-            .find(|c: char| !c.is_ascii_digit())
-            .unwrap_or(after_bpc.len());
-        after_bpc[..end].parse::<usize>().unwrap_or(100)
-    } else {
-        100
-    };
+    let bpc = bezier_curve
+        .child("Integer", "bezierPointCount")
+        .and_then(RuntimeOverrideNode::value_as_i32)
+        .or_else(lit_area_prefab_bezier_point_count)
+        .map(|count| count.max(1) as usize)
+        .unwrap_or(1);
 
     // Parse each bezier node: position + tangent0 (forward) + tangent1 (backward)
     struct BezierNode {
@@ -85,38 +91,36 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     }
 
     let mut nodes = Vec::with_capacity(node_count);
-    let mut search = after_nodes;
 
-    for _ in 0..node_count {
-        // Find "Vector3 position" followed by Float x/y
-        let pos_idx = search.find("Vector3 position")?;
-        search = &search[pos_idx..];
-
-        let px = parse_next_float(search, "Float x = ")?;
-        let py = parse_next_float(search, "Float y = ")?;
-
-        // Find tangent0 / tangent1
-        let t0_idx = search.find("Vector3 tangent0")?;
-        let t0_search = &search[t0_idx..];
-        let t0x = parse_next_float(t0_search, "Float x = ")?;
-        let t0y = parse_next_float(t0_search, "Float y = ")?;
-
-        let t1_idx = search.find("Vector3 tangent1")?;
-        let t1_search = &search[t1_idx..];
-        let t1x = parse_next_float(t1_search, "Float x = ")?;
-        let t1y = parse_next_float(t1_search, "Float y = ")?;
+    for element in nodes_array.iter() {
+        let px = read_vec3_xy(
+            element.value.find_descendant(&|node| {
+                node.node_type == "Vector3" && node.name == "position"
+            })?,
+        )?;
+        let t0 = read_vec3_xy(
+            element.value.find_descendant(&|node| {
+                node.node_type == "Vector3" && node.name == "tangent0"
+            })?,
+        )?;
+        let t1 = read_vec3_xy(
+            element.value.find_descendant(&|node| {
+                node.node_type == "Vector3" && node.name == "tangent1"
+            })?,
+        )?;
 
         nodes.push(BezierNode {
-            px,
-            py,
-            t0x,
-            t0y,
-            t1x,
-            t1y,
+            px: px[0],
+            py: px[1],
+            t0x: t0[0],
+            t0y: t0[1],
+            t1x: t1[0],
+            t1y: t1[1],
         });
+    }
 
-        // Advance past this node's tangent1 section
-        search = &search[t1_idx + 20..];
+    if nodes.len() < 2 {
+        return None;
     }
 
     // Evaluate cubic bezier curve to generate polygon points
@@ -177,8 +181,7 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     }
 
     // Compute border vertices by expanding polygon outward along vertex normals.
-    // BezierMesh border strip uses borderWidth=0.5 (from level override or prefab).
-    let border_width = parse_border_width(prefab).unwrap_or(0.5);
+    let border_width = parse_border_width(prefab).unwrap_or_else(lit_area_prefab_border_width);
     let border_vertices = expand_polygon(&polygon, border_width);
 
     log::info!(
@@ -197,22 +200,45 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     })
 }
 
-/// Helper: find the next occurrence of a pattern like "Float x = " and parse the float value.
-fn parse_next_float(text: &str, pattern: &str) -> Option<f32> {
-    let pos = text.find(pattern)?;
-    let after = &text[pos + pattern.len()..];
-    let end = after
-        .find(|c: char| {
-            !c.is_ascii_digit() && c != '.' && c != '-' && c != 'E' && c != 'e' && c != '+'
-        })
-        .unwrap_or(after.len());
-    after[..end].parse().ok()
-}
-
 /// Parse borderWidth from a LitArea prefab's override data.
 fn parse_border_width(prefab: &PrefabInstance) -> Option<f32> {
     let od = prefab.override_data.as_ref()?;
-    parse_next_float(&od.raw_text, "Float borderWidth = ")
+    let document = RuntimeOverrideDocument::parse(&od.raw_text);
+    document
+        .roots
+        .iter()
+        .find_map(|root| {
+            root.find_descendant(&|node| node.node_type == "Float" && node.name == "borderWidth")
+        })
+        .and_then(RuntimeOverrideNode::value_as_f32)
+}
+
+fn lit_area_prefab_bezier_point_count() -> Option<i32> {
+    prefab_asset_document("LitArea")
+        .and_then(|prefab| prefab.root_component("BezierCurve").cloned())
+        .and_then(|component| component.field_i32("bezierPointCount"))
+}
+
+fn lit_area_prefab_border_width() -> f32 {
+    prefab_asset_document("LitArea")
+        .and_then(|prefab| prefab.root_component("BezierMesh").cloned())
+        .and_then(|component| component.field_f32("borderWidth"))
+        .unwrap_or(0.0)
+}
+
+fn prefab_asset_document(prefab_name: &str) -> Option<PrefabAssetDocument> {
+    let asset_path = format!("unity/prefabs/{prefab_name}.prefab");
+    let text = assets::read_asset_text(&asset_path)?;
+    PrefabAssetDocument::parse(&text)
+}
+
+fn point_light_prefab_defaults(prefab_name: &str) -> Option<(f32, f32)> {
+    let prefab = prefab_asset_document(prefab_name)?;
+    let component = prefab.root_component("PointLightSource")?;
+    Some((
+        component.field_f32("size")?,
+        component.field_f32("borderWidth")?,
+    ))
 }
 
 /// Expand a closed polygon outward by `width` along each vertex's averaged normal.
@@ -276,69 +302,50 @@ fn build_point_light_polygon(cx: f32, cy: f32, size: f32, border_width: f32) -> 
 pub(in crate::renderer) fn construction_grid_start_light(
     grid: &ConstructionGrid,
 ) -> LitAreaPolygon {
+    // LightManager sets `startPls.size = 1 + 0.5 * max(GridWidth, GridHeight)` and
+    // PointLightContainer gives the generated border mask a fixed `borderWidth = 0.5`.
     let mut cx = grid.base_x;
     let cy = grid.base_y + 0.5 * grid.grid_height as f32 - 0.5;
     if grid.grid_width % 2 == 0 {
         cx += 0.5;
     }
     let size = 1.0 + 0.5 * grid.grid_width.max(grid.grid_height) as f32;
-    build_point_light_polygon(cx, cy, size, 0.5)
+    build_point_light_polygon(cx, cy, size, CONSTRUCTION_GRID_START_LIGHT_BORDER_WIDTH)
 }
 
 /// Parse a PointLightSource-bearing prefab into a circular polygon.
 /// Returns None if the prefab is not a known light source type.
 fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
-    // Default (size, borderWidth) from prefab data. Unity draws point-light
-    // borders as a separate feathered light mesh. In the editor we approximate
-    // that transition as a lighter dark-overlay penumbra.
-    let (default_size, default_border) = if prefab.name.starts_with("LitCrystal") {
-        (2.0f32, 0.5f32)
-    } else if prefab.name.starts_with("LitMushroom") {
-        (1.0, 0.5)
-    } else if prefab.name == "GoalArea_MM_Light" || prefab.name == "GoalArea_MM_Grey_Light" {
-        (3.0, 0.5)
-    } else if prefab.name == "Cake" || prefab.name == "CakeFloating" {
-        (2.0, 0.5)
-    } else if prefab.name == "SecretStatue" {
-        (3.0, 0.5)
-    } else if prefab.name == "Part_MetalFrame_11_SET" {
-        (5.0, 0.5)
-    } else if prefab.name.ends_with("Crate") {
-        // WoodenCrate, MetalCrate, GoldenCrate, MarbleCrate, CardboardCrate, BronzeCrate, GlassCrate
-        (3.5, 0.3)
-    } else if prefab.name.starts_with("Part_PointLight") {
-        // Part_PointLight_04_SET is size=14, others are 7
-        if prefab.name.contains("_04") {
-            (14.0, 0.5)
-        } else {
-            (7.0, 0.5)
-        }
-    } else if prefab.name.starts_with("Part_SpotLight") {
-        (7.0, 0.5) // TODO: beam shape, currently approximated as circle
-    } else {
-        return None;
-    };
+    // Unity draws point-light borders as a separate feathered light mesh. In the
+    // editor we approximate that transition as a lighter dark-overlay penumbra.
+    let (default_size, default_border) = point_light_prefab_defaults(&prefab.name)?;
 
-    // Check if override data specifies a custom size
-    let size = if let Some(ref od) = prefab.override_data {
-        if let Some(pos) = od.raw_text.find("Float size = ") {
-            let after = &od.raw_text[pos + 13..];
-            let end = after
-                .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                .unwrap_or(after.len());
-            after[..end].parse::<f32>().unwrap_or(default_size)
-        } else {
-            default_size
-        }
-    } else {
-        default_size
-    };
-
-    let border_width = prefab
+    let (size, border_width) = prefab
         .override_data
         .as_ref()
-        .and_then(|od| parse_next_float(&od.raw_text, "Float borderWidth = "))
-        .unwrap_or(default_border);
+        .map(|od| {
+            let document = RuntimeOverrideDocument::parse(&od.raw_text);
+            let size = document
+                .roots
+                .iter()
+                .find_map(|root| {
+                    root.find_descendant(&|node| node.node_type == "Float" && node.name == "size")
+                })
+                .and_then(RuntimeOverrideNode::value_as_f32)
+                .unwrap_or(default_size);
+            let border_width = document
+                .roots
+                .iter()
+                .find_map(|root| {
+                    root.find_descendant(&|node| {
+                        node.node_type == "Float" && node.name == "borderWidth"
+                    })
+                })
+                .and_then(RuntimeOverrideNode::value_as_f32)
+                .unwrap_or(default_border);
+            (size, border_width)
+        })
+        .unwrap_or((default_size, default_border));
     let cx = prefab.position.x;
     let cy = prefab.position.y;
 
@@ -352,4 +359,189 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     );
 
     Some(build_point_light_polygon(cx, cy, size, border_width))
+}
+
+fn read_vec3_xy(node: &RuntimeOverrideNode) -> Option<[f32; 2]> {
+    Some([
+        node.child("Float", "x")?.value_as_f32()?,
+        node.child("Float", "y")?.value_as_f32()?,
+    ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        construction_grid_start_light, parse_dark_level_data, parse_lit_area_bezier,
+        parse_point_light,
+    };
+    use crate::domain::types::{
+        DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
+    };
+    use crate::renderer::grid::{ConstructionGrid, ConstructionGridCellStyle};
+
+    const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
+
+    const LIT_AREA_OVERRIDE: &str = "GameObject LitArea\n\tComponent MentalTools.BezierCurve\n\t\tInteger bezierPointCount = 6\n\t\tGeneric bezierCurve\n\t\t\tArray nodes\n\t\t\t\tArraySize size = 2\n\t\t\t\tElement 0\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 1\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 4\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n\tComponent MentalTools.BezierMesh\n\t\tFloat borderWidth = 0.5\n";
+
+    const LIT_AREA_OVERRIDE_WITHOUT_BORDER: &str = "GameObject LitArea\n\tComponent MentalTools.BezierCurve\n\t\tInteger bezierPointCount = 6\n\t\tGeneric bezierCurve\n\t\t\tArray nodes\n\t\t\t\tArraySize size = 2\n\t\t\t\tElement 0\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 1\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 4\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n";
+
+    const LIT_AREA_OVERRIDE_WITHOUT_PREFAB_DEFAULTED_FIELDS: &str = "GameObject LitArea\n\tComponent MentalTools.BezierCurve\n\t\tGeneric bezierCurve\n\t\t\tArray nodes\n\t\t\t\tArraySize size = 2\n\t\t\t\tElement 0\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 1\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 4\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n";
+
+    const POINT_LIGHT_OVERRIDE: &str = "GameObject LitCrystal_01\n\tComponent PointLightSource\n\t\tFloat size = 4.25\n\t\tFloat borderWidth = 0.7\n";
+
+    #[test]
+    fn parses_dark_level_flag_and_lit_area_from_ast() {
+        let mut dark_level = false;
+        let mut lit_areas = Vec::new();
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab("LevelManager", Vec3::default(), LEVEL_MANAGER_OVERRIDE)),
+                LevelObject::Prefab(prefab(
+                    "LitArea",
+                    Vec3 {
+                        x: 10.0,
+                        y: 20.0,
+                        z: 0.0,
+                    },
+                    LIT_AREA_OVERRIDE,
+                )),
+            ],
+            roots: vec![0, 1],
+        };
+
+        parse_dark_level_data(&level, &mut dark_level, &mut lit_areas);
+
+        assert!(dark_level);
+        assert_eq!(lit_areas.len(), 1);
+        assert!(lit_areas[0].vertices.len() >= 20);
+        assert_eq!(lit_areas[0].vertices.len(), lit_areas[0].border_vertices.len());
+    }
+
+    #[test]
+    fn parses_point_light_size_and_border_from_ast() {
+        let polygon = parse_point_light(&prefab(
+            "LitCrystal_01",
+            Vec3 {
+                x: 2.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            POINT_LIGHT_OVERRIDE,
+        ))
+        .expect("expected point light polygon");
+
+        assert!((polygon.vertices[0].0 - 6.25).abs() < 1e-6);
+        assert!((polygon.border_vertices[0].0 - 6.95).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parses_point_light_defaults_from_prefab_when_override_is_missing() {
+        let polygon = parse_point_light(&prefab(
+            "Part_PointLight_04_SET",
+            Vec3 {
+                x: 2.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            "",
+        ))
+        .expect("expected point light polygon");
+
+        assert!((polygon.vertices[0].0 - 16.0).abs() < 1e-6);
+        assert!((polygon.border_vertices[0].0 - 16.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parses_goal_light_defaults_from_prefab_when_override_is_missing() {
+        let polygon = parse_point_light(&prefab(
+            "GoalArea_MM_Light",
+            Vec3 {
+                x: 2.0,
+                y: 3.0,
+                z: 0.0,
+            },
+            "",
+        ))
+        .expect("expected point light polygon");
+
+        assert!((polygon.vertices[0].0 - 5.0).abs() < 1e-6);
+        assert!((polygon.border_vertices[0].0 - 5.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parses_lit_area_border_width_from_bezier_mesh_component() {
+        let polygon = parse_lit_area_bezier(&prefab(
+            "LitArea",
+            Vec3::default(),
+            LIT_AREA_OVERRIDE,
+        ))
+        .expect("expected lit area polygon");
+
+        assert_eq!(polygon.vertices.len(), polygon.border_vertices.len());
+        assert!(polygon.vertices.len() >= 20);
+    }
+
+    #[test]
+    fn uses_lit_area_prefab_default_when_border_override_is_missing() {
+        let polygon = parse_lit_area_bezier(&prefab(
+            "LitArea",
+            Vec3::default(),
+            LIT_AREA_OVERRIDE_WITHOUT_BORDER,
+        ))
+        .expect("expected lit area polygon");
+
+        assert_eq!(polygon.vertices, polygon.border_vertices);
+    }
+
+    #[test]
+    fn uses_lit_area_prefab_default_when_bezier_point_count_is_missing() {
+        let polygon = parse_lit_area_bezier(&prefab(
+            "LitArea",
+            Vec3::default(),
+            LIT_AREA_OVERRIDE_WITHOUT_PREFAB_DEFAULTED_FIELDS,
+        ))
+        .expect("expected lit area polygon");
+
+        assert_eq!(polygon.vertices.len(), 20);
+        assert_eq!(polygon.vertices, polygon.border_vertices);
+    }
+
+    #[test]
+    fn construction_grid_start_light_matches_light_manager_defaults() {
+        let polygon = construction_grid_start_light(&ConstructionGrid {
+            rows: Vec::new(),
+            base_x: 1.0,
+            base_y: 2.0,
+            grid_width: 6,
+            grid_height: 4,
+            x_min: 0,
+            cell_style: ConstructionGridCellStyle::Default,
+        });
+
+        assert!((polygon.vertices[0].0 - 5.5).abs() < 1e-6);
+        assert!((polygon.vertices[0].1 - 3.5).abs() < 1e-6);
+        assert!((polygon.border_vertices[0].0 - 6.0).abs() < 1e-6);
+        assert!((polygon.border_vertices[0].1 - 3.5).abs() < 1e-6);
+    }
+
+    fn prefab(name: &str, position: Vec3, raw_text: &str) -> PrefabInstance {
+        PrefabInstance {
+            name: name.to_string(),
+            position,
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: Some(PrefabOverrideData {
+                raw_text: raw_text.to_string(),
+                raw_bytes: raw_text.as_bytes().to_vec(),
+            }),
+            parent: None,
+        }
+    }
 }

@@ -5,8 +5,8 @@ use eframe::egui;
 use crate::domain::types::*;
 
 use super::{
-    BoundsHandle, CanvasContextAction, CursorMode, DragMode, GLOW_ATLAS,
-    LevelRenderer, NodeEditAction, PreviewPlaybackState, grid, particles,
+    BoundsHandle, CanvasContextAction, CursorMode, DragMode, LevelRenderer,
+    NodeEditAction, PreviewPlaybackState, grid, particles,
 };
 
 /// Known atlas filenames and their paths relative to the sprites directory.
@@ -90,7 +90,7 @@ impl LevelRenderer {
             &painter,
             canvas_center,
             rect,
-            self.tex_cache.get(GLOW_ATLAS),
+            particles::zzz_particle_texture_name().and_then(|name| self.tex_cache.get(name)),
         );
 
         // Sprites with goal bobbing + compound sub-sprites (renderOrder=12)
@@ -103,7 +103,7 @@ impl LevelRenderer {
             &painter,
             canvas_center,
             rect,
-            self.tex_cache.get(GLOW_ATLAS),
+            particles::fan_particle_texture_name().and_then(|name| self.tex_cache.get(name)),
         );
 
         particles::draw_attached_effect_particles(
@@ -112,8 +112,15 @@ impl LevelRenderer {
             &painter,
             canvas_center,
             rect,
-            self.tex_cache
-                .load_texture(ui.ctx(), "particles/Particles_Sheet_01.png", "Particles_Sheet_01"),
+            &particles::attached_effect_draw_texture_names().map(|texture_name| {
+                texture_name.and_then(|texture_name| {
+                    self.tex_cache.load_texture(
+                        ui.ctx(),
+                        &format!("particles/{}", texture_name),
+                        texture_name,
+                    )
+                })
+            }),
         );
 
         // Terrain overlays stay after the world transparent layer so inline collider

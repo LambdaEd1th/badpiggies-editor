@@ -625,20 +625,4 @@ impl LevelRenderer {
             );
         }
     }
-
-    /// Draw terrain fill + edge for either decorative or collider terrains.
-    pub(super) fn draw_terrain_pass(
-        &mut self,
-        painter: &egui::Painter,
-        canvas_center: egui::Vec2,
-        rect: egui::Rect,
-        decorative: bool,
-    ) {
-        for ti in 0..self.terrain_data.len() {
-            if self.terrain_data[ti].decorative != decorative {
-                continue;
-            }
-            self.draw_terrain_index(ti, painter, canvas_center, rect);
-        }
-    }
 }

@@ -57,8 +57,6 @@ pub fn draw_bg_layers(
     cache: &BgLayerCache,
     mut gpu: Option<&mut BgGpuState<'_>>,
 ) {
-    let rect = ctx.canvas_rect;
-    let camera = ctx.camera;
     let theme = match bg_data::get_theme(theme_name) {
         Some(t) => t,
         None => return,
@@ -67,10 +65,6 @@ pub fn draw_bg_layers(
     let sprites = cache.sprites(theme);
 
     // Draw sprites in Z-sorted order (farthest first = back-to-front).
-    // Pre-compute wave/foam Y offsets
-    let wave_y_offset = wave_offset(time);
-    let foam_y_offset = foam_offset(time);
-
     for &i in &cache.sorted_indices {
         let sprite = &sprites[i];
         // World-Z range filter
@@ -79,35 +73,55 @@ pub fn draw_bg_layers(
             continue;
         }
 
-        let name_lower = &cache.name_lower[i];
-        let anim_x = bg_sprite_x_animation_offset(name_lower, time, &sprite.layer);
-        // Wave/foam Y offset (Dummy is in OceanAnimRoot, same as Waves)
-        let anim_y = if name_lower == "waves" || name_lower == "dummy" {
-            wave_y_offset
-        } else if name_lower == "foam" {
-            foam_y_offset
-        } else {
-            0.0
-        };
+        draw_bg_sprite(ctx, time, sprites, i, cache, &mut gpu);
+    }
+}
 
-        if let Some(&(block_width, speed)) = cache.tile_info.get(&i) {
-            let phase = cache.tile_phase.get(&i).copied().unwrap_or(0.0);
-            let apparent_x = camera.center.x * (1.0 - speed);
-            let shift = ((apparent_x - phase) / block_width).round() * block_width + phase;
-            // Dynamic copy count: enough to cover the viewport at any zoom
-            let viewport_w = rect.width() / camera.zoom;
-            let n = (viewport_w / block_width).ceil() as i32 + 1;
-            for copy in -n..=n {
-                let x_offset = copy as f32 * block_width + shift + anim_x;
-                draw_bg_sprite_offset(ctx, sprite, x_offset, anim_y, false, &mut gpu);
-            }
-        } else {
-            let extend_fill_like = sprite.fill_color.is_some()
-                || sprite.sky_texture.is_some()
-                || name_lower.contains("fill")
-                || cache.singleton_set.contains(&i);
-            draw_bg_sprite_offset(ctx, sprite, anim_x, anim_y, extend_fill_like, &mut gpu);
+pub(in crate::renderer) fn draw_bg_sprite(
+    ctx: &DrawCtx<'_>,
+    time: f64,
+    sprites: &[BgSprite],
+    sprite_index: usize,
+    cache: &BgLayerCache,
+    gpu: &mut Option<&mut BgGpuState<'_>>,
+) {
+    let Some(sprite) = sprites.get(sprite_index) else {
+        return;
+    };
+
+    let rect = ctx.canvas_rect;
+    let camera = ctx.camera;
+    let wave_y_offset = wave_offset(time);
+    let foam_y_offset = foam_offset(time);
+
+    let name_lower = &cache.name_lower[sprite_index];
+    let anim_x = bg_sprite_x_animation_offset(name_lower, time, &sprite.layer);
+    // Wave/foam Y offset (Dummy is in OceanAnimRoot, same as Waves)
+    let anim_y = if name_lower == "waves" || name_lower == "dummy" {
+        wave_y_offset
+    } else if name_lower == "foam" {
+        foam_y_offset
+    } else {
+        0.0
+    };
+
+    if let Some(&(block_width, speed)) = cache.tile_info.get(&sprite_index) {
+        let phase = cache.tile_phase.get(&sprite_index).copied().unwrap_or(0.0);
+        let apparent_x = camera.center.x * (1.0 - speed);
+        let shift = ((apparent_x - phase) / block_width).round() * block_width + phase;
+        // Dynamic copy count: enough to cover the viewport at any zoom
+        let viewport_w = rect.width() / camera.zoom;
+        let n = (viewport_w / block_width).ceil() as i32 + 1;
+        for copy in -n..=n {
+            let x_offset = copy as f32 * block_width + shift + anim_x;
+            draw_bg_sprite_offset(ctx, sprite, x_offset, anim_y, false, gpu);
         }
+    } else {
+        let extend_fill_like = sprite.fill_color.is_some()
+            || sprite.sky_texture.is_some()
+            || name_lower.contains("fill")
+            || cache.singleton_set.contains(&sprite_index);
+        draw_bg_sprite_offset(ctx, sprite, anim_x, anim_y, extend_fill_like, gpu);
     }
 }
 

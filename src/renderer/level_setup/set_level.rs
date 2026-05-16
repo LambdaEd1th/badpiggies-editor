@@ -7,7 +7,7 @@ use crate::domain::types::{LevelData, LevelObject, Vec2};
 
 use super::super::LevelRenderer;
 use super::super::background;
-use super::super::clouds::{CLOUD_CONFIGS, CloudInstance};
+use super::super::clouds::{CloudInstance, cloud_config};
 use super::super::compounds;
 use super::super::dark_overlay::{construction_grid_start_light, parse_dark_level_data};
 use super::super::edge_shader;
@@ -385,10 +385,7 @@ impl LevelRenderer {
                 LevelObject::Prefab(p) => &p.name,
                 LevelObject::Parent(p) => &p.name,
             };
-            for &(config_name, ref config) in CLOUD_CONFIGS {
-                if obj_name != config_name {
-                    continue;
-                }
+            if let Some(config) = cloud_config(obj_name) {
                 let pos = compute_world_position(level, idx);
                 let cx = pos.x;
                 let cy = pos.y;
@@ -413,8 +410,8 @@ impl LevelRenderer {
                         limits: config.limits,
                         velocity: config.velocity,
                         opacity,
-                        sprite_name: info.name.to_string(),
-                        atlas: info.atlas.to_string(),
+                        sprite_name: info.name.clone(),
+                        atlas: info.atlas.clone(),
                         scale_x: info.scale_x,
                         scale_y: info.scale_y,
                     });

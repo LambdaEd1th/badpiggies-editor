@@ -49,15 +49,10 @@ impl LevelRenderer {
             self.draw_background_all(&painter, canvas_center, rect, dt);
         }
 
-        // ── Decorative terrain (Z≈5, behind ground background Z≈2) ──
-        // In Unity, decorative terrain sits at Z≈5 (farther from camera), so it's
-        // occluded by ground background at Z≈2. We draw it before ground layers.
-        self.draw_terrain_pass(&painter, canvas_center, rect, true);
-
-        // ── Ground background (eff_z 0..5): beach/grass, behind collider terrain ──
-        if self.show_bg {
-            self.draw_bg_z_range(&painter, canvas_center, rect, (0.0, 5.0));
-        }
+        // ── Mid-ground transparent layer: decorative terrain + ground bg (0 <= Z < 5) ──
+        // These now share one back-to-front Z flow so decorative terrain no longer depends
+        // on a fixed pass to stay behind beach/grass.
+        self.draw_ground_bg_and_decorative_terrain(&painter, canvas_center, rect);
 
         // Construction grid overlay (renderOrder=9, between ground and collider terrain)
         if self.show_grid_overlay

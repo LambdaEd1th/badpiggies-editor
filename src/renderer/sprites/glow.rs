@@ -4,7 +4,7 @@ use eframe::egui;
 
 use crate::data::unity_anim;
 use crate::domain::types::Vec2;
-use crate::goal_animation::goal_visual_state;
+use crate::data::goal_animation::goal_visual_state;
 
 use super::super::{Camera, background};
 use super::SpriteDrawData;

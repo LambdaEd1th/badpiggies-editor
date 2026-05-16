@@ -3,7 +3,7 @@
 use eframe::egui;
 
 use crate::domain::types::*;
-use crate::goal_animation::{GoalAnimationState, GoalVisualState, goal_visual_state};
+use crate::data::goal_animation::{GoalAnimationState, GoalVisualState, goal_visual_state};
 
 use super::Camera;
 use super::sprites::SpriteDrawData;

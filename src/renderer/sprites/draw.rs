@@ -3,7 +3,7 @@
 use eframe::egui;
 
 use crate::domain::types::*;
-use crate::goal_animation::goal_visual_state;
+use crate::data::goal_animation::goal_visual_state;
 
 use super::super::particles::{FAN_FIELD_CENTER_Y, FAN_FIELD_HALF_H, FAN_FIELD_HALF_W, WindAreaDef};
 use super::super::{CompoundTransform, DrawCtx, PreviewPlaybackState};
@@ -481,7 +481,7 @@ mod tests {
     use crate::renderer::Camera;
 
     use super::super::data::SpriteDrawData;
-    use crate::goal_animation::GoalAnimationState;
+    use crate::data::goal_animation::GoalAnimationState;
 
     fn test_sprite(name: &str) -> SpriteDrawData {
         SpriteDrawData {

@@ -16,7 +16,6 @@ mod app;
 mod data;
 mod diagnostics;
 mod domain;
-mod goal_animation;
 mod i18n;
 mod io;
 mod renderer;

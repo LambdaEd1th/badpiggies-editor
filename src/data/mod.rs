@@ -2,6 +2,7 @@
 
 pub mod assets;
 pub mod bg_data;
+pub mod goal_animation;
 pub mod icon_db;
 pub mod level_db;
 pub mod prefab_sprites;

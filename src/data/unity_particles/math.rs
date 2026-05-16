@@ -19,6 +19,7 @@ pub(super) fn normalize_xy(x: f32, y: f32) -> Vec2 {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub(super) fn quaternion_axes(
     quat: [f32; 4],
 ) -> ((f32, f32, f32), (f32, f32, f32), (f32, f32, f32)) {

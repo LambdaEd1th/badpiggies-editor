@@ -79,7 +79,7 @@ fn bird_sleep_prefab_loads_particle_values() {
     assert_eq!(system.uv_module.sample_frame_index(0.0), 6);
     assert_close(system.size_over_lifetime.sample(0.355244, 0.0), 0.7);
     assert_close(system.rotation_over_lifetime.sample(0.0, 0.0), 0.0);
-    assert_close(system.rotation_over_lifetime.sample(0.0, 1.0), 0.5235988);
+    assert_close(system.rotation_over_lifetime.sample(0.0, 1.0), std::f32::consts::FRAC_PI_6);
     assert_close(system.velocity_y.sample(0.0, 0.0), 0.49414596);
     assert_close(system.velocity_y.sample(0.0, 1.0), 0.3103452);
 

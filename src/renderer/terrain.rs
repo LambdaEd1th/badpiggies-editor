@@ -511,6 +511,121 @@ pub fn transform_mesh_to_screen_into(
 // ── Terrain draw pass (extracted from show()) ──
 
 impl LevelRenderer {
+    pub(in crate::renderer) fn draw_terrain_index(
+        &mut self,
+        terrain_index: usize,
+        painter: &egui::Painter,
+        canvas_center: egui::Vec2,
+        rect: egui::Rect,
+    ) {
+        let Some(td) = self.terrain_data.get(terrain_index) else {
+            return;
+        };
+
+        let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
+        let cam_cx = self.camera.center.x - tdx;
+        let cam_cy = self.camera.center.y - tdy;
+
+        // Fill
+        if let Some(ref fill_data) = td.fill_mesh {
+            let mut gpu_done = false;
+            if let (Some(resources), Some(device), Some(queue)) =
+                (&self.fill_resources, &self.wgpu_device, &self.wgpu_queue)
+                && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(terrain_index)
+                && let Some(tex_name) = &td.fill_texture
+                && let Some(tex_gpu) = self
+                    .fill_texture_cache
+                    .get_or_load(device, queue, resources, tex_name)
+                && self.fill_slot_counter < fill_shader::max_draw_slots()
+            {
+                let slot = self.fill_slot_counter;
+                self.fill_slot_counter += 1;
+                let fc = &fill_data.vertices[0].color;
+                let [r, g, b, a] = [
+                    fc.r() as f32 / 255.0,
+                    fc.g() as f32 / 255.0,
+                    fc.b() as f32 / 255.0,
+                    fc.a() as f32 / 255.0,
+                ];
+                let uniforms = fill_shader::FillUniforms {
+                    screen_size: [rect.width(), rect.height()],
+                    camera_center: [cam_cx, cam_cy],
+                    zoom: self.camera.zoom,
+                    _pad0: 0.0,
+                    _pad1: [0.0; 2],
+                    tint_color: [r, g, b, a],
+                };
+                painter.add(fill_shader::make_fill_callback(
+                    rect,
+                    resources.clone(),
+                    tex_gpu,
+                    gpu_mesh.clone(),
+                    slot,
+                    uniforms,
+                ));
+                gpu_done = true;
+            }
+            if !gpu_done {
+                let drag_cam = Camera {
+                    center: Vec2 {
+                        x: cam_cx,
+                        y: cam_cy,
+                    },
+                    ..self.camera.clone()
+                };
+                transform_mesh_to_screen_into(
+                    fill_data,
+                    &drag_cam,
+                    canvas_center,
+                    &mut self.terrain_scratch_mesh,
+                );
+                if let Some(ref tex_name) = td.fill_texture
+                    && let Some(tex_id) = self.tex_cache.get(tex_name)
+                {
+                    self.terrain_scratch_mesh.texture_id = tex_id;
+                }
+                painter.add(egui::Shape::mesh(std::mem::take(
+                    &mut self.terrain_scratch_mesh,
+                )));
+            }
+        }
+
+        // Edge (right after fill)
+        if let Some(gpu_idx) = self.edge_gpu_mesh_index.get(terrain_index).copied().flatten() {
+            if let Some(ref resources) = self.edge_resources {
+                painter.add(edge_shader::make_single_edge_paint_callback(
+                    rect,
+                    resources.clone(),
+                    self.edge_gpu_meshes.clone(),
+                    edge_shader::EdgeCameraParams {
+                        screen_w: rect.width(),
+                        screen_h: rect.height(),
+                        camera_x: cam_cx,
+                        camera_y: cam_cy,
+                        zoom: self.camera.zoom,
+                    },
+                    gpu_idx,
+                ));
+            }
+        } else {
+            let drag_cam = Camera {
+                center: Vec2 {
+                    x: cam_cx,
+                    y: cam_cy,
+                },
+                ..self.camera.clone()
+            };
+            Self::draw_terrain_edge_cpu(
+                painter,
+                td,
+                &drag_cam,
+                canvas_center,
+                &self.tex_cache,
+                &mut self.terrain_scratch_mesh,
+            );
+        }
+    }
+
     /// Draw terrain fill + edge for either decorative or collider terrains.
     pub(super) fn draw_terrain_pass(
         &mut self,
@@ -519,113 +634,11 @@ impl LevelRenderer {
         rect: egui::Rect,
         decorative: bool,
     ) {
-        for (ti, td) in self.terrain_data.iter().enumerate() {
-            if td.decorative != decorative {
+        for ti in 0..self.terrain_data.len() {
+            if self.terrain_data[ti].decorative != decorative {
                 continue;
             }
-
-            let (tdx, tdy) = self.terrain_drag_offset(td.object_index);
-            let cam_cx = self.camera.center.x - tdx;
-            let cam_cy = self.camera.center.y - tdy;
-
-            // Fill
-            if let Some(ref fill_data) = td.fill_mesh {
-                let mut gpu_done = false;
-                if let (Some(resources), Some(device), Some(queue)) =
-                    (&self.fill_resources, &self.wgpu_device, &self.wgpu_queue)
-                    && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(ti)
-                    && let Some(tex_name) = &td.fill_texture
-                    && let Some(tex_gpu) = self
-                        .fill_texture_cache
-                        .get_or_load(device, queue, resources, tex_name)
-                    && self.fill_slot_counter < fill_shader::max_draw_slots()
-                {
-                    let slot = self.fill_slot_counter;
-                    self.fill_slot_counter += 1;
-                    let fc = &fill_data.vertices[0].color;
-                    let [r, g, b, a] = [
-                        fc.r() as f32 / 255.0,
-                        fc.g() as f32 / 255.0,
-                        fc.b() as f32 / 255.0,
-                        fc.a() as f32 / 255.0,
-                    ];
-                    let uniforms = fill_shader::FillUniforms {
-                        screen_size: [rect.width(), rect.height()],
-                        camera_center: [cam_cx, cam_cy],
-                        zoom: self.camera.zoom,
-                        _pad0: 0.0,
-                        _pad1: [0.0; 2],
-                        tint_color: [r, g, b, a],
-                    };
-                    painter.add(fill_shader::make_fill_callback(
-                        rect,
-                        resources.clone(),
-                        tex_gpu,
-                        gpu_mesh.clone(),
-                        slot,
-                        uniforms,
-                    ));
-                    gpu_done = true;
-                }
-                if !gpu_done {
-                    let drag_cam = Camera {
-                        center: Vec2 {
-                            x: cam_cx,
-                            y: cam_cy,
-                        },
-                        ..self.camera.clone()
-                    };
-                    transform_mesh_to_screen_into(
-                        fill_data,
-                        &drag_cam,
-                        canvas_center,
-                        &mut self.terrain_scratch_mesh,
-                    );
-                    if let Some(ref tex_name) = td.fill_texture
-                        && let Some(tex_id) = self.tex_cache.get(tex_name)
-                    {
-                        self.terrain_scratch_mesh.texture_id = tex_id;
-                    }
-                    painter.add(egui::Shape::mesh(std::mem::take(
-                        &mut self.terrain_scratch_mesh,
-                    )));
-                }
-            }
-
-            // Edge (right after fill)
-            if let Some(gpu_idx) = self.edge_gpu_mesh_index.get(ti).copied().flatten() {
-                if let Some(ref resources) = self.edge_resources {
-                    painter.add(edge_shader::make_single_edge_paint_callback(
-                        rect,
-                        resources.clone(),
-                        self.edge_gpu_meshes.clone(),
-                        edge_shader::EdgeCameraParams {
-                            screen_w: rect.width(),
-                            screen_h: rect.height(),
-                            camera_x: cam_cx,
-                            camera_y: cam_cy,
-                            zoom: self.camera.zoom,
-                        },
-                        gpu_idx,
-                    ));
-                }
-            } else {
-                let drag_cam = Camera {
-                    center: Vec2 {
-                        x: cam_cx,
-                        y: cam_cy,
-                    },
-                    ..self.camera.clone()
-                };
-                Self::draw_terrain_edge_cpu(
-                    painter,
-                    td,
-                    &drag_cam,
-                    canvas_center,
-                    &self.tex_cache,
-                    &mut self.terrain_scratch_mesh,
-                );
-            }
+            self.draw_terrain_index(ti, painter, canvas_center, rect);
         }
     }
 }

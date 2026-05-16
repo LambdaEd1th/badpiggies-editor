@@ -77,21 +77,10 @@ impl LevelRenderer {
         // ── Interaction: drag, pan, click ──
         self.handle_interaction(ui, &response, canvas_center, rect, selected, cursor_mode);
 
-        // ── Collider terrain (Z≈0, in front of ground background) ──
+        // ── World transparent layer: collider terrain + sprites + wind ──
 
-        // Glow starbursts + goal flags (drawn before collider terrain for Z-order)
+        // Glow starbursts + goal flags stay before collider terrain/world objects.
         self.draw_pre_terrain_effects(&painter, canvas_center, rect);
-
-        // Collider terrain: interleave fill + edge per terrain (back-to-front)
-        self.draw_terrain_pass(&painter, canvas_center, rect, false);
-
-        // Terrain triangulation wireframe overlay
-        if self.show_terrain_tris {
-            self.draw_terrain_wireframe(&painter, canvas_center);
-        }
-
-        // Selection outlines and node handles for terrain
-        self.draw_terrain_selection(&painter, canvas_center, selected);
 
         // ── Particle simulation (fan, wind, zzz) ──
         let dt = ui.input(|i| i.stable_dt);
@@ -132,6 +121,13 @@ impl LevelRenderer {
                 .load_texture(ui.ctx(), "particles/Particles_Sheet_01.png", "Particles_Sheet_01"),
         );
 
+        // Terrain overlays stay after the world transparent layer so inline collider
+        // terrain rendering does not paint over selection or debug visuals.
+        if self.show_terrain_tris {
+            self.draw_terrain_wireframe(&painter, canvas_center);
+        }
+        self.draw_terrain_selection(&painter, canvas_center, selected);
+
         // ── Dark level overlay with LitArea cutouts ──
         if self.dark_level && self.show_dark_overlay {
             self.draw_dark_overlay(&painter, canvas_center, rect);
@@ -141,16 +137,6 @@ impl LevelRenderer {
         if self.show_bg {
             self.draw_bg_z_range(&painter, canvas_center, rect, (f32::NEG_INFINITY, 0.0));
         }
-
-        // Draw wind leaf particles (renderOrder=25, on top of foreground)
-        particles::draw_wind_particles(
-            &self.wind_particles,
-            &self.camera,
-            &painter,
-            canvas_center,
-            rect,
-            self.tex_cache.get(GLOW_ATLAS),
-        );
 
         // Grid (drawn on top of all scene content)
         if self.show_grid {

@@ -12,7 +12,8 @@ pub(in crate::renderer::sprites) use draw::dessert_y_offset;
 pub use draw::draw_sprite;
 pub use glow::{draw_glow, has_glow};
 
-use std::collections::BTreeSet;
+use std::cmp::Ordering;
+use std::collections::{BTreeSet, HashMap};
 
 use eframe::egui;
 
@@ -100,7 +101,92 @@ pub(super) fn bird_sleep_scale_factors(time: f64, phase: f32) -> (f32, f32) {
     )
 }
 
+// Consecutive same-type GPU draws can still be batched, but they may need to be
+// flushed at terrain/wind insertion points to preserve global transparent order.
+enum GpuDraw {
+    Opaque(opaque_shader::OpaqueBatchDraw),
+    Transparent(sprite_shader::SpriteBatchDraw),
+}
+
 impl LevelRenderer {
+    fn flush_gpu_draws(
+        &self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        gpu_draws: &mut Vec<GpuDraw>,
+    ) {
+        if gpu_draws.is_empty() {
+            return;
+        }
+
+        let mut pending_opaque: Vec<opaque_shader::OpaqueBatchDraw> = Vec::new();
+        let mut pending_transparent: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
+        let props_tint = assets::props_tint_color(self.bg_theme);
+
+        for draw in gpu_draws.drain(..) {
+            match draw {
+                GpuDraw::Opaque(d) => {
+                    if !pending_transparent.is_empty()
+                        && let Some(resources) = &self.sprite_resources
+                    {
+                        painter.add(sprite_shader::make_sprite_batch_callback(
+                            rect,
+                            resources.clone(),
+                            std::mem::take(&mut pending_transparent),
+                        ));
+                    }
+                    pending_opaque.push(d);
+                }
+                GpuDraw::Transparent(d) => {
+                    if !pending_opaque.is_empty()
+                        && let (Some(resources), Some(batch)) =
+                            (&self.opaque_resources, &self.opaque_batch)
+                    {
+                        painter.add(opaque_shader::make_opaque_batch_callback(
+                            rect,
+                            resources.clone(),
+                            batch.clone(),
+                            opaque_shader::OpaqueBatchParams {
+                                screen_w: rect.width(),
+                                screen_h: rect.height(),
+                                zoom: self.camera.zoom,
+                                tint_color: props_tint,
+                            },
+                            std::mem::take(&mut pending_opaque),
+                        ));
+                    }
+                    pending_transparent.push(d);
+                }
+            }
+        }
+
+        if !pending_opaque.is_empty()
+            && let (Some(resources), Some(batch)) = (&self.opaque_resources, &self.opaque_batch)
+        {
+            painter.add(opaque_shader::make_opaque_batch_callback(
+                rect,
+                resources.clone(),
+                batch.clone(),
+                opaque_shader::OpaqueBatchParams {
+                    screen_w: rect.width(),
+                    screen_h: rect.height(),
+                    zoom: self.camera.zoom,
+                    tint_color: props_tint,
+                },
+                pending_opaque,
+            ));
+        }
+        if !pending_transparent.is_empty()
+            && let Some(resources) = &self.sprite_resources
+        {
+            painter.add(sprite_shader::make_sprite_batch_callback(
+                rect,
+                resources.clone(),
+                pending_transparent,
+            ));
+        }
+    }
+
     /// Draw all sprites with GPU batching, compound sub-sprites, and bird face deferral.
     pub(super) fn draw_sprites(
         &mut self,
@@ -139,16 +225,25 @@ impl LevelRenderer {
             vec![None; self.sprite_data.len()];
         for area in &self.wind_areas {
             if area.sprite_index < wind_area_map.len() {
-                wind_area_map[area.sprite_index] = Some(*area);
+                wind_area_map[area.sprite_index] = Some(area.clone());
             }
         }
+        let collider_terrain_map: HashMap<ObjectIndex, usize> = self
+            .terrain_data
+            .iter()
+            .enumerate()
+            .filter_map(|(terrain_index, terrain)| {
+                (!terrain.decorative).then_some((terrain.object_index, terrain_index))
+            })
+            .collect();
+        let mut wind_render_queue: Vec<(f32, usize)> = self
+            .wind_areas
+            .iter()
+            .map(|area| (area.render_z, area.sprite_index))
+            .collect();
+        wind_render_queue.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+        let mut wind_render_cursor = 0usize;
 
-        // Collect GPU sprite draws into a single Z-ordered Vec.
-        // Consecutive same-type draws are batched into one PaintCallback when emitted.
-        enum GpuDraw {
-            Opaque(opaque_shader::OpaqueBatchDraw),
-            Transparent(sprite_shader::SpriteBatchDraw),
-        }
         let mut gpu_draws: Vec<GpuDraw> = Vec::new();
 
         // Deferred bird face draws: must render AFTER the GPU batch callbacks so
@@ -165,24 +260,46 @@ impl LevelRenderer {
         }
         let mut deferred_birds: Vec<DeferredBird> = Vec::new();
 
-        for (si, sprite) in self.sprite_data.iter().enumerate() {
-            if sprite.is_terrain {
-                continue;
+        for si in 0..self.sprite_data.len() {
+            let sprite_z = self.sprite_data[si].world_pos.z;
+            while wind_render_cursor < wind_render_queue.len()
+                && wind_render_queue[wind_render_cursor].0 >= sprite_z
+            {
+                self.flush_gpu_draws(painter, rect, &mut gpu_draws);
+                let source_sprite_index = wind_render_queue[wind_render_cursor].1;
+                super::particles::draw_wind_particles(
+                    &self.wind_particles,
+                    Some(source_sprite_index),
+                    &self.camera,
+                    painter,
+                    canvas_center,
+                    rect,
+                    self.tex_cache.get(super::GLOW_ATLAS),
+                );
+                wind_render_cursor += 1;
             }
 
-            let is_goal_area = sprite.name_lower.starts_with("goalarea");
-
-            let is_sel = selected.contains(&sprite.index)
-                || (sprite.is_hidden
-                    && sprite.parent.is_some()
-                    && sprite.parent.is_some_and(|p| selected.contains(&p)));
+            let (is_terrain, sprite_index, is_goal_area, is_sel, half_size, world_pos) = {
+                let sprite = &self.sprite_data[si];
+                (
+                    sprite.is_terrain,
+                    sprite.index,
+                    sprite.name_lower.starts_with("goalarea"),
+                    selected.contains(&sprite.index)
+                        || (sprite.is_hidden
+                            && sprite.parent.is_some()
+                            && sprite.parent.is_some_and(|p| selected.contains(&p))),
+                    sprite.half_size,
+                    sprite.world_pos,
+                )
+            };
 
             // Early world-space frustum cull
             if !is_sel {
-                let margin = sprite.half_size.0.max(sprite.half_size.1)
+                let margin = half_size.0.max(half_size.1)
                     + if is_goal_area { 16.0 } else { 2.0 };
-                let sx = sprite.world_pos.x;
-                let sy = sprite.world_pos.y;
+                let sx = world_pos.x;
+                let sy = world_pos.y;
                 if sx + margin < visible_min_x
                     || sx - margin > visible_max_x
                     || sy + margin < visible_min_y
@@ -192,10 +309,20 @@ impl LevelRenderer {
                 }
             }
 
+            if is_terrain {
+                if let Some(&terrain_index) = collider_terrain_map.get(&sprite_index) {
+                    self.flush_gpu_draws(painter, rect, &mut gpu_draws);
+                    self.draw_terrain_index(terrain_index, painter, canvas_center, rect);
+                }
+                continue;
+            }
+
+            let sprite = &self.sprite_data[si];
+
             let fan_state = fan_angle_map[si];
             let fan_angle = fan_state.map(|state| state.0);
             let fan_force = fan_state.map(|state| state.1);
-            let wind_area = wind_area_map[si];
+            let wind_area = wind_area_map[si].clone();
             let skip_root = compounds::draw_compound(
                 &DrawCtx {
                     painter,
@@ -472,79 +599,22 @@ impl LevelRenderer {
             }
         }
 
-        // Emit GPU sprite callbacks in Z order, batching consecutive same-type
-        // draws into one callback to minimise render state resets.
-        {
-            let mut pending_opaque: Vec<opaque_shader::OpaqueBatchDraw> = Vec::new();
-            let mut pending_transparent: Vec<sprite_shader::SpriteBatchDraw> = Vec::new();
-            let props_tint = assets::props_tint_color(self.bg_theme);
-
-            for draw in gpu_draws {
-                match draw {
-                    GpuDraw::Opaque(d) => {
-                        if !pending_transparent.is_empty()
-                            && let Some(resources) = &self.sprite_resources
-                        {
-                            painter.add(sprite_shader::make_sprite_batch_callback(
-                                rect,
-                                resources.clone(),
-                                std::mem::take(&mut pending_transparent),
-                            ));
-                        }
-                        pending_opaque.push(d);
-                    }
-                    GpuDraw::Transparent(d) => {
-                        if !pending_opaque.is_empty()
-                            && let (Some(resources), Some(batch)) =
-                                (&self.opaque_resources, &self.opaque_batch)
-                        {
-                            painter.add(opaque_shader::make_opaque_batch_callback(
-                                rect,
-                                resources.clone(),
-                                batch.clone(),
-                                opaque_shader::OpaqueBatchParams {
-                                    screen_w: rect.width(),
-                                    screen_h: rect.height(),
-                                    zoom: self.camera.zoom,
-                                    tint_color: props_tint,
-                                },
-                                std::mem::take(&mut pending_opaque),
-                            ));
-                        }
-                        pending_transparent.push(d);
-                    }
-                }
-            }
-
-            // Flush remaining draws
-            if !pending_opaque.is_empty()
-                && let (Some(resources), Some(batch)) = (&self.opaque_resources, &self.opaque_batch)
-            {
-                painter.add(opaque_shader::make_opaque_batch_callback(
-                    rect,
-                    resources.clone(),
-                    batch.clone(),
-                    opaque_shader::OpaqueBatchParams {
-                        screen_w: rect.width(),
-                        screen_h: rect.height(),
-                        zoom: self.camera.zoom,
-                        tint_color: props_tint,
-                    },
-                    pending_opaque,
-                ));
-            }
-            if !pending_transparent.is_empty()
-                && let Some(resources) = &self.sprite_resources
-            {
-                painter.add(sprite_shader::make_sprite_batch_callback(
-                    rect,
-                    resources.clone(),
-                    pending_transparent,
-                ));
-            }
+        self.flush_gpu_draws(painter, rect, &mut gpu_draws);
+        while wind_render_cursor < wind_render_queue.len() {
+            let source_sprite_index = wind_render_queue[wind_render_cursor].1;
+            super::particles::draw_wind_particles(
+                &self.wind_particles,
+                Some(source_sprite_index),
+                &self.camera,
+                painter,
+                canvas_center,
+                rect,
+                self.tex_cache.get(super::GLOW_ATLAS),
+            );
+            wind_render_cursor += 1;
         }
 
-        // Deferred bird faces: draw after GPU batch so faces appear on top of bodies
+        // Emit GPU sprite callbacks in Z order, batching consecutive same-type
         for bird in &deferred_birds {
             compounds::draw_bird_face(
                 &DrawCtx {

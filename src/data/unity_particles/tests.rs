@@ -26,7 +26,7 @@ fn wind_area_prefab_loads_particle_values() {
 
     assert_eq!(prefab.systems.len(), 3);
     assert_close(prefab.wind_direction.x, 4.8851843);
-    assert_close(prefab.wind_direction.y, 0.0);
+    assert_close(prefab.wind_direction.y, -6.33522);
     assert_close(prefab.power_factor, 1.5);
     assert_close(system.start_lifetime.sample(0.0, 0.0), 4.444445);
     assert_close(system.start_speed.sample(0.0, 0.0), 6.0);

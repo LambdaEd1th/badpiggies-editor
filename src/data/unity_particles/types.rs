@@ -226,15 +226,4 @@ impl UnityParticleSystemDef {
             y: ((ax * right.1).powi(2) + (ay * up.1).powi(2) + (az * forward.1).powi(2)).sqrt(),
         }
     }
-
-    pub fn projected_ellipsoid_half_extents_xz(&self) -> Vec2 {
-        let (right, up, forward) = quaternion_axes(self.local_rotation);
-        let ax = self.shape_scale.x * self.shape_radius;
-        let ay = self.shape_scale.y * self.shape_radius;
-        let az = self.shape_scale.z * self.shape_radius;
-        Vec2 {
-            x: ((ax * right.0).powi(2) + (ay * up.0).powi(2) + (az * forward.0).powi(2)).sqrt(),
-            y: ((ax * right.2).powi(2) + (ay * up.2).powi(2) + (az * forward.2).powi(2)).sqrt(),
-        }
-    }
 }

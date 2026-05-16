@@ -15,8 +15,7 @@ use super::super::fill_shader;
 use super::super::grid;
 use super::super::opaque_shader;
 use super::super::particles::{
-    AttachedEffectEmitter, FanEmitter, FanState, WindAreaDef, WIND_AREA_HALF_H,
-    WIND_AREA_HALF_W, WIND_AREA_POWER_FACTOR, wind_area_local_direction,
+    AttachedEffectEmitter, FanEmitter, FanState, build_wind_area_def,
     attached_effect_kind_for_sprite_name, pseudo_random, wind_area_particle_system_count,
 };
 use super::super::sprites;
@@ -344,19 +343,16 @@ impl LevelRenderer {
             }
             // Collect WindArea zones
             if sprite.name.starts_with("WindArea") {
-                let dir = wind_area_local_direction();
-                let cos_r = sprite.rotation.cos();
-                let sin_r = sprite.rotation.sin();
-                self.wind_areas.push(WindAreaDef {
-                    sprite_index: i,
-                    center_x: sprite.world_pos.x,
-                    center_y: sprite.world_pos.y,
-                    half_w: WIND_AREA_HALF_W * sprite.scale.0.abs().max(1.0),
-                    half_h: WIND_AREA_HALF_H * sprite.scale.1.abs().max(1.0),
-                    dir_x: dir.x * cos_r - dir.y * sin_r,
-                    dir_y: dir.x * sin_r + dir.y * cos_r,
-                    power_factor: WIND_AREA_POWER_FACTOR,
-                });
+                self.wind_areas.push(build_wind_area_def(
+                    i,
+                    sprite.world_pos.x,
+                    sprite.world_pos.y,
+                    sprite.world_pos.z,
+                    sprite.rotation,
+                    sprite.scale.0,
+                    sprite.scale.1,
+                    sprite.override_text.as_deref(),
+                ));
             }
             // Collect Bird positions for Zzz particles
             if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {

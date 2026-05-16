@@ -165,7 +165,7 @@ pub(super) fn load_wind_area_prefab(asset_key: &str) -> Option<WindAreaParticleP
         .unwrap_or_default();
     let wind_direction = Vec2 {
         x: handle.x - root_transform.local_position.x,
-        y: handle.z - root_transform.local_position.z,
+        y: handle.y - root_transform.local_position.y,
     };
     let power_factor = map_get(root_fields, "m_windPowerFactor")
         .and_then(value_as_f32)

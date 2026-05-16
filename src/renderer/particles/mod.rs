@@ -19,8 +19,8 @@ pub(crate) use fan::{
     start_fan_emitter_for_play,
 };
 pub(crate) use wind::{
-    WIND_AREA_HALF_H, WIND_AREA_HALF_W, WIND_AREA_POWER_FACTOR, WindAreaDef, WindParticle,
-    draw_wind_particles, wind_area_local_direction, wind_area_particle_system_count,
+    WindAreaDef, WindParticle, build_wind_area_def, draw_wind_particles,
+    wind_area_particle_system_count,
 };
 pub(super) use zzz::{ZzzParticle, draw_zzz_particles};
 

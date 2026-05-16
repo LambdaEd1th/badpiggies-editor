@@ -127,12 +127,7 @@ pub fn build_terrain(
     };
     let fallback_edge_splat1 =
         assets::get_terrain_splat1_for_level(level_key, &prefab.name).map(|s| s.to_string());
-    // Most terrains should still honor loader refs, but the Maya cave / temple / dark
-    // prefabs keep their prefab-authored Border splat1 even when level refs point at a
-    // shared outline texture such as Ground_Rocks_Outline_Texture_06.
-    let edge_splat1 = if assets::terrain_splat1_prefers_prefab_over_level_refs(&prefab.name) {
-        fallback_edge_splat1.clone()
-    } else if td.curve_textures.len() > 1 {
+    let edge_splat1 = if td.curve_textures.len() > 1 {
         crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
             .filter(|name| crate::data::assets::read_asset(&format!("ground/{}", name)).is_some())
             .map(|s| s.to_string())

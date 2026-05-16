@@ -19,6 +19,7 @@ const PREFAB_ASSET_PREFIX: &str = "unity/prefabs/";
 #[derive(Debug, Clone)]
 struct LoaderReference {
     guid: Option<String>,
+    file_id: Option<String>,
     ref_type: i32,
 }
 
@@ -33,10 +34,13 @@ struct ParsedLoaderPrefab {
 type RefsMap = HashMap<String, HashMap<i32, String>>;
 /// Parsed lookup: level_key → (prefab_index → corrected_name)
 type PrefabsMap = HashMap<String, HashMap<i16, String>>;
+/// Parsed lookup: level_key → (ref_index → background prefab asset stem)
+type BackgroundPrefabsMap = HashMap<String, HashMap<i32, String>>;
 
 struct LevelRefsData {
     refs: RefsMap,
     prefabs: PrefabsMap,
+    background_prefabs: BackgroundPrefabsMap,
 }
 
 fn data() -> &'static LevelRefsData {
@@ -48,6 +52,7 @@ fn data() -> &'static LevelRefsData {
             LevelRefsData {
                 refs: HashMap::new(),
                 prefabs: HashMap::new(),
+                background_prefabs: HashMap::new(),
             }
         }
     })
@@ -56,10 +61,17 @@ fn data() -> &'static LevelRefsData {
 fn try_load_level_refs() -> AppResult<LevelRefsData> {
     let loaders = load_embedded_loaders()?;
     let prefab_names = load_prefab_names_by_file_id()?;
+    let background_prefab_names = load_background_prefab_names_by_root_file_id();
     let refs = build_runtime_level_refs(&loaders);
     let prefabs = build_runtime_prefab_names(&loaders, &prefab_names);
+    let background_prefabs =
+        build_runtime_background_prefab_refs(&loaders, &background_prefab_names);
 
-    Ok(LevelRefsData { refs, prefabs })
+    Ok(LevelRefsData {
+        refs,
+        prefabs,
+        background_prefabs,
+    })
 }
 
 fn load_embedded_loaders() -> AppResult<Vec<ParsedLoaderPrefab>> {
@@ -135,6 +147,36 @@ fn load_prefab_names_by_file_id() -> AppResult<HashMap<String, String>> {
     Ok(names_by_file_id)
 }
 
+fn load_background_prefab_names_by_root_file_id() -> HashMap<String, String> {
+    let mut names_by_file_id = HashMap::new();
+
+    for relative_path in assets::list_asset_paths("Resources/environment/background/", ".prefab") {
+        let asset_path = format!("unity/background/{relative_path}");
+        let Some(text) = assets::read_asset_text(&asset_path) else {
+            continue;
+        };
+        let Some(file_id) = parse_prefab_root_game_object_id(&text) else {
+            continue;
+        };
+        let prefab_name = Path::new(&relative_path)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(relative_path.as_str())
+            .to_string();
+        names_by_file_id.insert(file_id, prefab_name);
+    }
+
+    names_by_file_id
+}
+
+fn parse_prefab_root_game_object_id(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("m_RootGameObject: {fileID: ")
+            .map(|value| value.trim_end_matches('}').trim().to_string())
+    })
+}
+
 fn parse_prefab_game_object_ids(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|line| line.trim().strip_prefix("--- !u!1 &"))
@@ -158,6 +200,34 @@ fn build_runtime_prefab_names(
                 continue;
             };
             level_prefabs.insert(index, name.clone());
+        }
+        prefabs.insert(loader.level_key.clone(), level_prefabs);
+    }
+
+    prefabs
+}
+
+fn build_runtime_background_prefab_refs(
+    loaders: &[ParsedLoaderPrefab],
+    background_prefab_names: &HashMap<String, String>,
+) -> BackgroundPrefabsMap {
+    let mut prefabs = HashMap::new();
+
+    for loader in loaders {
+        let mut level_prefabs = HashMap::new();
+        for (index, reference) in loader.references.iter().enumerate() {
+            if reference.ref_type != 2 {
+                continue;
+            }
+
+            let Some(file_id) = reference.file_id.as_deref() else {
+                continue;
+            };
+            let Some(name) = background_prefab_names.get(file_id) else {
+                continue;
+            };
+
+            level_prefabs.insert(index as i32, name.clone());
         }
         prefabs.insert(loader.level_key.clone(), level_prefabs);
     }
@@ -242,6 +312,7 @@ fn parse_loader_prefab(text: &str) -> Option<ParsedLoaderPrefab> {
 fn parse_loader_reference(line: &str) -> LoaderReference {
     LoaderReference {
         guid: extract_loader_field(line, "guid: ").map(ToOwned::to_owned),
+        file_id: extract_loader_field(line, "fileID: ").map(ToOwned::to_owned),
         ref_type: extract_loader_field(line, "type: ")
             .and_then(|value| value.parse::<i32>().ok())
             .unwrap_or_default(),
@@ -260,6 +331,10 @@ fn extract_loader_field<'a>(line: &'a str, field: &str) -> Option<&'a str> {
 
 fn resolve_texture_name(level_key: &str, guid: &str) -> Option<&'static str> {
     override_texture_name_for_level(level_key, guid).or_else(|| default_texture_name_for_guid(guid))
+}
+
+pub(crate) fn texture_name_for_guid(guid: &str) -> Option<&'static str> {
+    default_texture_name_for_guid(guid)
 }
 
 fn default_texture_name_for_guid(guid: &str) -> Option<&'static str> {
@@ -352,10 +427,20 @@ pub fn get_prefab_override(level_key: &str, prefab_index: i16) -> Option<&'stati
         .map(|s| s.as_str())
 }
 
+/// Get the resolved background prefab asset stem for a loader reference index.
+pub fn get_background_prefab_ref(level_key: &str, ref_index: i32) -> Option<&'static str> {
+    data()
+        .background_prefabs
+        .get(level_key)
+        .and_then(|m| m.get(&ref_index))
+        .map(|s| s.as_str())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        default_texture_name_for_guid, get_level_ref, get_prefab_override,
+        default_texture_name_for_guid, get_background_prefab_ref, get_level_ref,
+        get_prefab_override,
         level_key_from_filename,
     };
 
@@ -418,6 +503,22 @@ mod tests {
         assert_eq!(
             get_prefab_override("Level_Sandbox_06_data", 15),
             Some("Bush_03_0")
+        );
+    }
+
+    #[test]
+    fn runtime_loader_background_refs_resolve_episode6_background_prefabs() {
+        assert_eq!(
+            get_background_prefab_ref("episode_6_level_5_data", 4),
+            Some("background_mm_cave_02_set_dark")
+        );
+        assert_eq!(
+            get_background_prefab_ref("Episode_6_Ice Sandbox_data", 4),
+            Some("background_mm_temple_01_set_01")
+        );
+        assert_eq!(
+            get_background_prefab_ref("Episode_6_Tower Sandbox_data", 4),
+            Some("background_mm_01_set")
         );
     }
 }

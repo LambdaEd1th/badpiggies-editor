@@ -1,42 +1,11 @@
+use std::sync::OnceLock;
+
+use crate::data::assets;
+
 use super::types::BgLayer;
 
 pub(super) const BG_SPRITE_SCRIPT_GUID: &str = "b011dfa16a4475b746a1372ea41fdf05";
 pub(super) const BG_TEXTURELOADER_ASSET: &str = "unity/resources/textureloader.prefab";
-pub(super) const BG_THEME_PREFABS: &[(&str, &str)] = &[
-    ("Cave", "unity/background/background_cave_01_set 1.prefab"),
-    (
-        "Morning",
-        "unity/background/background_forest_01_set 1.prefab",
-    ),
-    ("Halloween", "unity/background/background_halloween.prefab"),
-    ("Jungle", "unity/background/background_jungle_01_set.prefab"),
-    ("Maya", "unity/background/background_mm_01_set.prefab"),
-    (
-        "MayaCave",
-        "unity/background/background_mm_cave_01_set.prefab",
-    ),
-    (
-        "MayaCaveDark",
-        "unity/background/background_mm_cave_01_set_dark.prefab",
-    ),
-    (
-        "MayaCave2Dark",
-        "unity/background/background_mm_cave_02_set_dark.prefab",
-    ),
-    (
-        "MayaHigh",
-        "unity/background/background_mm_high_01_set.prefab",
-    ),
-    (
-        "MayaTemple",
-        "unity/background/background_mm_temple_01_set_01.prefab",
-    ),
-    ("Night", "unity/background/background_night_01_set 1.prefab"),
-    (
-        "Plateau",
-        "unity/background/background_plateau_01_set.prefab",
-    ),
-];
 
 pub(super) fn classify_group_layer(tag: &str, group_name: &str) -> BgLayer {
     match tag {
@@ -152,31 +121,31 @@ pub(super) fn uses_own_group_context(theme: &str, sprite_name: &str, parent_grou
 
 /// All known background atlas filenames.
 pub fn bg_atlas_files() -> &'static [&'static str] {
-    &[
-        "Background_Cave_Sheet_01.png",
-        "Background_Halloween_Sheet_01.png",
-        "Background_Jungle_Sheet_01.png",
-        "Background_Jungle_Sheet_02.png",
-        "Background_Maya_Sheet_01.png",
-        "Background_Maya_Sheet_02.png",
-        "Background_Maya_Sheet_03.png",
-        "Background_Maya_Sheet_04.png",
-        "Background_Maya_Sheet_05.png",
-        "Background_Morning_Sheet_01.png",
-        "Background_Morning_Sheet_02.png",
-        "Background_Night_Sheet_01.png",
-        "Background_Plateaus_Sheet_01.png",
-    ]
+    static FILES: OnceLock<Vec<&'static str>> = OnceLock::new();
+
+    FILES.get_or_init(|| {
+        assets::list_asset_paths("Texture2D/", ".png")
+            .into_iter()
+            .filter_map(|filename| {
+                filename
+                    .starts_with("Background_")
+                    .then_some(Box::leak(filename.to_string().into_boxed_str()) as &'static str)
+            })
+            .collect()
+    })
 }
 
 /// All known sky texture filenames.
 pub fn sky_texture_files() -> &'static [&'static str] {
-    &[
-        "Halloween_Sky_Texture.png",
-        "Jungle_Sky_Texture.png",
-        "Maya_Backgrounds_sky.png",
-        "Morning_Sky_Texture.png",
-        "Night_Sky_Texture.png",
-        "Plateau_Sky_Texture.png",
-    ]
+    static FILES: OnceLock<Vec<&'static str>> = OnceLock::new();
+
+    FILES.get_or_init(|| {
+        assets::list_asset_paths("Texture2D/", ".png")
+            .into_iter()
+            .filter_map(|filename| {
+                (filename.contains("Sky_Texture") || filename.contains("Backgrounds_sky"))
+                    .then_some(Box::leak(filename.to_string().into_boxed_str()) as &'static str)
+            })
+            .collect()
+    })
 }

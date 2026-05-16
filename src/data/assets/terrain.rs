@@ -1,138 +1,133 @@
-//! Terrain name → texture filename maps and lookup helpers.
+//! Terrain name → texture filename lookup driven by embedded Unity terrain prefabs.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// Terrain prefab name → 512x512 rock fill texture.
-fn terrain_fill_map() -> &'static HashMap<&'static str, &'static str> {
-    static MAP: OnceLock<HashMap<&str, &str>> = OnceLock::new();
-    MAP.get_or_init(|| {
-        HashMap::from([
-            ("e2dTerrainBase", "Ground_Rocks_Texture.png"),
-            ("e2dTerrainBase_02", "Ground_Rocks_Texture_02.png"),
-            ("e2dTerrainBase_04", "Ground_Rocks_Texture_04.png"),
-            ("e2dTerrainBase_05_night", "Ground_Rocks_Texture.png"),
-            ("e2dTerrainBase_Halloween", "Ground_Halloween_Texture.png"),
-            ("e2dTerrainBase_MM_Ice", "Ground_Ice_Texture.png"),
-            ("e2dTerrainBase_morning", "Ground_Rocks_Texture_06.png"),
-            ("e2dTerrainBase_MM_rock", "Ground_Temple_Tile_Texture.png"),
-            ("e2dTerrainBase_MM_sand", "Ground_Temple_Rock_Texture.png"),
-            ("e2dTerrainBase_MM_TempleDarkRock", "Ground_Temple_cave.png"),
-            ("e2dTerrainBase_MM_caveSand", "Ground_Maya_cave_texture.png"),
-            // Dark MM variants have their own distinct fill textures
-            ("e2dTerrainDark_MM", "Ground_Temple_Dark_Texture.png"),
-            (
-                "e2dTerrainDark_MM_rock",
-                "Ground_Temple_Dark_Texture_02.png",
-            ),
-            (
-                "e2dTerrainDark_MM_TempleDarkRock",
-                "Ground_Temple_cave_dark.png",
-            ),
-            (
-                "e2dTerrainDark_MM_CaveSand",
-                "Ground_Maya_cave_texture_bg.png",
-            ),
-        ])
+use crate::domain::level::refs::texture_name_for_guid;
+
+use super::{list_asset_paths, read_asset_text};
+
+const TERRAIN_PREFAB_PREFIX: &str = "e2dTerrain";
+const TERRAIN_SCRIPT_GUID: &str = "dec592636f66e19d4a958df992538a81";
+
+#[derive(Default)]
+struct TerrainTextureSet {
+    fill: Option<String>,
+    splat0: Option<String>,
+    splat1: Option<String>,
+}
+
+fn terrain_texture_sets() -> &'static HashMap<String, TerrainTextureSet> {
+    static MAP: OnceLock<HashMap<String, TerrainTextureSet>> = OnceLock::new();
+    MAP.get_or_init(build_terrain_texture_sets)
+}
+
+fn terrain_aliases() -> &'static HashMap<String, String> {
+    static MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
+    MAP.get_or_init(build_terrain_aliases)
+}
+
+fn build_terrain_texture_sets() -> HashMap<String, TerrainTextureSet> {
+    let mut map = HashMap::new();
+
+    for prefab_path in list_asset_paths("Prefab/", ".prefab") {
+        let Some(prefab_name) = prefab_path.strip_suffix(".prefab") else {
+            continue;
+        };
+        if !prefab_name.starts_with(TERRAIN_PREFAB_PREFIX) {
+            continue;
+        }
+
+        let asset_path = format!("unity/prefabs/{prefab_path}");
+        let Some(text) = read_asset_text(&asset_path) else {
+            log::warn!("Missing embedded terrain prefab: {asset_path}");
+            continue;
+        };
+        let Some(texture_set) = parse_terrain_texture_set(&text) else {
+            log::warn!("Failed to parse embedded terrain prefab: {asset_path}");
+            continue;
+        };
+
+        map.insert(prefab_name.to_string(), texture_set);
+    }
+
+    map
+}
+
+fn build_terrain_aliases() -> HashMap<String, String> {
+    let mut aliases = HashMap::new();
+
+    for name in terrain_texture_sets().keys() {
+        aliases.insert(name.clone(), name.clone());
+        aliases
+            .entry(canonicalize_name(name))
+            .or_insert_with(|| name.clone());
+    }
+
+    if terrain_texture_sets().contains_key("e2dTerrainDark") {
+        aliases.insert(
+            canonicalize_name("e2dTerrainDark cave"),
+            "e2dTerrainDark".to_string(),
+        );
+        aliases.insert(
+            canonicalize_name("e2dTerrainDark_cave"),
+            "e2dTerrainDark".to_string(),
+        );
+    }
+
+    aliases
+}
+
+fn parse_terrain_texture_set(raw: &str) -> Option<TerrainTextureSet> {
+    let doc = raw.split("--- ").skip(1).find(|doc| {
+        doc.lines()
+            .any(|line| line.trim() == format!("m_Script: {{fileID: 11500000, guid: {TERRAIN_SCRIPT_GUID}, type: 3}}"))
+    })?;
+
+    let fill = doc
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("FillTexture: "))
+        .and_then(texture_name_from_reference)
+        .map(str::to_string);
+
+    let mut curve_textures = Vec::new();
+    let mut in_curve_textures = false;
+    for line in doc.lines() {
+        let trimmed = line.trim();
+        if trimmed == "CurveTextures:" {
+            in_curve_textures = true;
+            continue;
+        }
+        if !in_curve_textures {
+            continue;
+        }
+        if trimmed.starts_with("PlasticEdges:") {
+            break;
+        }
+        if let Some(reference) = trimmed.strip_prefix("- texture: ")
+            && let Some(texture_name) = texture_name_from_reference(reference)
+        {
+            curve_textures.push(texture_name.to_string());
+        }
+    }
+
+    Some(TerrainTextureSet {
+        fill,
+        splat0: curve_textures.first().cloned(),
+        splat1: curve_textures.get(1).cloned(),
     })
 }
 
-/// Terrain prefab → Splat0 (surface/grass) 16x16 texture.
-fn terrain_splat0_map() -> &'static HashMap<&'static str, &'static str> {
-    static MAP: OnceLock<HashMap<&str, &str>> = OnceLock::new();
-    MAP.get_or_init(|| {
-        HashMap::from([
-            ("e2dTerrainBase", "Ground_Grass_Texture.png"),
-            ("e2dTerrainBase_02", "Ground_Grass_Texture.png"),
-            ("e2dTerrainBase_04", "Ground_Cave_Texture.png"),
-            ("e2dTerrainBase_05_night", "Ground_Grass_Texture_02.png"),
-            (
-                "e2dTerrainBase_Halloween",
-                "Ground_Halloween_Cream_Texture.png",
-            ),
-            ("e2dTerrainBase_MM_Ice", "Ground_Snow_Texture.png"),
-            ("e2dTerrainBase_morning", "Ground_Grass_Texture_3.png"),
-            ("e2dTerrainBase_MM_rock", "Ground_Grass_Maya_Texture.png"),
-            ("e2dTerrainBase_MM_sand", "Ground_Grass_Maya_Texture.png"),
-            (
-                "e2dTerrainBase_MM_TempleDarkRock",
-                "Ground_Grass_Maya_Texture.png",
-            ),
-            (
-                "e2dTerrainBase_MM_caveSand",
-                "Ground_Grass_Maya_Texture.png",
-            ),
-            // Dark variants with different Splat0 than their base
-            ("e2dTerrainDark_MM", "Ground_Grass_Texture.png"),
-            ("e2dTerrainDark_MM_CaveSand", "Ground_Grass_Texture.png"),
-            ("e2dTerrainDark_MM_rock", "Border_Maya_Cave.png"),
-        ])
-    })
+fn texture_name_from_reference(reference: &str) -> Option<&'static str> {
+    let guid = extract_guid(reference)?;
+    texture_name_for_guid(guid)
 }
 
-/// Terrain prefab → Splat1 (outline) 16x16 texture.
-fn terrain_splat1_map() -> &'static HashMap<&'static str, &'static str> {
-    static MAP: OnceLock<HashMap<&str, &str>> = OnceLock::new();
-    MAP.get_or_init(|| {
-        HashMap::from([
-            ("e2dTerrainBase", "Ground_Rocks_Outline_Texture.png"),
-            ("e2dTerrainBase_02", "Ground_Rocks_Outline_Texture_02.png"),
-            ("e2dTerrainBase_04", "Ground_Rocks_Outline_Texture_04.png"),
-            (
-                "e2dTerrainBase_05_night",
-                "Ground_Rocks_Outline_Texture_03.png",
-            ),
-            (
-                "e2dTerrainBase_Halloween",
-                "Ground_Halloween_Outline_Texture.png",
-            ),
-            ("e2dTerrainBase_MM_Ice", "Ground_Ice_Outline.png"),
-            (
-                "e2dTerrainBase_morning",
-                "Ground_Rocks_Outline_Texture_06.png",
-            ),
-            ("e2dTerrainBase_MM_rock", "Border.png"),
-            ("e2dTerrainBase_MM_sand", "Border.png"),
-            ("e2dTerrainBase_MM_TempleDarkRock", "Border_Maya_Cave.png"),
-            ("e2dTerrainBase_MM_caveSand", "Border_Maya_Cave.png"),
-            // Dark variants with different Splat1 than their base
-            ("e2dTerrainDark_02", "Ground_Rocks_Outline_Texture.png"),
-            ("e2dTerrainDark_03", "Ground_Rocks_Outline_Texture_03.png"),
-            (
-                "e2dTerrainDark_05_night(150)",
-                "Ground_Rocks_Outline_Texture_04.png",
-            ),
-            ("e2dTerrainDark_MM", "Border_Maya_Cave.png"),
-            ("e2dTerrainDark_MM_CaveSand", "Border_Maya_Cave.png"),
-            ("e2dTerrainDark_MM_rock", "Border.png"),
-            ("e2dTerrainDark_MM_TempleDarkRock", "Border_Maya_Cave.png"),
-        ])
-    })
-}
-
-/// Dark terrain variants → base prefab name they share textures with.
-fn dark_terrain_map() -> &'static HashMap<&'static str, &'static str> {
-    static MAP: OnceLock<HashMap<&str, &str>> = OnceLock::new();
-    MAP.get_or_init(|| {
-        HashMap::from([
-            ("e2dTerrainDark", "e2dTerrainBase"),
-            ("e2dTerrainDark_02", "e2dTerrainBase_02"),
-            ("e2dTerrainDark_03", "e2dTerrainBase_02"),
-            ("e2dTerrainDark_05_night(150)", "e2dTerrainBase_05_night"),
-            ("e2dTerrainDark_MM", "e2dTerrainBase_MM_sand"),
-            ("e2dTerrainDark_MM_CaveSand", "e2dTerrainBase_MM_caveSand"),
-            (
-                "e2dTerrainDark_MM_TempleDarkRock",
-                "e2dTerrainBase_MM_TempleDarkRock",
-            ),
-            ("e2dTerrainDark_MM_rock", "e2dTerrainBase_MM_rock"),
-            ("e2dTerrainDark Halloween", "e2dTerrainBase_Halloween"),
-            ("e2dTerrainDark morning", "e2dTerrainBase_morning"),
-            ("e2dTerrainDark_morning", "e2dTerrainBase_morning"),
-            ("e2dTerrainDark cave", "e2dTerrainBase"),
-            ("e2dTerrainDark_cave", "e2dTerrainBase"),
-        ])
-    })
+fn extract_guid(text: &str) -> Option<&str> {
+    let start = text.find("guid: ")? + "guid: ".len();
+    let rest = &text[start..];
+    let end = rest.find(|c| [',', '}'].contains(&c)).unwrap_or(rest.len());
+    Some(rest[..end].trim())
 }
 
 /// Normalize a binary terrain object name to a known prefab key.
@@ -171,80 +166,55 @@ fn normalize_terrain(raw: &str) -> String {
     n
 }
 
-/// Resolve terrain name (possibly dark variant) to its base prefab key.
-fn resolve_terrain_base(name: &str) -> String {
-    let key = normalize_terrain(name);
-    dark_terrain_map()
-        .get(key.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or(key)
+fn canonicalize_name(name: &str) -> String {
+    name.to_ascii_lowercase()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect()
+}
+
+fn resolve_terrain_prefab_key(name: &str) -> Option<&'static str> {
+    let normalized = normalize_terrain(name);
+    let aliases = terrain_aliases();
+
+    aliases
+        .get(&normalized)
+        .or_else(|| aliases.get(&canonicalize_name(&normalized)))
+        .map(String::as_str)
 }
 
 /// Get the fill texture filename for a terrain object name.
 pub fn get_terrain_fill_texture(terrain_name: &str) -> Option<&'static str> {
-    let key = normalize_terrain(terrain_name);
-    // Check direct entry first (dark variants may have their own texture)
-    terrain_fill_map().get(key.as_str()).copied().or_else(|| {
-        let base = resolve_terrain_base(terrain_name);
-        terrain_fill_map().get(base.as_str()).copied()
-    })
+    let key = resolve_terrain_prefab_key(terrain_name)?;
+    terrain_texture_sets().get(key)?.fill.as_deref()
 }
 
 /// Get Splat0 (surface/grass) texture filename.
 pub fn get_terrain_splat0(terrain_name: &str) -> Option<&'static str> {
-    let key = normalize_terrain(terrain_name);
-    // Check direct entry first (dark variants may have their own texture)
-    terrain_splat0_map().get(key.as_str()).copied().or_else(|| {
-        let base = resolve_terrain_base(terrain_name);
-        terrain_splat0_map().get(base.as_str()).copied()
-    })
+    let key = resolve_terrain_prefab_key(terrain_name)?;
+    terrain_texture_sets().get(key)?.splat0.as_deref()
 }
 
 /// Get Splat1 (outline) texture filename.
 pub fn get_terrain_splat1(terrain_name: &str) -> Option<&'static str> {
-    let key = normalize_terrain(terrain_name);
-    // Check direct entry first (dark variants may have their own texture)
-    terrain_splat1_map().get(key.as_str()).copied().or_else(|| {
-        let base = resolve_terrain_base(terrain_name);
-        terrain_splat1_map().get(base.as_str()).copied()
-    })
+    let key = resolve_terrain_prefab_key(terrain_name)?;
+    terrain_texture_sets().get(key)?.splat1.as_deref()
 }
 
 /// Get Splat1 (outline) texture filename with an Episode 6 MM/Maya fallback rule.
 pub fn get_terrain_splat1_for_level(_level_key: &str, terrain_name: &str) -> Option<&'static str> {
-    let key = normalize_terrain(terrain_name);
-    match key.as_str() {
-        "e2dTerrainBase_MM_rock" | "e2dTerrainBase_MM_sand" => Some("Border.png"),
-        "e2dTerrainBase_MM_Ice" => Some("Ground_Ice_Outline.png"),
-        "e2dTerrainBase_MM_TempleDarkRock"
-        | "e2dTerrainBase_MM_caveSand"
-        | "e2dTerrainDark_MM"
-        | "e2dTerrainDark_MM_CaveSand"
-        | "e2dTerrainDark_MM_TempleDarkRock" => Some("Border_Maya_Cave.png"),
-        "e2dTerrainDark_MM_rock" => Some("Border.png"),
-        _ => get_terrain_splat1(terrain_name),
-    }
+    get_terrain_splat1(terrain_name)
 }
 
 /// Some Maya cave / temple / dark prefabs should keep their prefab-authored
 /// Border splat1 even when level refs point at a shared outline texture.
 pub fn terrain_splat1_prefers_prefab_over_level_refs(terrain_name: &str) -> bool {
-    let key = normalize_terrain(terrain_name);
-    matches!(
-        key.as_str(),
-        "e2dTerrainBase_MM_rock"
-            | "e2dTerrainBase_MM_sand"
-            | "e2dTerrainBase_MM_TempleDarkRock"
-            | "e2dTerrainBase_MM_caveSand"
-            | "e2dTerrainDark_MM"
-            | "e2dTerrainDark_MM_CaveSand"
-            | "e2dTerrainDark_MM_TempleDarkRock"
-            | "e2dTerrainDark_MM_rock"
-    )
+    let _ = terrain_name;
+    false
 }
 
 /// Whether this is a "dark" terrain (underground fill).
 pub fn is_dark_terrain(terrain_name: &str) -> bool {
-    let key = normalize_terrain(terrain_name);
-    dark_terrain_map().contains_key(key.as_str())
+    resolve_terrain_prefab_key(terrain_name)
+        .is_some_and(|key| key.starts_with("e2dTerrainDark"))
 }

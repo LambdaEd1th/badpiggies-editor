@@ -56,6 +56,8 @@ impl LevelRenderer {
         self.dark_overlay_stable_frames = 0;
 
         // Collect all object names for BG theme detection
+        self.bg_override_text = find_bg_override_text(&level.objects);
+
         let names: Vec<String> = level
             .objects
             .iter()
@@ -64,10 +66,8 @@ impl LevelRenderer {
                 LevelObject::Parent(p) => p.name.clone(),
             })
             .collect();
-        self.bg_theme = assets::detect_bg_theme(&self.level_key, &names);
-
-        // Find BackgroundObject override text for BG position adjustments
-        self.bg_override_text = find_bg_override_text(&level.objects);
+        self.bg_theme =
+            assets::detect_bg_theme(&self.level_key, &names, self.bg_override_text.as_deref());
 
         // Build background layer cache (pre-compute tile grouping/singletons)
         self.bg_layer_cache = self.bg_theme.and_then(|theme| {

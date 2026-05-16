@@ -2,13 +2,15 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use crate::data::assets;
+
 use super::parse::{
     GameObjectInfo, ParsedPrefab, SpriteComponent, asset_filename, is_sky_texture_asset,
     load_textureloader_materials, parse_prefab, read_embedded_text,
 };
 use super::tables::{
-    BG_THEME_PREFABS, alpha_blend_override, classify_group_layer, fill_color_override,
-    supplemental_atlas_for_material, uses_own_group_context,
+    alpha_blend_override, classify_group_layer, fill_color_override, supplemental_atlas_for_material,
+    uses_own_group_context,
 };
 use super::types::{BgLayer, BgSprite, BgTheme};
 
@@ -275,11 +277,20 @@ static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
     let textureloader_materials = load_textureloader_materials();
-    let mut themes = HashMap::with_capacity(BG_THEME_PREFABS.len());
-    for (theme_name, prefab_path) in BG_THEME_PREFABS {
-        match build_theme(theme_name, prefab_path, &textureloader_materials) {
+    let mut themes = HashMap::new();
+
+    for relative_path in assets::list_asset_paths("Resources/environment/background/", ".prefab") {
+        let Some(prefab_name) = relative_path.strip_suffix(".prefab") else {
+            continue;
+        };
+        let Some(theme_name) = assets::theme_name_for_background_prefab(prefab_name) else {
+            continue;
+        };
+        let prefab_path = format!("unity/background/{relative_path}");
+
+        match build_theme(theme_name, &prefab_path, &textureloader_materials) {
             Some(theme) => {
-                themes.insert((*theme_name).to_string(), theme);
+                themes.insert(theme_name.to_string(), theme);
             }
             None => {
                 log::error!(
@@ -290,6 +301,7 @@ fn build_themes() -> HashMap<String, BgTheme> {
             }
         }
     }
+
     themes
 }
 

@@ -2,40 +2,6 @@
 
 use eframe::egui;
 
-/// Exact level-key → theme mapping for Episode 6 (Maya) levels.
-fn ep6_theme_for_key(key: &str) -> Option<&'static str> {
-    let suffix = key
-        .to_ascii_lowercase()
-        .replace("episode_6_level_", "")
-        .replace("_data", "");
-    match suffix.as_str() {
-        // Maya (outdoor): levels 1-4, 33-36, star I, IX
-        "1" | "2" | "3" | "4" | "33" | "34" | "35" | "36" | "i" | "ix" => Some("Maya"),
-        // MayaCave2Dark: levels 5-8, 17-20, 29-32, star II, V, VIII
-        "5" | "6" | "7" | "8" | "17" | "18" | "19" | "20" | "29" | "30" | "31" | "32" | "ii"
-        | "v" | "viii" => Some("MayaCave2Dark"),
-        // MayaHigh: levels 9-12, 25-28, star III, VII
-        "9" | "10" | "11" | "12" | "25" | "26" | "27" | "28" | "iii" | "vii" => Some("MayaHigh"),
-        // MayaTemple: levels 13-16, 21-24, star IV, VI
-        "13" | "14" | "15" | "16" | "21" | "22" | "23" | "24" | "iv" | "vi" => Some("MayaTemple"),
-        _ => None,
-    }
-}
-
-/// Exact sandbox level-key → theme.
-fn sandbox_theme_for_key(key: &str) -> Option<&'static str> {
-    let lower = key.to_ascii_lowercase();
-    if lower.contains("episode_6_dark") {
-        Some("MayaCave2Dark")
-    } else if lower.contains("episode_6_ice") {
-        Some("MayaTemple")
-    } else if lower.contains("episode_6_tower") {
-        Some("Maya")
-    } else {
-        None
-    }
-}
-
 const BG_THEME_PATTERNS: &[(&str, &str)] = &[
     ("MM_Cave_02_SET_DARK", "MayaCave2Dark"),
     ("MM_Cave_01_SET_DARK", "MayaCaveDark"),
@@ -58,22 +24,166 @@ const BG_THEME_PATTERNS: &[(&str, &str)] = &[
     ("Cave", "Cave"),
 ];
 
-/// Detect which background theme to use.
-pub fn detect_bg_theme(level_key: &str, object_names: &[String]) -> Option<&'static str> {
-    if let Some(theme) = ep6_theme_for_key(level_key) {
-        return Some(theme);
+pub fn theme_name_for_background_prefab(name: &str) -> Option<&'static str> {
+    let name = name.to_ascii_lowercase();
+
+    for &(pattern, theme) in BG_THEME_PATTERNS {
+        if name.contains(&pattern.to_ascii_lowercase()) {
+            return Some(theme);
+        }
     }
-    if let Some(theme) = sandbox_theme_for_key(level_key) {
-        return Some(theme);
-    }
-    for name in object_names {
-        for &(pattern, theme) in BG_THEME_PATTERNS {
-            if name.contains(pattern) {
+
+    None
+}
+
+fn detect_bg_theme_from_names(object_names: &[String]) -> Option<&'static str> {
+    for &(pattern, theme) in BG_THEME_PATTERNS {
+        let pattern = pattern.to_ascii_lowercase();
+        for name in object_names {
+            if name.to_ascii_lowercase().contains(&pattern) {
                 return Some(theme);
             }
         }
     }
     None
+}
+
+fn detect_bg_theme_from_name(name: &str) -> Option<&'static str> {
+    theme_name_for_background_prefab(name)
+}
+
+fn background_prefab_ref_index(raw: &str) -> Option<i32> {
+    raw.lines().find_map(|line| {
+        line.trim_start_matches('\u{feff}')
+            .trim()
+            .strip_prefix("ObjectReference prefab = ")
+            .and_then(|value| value.trim().parse::<i32>().ok())
+    })
+}
+
+fn background_prefab_name(level_key: &str, bg_override_text: Option<&str>) -> Option<&'static str> {
+    let raw = bg_override_text?;
+    let ref_index = background_prefab_ref_index(raw)?;
+    crate::domain::level::refs::get_background_prefab_ref(level_key, ref_index)
+}
+
+/// Detect which background theme to use.
+pub fn detect_bg_theme(
+    level_key: &str,
+    object_names: &[String],
+    bg_override_text: Option<&str>,
+) -> Option<&'static str> {
+    if let Some(prefab_name) = background_prefab_name(level_key, bg_override_text)
+        && let Some(theme) = detect_bg_theme_from_name(prefab_name)
+    {
+        return Some(theme);
+    }
+
+    detect_bg_theme_from_names(object_names)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::detect_bg_theme;
+    use crate::domain::parser::parse_level;
+    use crate::domain::types::LevelObject;
+    use std::path::Path;
+
+    fn parse_test_level(relative_path: &str) -> crate::domain::types::LevelData {
+        let level_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_levels")
+            .join(relative_path);
+        let bytes = std::fs::read(&level_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+        parse_level(bytes)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()))
+    }
+
+    fn parsed_object_names(relative_path: &str) -> Vec<String> {
+        let level = parse_test_level(relative_path);
+
+        level
+            .objects
+            .iter()
+            .map(|object| match object {
+                LevelObject::Prefab(prefab) => prefab.name.clone(),
+                LevelObject::Parent(parent) => parent.name.clone(),
+            })
+            .collect()
+    }
+
+    fn parsed_bg_override(relative_path: &str) -> Option<String> {
+        let level = parse_test_level(relative_path);
+
+        level.objects.iter().find_map(|object| match object {
+            LevelObject::Prefab(prefab) if prefab.name.contains("Background") => {
+                prefab.override_data.as_ref().map(|data| data.raw_text.clone())
+            }
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn episode6_background_override_refs_drive_theme_detection() {
+        let cave_path = "assetbundles/episode_6_levels.unity3d/episode_6_level_5_data.bytes";
+        let cave_names = parsed_object_names(cave_path);
+        assert_eq!(
+            detect_bg_theme(
+                "episode_6_level_5_data",
+                &cave_names,
+                parsed_bg_override(cave_path).as_deref(),
+            ),
+            Some("MayaCave2Dark")
+        );
+
+        let high_path = "assetbundles/episode_6_levels.unity3d/episode_6_level_10_data.bytes";
+        let high_names = parsed_object_names(high_path);
+        assert_eq!(
+            detect_bg_theme(
+                "episode_6_level_10_data",
+                &high_names,
+                parsed_bg_override(high_path).as_deref(),
+            ),
+            Some("MayaHigh")
+        );
+
+        let temple_path = "assetbundles/episode_6_levels.unity3d/episode_6_level_15_data.bytes";
+        let temple_names = parsed_object_names(temple_path);
+        assert_eq!(
+            detect_bg_theme(
+                "episode_6_level_15_data",
+                &temple_names,
+                parsed_bg_override(temple_path).as_deref(),
+            ),
+            Some("MayaTemple")
+        );
+    }
+
+    #[test]
+    fn episode6_sandbox_background_override_refs_drive_theme_detection() {
+        let ice_path = "assetbundles/episode_sandbox_levels.unity3d/Episode_6_Ice Sandbox_data.bytes";
+        let ice_names = parsed_object_names(ice_path);
+        assert_eq!(
+            detect_bg_theme(
+                "Episode_6_Ice Sandbox_data",
+                &ice_names,
+                parsed_bg_override(ice_path).as_deref(),
+            ),
+            Some("MayaTemple")
+        );
+
+        let tower_path =
+            "assetbundles/episode_sandbox_levels.unity3d/Episode_6_Tower Sandbox_data.bytes";
+        let tower_names = parsed_object_names(tower_path);
+        assert_eq!(
+            detect_bg_theme(
+                "Episode_6_Tower Sandbox_data",
+                &tower_names,
+                parsed_bg_override(tower_path).as_deref(),
+            ),
+            Some("Maya")
+        );
+    }
 }
 
 /// Sky top color per theme.

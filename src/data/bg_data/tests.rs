@@ -1,4 +1,30 @@
-use super::get_theme;
+use super::{bg_atlas_files, get_theme, sky_texture_files};
+
+#[test]
+fn background_prefab_scan_builds_known_themes() {
+    for theme_name in [
+        "Cave",
+        "Morning",
+        "Halloween",
+        "Jungle",
+        "Maya",
+        "MayaCave",
+        "MayaCaveDark",
+        "MayaCave2Dark",
+        "MayaHigh",
+        "MayaTemple",
+        "Night",
+        "Plateau",
+    ] {
+        assert!(get_theme(theme_name).is_some(), "missing {theme_name} theme");
+    }
+}
+
+#[test]
+fn background_texture_file_scan_includes_known_atlas_and_sky() {
+    assert!(bg_atlas_files().contains(&"Background_Maya_Sheet_05.png"));
+    assert!(sky_texture_files().contains(&"Maya_Backgrounds_sky.png"));
+}
 
 #[test]
 fn maya_cave2dark_sky_fill_uses_own_group_and_fill_color() {

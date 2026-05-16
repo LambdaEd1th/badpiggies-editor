@@ -284,11 +284,5 @@ fn parse_named_f32(text: &str, key: &str) -> Option<f32> {
 }
 
 pub(super) fn atlas_for_material_guid(material_guid: &str) -> Option<&'static str> {
-    let prefix = material_guid.get(..8).unwrap_or(material_guid);
-    match prefix {
-        "ce5a9931" | "d645821c" | "125eb5b4" | "0e790fab" | "353dd850" => Some("IngameAtlas.png"),
-        "211b2b9c" | "aca6a4c6" | "765e60c2" | "4ab535f3" | "4eeb62bc" => Some("IngameAtlas2.png"),
-        "2a21c011" | "ad767d84" | "7192b13e" | "a6f51d97" | "7975d66d" => Some("IngameAtlas3.png"),
-        _ => None,
-    }
+    crate::data::assets::atlas_for_material_guid(material_guid)
 }

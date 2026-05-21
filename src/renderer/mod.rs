@@ -205,6 +205,8 @@ pub struct LevelRenderer {
     dark_level: bool,
     /// Whether to show the dark overlay (togglable in UI).
     pub show_dark_overlay: bool,
+    /// Whether the contraption currently carries the Night Vision power-up in build mode.
+    contraption_has_night_vision: bool,
     /// Whether to draw the night-vision dark-overlay variant.
     night_vision_enabled: bool,
     /// Parsed camera limits from LevelManager (topLeft + size).

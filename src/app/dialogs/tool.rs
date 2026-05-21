@@ -29,6 +29,10 @@ impl EditorApp {
         if !self.show_tools {
             return;
         }
+        let has_level = self.tabs[self.active_tab].level.is_some();
+        let show_dark_preview_controls = has_level
+            && !self.tabs[self.active_tab].is_save_tab()
+            && self.tabs[self.active_tab].renderer.is_dark_level();
         let button_size = egui::vec2(40.0, 40.0);
         let button_spacing = 6.0;
         let button_count = 4.0;
@@ -53,19 +57,37 @@ impl EditorApp {
             base_window_width
         };
         let preview_tool_target = preview_tool_target_name(self);
-        let show_preview_controls = preview_tool_target.is_some();
+        let show_preview_controls = preview_tool_target.is_some() || show_dark_preview_controls;
         let preview_state = if show_preview_controls {
             self.tabs[self.active_tab].renderer.preview_playback_state()
         } else {
             PreviewPlaybackState::Build
         };
-        let window_height = if show_terrain_presets {
-            button_size.y + 126.0 + if show_preview_controls { 42.0 } else { 0.0 }
+        let build_has_night_vision = if show_dark_preview_controls {
+            self.tabs[self.active_tab]
+                .renderer
+                .contraption_has_night_vision()
         } else {
-            button_size.y + 16.0 + if show_preview_controls { 42.0 } else { 0.0 }
+            false
+        };
+        let runtime_night_vision_active = if show_dark_preview_controls {
+            self.tabs[self.active_tab].renderer.night_vision_enabled()
+        } else {
+            false
+        };
+        let preview_controls_height = if show_preview_controls {
+            if show_dark_preview_controls { 74.0 } else { 42.0 }
+        } else {
+            0.0
+        };
+        let window_height = if show_terrain_presets {
+            button_size.y + 126.0 + preview_controls_height
+        } else {
+            button_size.y + 16.0 + preview_controls_height
         };
         let mut queued_preset = None;
         let mut queued_preview_state = None;
+        let mut queued_night_vision_powerup = None;
         egui::Window::new(t.get("tool_window_title"))
             .collapsible(true)
             .movable(true)
@@ -143,6 +165,8 @@ impl EditorApp {
                     ui.add_space(6.0);
                     let preview_title = if let Some(name) = preview_tool_target.as_deref() {
                         format!("{}: {}", t.get("tool_preview_title"), name)
+                    } else if show_dark_preview_controls {
+                        t.get("tool_preview_dark_overlay_title")
                     } else {
                         t.get("tool_preview_title")
                     };
@@ -165,6 +189,18 @@ impl EditorApp {
                             }
                         }
                     });
+
+                    if show_dark_preview_controls {
+                        ui.add_space(6.0);
+                        if preview_state == PreviewPlaybackState::Build {
+                            let mut v = build_has_night_vision;
+                            if ui.checkbox(&mut v, t.get("tool_preview_night_vision_powerup")).clicked() {
+                                queued_night_vision_powerup = Some(v);
+                            }
+                        } else if runtime_night_vision_active {
+                            ui.label(t.get("tool_preview_night_vision_active"));
+                        }
+                    }
                 }
             });
 
@@ -182,6 +218,12 @@ impl EditorApp {
             self.tabs[self.active_tab]
                 .renderer
                 .set_preview_playback_state(state);
+        }
+
+        if let Some(enabled) = queued_night_vision_powerup {
+            self.tabs[self.active_tab]
+                .renderer
+                .set_contraption_has_night_vision(enabled);
         }
     }
 }

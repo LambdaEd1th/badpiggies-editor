@@ -15,8 +15,17 @@ impl LevelRenderer {
 
         let was_build = self.preview_playback_state == PreviewPlaybackState::Build;
         match state {
-            PreviewPlaybackState::Build => self.reset_runtime_preview(),
-            PreviewPlaybackState::Play if was_build => self.start_runtime_preview(),
+            PreviewPlaybackState::Build => {
+                self.reset_runtime_preview();
+                self.night_vision_enabled = false;
+            }
+            PreviewPlaybackState::Play if was_build => {
+                self.start_runtime_preview();
+                if self.dark_level && self.contraption_has_night_vision {
+                    self.night_vision_enabled = true;
+                    self.contraption_has_night_vision = false;
+                }
+            }
             PreviewPlaybackState::Play | PreviewPlaybackState::Pause => {}
         }
 
@@ -68,9 +77,14 @@ impl LevelRenderer {
         self.night_vision_enabled
     }
 
-    /// Toggle the night-vision dark overlay variant.
-    pub fn set_night_vision_enabled(&mut self, enabled: bool) {
-        self.night_vision_enabled = enabled;
+    /// Whether the contraption currently carries the night-vision power-up in build mode.
+    pub fn contraption_has_night_vision(&self) -> bool {
+        self.contraption_has_night_vision
+    }
+
+    /// Toggle the build-mode night-vision power-up state.
+    pub fn set_contraption_has_night_vision(&mut self, enabled: bool) {
+        self.contraption_has_night_vision = enabled && self.dark_level;
     }
 
     /// Shared transparent sprite shader resources, if the current backend has wgpu.
@@ -94,4 +108,40 @@ impl LevelRenderer {
             .get_or_load(device, queue, resources, filename)
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn night_vision_powerup_only_activates_when_build_enters_play() {
+        let mut renderer = LevelRenderer::new(None);
+        renderer.dark_level = true;
+        renderer.preview_playback_state = PreviewPlaybackState::Build;
+        renderer.contraption_has_night_vision = true;
+
+        assert!(!renderer.night_vision_enabled);
+
+        renderer.set_preview_playback_state(PreviewPlaybackState::Play);
+
+        assert!(renderer.night_vision_enabled);
+        assert!(!renderer.contraption_has_night_vision);
+
+        renderer.set_preview_playback_state(PreviewPlaybackState::Build);
+
+        assert!(!renderer.night_vision_enabled);
+    }
+
+    #[test]
+    fn non_dark_levels_do_not_activate_night_vision_runtime() {
+        let mut renderer = LevelRenderer::new(None);
+        renderer.preview_playback_state = PreviewPlaybackState::Build;
+        renderer.contraption_has_night_vision = true;
+
+        renderer.set_preview_playback_state(PreviewPlaybackState::Play);
+
+        assert!(!renderer.night_vision_enabled);
+        assert!(renderer.contraption_has_night_vision);
+    }
 }

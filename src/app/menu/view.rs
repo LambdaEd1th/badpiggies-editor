@@ -73,15 +73,6 @@ impl EditorApp {
                         ui.close();
                         self.tabs[self.active_tab].renderer.show_dark_overlay = v;
                     }
-                    if self.tabs[self.active_tab].renderer.show_dark_overlay {
-                        let mut v = self.tabs[self.active_tab].renderer.night_vision_enabled();
-                        if ui.checkbox(&mut v, t.get("menu_night_vision_overlay")).clicked() {
-                            ui.close();
-                            self.tabs[self.active_tab]
-                                .renderer
-                                .set_night_vision_enabled(v);
-                        }
-                    }
                 }
                 {
                     let mut v = self.tabs[self.active_tab].renderer.show_terrain_tris;

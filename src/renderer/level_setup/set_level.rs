@@ -50,6 +50,7 @@ impl LevelRenderer {
         self.attached_effect_particles.clear();
         self.cloud_instances.clear();
         self.dark_level = false;
+        self.contraption_has_night_vision = false;
         self.night_vision_enabled = false;
         self.lit_area_polygons.clear();
         self.dark_overlay_mesh = None;

@@ -1,11 +1,30 @@
 use std::sync::Arc;
 
+use crate::domain::types::LevelData;
+
 use super::particles::{reset_fan_emitter_for_build, start_fan_emitter_for_play};
 use super::{LevelRenderer, PreviewPlaybackState, sprite_shader};
 
 impl LevelRenderer {
     pub fn preview_playback_state(&self) -> PreviewPlaybackState {
         self.preview_playback_state
+    }
+
+    pub fn reload_level_preserving_preview_state(&mut self, level: &LevelData) {
+        let camera = self.camera.clone();
+        let preview_playback_state = self.preview_playback_state;
+        let contraption_has_night_vision = self.contraption_has_night_vision;
+        let night_vision_enabled = self.night_vision_enabled;
+
+        self.set_level(level);
+        self.camera = camera;
+        self.preview_playback_state = preview_playback_state;
+        self.contraption_has_night_vision = contraption_has_night_vision && self.dark_level;
+        self.night_vision_enabled = night_vision_enabled && self.dark_level;
+
+        if preview_playback_state == PreviewPlaybackState::Build {
+            self.reset_runtime_preview();
+        }
     }
 
     pub fn set_preview_playback_state(&mut self, state: PreviewPlaybackState) {
@@ -19,7 +38,7 @@ impl LevelRenderer {
                 self.reset_runtime_preview();
                 self.night_vision_enabled = false;
             }
-            PreviewPlaybackState::Play if was_build => {
+            PreviewPlaybackState::Play | PreviewPlaybackState::Pause if was_build => {
                 self.start_runtime_preview();
                 if self.dark_level && self.contraption_has_night_vision {
                     self.night_vision_enabled = true;
@@ -113,6 +132,35 @@ impl LevelRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::types::{
+        DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
+    };
+
+    const LEVEL_MANAGER_DARK_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
+
+    fn dark_level() -> LevelData {
+        LevelData {
+            objects: vec![LevelObject::Prefab(PrefabInstance {
+                name: "LevelManager".to_string(),
+                position: Vec3::default(),
+                prefab_index: 0,
+                rotation: Vec3::default(),
+                scale: Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+                data_type: DataType::PrefabOverrides,
+                terrain_data: None,
+                override_data: Some(PrefabOverrideData {
+                    raw_text: LEVEL_MANAGER_DARK_OVERRIDE.to_string(),
+                    raw_bytes: Vec::new(),
+                }),
+                parent: None,
+            })],
+            roots: vec![0],
+        }
+    }
 
     #[test]
     fn night_vision_powerup_only_activates_when_build_enters_play() {
@@ -134,6 +182,25 @@ mod tests {
     }
 
     #[test]
+    fn night_vision_powerup_also_activates_when_build_enters_pause() {
+        let mut renderer = LevelRenderer::new(None);
+        renderer.dark_level = true;
+        renderer.preview_playback_state = PreviewPlaybackState::Build;
+        renderer.contraption_has_night_vision = true;
+
+        assert!(!renderer.night_vision_enabled);
+
+        renderer.set_preview_playback_state(PreviewPlaybackState::Pause);
+
+        assert!(renderer.night_vision_enabled);
+        assert!(!renderer.contraption_has_night_vision);
+
+        renderer.set_preview_playback_state(PreviewPlaybackState::Build);
+
+        assert!(!renderer.night_vision_enabled);
+    }
+
+    #[test]
     fn non_dark_levels_do_not_activate_night_vision_runtime() {
         let mut renderer = LevelRenderer::new(None);
         renderer.preview_playback_state = PreviewPlaybackState::Build;
@@ -143,5 +210,49 @@ mod tests {
 
         assert!(!renderer.night_vision_enabled);
         assert!(renderer.contraption_has_night_vision);
+    }
+
+    #[test]
+    fn non_dark_levels_do_not_activate_night_vision_when_paused_runtime() {
+        let mut renderer = LevelRenderer::new(None);
+        renderer.preview_playback_state = PreviewPlaybackState::Build;
+        renderer.contraption_has_night_vision = true;
+
+        renderer.set_preview_playback_state(PreviewPlaybackState::Pause);
+
+        assert!(!renderer.night_vision_enabled);
+        assert!(renderer.contraption_has_night_vision);
+    }
+
+    #[test]
+    fn reload_preserves_build_night_vision_powerup() {
+        let level = dark_level();
+        let mut renderer = LevelRenderer::new(None);
+        renderer.set_level(&level);
+        renderer.preview_playback_state = PreviewPlaybackState::Build;
+        renderer.contraption_has_night_vision = true;
+        renderer.night_vision_enabled = false;
+
+        renderer.reload_level_preserving_preview_state(&level);
+
+        assert_eq!(renderer.preview_playback_state, PreviewPlaybackState::Build);
+        assert!(renderer.contraption_has_night_vision);
+        assert!(!renderer.night_vision_enabled);
+    }
+
+    #[test]
+    fn reload_preserves_paused_runtime_night_vision() {
+        let level = dark_level();
+        let mut renderer = LevelRenderer::new(None);
+        renderer.set_level(&level);
+        renderer.preview_playback_state = PreviewPlaybackState::Pause;
+        renderer.contraption_has_night_vision = false;
+        renderer.night_vision_enabled = true;
+
+        renderer.reload_level_preserving_preview_state(&level);
+
+        assert_eq!(renderer.preview_playback_state, PreviewPlaybackState::Pause);
+        assert!(!renderer.contraption_has_night_vision);
+        assert!(renderer.night_vision_enabled);
     }
 }

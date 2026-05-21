@@ -95,9 +95,7 @@ impl EditorApp {
                                 }
                             }
                         }
-                        let cam = tab.renderer.camera.clone();
-                        tab.renderer.set_level(level);
-                        tab.renderer.camera = cam;
+                        tab.renderer.reload_level_preserving_preview_state(level);
                     }
                     // Pick up rotation drag result — update prefab rotation.z
                     if let Some((idx, delta_z_degrees)) = tab.renderer.rotation_drag_result.take() {
@@ -138,9 +136,7 @@ impl EditorApp {
                             }
                         }
 
-                        let cam = tab.renderer.camera.clone();
-                        tab.renderer.set_level(level);
-                        tab.renderer.camera = cam;
+                        tab.renderer.reload_level_preserving_preview_state(level);
                     }
                     // Pick up terrain node edit action (add / delete)
                     if let Some(action) = tab.renderer.node_edit_action.take()
@@ -197,9 +193,7 @@ impl EditorApp {
                                 crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
                             }
 
-                            let cam = tab.renderer.camera.clone();
-                            tab.renderer.set_level(level);
-                            tab.renderer.camera = cam;
+                            tab.renderer.reload_level_preserving_preview_state(level);
                         }
                     }
                     // Pick up box-selection result — replace selection
@@ -317,9 +311,7 @@ impl EditorApp {
                         level.roots.push(new_idx);
                         tab.selected = std::collections::BTreeSet::from([new_idx]);
 
-                        let cam = tab.renderer.camera.clone();
-                        tab.renderer.set_level(level);
-                        tab.renderer.camera = cam;
+                        tab.renderer.reload_level_preserving_preview_state(level);
                         let label = if result.closed {
                             "Terrain (closed)"
                         } else {

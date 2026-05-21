@@ -17,7 +17,7 @@ use crate::domain::prefab_override::{
 };
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
-use crate::renderer::{CursorMode, TerrainPresetShape};
+use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
 
 use super::EditorApp;
 
@@ -70,6 +70,24 @@ fn terrain_preset_icon(shape: TerrainPresetShape) -> egui::Image<'static> {
         TerrainPresetShape::EquilateralTriangle => egui::Image::from_bytes(
             "bytes://tool-terrain-equilateral-triangle.svg",
             include_bytes!("../../../editor_assets/ui/tool-terrain-equilateral-triangle.svg"),
+        ),
+    }
+    .fit_to_exact_size(egui::vec2(22.0, 22.0))
+}
+
+fn preview_playback_icon(state: PreviewPlaybackState) -> egui::Image<'static> {
+    match state {
+        PreviewPlaybackState::Build => egui::Image::from_bytes(
+            "bytes://tool-preview-build.svg",
+            include_bytes!("../../../editor_assets/ui/tool-preview-build.svg"),
+        ),
+        PreviewPlaybackState::Play => egui::Image::from_bytes(
+            "bytes://tool-preview-play.svg",
+            include_bytes!("../../../editor_assets/ui/tool-preview-play.svg"),
+        ),
+        PreviewPlaybackState::Pause => egui::Image::from_bytes(
+            "bytes://tool-preview-pause.svg",
+            include_bytes!("../../../editor_assets/ui/tool-preview-pause.svg"),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))

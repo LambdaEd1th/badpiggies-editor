@@ -38,6 +38,13 @@ impl EditorApp {
                         self.show_tools = v;
                     }
                 }
+                {
+                    let mut v = self.show_preview_controls_panel;
+                    if ui.checkbox(&mut v, t.get("tool_preview_title")).clicked() {
+                        ui.close();
+                        self.show_preview_controls_panel = v;
+                    }
+                }
                 ui.separator();
                 {
                     let mut v = self.tabs[self.active_tab].renderer.show_bg;

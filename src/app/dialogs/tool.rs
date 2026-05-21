@@ -6,7 +6,9 @@ use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
 
 use super::super::EditorApp;
-use super::{terrain_preset_icon, terrain_preset_label_key, tool_mode_icon};
+use super::{
+    preview_playback_icon, terrain_preset_icon, terrain_preset_label_key, tool_mode_icon,
+};
 
 fn preview_tool_target_name(app: &EditorApp) -> Option<String> {
     let tab = app.tabs.get(app.active_tab)?;
@@ -23,16 +25,59 @@ fn preview_tool_target_name(app: &EditorApp) -> Option<String> {
     (name == "Fan" || name.starts_with("WindArea")).then(|| name.to_string())
 }
 
+struct PreviewPanelState {
+    title: String,
+    preview_state: PreviewPlaybackState,
+    show_dark_preview_controls: bool,
+    build_has_night_vision: bool,
+    runtime_night_vision_active: bool,
+}
+
+fn preview_panel_state(app: &EditorApp, t: &'static I18n) -> Option<PreviewPanelState> {
+    let tab = app.tabs.get(app.active_tab)?;
+    let has_level = tab.level.is_some();
+    if !has_level || tab.is_save_tab() {
+        return None;
+    }
+
+    let show_dark_preview_controls = tab.renderer.is_dark_level();
+    let preview_tool_target = preview_tool_target_name(app);
+
+    let title = if let Some(name) = preview_tool_target.as_deref() {
+        format!("{}: {}", t.get("tool_preview_title"), name)
+    } else if show_dark_preview_controls {
+        t.get("tool_preview_dark_overlay_title")
+    } else {
+        t.get("tool_preview_title")
+    };
+
+    Some(PreviewPanelState {
+        title,
+        preview_state: tab.renderer.preview_playback_state(),
+        show_dark_preview_controls,
+        build_has_night_vision: if show_dark_preview_controls {
+            tab.renderer.contraption_has_night_vision()
+        } else {
+            false
+        },
+        runtime_night_vision_active: if show_dark_preview_controls {
+            tab.renderer.night_vision_enabled()
+        } else {
+            false
+        },
+    })
+}
+
 impl EditorApp {
+    pub(in crate::app) fn should_show_preview_controls_panel(&self) -> bool {
+        self.show_preview_controls_panel && preview_panel_state(self, self.t()).is_some()
+    }
+
     /// Tool mode selector window.
     pub(in crate::app) fn render_tool_window(&mut self, ctx: &egui::Context, t: &'static I18n) {
         if !self.show_tools {
             return;
         }
-        let has_level = self.tabs[self.active_tab].level.is_some();
-        let show_dark_preview_controls = has_level
-            && !self.tabs[self.active_tab].is_save_tab()
-            && self.tabs[self.active_tab].renderer.is_dark_level();
         let button_size = egui::vec2(40.0, 40.0);
         let button_spacing = 6.0;
         let button_count = 4.0;
@@ -56,38 +101,12 @@ impl EditorApp {
         } else {
             base_window_width
         };
-        let preview_tool_target = preview_tool_target_name(self);
-        let show_preview_controls = preview_tool_target.is_some() || show_dark_preview_controls;
-        let preview_state = if show_preview_controls {
-            self.tabs[self.active_tab].renderer.preview_playback_state()
-        } else {
-            PreviewPlaybackState::Build
-        };
-        let build_has_night_vision = if show_dark_preview_controls {
-            self.tabs[self.active_tab]
-                .renderer
-                .contraption_has_night_vision()
-        } else {
-            false
-        };
-        let runtime_night_vision_active = if show_dark_preview_controls {
-            self.tabs[self.active_tab].renderer.night_vision_enabled()
-        } else {
-            false
-        };
-        let preview_controls_height = if show_preview_controls {
-            if show_dark_preview_controls { 74.0 } else { 42.0 }
-        } else {
-            0.0
-        };
         let window_height = if show_terrain_presets {
-            button_size.y + 126.0 + preview_controls_height
+            button_size.y + 126.0
         } else {
-            button_size.y + 16.0 + preview_controls_height
+            button_size.y + 16.0
         };
         let mut queued_preset = None;
-        let mut queued_preview_state = None;
-        let mut queued_night_vision_powerup = None;
         egui::Window::new(t.get("tool_window_title"))
             .collapsible(true)
             .movable(true)
@@ -158,50 +177,6 @@ impl EditorApp {
                         );
                     });
                 }
-
-                if show_preview_controls {
-                    ui.add_space(8.0);
-                    ui.separator();
-                    ui.add_space(6.0);
-                    let preview_title = if let Some(name) = preview_tool_target.as_deref() {
-                        format!("{}: {}", t.get("tool_preview_title"), name)
-                    } else if show_dark_preview_controls {
-                        t.get("tool_preview_dark_overlay_title")
-                    } else {
-                        t.get("tool_preview_title")
-                    };
-                    ui.label(preview_title);
-                    ui.horizontal(|ui| {
-                        for (state, key) in [
-                            (PreviewPlaybackState::Build, "tool_preview_build"),
-                            (PreviewPlaybackState::Play, "tool_preview_play"),
-                            (PreviewPlaybackState::Pause, "tool_preview_pause"),
-                        ] {
-                            if ui
-                                .add(
-                                    egui::Button::new(t.get(key))
-                                        .selected(preview_state == state)
-                                        .min_size(egui::vec2(68.0, 28.0)),
-                                )
-                                .clicked()
-                            {
-                                queued_preview_state = Some(state);
-                            }
-                        }
-                    });
-
-                    if show_dark_preview_controls {
-                        ui.add_space(6.0);
-                        if preview_state == PreviewPlaybackState::Build {
-                            let mut v = build_has_night_vision;
-                            if ui.checkbox(&mut v, t.get("tool_preview_night_vision_powerup")).clicked() {
-                                queued_night_vision_powerup = Some(v);
-                            }
-                        } else if runtime_night_vision_active {
-                            ui.label(t.get("tool_preview_night_vision_active"));
-                        }
-                    }
-                }
             });
 
         if show_terrain_presets && terrain_round_segments != initial_round_segments {
@@ -213,11 +188,80 @@ impl EditorApp {
         if let Some(shape) = queued_preset {
             self.toggle_active_terrain_preset(shape);
         }
+    }
 
-        if let Some(state) = queued_preview_state {
+    pub(in crate::app) fn render_preview_controls_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        t: &'static I18n,
+    ) {
+        if !self.show_preview_controls_panel {
+            return;
+        }
+
+        let Some(state) = preview_panel_state(self, t) else {
+            return;
+        };
+
+        let button_size = egui::vec2(40.0, 40.0);
+        let mut queued_preview_state = None;
+        let mut queued_night_vision_powerup = None;
+
+        egui::Panel::bottom("preview_controls_panel")
+            .resizable(false)
+            .show_inside(ui, |ui| {
+                ui.add_space(4.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.group(|ui| {
+                        ui.vertical(|ui| {
+                            ui.label(egui::RichText::new(&state.title).strong());
+                            ui.horizontal(|ui| {
+                                for (next_state, key) in [
+                                    (PreviewPlaybackState::Build, "tool_preview_build"),
+                                    (PreviewPlaybackState::Play, "tool_preview_play"),
+                                    (PreviewPlaybackState::Pause, "tool_preview_pause"),
+                                ] {
+                                    let response = ui.add(
+                                        egui::Button::image(preview_playback_icon(next_state))
+                                            .selected(state.preview_state == next_state)
+                                            .frame(true)
+                                            .min_size(button_size)
+                                            .image_tint_follows_text_color(true),
+                                    );
+                                    let response = response.on_hover_text(t.get(key));
+                                    if response.clicked()
+                                    {
+                                        queued_preview_state = Some(next_state);
+                                    }
+                                }
+                            });
+
+                            if state.show_dark_preview_controls {
+                                if state.preview_state == PreviewPlaybackState::Build {
+                                    let mut enabled = state.build_has_night_vision;
+                                    if ui
+                                        .checkbox(
+                                            &mut enabled,
+                                            t.get("tool_preview_night_vision_powerup"),
+                                        )
+                                        .clicked()
+                                    {
+                                        queued_night_vision_powerup = Some(enabled);
+                                    }
+                                } else if state.runtime_night_vision_active {
+                                    ui.label(t.get("tool_preview_night_vision_active"));
+                                }
+                            }
+                        });
+                    });
+                });
+                ui.add_space(4.0);
+            });
+
+        if let Some(next_state) = queued_preview_state {
             self.tabs[self.active_tab]
                 .renderer
-                .set_preview_playback_state(state);
+                .set_preview_playback_state(next_state);
         }
 
         if let Some(enabled) = queued_night_vision_powerup {

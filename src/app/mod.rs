@@ -69,6 +69,8 @@ pub struct EditorApp {
     cursor_mode: CursorMode,
     /// Whether the tool panel is visible.
     show_tools: bool,
+    /// Whether the preview controls panel is visible.
+    show_preview_controls_panel: bool,
     /// Animated preview for AchievementPopupEnter.anim.
     achievement_popup: Option<AchievementPopupPreview>,
     /// Texture cache for achievement popup icon previews.
@@ -129,6 +131,7 @@ impl EditorApp {
             lang,
             cursor_mode: CursorMode::default(),
             show_tools: false,
+            show_preview_controls_panel: true,
             achievement_popup: None,
             achievement_popup_tex_cache: TextureCache::new(),
         }

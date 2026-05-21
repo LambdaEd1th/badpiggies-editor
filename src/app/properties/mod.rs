@@ -21,15 +21,25 @@ use overrides::{parse_override_text, serialize_override_tree, show_override_tree
 impl EditorApp {
     /// Render the right properties panel.
     pub(super) fn render_properties_panel(&mut self, ui: &mut egui::Ui) {
-        if !self.show_properties {
+        let t = self.t();
+        let show_preview_controls = self.should_show_preview_controls_panel();
+        if !self.show_properties && !show_preview_controls {
             return;
         }
-        let t = self.t();
+
         egui::Panel::right("properties")
             .default_size(280.0)
             .size_range(120.0..=f32::INFINITY)
             .resizable(true)
             .show_inside(ui, |ui| {
+                if show_preview_controls {
+                    self.render_preview_controls_panel(ui, t);
+                }
+
+                if !self.show_properties {
+                    return;
+                }
+
                 ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
                 ui.spacing_mut().text_edit_width = f32::INFINITY;
                 ui.heading(t.get("panel_properties"));
@@ -77,9 +87,7 @@ impl EditorApp {
                                 tab.history.redo.clear();
                             }
                             tab.props_changed_prev = true;
-                            let cam = tab.renderer.camera.clone();
-                            tab.renderer.set_level(level);
-                            tab.renderer.camera = cam;
+                            tab.renderer.reload_level_preserving_preview_state(level);
                         } else {
                             tab.props_changed_prev = false;
                         }

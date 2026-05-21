@@ -83,9 +83,7 @@ impl EditorApp {
                 level.delete_object(index);
             }
             tab.selected.clear();
-            let cam = tab.renderer.camera.clone();
-            tab.renderer.set_level(level);
-            tab.renderer.camera = cam;
+            tab.renderer.reload_level_preserving_preview_state(level);
         }
     }
 
@@ -141,9 +139,7 @@ impl EditorApp {
             }
             tab.selected.insert(new_root);
         }
-        let cam = tab.renderer.camera.clone();
-        tab.renderer.set_level(level);
-        tab.renderer.camera = cam;
+        tab.renderer.reload_level_preserving_preview_state(level);
     }
 
     pub(super) fn rotate_objects_z(&mut self, indices: &[ObjectIndex], delta_z_degrees: f32) {
@@ -171,9 +167,7 @@ impl EditorApp {
             }
         }
 
-        let cam = tab.renderer.camera.clone();
-        tab.renderer.set_level(level);
-        tab.renderer.camera = cam;
+        tab.renderer.reload_level_preserving_preview_state(level);
     }
 
     pub(super) fn set_object_scale_xy(&mut self, index: ObjectIndex, scale_xy: Vec2) {
@@ -197,9 +191,7 @@ impl EditorApp {
             prefab.scale.y = scale_xy.y;
         }
 
-        let cam = tab.renderer.camera.clone();
-        tab.renderer.set_level(level);
-        tab.renderer.camera = cam;
+        tab.renderer.reload_level_preserving_preview_state(level);
     }
 
     pub(super) fn request_delete_objects(&mut self, indices: &[ObjectIndex]) {
@@ -245,9 +237,8 @@ impl EditorApp {
                 });
             }
             tab.selected = snapshot.selected;
-            let cam = tab.renderer.camera.clone();
-            tab.renderer.set_level(&snapshot.level);
-            tab.renderer.camera = cam;
+            tab.renderer
+                .reload_level_preserving_preview_state(&snapshot.level);
             tab.level = Some(snapshot.level);
         }
     }
@@ -263,9 +254,8 @@ impl EditorApp {
                 });
             }
             tab.selected = snapshot.selected;
-            let cam = tab.renderer.camera.clone();
-            tab.renderer.set_level(&snapshot.level);
-            tab.renderer.camera = cam;
+            tab.renderer
+                .reload_level_preserving_preview_state(&snapshot.level);
             tab.level = Some(snapshot.level);
         }
     }
@@ -365,9 +355,7 @@ impl EditorApp {
             }
             tab.selected.insert(new_root);
         }
-        let cam = tab.renderer.camera.clone();
-        tab.renderer.set_level(level);
-        tab.renderer.camera = cam;
+        tab.renderer.reload_level_preserving_preview_state(level);
     }
 
     /// Duplicate all selected objects in-place.

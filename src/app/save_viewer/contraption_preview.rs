@@ -10,6 +10,8 @@ use crate::io::save::parser::ContraptionPart;
 use crate::renderer::grid::ConstructionGridCellStyle;
 use crate::renderer::{LevelRenderer, sprite_shader};
 
+const GRID_PREVIEW_SPRITE_PAD_PX: u32 = 4;
+
 /// Part type integer to display name.
 fn part_type_name(part_type: i32) -> &'static str {
     match part_type {
@@ -219,6 +221,7 @@ pub(super) fn render_contraption_canvas(
         response.rect.center().x - total_w * 0.5,
         response.rect.center().y - total_h * 0.5,
     );
+
     let grid_style = if ui.visuals().dark_mode {
         ConstructionGridCellStyle::Light
     } else {
@@ -290,7 +293,7 @@ pub(super) fn render_contraption_canvas(
                             half_size: [grid_sprite_w * 0.5, grid_sprite_h * 0.5],
                             uv_min,
                             uv_max,
-                            mode: 0.0,
+                            mode: sprite_shader::MODE_PREALPHA_NORMAL,
                             shine_center: 0.0,
                             tint_color: [1.0, 1.0, 1.0, 1.0],
                         },
@@ -299,15 +302,16 @@ pub(super) fn render_contraption_canvas(
             }
         } else {
             let atlas_path = format!("Assets/Texture2D/{}", sprite.atlas);
-            let cache_key = format!("{}_grid_raw_rgba", sprite.atlas);
-            let tex_id = tex_cache.load_sprite_crop(
+            let cache_key = format!("{}_grid_preview_premult_pad_{}", sprite.atlas, GRID_PREVIEW_SPRITE_PAD_PX);
+            let tex = tex_cache.load_sprite_crop_padded_premultiplied(
                 ui.ctx(),
                 &cache_key,
                 &atlas_path,
                 [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
+                GRID_PREVIEW_SPRITE_PAD_PX,
             );
-            if let Some(tex_id) = tex_id {
-                let uv_rect = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+            if let Some((tex_id, uv_min, uv_max)) = tex {
+                let uv_rect = egui::Rect::from_min_max(uv_min, uv_max);
                 let tint = egui::Color32::WHITE;
                 for gx in 0..(grid_w as i32) {
                     for gy in 0..(grid_h as i32) {

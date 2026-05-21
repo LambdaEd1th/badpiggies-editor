@@ -11,38 +11,26 @@ use super::types::{
     ParsedPrefab, PrefabSpriteLayer, RendererInfo, RuntimeSpriteMeta, SpriteComponent,
 };
 
-const PREFAB_MANIFEST_ASSET: &str = "unity/prefabs/manifest.txt";
-const PREFAB_DIR_ASSET: &str = "unity/prefabs";
+const PREFAB_DIR_ASSET: &str = "Assets/Prefab/";
 const UNMANAGED_ATLAS: &str = "Props_Generic_Sheet_01.png";
 
 pub(super) fn load_multi_sprite_prefabs(
     runtime: &HashMap<String, RuntimeSpriteMeta>,
 ) -> HashMap<String, Vec<PrefabSpriteLayer>> {
-    let Some(manifest) = read_embedded_text(PREFAB_MANIFEST_ASSET) else {
-        log::error!(
-            "Failed to read embedded prefab manifest for multi-sprite support: {}",
-            PREFAB_MANIFEST_ASSET
-        );
-        return HashMap::new();
-    };
-
     let mut prefabs = HashMap::new();
-    for filename in manifest
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-    {
-        if !filename.ends_with(".prefab") {
-            continue;
-        }
+    for asset_path in crate::data::assets::list_pathnames(PREFAB_DIR_ASSET, ".prefab") {
+        let filename = asset_path
+            .strip_prefix(PREFAB_DIR_ASSET)
+            .unwrap_or(asset_path.as_str());
         let Some(name) = filename.strip_suffix(".prefab").map(str::to_string) else {
             continue;
         };
-        let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
         let Some(layers) = parse_prefab_layers(&name, &asset_path, runtime) else {
             continue;
         };
-        if layers.len() > 1 || (name.starts_with("GoalArea") && !layers.is_empty()) {
+        if layers.len() > 1
+            || ((name.starts_with("GoalArea") || name == "StepRope") && !layers.is_empty())
+        {
             prefabs.insert(name, layers);
         }
     }

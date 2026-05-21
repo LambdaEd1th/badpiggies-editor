@@ -11,17 +11,17 @@ use super::types::{
 };
 
 const SPRITE_SCRIPT_GUID: &str = "eaa85264a31f76994888187c4d3a9fb9";
-const SPRITES_BYTES_ASSET: &str = "unity/resources/guisystem/Sprites.bytes";
-const SPRITE_MAPPING_ASSET: &str = "unity/resources/guisystem/spritemapping.bytes";
+const SPRITES_BYTES_ASSET: &str = "Assets/Resources/guisystem/sprites.bytes";
+const SPRITE_MAPPING_ASSET: &str = "Assets/Resources/guisystem/spritemapping.bytes";
 pub(super) const WORLD_SCALE: f32 = 10.0 / 768.0;
 
 pub(super) fn read_embedded_text(path: &str) -> Option<String> {
-    let bytes = assets::read_asset(path)?;
+    let bytes = assets::read_pathname(path)?;
     Some(String::from_utf8_lossy(bytes.as_ref()).into_owned())
 }
 
 pub(super) fn atlas_for_material_guid(material_guid: &str) -> Option<&'static str> {
-    crate::data::assets::atlas_for_material_guid(material_guid)
+    assets::atlas_for_material_guid(material_guid)
 }
 
 pub(super) fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {

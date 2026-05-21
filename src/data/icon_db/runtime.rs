@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use super::read_embedded_text;
 use super::types::RuntimeSpriteMeta;
 
-const SPRITES_BYTES_ASSET: &str = "unity/resources/guisystem/Sprites.bytes";
-const SPRITE_MAPPING_ASSET: &str = "unity/resources/guisystem/spritemapping.bytes";
+const SPRITES_BYTES_ASSET: &str = "Assets/Resources/guisystem/sprites.bytes";
+const SPRITE_MAPPING_ASSET: &str = "Assets/Resources/guisystem/spritemapping.bytes";
 
 pub(super) fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
     let mut sprite_data = HashMap::new();

@@ -9,8 +9,9 @@ use crate::data::assets;
 use crate::data::unity_particles;
 use crate::data::unity_particles::{ParticleCurve, UnityParticleSystemDef};
 use crate::domain::prefab_asset::PrefabAssetDocument;
-use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 use crate::domain::types::{Vec2, Vec3};
+use crate::unity_runtime::components::{BoxCollider, ParticleSystem, Transform, WindArea};
+use crate::unity_runtime::scene::Scene;
 
 use super::{
     Camera, LevelRenderer, particle_sheet_uv_rect, pseudo_random, rotate_vec2,
@@ -33,17 +34,7 @@ pub(crate) struct WindAreaDef {
     pub systems: Vec<UnityParticleSystemDef>,
 }
 
-const WIND_AREA_PREFAB_ASSET: &str = "unity/prefabs/WindArea.prefab";
-const FALLBACK_WIND_AREA_BOX_SIZE: Vec3 = Vec3 {
-    x: 40.0,
-    y: 15.0,
-    z: 10.0,
-};
-const FALLBACK_WIND_AREA_LOCAL_DIR: Vec2 = Vec2 {
-    x: 0.61064816,
-    y: -0.79190195,
-};
-const FALLBACK_WIND_AREA_POWER_FACTOR: f32 = 1.5;
+const WIND_AREA_PREFAB_ASSET: &str = "Assets/Prefab/WindArea.prefab";
 const WIND_EMISSION_SPAWN_EPSILON: f32 = 1e-4;
 
 #[derive(Clone, Copy)]
@@ -146,51 +137,39 @@ fn wind_area_prefab_defaults() -> WindAreaPrefabDefaults {
 }
 
 fn load_wind_area_prefab_defaults() -> WindAreaPrefabDefaults {
-    let particle_prefab = wind_area_prefab();
-    let fallback = WindAreaPrefabDefaults {
-        box_size: FALLBACK_WIND_AREA_BOX_SIZE,
-        local_dir: Some(normalize_vec2(particle_prefab.wind_direction))
-            .filter(|dir| dir.x != 0.0 || dir.y != 0.0)
-            .unwrap_or(FALLBACK_WIND_AREA_LOCAL_DIR),
-        power_factor: if particle_prefab.power_factor.abs() > f32::EPSILON {
-            particle_prefab.power_factor
-        } else {
-            FALLBACK_WIND_AREA_POWER_FACTOR
-        },
-    };
-
-    let Some(text) = assets::read_asset_text(WIND_AREA_PREFAB_ASSET) else {
-        return fallback;
-    };
-    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
-        return fallback;
-    };
-
+    let text = assets::read_pathname_text(WIND_AREA_PREFAB_ASSET)
+        .expect("WindArea.prefab should load from embedded assets");
+    let prefab = PrefabAssetDocument::parse(&text)
+        .expect("WindArea.prefab should parse from embedded assets");
     let box_size = prefab
         .root_component("BoxCollider")
-        .and_then(|component| component.field_vec3("m_Size"))
+        .expect("WindArea.prefab must include a root BoxCollider")
+        .field_vec3("m_Size")
         .map(|size| Vec3 {
             x: size[0],
             y: size[1],
             z: size[2],
         })
-        .unwrap_or(fallback.box_size);
-    let power_factor = prefab
+        .expect("WindArea.prefab BoxCollider must include m_Size");
+    let wind_area = prefab
         .root_component("WindArea")
-        .and_then(|component| component.field_f32("m_windPowerFactor"))
-        .unwrap_or(fallback.power_factor);
-    let local_dir = prefab
-        .root_component("WindArea")
-        .and_then(|component| component.field_vec3("windDirectionHandle"))
-        .zip(prefab.root_transform())
-        .map(|(handle, root_transform)| {
-            normalize_vec2(Vec2 {
-                x: handle[0] - root_transform.local_pos[0],
-                y: handle[1] - root_transform.local_pos[1],
-            })
-        })
-        .filter(|dir| dir.x != 0.0 || dir.y != 0.0)
-        .unwrap_or(fallback.local_dir);
+        .expect("WindArea.prefab must include a root WindArea component");
+    let power_factor = wind_area
+        .field_f32("m_windPowerFactor")
+        .expect("WindArea.prefab WindArea component must include m_windPowerFactor");
+    let handle = wind_area
+        .field_vec3("windDirectionHandle")
+        .expect("WindArea.prefab WindArea component must include windDirectionHandle");
+    let root_transform = prefab
+        .root_transform()
+        .expect("WindArea.prefab must include a root Transform");
+    let local_dir = normalize_vec2(Vec2 {
+        x: handle[0] - root_transform.local_pos[0],
+        y: handle[1] - root_transform.local_pos[1],
+    });
+    if local_dir.x == 0.0 && local_dir.y == 0.0 {
+        panic!("WindArea.prefab windDirectionHandle must define a non-zero local direction");
+    }
 
     WindAreaPrefabDefaults {
         box_size,
@@ -286,81 +265,40 @@ fn parse_wind_area_overrides(raw_text: Option<&str>) -> WindAreaOverrideData {
     let Some(text) = raw_text else {
         return WindAreaOverrideData::default();
     };
+    let Some((scene, root)) = Scene::from_override_text(text) else {
+        return WindAreaOverrideData::default();
+    };
 
     let mut result = WindAreaOverrideData::default();
-    let document = RuntimeOverrideDocument::parse(text);
 
-    for root in document.roots_of_type("GameObject") {
-        if let Some(size) = read_vec3_field(root, "BoxCollider", "m_Size") {
-            result.box_size = Some(size);
+    if let Some((_, bc)) = scene.get_component_of::<BoxCollider>(root) {
+        result.box_size = bc.size;
+    }
+    if let Some((_, wa)) = scene.get_component_of::<WindArea>(root) {
+        result.handle_world = wa.wind_direction_handle;
+        result.power_factor = wa.wind_power_factor;
+    }
+
+    for &child_id in &scene.game_object(root).children.clone() {
+        let child_name = scene.game_object(child_id).name.clone();
+        if !child_name.starts_with("WindEffect") {
+            continue;
         }
 
-        if let Some(handle) = root
-            .component("WindArea")
-            .and_then(|component| component.child("Vector3", "windDirectionHandle"))
-            .and_then(RuntimeOverrideNode::value_as_vec3)
-        {
-            result.handle_world = Some(handle);
+        let mut system = WindAreaSystemOverrides::default();
+        if let Some((_, t)) = scene.get_component_of::<Transform>(child_id) {
+            system.local_position = t.local_position;
+            system.local_rotation = t.local_rotation.map(|q| [q.x, q.y, q.z, q.w]);
         }
-
-        if let Some(power_factor) = root
-            .component("WindArea")
-            .and_then(|component| component.child("Float", "m_windPowerFactor"))
-            .and_then(RuntimeOverrideNode::value_as_f32)
-        {
-            result.power_factor = Some(power_factor);
+        if let Some((_, ps)) = scene.get_component_of::<ParticleSystem>(child_id) {
+            system.start_lifetime_scalar = ps.start_lifetime;
+            system.start_speed_scalar = ps.start_speed;
+            system.emission_rate_scalar = ps.emission_rate;
         }
-
-        for child in root.children_of_type("GameObject") {
-            if !child.name.starts_with("WindEffect") {
-                continue;
-            }
-
-            let system = result.systems.entry(child.name.clone()).or_default();
-            system.local_position = read_vec3_field(child, "Transform", "m_LocalPosition");
-            system.local_rotation =
-                read_quaternion_field(child, "Transform", "m_LocalRotation");
-            system.start_lifetime_scalar =
-                read_scalar_curve(child, "InitialModule", "startLifetime");
-            system.start_speed_scalar = read_scalar_curve(child, "InitialModule", "startSpeed");
-            system.emission_rate_scalar = read_scalar_curve(child, "EmissionModule", "rate");
-        }
+        result.systems.insert(child_name, system);
     }
 
     result
-}
-
-fn read_vec3_field(
-    node: &RuntimeOverrideNode,
-    component_suffix: &str,
-    field_name: &str,
-) -> Option<Vec3> {
-    node.component(component_suffix)
-        .and_then(|component| component.child("Vector3", field_name))
-        .and_then(RuntimeOverrideNode::value_as_vec3)
-}
-
-fn read_quaternion_field(
-    node: &RuntimeOverrideNode,
-    component_suffix: &str,
-    field_name: &str,
-) -> Option<[f32; 4]> {
-    node
-        .component(component_suffix)
-        .and_then(|component| component.child("Quaternion", field_name))
-        .and_then(RuntimeOverrideNode::value_as_quaternion)
-}
-
-fn read_scalar_curve(
-    node: &RuntimeOverrideNode,
-    module_name: &str,
-    field_name: &str,
-) -> Option<f32> {
-    node.component("ParticleSystem")
-        .and_then(|component| component.child("Generic", module_name))
-        .and_then(|module| module.child("Generic", field_name))
-        .and_then(|field| field.child("Float", "scalar"))
-        .and_then(RuntimeOverrideNode::value_as_f32)
 }
 
 fn apply_wind_area_system_override(
@@ -482,6 +420,7 @@ fn update_wind_particle(particle: &mut WindParticle, area: &WindAreaDef, dt: f32
     true
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn prewarm_wind_particle(particle: &mut WindParticle, area: &WindAreaDef, target_age: f32) {
     let target_age = target_age.clamp(0.0, (particle.lifetime - f32::EPSILON).max(0.0));
     while particle.age < target_age {

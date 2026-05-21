@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use crate::domain::level::refs::texture_name_for_guid;
 
-use super::{list_asset_paths, read_asset_text};
+use super::{list_pathnames, read_pathname_text};
 
 const TERRAIN_PREFAB_PREFIX: &str = "e2dTerrain";
 const TERRAIN_SCRIPT_GUID: &str = "dec592636f66e19d4a958df992538a81";
@@ -30,16 +30,18 @@ fn terrain_aliases() -> &'static HashMap<String, String> {
 fn build_terrain_texture_sets() -> HashMap<String, TerrainTextureSet> {
     let mut map = HashMap::new();
 
-    for prefab_path in list_asset_paths("Prefab/", ".prefab") {
-        let Some(prefab_name) = prefab_path.strip_suffix(".prefab") else {
+    for asset_path in list_pathnames("Assets/Prefab/", ".prefab") {
+        let Some(prefab_name) = asset_path
+            .strip_prefix("Assets/Prefab/")
+            .and_then(|n| n.strip_suffix(".prefab"))
+        else {
             continue;
         };
         if !prefab_name.starts_with(TERRAIN_PREFAB_PREFIX) {
             continue;
         }
 
-        let asset_path = format!("unity/prefabs/{prefab_path}");
-        let Some(text) = read_asset_text(&asset_path) else {
+        let Some(text) = read_pathname_text(&asset_path) else {
             log::warn!("Missing embedded terrain prefab: {asset_path}");
             continue;
         };
@@ -92,6 +94,7 @@ fn parse_terrain_texture_set(raw: &str) -> Option<TerrainTextureSet> {
 
     let mut curve_textures = Vec::new();
     let mut in_curve_textures = false;
+    let mut current_curve_texture: Option<String> = None;
     for line in doc.lines() {
         let trimmed = line.trim();
         if trimmed == "CurveTextures:" {
@@ -102,13 +105,24 @@ fn parse_terrain_texture_set(raw: &str) -> Option<TerrainTextureSet> {
             continue;
         }
         if trimmed.starts_with("PlasticEdges:") {
+            if let Some(curve_texture) = current_curve_texture.take() {
+                curve_textures.push(curve_texture);
+            }
             break;
         }
-        if let Some(reference) = trimmed.strip_prefix("- texture: ")
-            && let Some(texture_name) = texture_name_from_reference(reference)
-        {
-            curve_textures.push(texture_name.to_string());
+        if let Some(reference) = trimmed.strip_prefix("- texture: ") {
+            if let Some(curve_texture) = current_curve_texture.take() {
+                curve_textures.push(curve_texture);
+            }
+            if let Some(texture_name) = texture_name_from_reference(reference) {
+                current_curve_texture = Some(texture_name.to_string());
+            }
+            continue;
         }
+    }
+
+    if let Some(curve_texture) = current_curve_texture.take() {
+        curve_textures.push(curve_texture);
     }
 
     Some(TerrainTextureSet {
@@ -197,46 +211,13 @@ pub fn get_terrain_splat0(terrain_name: &str) -> Option<&'static str> {
 
 /// Get Splat1 (outline) texture filename.
 pub fn get_terrain_splat1(terrain_name: &str) -> Option<&'static str> {
-    get_terrain_splat1_for_level("", terrain_name)
-}
-
-/// Get Splat1 (outline) texture filename with Unity-aligned MM/Maya fallback rules.
-///
-/// Episode 6 loader refs frequently point Maya/MM terrains at shared outline
-/// textures, but runtime visuals keep specific Border assets for these prefab
-/// families. Preserve those authored Border choices here.
-pub fn get_terrain_splat1_for_level(_level_key: &str, terrain_name: &str) -> Option<&'static str> {
     let key = resolve_terrain_prefab_key(terrain_name)?;
-
-    match key {
-        "e2dTerrainBase_MM_rock" | "e2dTerrainBase_MM_sand" | "e2dTerrainDark_MM_rock" => {
-            Some("Border.png")
-        }
-        "e2dTerrainBase_MM_TempleDarkRock"
-        | "e2dTerrainBase_MM_caveSand"
-        | "e2dTerrainDark_MM"
-        | "e2dTerrainDark_MM_CaveSand"
-        | "e2dTerrainDark_MM_TempleDarkRock" => Some("Border_Maya_Cave.png"),
-        _ => terrain_texture_sets().get(key)?.splat1.as_deref(),
-    }
+    terrain_texture_sets().get(key)?.splat1.as_deref()
 }
 
-/// Some Maya cave / temple / dark prefabs should keep their prefab-authored
-/// Border splat1 even when level refs point at a shared outline texture.
-pub fn terrain_splat1_prefers_prefab_over_level_refs(terrain_name: &str) -> bool {
-    matches!(
-        resolve_terrain_prefab_key(terrain_name),
-        Some(
-            "e2dTerrainBase_MM_rock"
-                | "e2dTerrainBase_MM_sand"
-                | "e2dTerrainBase_MM_TempleDarkRock"
-                | "e2dTerrainBase_MM_caveSand"
-                | "e2dTerrainDark_MM"
-                | "e2dTerrainDark_MM_CaveSand"
-                | "e2dTerrainDark_MM_TempleDarkRock"
-                | "e2dTerrainDark_MM_rock"
-        )
-    )
+/// Get Splat1 (outline) texture filename for a terrain object name.
+pub fn get_terrain_splat1_for_level(_level_key: &str, terrain_name: &str) -> Option<&'static str> {
+    get_terrain_splat1(terrain_name)
 }
 
 /// Whether this is a "dark" terrain (underground fill).

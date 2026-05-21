@@ -2,8 +2,9 @@
 
 use crate::data::assets;
 use crate::domain::prefab_asset::PrefabAssetDocument;
-use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 use crate::domain::types::*;
+use crate::unity_runtime::components::{BezierCurve, BezierMesh, LevelManager, PointLightSource};
+use crate::unity_runtime::scene::Scene;
 
 use super::super::grid::ConstructionGrid;
 use super::{LIT_AREA_BORDER_ALPHA, LitAreaPolygon, POINT_LIGHT_BORDER_ALPHA};
@@ -24,21 +25,11 @@ pub(in crate::renderer) fn parse_dark_level_data(
             // Check LevelManager for m_darkLevel
             if p.name == "LevelManager"
                 && let Some(ref od) = p.override_data
+                && let Some((scene, root)) = Scene::from_override_text(&od.raw_text)
+                && let Some((_, lm)) = scene.get_component_of::<LevelManager>(root)
+                && lm.dark_level == Some(true)
             {
-                let document = RuntimeOverrideDocument::parse(&od.raw_text);
-                if document
-                    .roots
-                    .iter()
-                    .find_map(|root| {
-                        root.find_descendant(&|node| {
-                            node.node_type == "Boolean" && node.name == "m_darkLevel"
-                        })
-                    })
-                    .and_then(RuntimeOverrideNode::value_as_bool)
-                .unwrap_or(false)
-                {
-                    *dark_level = true;
-                }
+                *dark_level = true;
             }
 
             // Parse LitArea bezier curves
@@ -59,29 +50,22 @@ pub(in crate::renderer) fn parse_dark_level_data(
 /// Parse a LitArea prefab's override data to extract bezier curve polygon vertices.
 fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     let od = prefab.override_data.as_ref()?;
-    let document = RuntimeOverrideDocument::parse(&od.raw_text);
-    let bezier_curve = document
-        .roots
-        .iter()
-        .find_map(|root| root.component("BezierCurve"))?;
-    let nodes_array = bezier_curve
-        .child("Generic", "bezierCurve")?
-        .child("Array", "nodes")?
-        .as_array()?;
-    let node_count = nodes_array.size?;
+    let (scene, root) = Scene::from_override_text(&od.raw_text)?;
+    let (_, bezier) = scene.get_component_of::<BezierCurve>(root)?;
+    let nodes = bezier.nodes.as_ref()?;
+    let node_count = nodes.len();
     if node_count < 2 {
         return None;
     }
 
-    let bpc = bezier_curve
-        .child("Integer", "bezierPointCount")
-        .and_then(RuntimeOverrideNode::value_as_i32)
+    let bpc = bezier
+        .bezier_point_count
         .or_else(lit_area_prefab_bezier_point_count)
         .map(|count| count.max(1) as usize)
         .unwrap_or(1);
 
-    // Parse each bezier node: position + tangent0 (forward) + tangent1 (backward)
-    struct BezierNode {
+    // Local view onto the typed bezier nodes (2D projection).
+    struct BN {
         px: f32,
         py: f32,
         t0x: f32,
@@ -89,35 +73,17 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         t1x: f32,
         t1y: f32,
     }
-
-    let mut nodes = Vec::with_capacity(node_count);
-
-    for element in nodes_array.iter() {
-        let px = read_vec3_xy(
-            element.value.find_descendant(&|node| {
-                node.node_type == "Vector3" && node.name == "position"
-            })?,
-        )?;
-        let t0 = read_vec3_xy(
-            element.value.find_descendant(&|node| {
-                node.node_type == "Vector3" && node.name == "tangent0"
-            })?,
-        )?;
-        let t1 = read_vec3_xy(
-            element.value.find_descendant(&|node| {
-                node.node_type == "Vector3" && node.name == "tangent1"
-            })?,
-        )?;
-
-        nodes.push(BezierNode {
-            px: px[0],
-            py: px[1],
-            t0x: t0[0],
-            t0y: t0[1],
-            t1x: t1[0],
-            t1y: t1[1],
-        });
-    }
+    let nodes: Vec<BN> = nodes
+        .iter()
+        .map(|n| BN {
+            px: n.position.x,
+            py: n.position.y,
+            t0x: n.tangent0.x,
+            t0y: n.tangent0.y,
+            t1x: n.tangent1.x,
+            t1y: n.tangent1.y,
+        })
+        .collect();
 
     if nodes.len() < 2 {
         return None;
@@ -203,14 +169,9 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
 /// Parse borderWidth from a LitArea prefab's override data.
 fn parse_border_width(prefab: &PrefabInstance) -> Option<f32> {
     let od = prefab.override_data.as_ref()?;
-    let document = RuntimeOverrideDocument::parse(&od.raw_text);
-    document
-        .roots
-        .iter()
-        .find_map(|root| {
-            root.find_descendant(&|node| node.node_type == "Float" && node.name == "borderWidth")
-        })
-        .and_then(RuntimeOverrideNode::value_as_f32)
+    let (scene, root) = Scene::from_override_text(&od.raw_text)?;
+    let (_, mesh) = scene.get_component_of::<BezierMesh>(root)?;
+    mesh.border_width
 }
 
 fn lit_area_prefab_bezier_point_count() -> Option<i32> {
@@ -227,8 +188,8 @@ fn lit_area_prefab_border_width() -> f32 {
 }
 
 fn prefab_asset_document(prefab_name: &str) -> Option<PrefabAssetDocument> {
-    let asset_path = format!("unity/prefabs/{prefab_name}.prefab");
-    let text = assets::read_asset_text(&asset_path)?;
+    let asset_path = format!("Assets/Prefab/{prefab_name}.prefab");
+    let text = assets::read_pathname_text(&asset_path)?;
     PrefabAssetDocument::parse(&text)
 }
 
@@ -323,27 +284,13 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     let (size, border_width) = prefab
         .override_data
         .as_ref()
-        .map(|od| {
-            let document = RuntimeOverrideDocument::parse(&od.raw_text);
-            let size = document
-                .roots
-                .iter()
-                .find_map(|root| {
-                    root.find_descendant(&|node| node.node_type == "Float" && node.name == "size")
-                })
-                .and_then(RuntimeOverrideNode::value_as_f32)
-                .unwrap_or(default_size);
-            let border_width = document
-                .roots
-                .iter()
-                .find_map(|root| {
-                    root.find_descendant(&|node| {
-                        node.node_type == "Float" && node.name == "borderWidth"
-                    })
-                })
-                .and_then(RuntimeOverrideNode::value_as_f32)
-                .unwrap_or(default_border);
-            (size, border_width)
+        .and_then(|od| {
+            let (scene, root) = Scene::from_override_text(&od.raw_text)?;
+            let (_, pls) = scene.get_component_of::<PointLightSource>(root)?;
+            Some((
+                pls.size.unwrap_or(default_size),
+                pls.border_width.unwrap_or(default_border),
+            ))
         })
         .unwrap_or((default_size, default_border));
     let cx = prefab.position.x;
@@ -361,23 +308,20 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     Some(build_point_light_polygon(cx, cy, size, border_width))
 }
 
-fn read_vec3_xy(node: &RuntimeOverrideNode) -> Option<[f32; 2]> {
-    Some([
-        node.child("Float", "x")?.value_as_f32()?,
-        node.child("Float", "y")?.value_as_f32()?,
-    ])
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         construction_grid_start_light, parse_dark_level_data, parse_lit_area_bezier,
         parse_point_light,
     };
+    use crate::domain::parser::parse_level;
     use crate::domain::types::{
         DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
     use crate::renderer::grid::{ConstructionGrid, ConstructionGridCellStyle};
+    use crate::unity_runtime::components::LevelManager;
+    use crate::unity_runtime::scene::Scene;
+    use std::path::Path;
 
     const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
 
@@ -415,6 +359,55 @@ mod tests {
         assert_eq!(lit_areas.len(), 1);
         assert!(lit_areas[0].vertices.len() >= 20);
         assert_eq!(lit_areas[0].vertices.len(), lit_areas[0].border_vertices.len());
+    }
+
+    #[test]
+    fn dark_sandbox_bytes_parse_as_dark_level() {
+        let level_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+        );
+        let bytes = std::fs::read(&level_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+        let level = parse_level(bytes)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+        let level_manager = level
+            .objects
+            .iter()
+            .find_map(|object| match object {
+                LevelObject::Prefab(prefab) if prefab.name == "LevelManager" => Some(prefab),
+                _ => None,
+            })
+            .expect("expected LevelManager prefab in dark sandbox");
+        let override_data = level_manager
+            .override_data
+            .as_ref()
+            .expect("expected LevelManager override data in dark sandbox");
+        assert!(
+            override_data.raw_text.contains("m_darkLevel = True"),
+            "expected parsed LevelManager override text to keep m_darkLevel"
+        );
+
+        let (scene, root) = Scene::from_override_text(&override_data.raw_text)
+            .expect("expected LevelManager override to parse as Scene text");
+        let (_, level_manager_component) = scene
+            .get_component_of::<LevelManager>(root)
+            .expect("expected parsed Scene to include LevelManager component");
+        assert_eq!(
+            level_manager_component.dark_level,
+            Some(true),
+            "expected Scene parsing to preserve LevelManager.m_darkLevel"
+        );
+
+        let mut dark_level = false;
+        let mut lit_areas = Vec::new();
+        parse_dark_level_data(&level, &mut dark_level, &mut lit_areas);
+
+        assert!(dark_level, "expected dark sandbox to set m_darkLevel");
+        assert!(
+            !lit_areas.is_empty(),
+            "expected dark sandbox to produce at least one lit area"
+        );
     }
 
     #[test]

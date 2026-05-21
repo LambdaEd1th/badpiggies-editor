@@ -13,6 +13,27 @@ pub fn decode_control_png_pixels(data: &[u8]) -> Option<Vec<u8>> {
     Some(img.to_rgba8().into_raw())
 }
 
+/// Decode a per-node terrain texture index from RGBA control pixels.
+/// Unity stores texture 0..3 in the R/G/B/A channels respectively.
+pub fn decode_control_texture_index(pixels: &[u8], node_index: usize) -> usize {
+    let base = node_index * 4;
+    if base + 3 >= pixels.len() {
+        return 0;
+    }
+
+    if pixels[base] == 255 {
+        0
+    } else if pixels[base + 1] == 255 {
+        1
+    } else if pixels[base + 2] == 255 {
+        2
+    } else if pixels[base + 3] == 255 {
+        3
+    } else {
+        0
+    }
+}
+
 /// Encode node texture indices into a 1×N PNG (control texture).
 /// Returns raw PNG bytes.
 pub fn encode_control_png(nodes: &[CurveNode]) -> AppResult<Vec<u8>> {

@@ -6,16 +6,18 @@ use crate::domain::types::*;
 
 use super::{
     BoundsHandle, CanvasContextAction, CursorMode, DragMode, LevelRenderer,
-    NodeEditAction, PreviewPlaybackState, grid, particles,
+    NodeEditAction, PreviewPlaybackState,
 };
 
-/// Known atlas filenames and their paths relative to the sprites directory.
+/// Known atlas filenames and their embedded asset keys.
 pub(crate) const ATLAS_FILES: &[&str] = &[
     "IngameAtlas.png",
     "IngameAtlas2.png",
     "IngameAtlas3.png",
     "Ingame_Characters_Sheet_01.png",
     "Ingame_Sheet_04.png",
+    "MenuAtlas.png",
+    "MenuAtlas2.png",
     "Props_Generic_Sheet_01.png",
 ];
 
@@ -43,6 +45,10 @@ impl LevelRenderer {
             .hover_pos()
             .map(|p| self.camera.screen_to_world(p, canvas_center));
 
+        // Ensure textures needed by the current frame are resident before any
+        // CPU fallback paths attempt to draw with them.
+        self.lazy_load_textures(ui.ctx());
+
         // Background (sky + ground fill + parallax layers + clouds)
         if self.show_bg {
             let dt = ui.input(|i| i.stable_dt);
@@ -55,18 +61,8 @@ impl LevelRenderer {
         self.draw_ground_bg_and_decorative_terrain(&painter, canvas_center, rect);
 
         // Construction grid overlay (renderOrder=9, between ground and collider terrain)
-        if self.show_grid_overlay
-            && let Some(ref cg) = self.construction_grid
-        {
-            grid::draw_construction_grid(
-                &painter,
-                cg,
-                &self.camera,
-                canvas_center,
-                rect,
-                &mut self.tex_cache,
-                ui.ctx(),
-            );
+        if self.show_grid_overlay && self.construction_grid.is_some() {
+            self.draw_construction_grid_overlay(&painter, canvas_center, rect);
         }
 
         // ── Interaction: drag, pan, click ──
@@ -83,45 +79,8 @@ impl LevelRenderer {
             self.update_particles(dt);
         }
 
-        // Draw Zzz particles BEFORE sprites — in Unity emitter is at z=+0.5 (behind bird body)
-        particles::draw_zzz_particles(
-            &self.zzz_particles,
-            &self.camera,
-            &painter,
-            canvas_center,
-            rect,
-            particles::zzz_particle_texture_name().and_then(|name| self.tex_cache.get(name)),
-        );
-
         // Sprites with goal bobbing + compound sub-sprites (renderOrder=12)
         self.draw_sprites(&painter, canvas_center, rect, selected);
-
-        // Draw fan particles (cloud puffs, renderOrder=12)
-        particles::draw_fan_particles(
-            &self.fan_particles,
-            &self.camera,
-            &painter,
-            canvas_center,
-            rect,
-            particles::fan_particle_texture_name().and_then(|name| self.tex_cache.get(name)),
-        );
-
-        particles::draw_attached_effect_particles(
-            &self.attached_effect_particles,
-            &self.camera,
-            &painter,
-            canvas_center,
-            rect,
-            &particles::attached_effect_draw_texture_names().map(|texture_name| {
-                texture_name.and_then(|texture_name| {
-                    self.tex_cache.load_texture(
-                        ui.ctx(),
-                        &format!("particles/{}", texture_name),
-                        texture_name,
-                    )
-                })
-            }),
-        );
 
         // Terrain overlays stay after the world transparent layer so inline collider
         // terrain rendering does not paint over selection or debug visuals.
@@ -130,14 +89,35 @@ impl LevelRenderer {
         }
         self.draw_terrain_selection(&painter, canvas_center, selected);
 
+        // ── Front-ground + foreground (eff_z < 0), normal queues first ──
+        if self.show_bg {
+            self.draw_bg_z_range(
+                &painter,
+                canvas_center,
+                rect,
+                (f32::NEG_INFINITY, 0.0),
+                Some(false),
+            );
+        }
+
         // ── Dark level overlay with LitArea cutouts ──
         if self.dark_level && self.show_dark_overlay {
             self.draw_dark_overlay(&painter, canvas_center, rect);
         }
 
-        // ── Front-ground + foreground (eff_z < 0): waves/foam/dummy + foreground, after sprites ──
+        // ── Front-ground render-last materials (queue > 3005), after dark overlay ──
         if self.show_bg {
-            self.draw_bg_z_range(&painter, canvas_center, rect, (f32::NEG_INFINITY, 0.0));
+            self.draw_bg_z_range(
+                &painter,
+                canvas_center,
+                rect,
+                (f32::NEG_INFINITY, 0.0),
+                Some(true),
+            );
+        }
+
+        if self.dark_level && self.show_dark_overlay && self.night_vision_enabled() {
+            self.draw_night_vision_overlay(&painter, rect);
         }
 
         // Grid (drawn on top of all scene content)
@@ -198,9 +178,6 @@ impl LevelRenderer {
 
         // Request continuous repaint for animations
         ui.ctx().request_repaint();
-
-        // Lazy-load atlas textures (only attempt once per atlas)
-        self.lazy_load_textures(ui.ctx());
 
         let hovered_node = self.hovered_terrain_node;
         let suppress_context_menu = self.suppress_context_menu_this_frame

@@ -45,6 +45,7 @@ struct Uniforms {
     uv_min: vec2<f32>,
     uv_max: vec2<f32>,
     content_ratio_x: f32,  // original_w / extended_w (1.0 = no extension)
+    alpha8bit: f32,         // 1.0 = _Custom/Unlit_Alpha8Bit_Color mode
     tint_color: vec4<f32>,
 };
 
@@ -79,20 +80,39 @@ fn vs_main(in: VIn) -> VOut {
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4<f32> {
+    // _Custom/Unlit_Alpha8Bit_Color exact fragment:
+    //   var.xyz = _Color.xyz;
+    //   var.w = _Color.w * tex2D(_MainTex).w;
+    //   return var;   (with Blend SrcAlpha OneMinusSrcAlpha)
+    // Texture RGB is ignored. Result is unpremultiplied; egui's compositor is
+    // premultiplied, so we multiply rgb by final alpha — algebraically equivalent
+    // to Unity's SrcAlpha blend (final = src.rgb * a + dst * (1-a)).
+    if (u.alpha8bit > 0.5) {
+        let a = u.tint_color.a * textureSample(main_tex, main_sampler, in.uv).a;
+        return vec4<f32>(u.tint_color.rgb * a, a);
+    }
+
     // Exact Unity shader: return tex2D(_MainTex, i.texcoord) * _Color;
     let c = textureSample(main_tex, main_sampler, in.uv) * u.tint_color;
 
     // Texture is already premultiplied at load time (matching Unity's
-    // "Alpha Is Transparency" import).  Shader modes:
-    //   cutoff < 0     → opaque fill (force alpha = 1)
-    //   cutoff ≈ 0.004 → transparent blend (discard fully-transparent only)
-    //   cutoff = 0.5   → alpha cutout (Unlit/Transparent Cutout)
+    // "Alpha Is Transparency" import).  Shader modes (1:1 with Unity):
+    //   cutoff < 0       → _Custom/Unlit_Color_Geometry (Blend Off → α=1)
+    //   0 ≤ cutoff < 0.5 → _Custom/Unlit_ColorTransparent_Geometry
+    //                      (Blend SrcAlpha 1-SrcAlpha → pass α through)
+    //   cutoff ≥ 0.5     → Unlit/Transparent Cutout
+    //                      (alpha test, then Blend Off → α=1)
     if (u.cutoff < 0.0) {
         return vec4<f32>(c.rgb, 1.0);
     }
     if (c.a < u.cutoff) { discard; }
+    if (u.cutoff >= 0.5) {
+        // Unlit/Transparent Cutout uses Blend Off — kept pixels are opaque.
+        return vec4<f32>(c.rgb, 1.0);
+    }
 
-    // Already premultiplied — pass through for egui compositor
+    // Already premultiplied (texture loader bakes _Color.a=1 fully premult)
+    // — pass through unchanged for egui's premultiplied compositor.
     return vec4<f32>(c.rgb, c.a);
 }
 "#;
@@ -114,7 +134,7 @@ pub struct BgUniforms {
     pub uv_min: [f32; 2],
     pub uv_max: [f32; 2],
     pub content_ratio_x: f32, // original_w / extended_w (1.0 = no extension)
-    pub _pad: f32,            // align tint_color to offset 64
+    pub alpha8bit: f32,       // 1.0 = _Custom/Unlit_Alpha8Bit_Color mode; aligns tint_color to offset 64
     pub tint_color: [f32; 4], // vec4 needs 16-byte alignment
 }
 
@@ -388,7 +408,7 @@ pub fn load_bg_texture(
     filename: &str,
 ) -> Option<BgAtlasGpu> {
     let path = format!("{}/{}", prefix, filename);
-    let data = crate::data::assets::read_asset(&path)?;
+    let data = crate::data::assets::read_pathname(&path)?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
     // Premultiply alpha into RGB — matches Unity's "Alpha Is Transparency"

@@ -298,10 +298,11 @@ pub(super) fn render_contraption_canvas(
                 }
             }
         } else {
-            let atlas_path = format!("sprites/{}", sprite.atlas);
+            let atlas_path = format!("Assets/Texture2D/{}", sprite.atlas);
+            let cache_key = format!("{}_grid_raw_rgba", sprite.atlas);
             let tex_id = tex_cache.load_sprite_crop(
                 ui.ctx(),
-                grid_style.texture_cache_key(),
+                &cache_key,
                 &atlas_path,
                 [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
             );
@@ -520,7 +521,7 @@ pub(super) fn render_contraption_canvas(
             }
         }
 
-        let atlas_path = format!("sprites/{}", layer.atlas);
+        let atlas_path = format!("Assets/Texture2D/{}", layer.atlas);
         let tex_id = match tex_cache.load_texture(ui.ctx(), &atlas_path, &layer.atlas) {
             Some(id) => id,
             None => continue,

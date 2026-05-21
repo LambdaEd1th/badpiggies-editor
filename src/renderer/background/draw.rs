@@ -9,6 +9,8 @@ use crate::domain::types::Vec2;
 use super::super::{Camera, DrawCtx, bg_shader};
 use super::cache::{BgGpuState, BgLayerCache, WORLD_SCALE, bg_sprite_x_animation_offset};
 
+const DARK_OVERLAY_MAX_RENDER_QUEUE: i32 = 3005;
+
 pub fn draw_background(
     painter: &egui::Painter,
     rect: egui::Rect,
@@ -16,10 +18,7 @@ pub fn draw_background(
     canvas_center: egui::Vec2,
     theme: Option<&str>,
 ) {
-    // Sky color fill
-    let sky_color = theme
-        .map(assets::sky_top_color)
-        .unwrap_or(egui::Color32::from_rgb(0x28, 0x2c, 0x34));
+    let sky_color = background_base_color(theme);
     painter.rect_filled(rect, 0.0, sky_color);
 
     // Ground fill band below a certain Y
@@ -44,6 +43,14 @@ pub fn draw_background(
     }
 }
 
+pub(super) fn background_base_color(theme: Option<&str>) -> egui::Color32 {
+    match theme {
+        Some("Cave") => assets::ground_color("Cave"),
+        Some(theme_name) => assets::sky_top_color(theme_name),
+        None => egui::Color32::from_rgb(0x28, 0x2c, 0x34),
+    }
+}
+
 /// Draw parallax background sprite layers for the given theme.
 ///
 /// `z_range` filters sprites by worldZ (real Unity world Z coordinate):
@@ -56,6 +63,7 @@ pub fn draw_bg_layers(
     z_range: (f32, f32), // (inclusive min, exclusive max)
     cache: &BgLayerCache,
     mut gpu: Option<&mut BgGpuState<'_>>,
+    draw_after_dark_overlay: Option<bool>,
 ) {
     let theme = match bg_data::get_theme(theme_name) {
         Some(t) => t,
@@ -64,16 +72,49 @@ pub fn draw_bg_layers(
 
     let sprites = cache.sprites(theme);
 
-    // Draw sprites in Z-sorted order (farthest first = back-to-front).
+    // Draw sprites in authored layer order, then back-to-front within each
+    // layer. Z-range filtering still uses the authored world Z so fill sort
+    // overrides cannot move sprites into a different background pass.
     for &i in &cache.sorted_indices {
-        let sprite = &sprites[i];
-        // World-Z range filter
-        let z = sprite.world_z;
+        let z = sprites[i].world_z;
         if z < z_range.0 || z >= z_range.1 {
             continue;
         }
+        if let Some(after_dark_overlay) = draw_after_dark_overlay {
+            let sprite_after_dark_overlay = sprites[i]
+                .custom_render_queue
+                .is_some_and(|queue| queue > DARK_OVERLAY_MAX_RENDER_QUEUE);
+            if sprite_after_dark_overlay != after_dark_overlay {
+                continue;
+            }
+        }
 
         draw_bg_sprite(ctx, time, sprites, i, cache, &mut gpu);
+    }
+}
+
+pub(in crate::renderer) fn should_extend_fill_like(
+    sprite: &BgSprite,
+    name_lower: &str,
+    cache: &BgLayerCache,
+    sprite_index: usize,
+) -> bool {
+    sprite.fill_color.is_some()
+        || sprite.sky_texture.is_some()
+        || (sprite.fill_color.is_none() && name_lower.contains("fill"))
+        || cache.singleton_set.contains(&sprite_index)
+}
+
+pub(in crate::renderer) fn content_ratio_x_for_bg_sprite(
+    sprite: &BgSprite,
+    extend_fill_like: bool,
+    orig_display_w: f32,
+    display_w: f32,
+) -> f32 {
+    if sprite.sky_texture.is_some() || extend_fill_like {
+        1.0
+    } else {
+        orig_display_w / display_w
     }
 }
 
@@ -114,14 +155,18 @@ pub(in crate::renderer) fn draw_bg_sprite(
         let n = (viewport_w / block_width).ceil() as i32 + 1;
         for copy in -n..=n {
             let x_offset = copy as f32 * block_width + shift + anim_x;
-            draw_bg_sprite_offset(ctx, sprite, x_offset, anim_y, false, gpu);
+            draw_bg_sprite_offset(ctx, sprite, x_offset, anim_y, false, None, gpu);
         }
     } else {
-        let extend_fill_like = sprite.fill_color.is_some()
-            || sprite.sky_texture.is_some()
-            || name_lower.contains("fill")
-            || cache.singleton_set.contains(&sprite_index);
-        draw_bg_sprite_offset(ctx, sprite, anim_x, anim_y, extend_fill_like, gpu);
+        draw_bg_sprite_offset(
+            ctx,
+            sprite,
+            anim_x,
+            anim_y,
+            should_extend_fill_like(sprite, name_lower, cache, sprite_index),
+            cache.fill_top_world_y.get(&sprite_index).copied(),
+            gpu,
+        );
     }
 }
 
@@ -157,20 +202,10 @@ pub(in crate::renderer) fn hermite(keys: &[(f32, f32, f32, f32)], time: f32) -> 
 
 /// Wave Y offset (6-second hermite loop).
 fn wave_offset(time: f64) -> f32 {
-    const KEYS: &[unity_anim::HermiteKey] = &[
-        (0.0, 0.0, -0.006681, -0.006681),
-        (2.366667, 1.0, 0.001194, 0.001194),
-        (3.7, 0.6954712, -0.383697, -0.383697),
-        (6.0, 0.0, 0.0, 0.0),
-    ];
-    sample_clip_curve(
+    sample_required_root_position_y_curve(
         time,
         unity_anim::ocean_animation_clip(),
-        unity_anim::ocean_animation_clip()
-            .and_then(|clip| clip.root_position())
-            .map(|curve| curve.y.as_slice()),
-        6.0,
-        KEYS,
+        "OceanAnimation.anim",
     )
 }
 
@@ -182,39 +217,30 @@ fn wave_offset(time: f64) -> f32 {
 /// *prefab* value 1.146046.  We subtract the prefab Y so the returned
 /// delta is relative to the baked position.
 fn foam_offset(time: f64) -> f32 {
-    const KEYS: &[unity_anim::HermiteKey] = &[
-        (0.0, 0.774923, 0.0, 0.0),
-        (0.016667, 0.774923, 0.0, 0.0),
-        (2.466667, 1.796472, 0.332467, 0.332467),
-        (3.0, 1.893086, 0.006075, 0.002644),
-        (3.7, 1.739951, -0.399446, -0.399446),
-        (6.0, 0.774923, 0.0, 0.0),
-    ];
     // FoamAnimRoot prefab localY (baked into bg-data.toml worldY).
     const PREFAB_Y: f32 = 1.146046;
-    sample_clip_curve(
+    sample_required_root_position_y_curve(
         time,
         unity_anim::ocean_foam_animation_clip(),
-        unity_anim::ocean_foam_animation_clip()
-            .and_then(|clip| clip.root_position())
-            .map(|curve| curve.y.as_slice()),
-        6.0,
-        KEYS,
+        "OceanFoamAnimation.anim",
     ) - PREFAB_Y
 }
 
-fn sample_clip_curve(
+fn sample_required_root_position_y_curve(
     time: f64,
     clip: Option<&unity_anim::UnityAnimationClip>,
-    curve: Option<&[unity_anim::HermiteKey]>,
-    fallback_duration: f32,
-    fallback_curve: &[unity_anim::HermiteKey],
+    asset_name: &str,
 ) -> f32 {
-    if let (Some(clip), Some(curve)) = (clip, curve.filter(|curve| !curve.is_empty())) {
-        hermite(curve, clip.sample_time(time, 0.0))
-    } else {
-        hermite(fallback_curve, (time as f32).rem_euclid(fallback_duration))
+    let clip = clip.unwrap_or_else(|| panic!("{} should load from embedded assets", asset_name));
+    let curve = clip
+        .root_position()
+        .unwrap_or_else(|| panic!("{} must include root position curves", asset_name))
+        .y
+        .as_slice();
+    if curve.is_empty() {
+        panic!("{} root position Y curve must not be empty", asset_name);
     }
+    hermite(curve, clip.sample_time(time, 0.0))
 }
 
 fn atlas_uv_padding(sprite: &BgSprite) -> (f32, f32, f32) {
@@ -245,6 +271,7 @@ fn draw_bg_sprite_offset(
     x_offset: f32,
     y_offset: f32,
     extend_fill_like: bool,
+    fill_top_world_y: Option<f32>,
     gpu: &mut Option<&mut BgGpuState<'_>>,
 ) {
     let painter = ctx.painter;
@@ -284,15 +311,14 @@ fn draw_bg_sprite_offset(
         orig_display_w
     };
 
-    // content_ratio_x: fraction of the extended quad that contains actual texture.
-    // The GPU shader clamps UV at the original content edges so extended portions
-    // repeat edge pixels instead of stretching the atlas texture.
-    // For sky textures, stretching IS intended, so ratio stays 1.0.
-    let content_ratio_x = if sprite.sky_texture.is_some() {
-        1.0
-    } else {
-        orig_display_w / display_w
-    };
+    // Old TS/Pixi behavior stretches atlas-based fill-like sprites and large
+    // singleton backdrops when they are widened to cover the viewport.
+    let content_ratio_x = content_ratio_x_for_bg_sprite(
+        sprite,
+        extend_fill_like,
+        orig_display_w,
+        display_w,
+    );
 
     let center = camera.world_to_screen(
         Vec2 {
@@ -301,6 +327,40 @@ fn draw_bg_sprite_offset(
         },
         canvas_center,
     );
+
+    // Fill color sprites (solid rectangles) — no shader needed.
+    // Unity keeps these attached to a BackgroundScaler, so they widen with the
+    // viewport while preserving their authored height.
+    if let Some(rgb) = sprite.fill_color {
+        let bottom_world_y = world_y - display_h * 0.5;
+        let top_world_y = fill_top_world_y
+            .unwrap_or(world_y + display_h * 0.5)
+            .max(bottom_world_y);
+        let fill_center = camera.world_to_screen(
+            Vec2 {
+                x: world_x,
+                y: (bottom_world_y + top_world_y) * 0.5,
+            },
+            canvas_center,
+        );
+        let hw_screen = display_w * 0.5 * camera.zoom;
+        let hh_screen = (top_world_y - bottom_world_y) * 0.5 * camera.zoom;
+        if fill_center.x + hw_screen < rect.left() - 50.0
+            || fill_center.x - hw_screen > rect.right() + 50.0
+            || fill_center.y + hh_screen < rect.top() - 50.0
+            || fill_center.y - hh_screen > rect.bottom() + 50.0
+        {
+            return;
+        }
+
+        let screen_rect = egui::Rect::from_center_size(
+            fill_center,
+            egui::vec2(hw_screen * 2.0, hh_screen * 2.0),
+        );
+        let color = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+        painter.rect_filled(screen_rect, 0.0, color);
+        return;
+    }
 
     // Quick frustum cull
     let hw_screen = display_w * 0.5 * camera.zoom;
@@ -316,23 +376,12 @@ fn draw_bg_sprite_offset(
     let screen_rect =
         egui::Rect::from_center_size(center, egui::vec2(hw_screen * 2.0, hh_screen * 2.0));
 
-    // Fill color sprites (solid rectangles) — no shader needed.
-    // In Unity these use _Custom/Unlit_Color_Geometry (Queue=Transparent,
-    // ZWrite Off, no blend = opaque).  They render at their natural size
-    // and position, painting a solid fill color ON TOP of the farther hill
-    // sprites (fill Z is slightly lower = closer to camera).
-    if let Some(rgb) = sprite.fill_color {
-        let color = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-        painter.rect_filled(screen_rect, 0.0, color);
-        return;
-    }
-
-    // Cutoff: controls shader blend mode.
+    // Cutoff: controls shader blend mode (matches Unity 1:1).
     //   -1.0 → opaque (Unity _Custom/Unlit_Color_Geometry — solid fill layers)
-    //    0.5 → alpha cutout (Unity Unlit/Transparent Cutout, _Cutoff=0.5)
-    //    0.004 → alpha blend (nearly transparent sprites like clouds)
+    //    >=0.5 → alpha cutout (Unity Unlit/Transparent Cutout, _Cutoff from .mat)
+    //    0.0   → alpha blend (Unity _Custom/Unlit_ColorTransparent_Geometry, no clip)
     // Solid fills (fillColor) already returned above; atlas-based sprites use cutout.
-    let cutoff = if sprite.alpha_blend { 0.004 } else { 0.5 };
+    let cutoff = if sprite.alpha_blend { 0.0 } else { sprite.cutoff };
 
     // ── GPU path: use WGSL background shader ──
     if let Some(g) = gpu
@@ -348,13 +397,13 @@ fn draw_bg_sprite_offset(
                 screen_size: [rect.width(), rect.height()],
                 camera_center: [camera.center.x, camera.center.y],
                 zoom: camera.zoom,
-                cutoff: 0.004,
+                cutoff: 0.0, // sky uses ColorTransparent_Geometry — no clip
                 world_center: [world_x, world_y],
                 world_size: [display_w, display_h],
                 uv_min: [0.0, 0.0],
                 uv_max: [1.0, 1.0],
                 content_ratio_x,
-                _pad: 0.0,
+                alpha8bit: 0.0, // sky texture never uses Alpha8Bit shader
                 tint_color: sprite.tint,
             };
             let slot = *g.slot_counter;
@@ -413,7 +462,7 @@ fn draw_bg_sprite_offset(
                 uv_min: [u0, v0],
                 uv_max: [u1, v1],
                 content_ratio_x,
-                _pad: 0.0,
+                alpha8bit: sprite.alpha8bit as u8 as f32,
                 tint_color: sprite.tint,
             };
             let slot = *g.slot_counter;
@@ -482,13 +531,8 @@ fn draw_bg_sprite_offset(
         };
 
         let uv_rect = egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1));
-        // CPU fallback: use original (non-extended) width to avoid UV stretching.
-        // GPU path handles extension via content_ratio_x UV clamping in shader.
-        let cpu_hw = orig_display_w * 0.5 * camera.zoom;
-        let cpu_rect =
-            egui::Rect::from_center_size(center, egui::vec2(cpu_hw * 2.0, hh_screen * 2.0));
         let mut mesh = egui::Mesh::with_texture(tex_id);
-        mesh.add_rect_with_uv(cpu_rect, uv_rect, egui::Color32::WHITE);
+        mesh.add_rect_with_uv(screen_rect, uv_rect, egui::Color32::WHITE);
         painter.add(egui::Shape::mesh(mesh));
     }
 }

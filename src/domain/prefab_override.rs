@@ -21,6 +21,7 @@ impl OverrideNode {
             .find(|node| node.node_type == node_type && node.name == name)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn children_of_type<'a>(
         &'a self,
         node_type: &'a str,
@@ -30,6 +31,7 @@ impl OverrideNode {
             .filter(move |node| node.node_type == node_type)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn component(&self, suffix: &str) -> Option<&OverrideNode> {
         self.children.iter().find(|node| {
             node.node_type == "Component"
@@ -42,6 +44,7 @@ impl OverrideNode {
         })
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn value_as_f32(&self) -> Option<f32> {
         self.value.as_deref()?.parse().ok()
     }
@@ -50,6 +53,7 @@ impl OverrideNode {
         self.value.as_deref()?.parse().ok()
     }
 
+    #[allow(dead_code)]
     pub fn value_as_bool(&self) -> Option<bool> {
         let value = self.value.as_deref()?;
         if value.eq_ignore_ascii_case("true") {
@@ -189,6 +193,7 @@ pub fn serialize_override_tree(nodes: &[OverrideNode]) -> String {
     serialize_override_tree_at_depth(nodes, 0)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn find_first_node<'a, F>(nodes: &'a [OverrideNode], predicate: &F) -> Option<&'a OverrideNode>
 where
     F: Fn(&OverrideNode) -> bool,

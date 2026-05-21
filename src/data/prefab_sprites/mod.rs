@@ -80,6 +80,35 @@ mod tests {
     }
 
     #[test]
+    fn slingshot_prefab_keeps_three_runtime_layers() {
+        let Some(layers) = get_multi_sprite_layers("Slingshot") else {
+            panic!("expected prefab layers for Slingshot");
+        };
+        assert_eq!(layers.len(), 3);
+        let first_atlas = &layers[0].atlas;
+        assert!(!first_atlas.is_empty());
+        assert!(layers.iter().all(|layer| layer.atlas == *first_atlas));
+    }
+
+    #[test]
+    fn pressure_button_blue_prefab_keeps_base_and_bump_layers() {
+        let Some(layers) = get_multi_sprite_layers("PressureButtonBlue") else {
+            panic!("expected prefab layers for PressureButtonBlue");
+        };
+        assert_eq!(layers.len(), 2);
+        assert!(layers.iter().all(|layer| layer.atlas == "IngameAtlas2.png"));
+    }
+
+    #[test]
+    fn activated_hinge_door_blue_ice_prefab_keeps_three_runtime_layers() {
+        let Some(layers) = get_multi_sprite_layers("ActivatedHingeDoorBlue_Ice") else {
+            panic!("expected prefab layers for ActivatedHingeDoorBlue_Ice");
+        };
+        assert_eq!(layers.len(), 3);
+        assert!(layers.iter().all(|layer| layer.atlas == "IngameAtlas2.png"));
+    }
+
+    #[test]
     fn goal_area_mm_gold_prefab_keeps_runtime_icon_layer() {
         let Some(layers) = get_multi_sprite_layers("GoalArea_MM_Gold") else {
             panic!("expected prefab layers for GoalArea_MM_Gold");
@@ -128,6 +157,18 @@ mod tests {
         assert_close(hat_layer.uv.y, 0.25);
         assert_close(hat_layer.uv.w, 0.125);
         assert_close(hat_layer.uv.h, 0.125);
+    }
+
+    #[test]
+    fn step_rope_prefab_keeps_runtime_layer() {
+        let Some(layers) = get_multi_sprite_layers("StepRope") else {
+            panic!("expected prefab layers for StepRope");
+        };
+        assert_eq!(layers.len(), 1);
+        assert!(!layers[0].atlas.is_empty());
+        assert!(layers[0].vertices.iter().all(|vertex| {
+            vertex.x.is_finite() && vertex.y.is_finite()
+        }));
     }
 
     #[test]

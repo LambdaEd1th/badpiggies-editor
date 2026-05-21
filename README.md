@@ -69,6 +69,8 @@ cargo check --target wasm32-unknown-unknown --message-format=short
 cargo clippy --target wasm32-unknown-unknown --all-targets --message-format=short
 ```
 
+For the remaining asset-migration blockers that are still intentionally kept as documented fallbacks, see [../ASSET_MIGRATION_BLOCKERS.md](../ASSET_MIGRATION_BLOCKERS.md).
+
 ## Usage
 
 ### GUI

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use super::read_embedded_text;
 use super::types::{RuntimeSpriteMeta, UvRect};
 
-const SPRITES_BYTES_ASSET: &str = "unity/resources/guisystem/Sprites.bytes";
-const SPRITE_MAPPING_ASSET: &str = "unity/resources/guisystem/spritemapping.bytes";
+const SPRITES_BYTES_ASSET: &str = "Assets/Resources/guisystem/sprites.bytes";
+const SPRITE_MAPPING_ASSET: &str = "Assets/Resources/guisystem/spritemapping.bytes";
 
 pub(super) fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
     let mut sprite_data = HashMap::new();
@@ -24,6 +24,12 @@ pub(super) fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
         if fields.len() < 14 {
             continue;
         }
+        let Some(pivot_x) = fields[7].parse().ok() else {
+            continue;
+        };
+        let Some(pivot_y) = fields[8].parse().ok() else {
+            continue;
+        };
         let Some(width) = fields[11].parse().ok() else {
             continue;
         };
@@ -42,6 +48,8 @@ pub(super) fn load_runtime_sprites() -> HashMap<String, RuntimeSpriteMeta> {
                     w: 0.0,
                     h: 0.0,
                 },
+                pivot_x,
+                pivot_y,
             },
         );
     }

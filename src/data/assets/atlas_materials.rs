@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use super::read_asset_text;
+use super::read_pathname_text;
 
-const ATLAS_MATERIALS_ASSET: &str = "unity/resources/utility/atlasmaterials.prefab";
+const ATLAS_MATERIALS_ASSET: &str = "Assets/Resources/utility/atlasmaterials.prefab";
 const ATLAS_FILES: [&str; 3] = ["IngameAtlas.png", "IngameAtlas2.png", "IngameAtlas3.png"];
 
 fn atlas_by_material_guid() -> &'static HashMap<String, String> {
@@ -12,7 +12,7 @@ fn atlas_by_material_guid() -> &'static HashMap<String, String> {
 }
 
 fn build_atlas_by_material_guid() -> HashMap<String, String> {
-    let Some(text) = read_asset_text(ATLAS_MATERIALS_ASSET) else {
+    let Some(text) = read_pathname_text(ATLAS_MATERIALS_ASSET) else {
         log::error!("Failed to read {ATLAS_MATERIALS_ASSET} for atlas material mapping");
         return HashMap::new();
     };

@@ -10,7 +10,7 @@ use crate::data::sprite_db::UvRect;
 
 use super::compound_data::*;
 use super::compound_overrides::{project_bridge_runtime, project_fan_runtime};
-use super::particles::fan_propeller_visual_angle;
+use super::particles::fan_propeller_foreshorten;
 use super::sprite_shader;
 use super::{CompoundTransform, DrawCtx};
 
@@ -61,20 +61,10 @@ pub fn draw_compound(
     override_text: Option<&str>,
     fan_angle: Option<f32>,
 ) -> bool {
-    if name == "Slingshot" {
-        draw_sub_sprites_rotated(
-            ctx,
-            &[&SLINGSHOT_BACK, &SLINGSHOT_PAD, &SLINGSHOT_FRONT],
-            xf,
-        );
-        return true;
-    }
-
     if name == "Fan" {
         // Unity Z-order: propeller (Z=0, back) → engine (Z=-0.05) → frame (Z=-0.1, front)
         // Draw propeller first with foreshortening animation
-        let angle = fan_propeller_visual_angle(fan_angle);
-        let foreshorten = angle.cos().abs().max(0.05);
+        let foreshorten = fan_propeller_foreshorten(fan_angle);
         let cos_r = xf.rotation_z.cos();
         let sin_r = xf.rotation_z.sin();
         let lx = FAN_PROPELLER.offset_x * xf.scale_x;
@@ -96,117 +86,8 @@ pub fn draw_compound(
             },
         );
         // Then engine (middle) and frame (front)
-        draw_sub_sprites_rotated(ctx, &[&FAN_ENGINE, &FAN_FRAME], xf);
+        draw_sub_sprites_rotated(ctx, &[&*FAN_ENGINE, &*FAN_FRAME], xf);
         return true; // skip root sprite (propeller already drawn)
-    }
-
-    if name.starts_with("PressureButton") {
-        let color = name.strip_prefix("PressureButton").unwrap_or("");
-        draw_sub_sprites_rotated(ctx, &[&BUTTON_BASE], xf);
-        // Draw color-specific bump
-        if let Some(bump) = BUTTON_BUMPS.iter().find(|b| b.color_suffix == color) {
-            let cos_r = xf.rotation_z.cos();
-            let sin_r = xf.rotation_z.sin();
-            let lx = 0.0_f32 * xf.scale_x;
-            let ly = -0.012 * xf.scale_y;
-            let bx = xf.world_x + lx * cos_r - ly * sin_r;
-            let by = xf.world_y + lx * sin_r + ly * cos_r;
-            draw_uv_quad_rotated(
-                ctx,
-                QuadDraw {
-                    atlas: "IngameAtlas2.png",
-                    uv: &bump.uv,
-                    half_w: BUTTON_BUMP_SIZE_W * xf.scale_x.abs(),
-                    half_h: BUTTON_BUMP_SIZE_H * xf.scale_y.abs(),
-                    world_x: bx,
-                    world_y: by,
-                    flip_x: false,
-                    flip_y: false,
-                    rotation_z: xf.rotation_z,
-                },
-            );
-        }
-        return true; // root has no visual — skip it
-    }
-
-    if name.starts_with("ActivatedHingeDoor") {
-        let suffix = name.strip_prefix("ActivatedHingeDoor").unwrap_or("");
-        let is_ice = suffix.ends_with("_Ice");
-        let color = suffix.trim_end_matches("_Ice");
-        let cos_r = xf.rotation_z.cos();
-        let sin_r = xf.rotation_z.sin();
-
-        // Bar: Ice uses a separate horizontal sprite, normal uses the vertical bar
-        let bar = if is_ice { &DOOR_BAR_ICE } else { &DOOR_BAR };
-        let bar_rot = if is_ice {
-            xf.rotation_z + (-std::f32::consts::FRAC_PI_2)
-        } else {
-            xf.rotation_z
-        };
-        {
-            let lx = bar.offset_x * xf.scale_x;
-            let ly = bar.offset_y * xf.scale_y;
-            let bx = xf.world_x + lx * cos_r - ly * sin_r;
-            let by = xf.world_y + lx * sin_r + ly * cos_r;
-            draw_uv_quad_rotated(
-                ctx,
-                QuadDraw {
-                    atlas: bar.atlas,
-                    uv: &bar.uv,
-                    half_w: bar.world_w * xf.scale_x.abs(),
-                    half_h: bar.world_h * xf.scale_y.abs(),
-                    world_x: bx,
-                    world_y: by,
-                    flip_x: bar.flip_x != (xf.scale_x < 0.0),
-                    flip_y: bar.flip_y != (xf.scale_y < 0.0),
-                    rotation_z: bar_rot,
-                },
-            );
-        }
-        // Lower hinge: 180° rotation, pivot Y offset shifts sprite upward
-        {
-            let lx = DOOR_HINGE_BOTTOM.offset_x * xf.scale_x;
-            let ly = (DOOR_HINGE_BOTTOM.offset_y + DOOR_HINGE_PIVOT_Y) * xf.scale_y;
-            let hx = xf.world_x + lx * cos_r - ly * sin_r;
-            let hy = xf.world_y + lx * sin_r + ly * cos_r;
-            draw_uv_quad_rotated(
-                ctx,
-                QuadDraw {
-                    atlas: DOOR_HINGE_BOTTOM.atlas,
-                    uv: &DOOR_HINGE_BOTTOM.uv,
-                    half_w: DOOR_HINGE_BOTTOM.world_w * xf.scale_x.abs(),
-                    half_h: DOOR_HINGE_BOTTOM.world_h * xf.scale_y.abs(),
-                    world_x: hx,
-                    world_y: hy,
-                    flip_x: DOOR_HINGE_BOTTOM.flip_x != (xf.scale_x < 0.0),
-                    flip_y: DOOR_HINGE_BOTTOM.flip_y != (xf.scale_y < 0.0),
-                    rotation_z: xf.rotation_z + std::f32::consts::PI,
-                },
-            );
-        }
-        // Upper hinge: color-specific, Y-flipped (prefab scaleY=-1), pivot offset
-        if let Some(hinge) = DOOR_HINGE_UPPERS.iter().find(|h| h.color_suffix == color) {
-            let lx = 0.0_f32;
-            let ly = (0.123 + DOOR_HINGE_PIVOT_Y) * xf.scale_y;
-            let ux = xf.world_x + lx * cos_r - ly * sin_r;
-            let uy = xf.world_y + lx * sin_r + ly * cos_r;
-            let flip_y_val = xf.scale_y >= 0.0; // prefab scaleY=-1 baked: flip when parent NOT flipped
-            draw_uv_quad_rotated(
-                ctx,
-                QuadDraw {
-                    atlas: "IngameAtlas2.png",
-                    uv: &hinge.uv,
-                    half_w: DOOR_HINGE_SIZE * xf.scale_x.abs(),
-                    half_h: DOOR_HINGE_SIZE * xf.scale_y.abs(),
-                    world_x: ux,
-                    world_y: uy,
-                    flip_x: xf.scale_x < 0.0,
-                    flip_y: flip_y_val,
-                    rotation_z: xf.rotation_z,
-                },
-            );
-        }
-        return true; // skip root sprite — Unity root has no visual component
     }
 
     if name.starts_with("Bird_") && !name.starts_with("BirdCompass") {
@@ -225,7 +106,42 @@ pub fn draw_compound(
         let cos_a = angle.cos();
         let sin_a = angle.sin();
 
+        // First rope: origin → first step left edge
+        if step_count > 0 {
+            let half_step = step_length * 0.5;
+            draw_bridge_rope_segment(
+                ctx,
+                crate::domain::types::Vec2 {
+                    x: xf.world_x,
+                    y: xf.world_y,
+                },
+                crate::domain::types::Vec2 {
+                    x: xf.world_x + (0.5 * stride - half_step) * cos_a * xf.scale_x,
+                    y: xf.world_y + (0.5 * stride - half_step) * sin_a * xf.scale_y,
+                },
+            );
+        }
+
         for i in 0..step_count {
+            if i > 0 {
+                let prev_along = (i as f32 - 0.5) * stride;
+                let along = (i as f32 + 0.5) * stride;
+                let half_step = step_length * 0.5;
+                let rope_start_d = prev_along + half_step;
+                let rope_end_d = along - half_step;
+                draw_bridge_rope_segment(
+                    ctx,
+                    crate::domain::types::Vec2 {
+                        x: xf.world_x + rope_start_d * cos_a * xf.scale_x,
+                        y: xf.world_y + rope_start_d * sin_a * xf.scale_y,
+                    },
+                    crate::domain::types::Vec2 {
+                        x: xf.world_x + rope_end_d * cos_a * xf.scale_x,
+                        y: xf.world_y + rope_end_d * sin_a * xf.scale_y,
+                    },
+                );
+            }
+
             let along = (i as f32 + 0.5) * stride;
             let lx = along * cos_a;
             let ly = along * sin_a;
@@ -243,72 +159,22 @@ pub fn draw_compound(
                     rotation_z: angle,
                 },
             );
-            // Rope between steps
-            if i > 0 {
-                let prev_along = (i as f32 - 0.5) * stride;
-                let half_step = step_length * 0.5;
-                let rope_start_d = prev_along + half_step;
-                let rope_end_d = along - half_step;
-                let p0 = ctx.camera.world_to_screen(
-                    crate::domain::types::Vec2 {
-                        x: xf.world_x + rope_start_d * cos_a * xf.scale_x,
-                        y: xf.world_y + rope_start_d * sin_a * xf.scale_y,
-                    },
-                    ctx.canvas_center,
-                );
-                let p1 = ctx.camera.world_to_screen(
-                    crate::domain::types::Vec2 {
-                        x: xf.world_x + rope_end_d * cos_a * xf.scale_x,
-                        y: xf.world_y + rope_end_d * sin_a * xf.scale_y,
-                    },
-                    ctx.canvas_center,
-                );
-                ctx.painter.line_segment(
-                    [p0, p1],
-                    egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)),
-                );
-            }
         }
-        // First rope: origin → first step left edge
+
+        // Last rope: last step right edge → endpoint
         if step_count > 0 {
             let half_step = step_length * 0.5;
-            let p0 = ctx.camera.world_to_screen(
-                crate::domain::types::Vec2 {
-                    x: xf.world_x,
-                    y: xf.world_y,
-                },
-                ctx.canvas_center,
-            );
-            let p1 = ctx.camera.world_to_screen(
-                crate::domain::types::Vec2 {
-                    x: xf.world_x + (0.5 * stride - half_step) * cos_a * xf.scale_x,
-                    y: xf.world_y + (0.5 * stride - half_step) * sin_a * xf.scale_y,
-                },
-                ctx.canvas_center,
-            );
-            ctx.painter.line_segment(
-                [p0, p1],
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)),
-            );
-            // Last rope: last step right edge → endpoint
             let last_right = ((step_count - 1) as f32 + 0.5) * stride + half_step;
-            let p0 = ctx.camera.world_to_screen(
+            draw_bridge_rope_segment(
+                ctx,
                 crate::domain::types::Vec2 {
                     x: xf.world_x + last_right * cos_a * xf.scale_x,
                     y: xf.world_y + last_right * sin_a * xf.scale_y,
                 },
-                ctx.canvas_center,
-            );
-            let p1 = ctx.camera.world_to_screen(
                 crate::domain::types::Vec2 {
                     x: xf.world_x + endpoint_x * xf.scale_x,
                     y: xf.world_y + endpoint_y * xf.scale_y,
                 },
-                ctx.canvas_center,
-            );
-            ctx.painter.line_segment(
-                [p0, p1],
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8B, 0x73, 0x55)),
             );
         }
         return true;
@@ -343,15 +209,19 @@ pub fn draw_compound(
         );
 
         // 2. Balloon above at physics equilibrium distance + bobbing
-        let balloon_dist = if is_part_box { 3.725 } else { 3.749 } * sx;
+        let balloon_dist = if is_part_box {
+            *FLOATING_PART_BALLOON_DISTANCE
+        } else {
+            *FLOATING_STAR_BALLOON_DISTANCE
+        } * sx;
         let balloon_y = box_y + balloon_dist + (balloon_bob - box_bob);
         draw_uv_quad_rotated(
             ctx,
             QuadDraw {
-                atlas: "IngameAtlas.png",
-                uv: &FLOATING_BALLOON_UV,
-                half_w: FLOATING_BALLOON_W * sx,
-                half_h: FLOATING_BALLOON_H * sy,
+                atlas: FLOATING_BALLOON.atlas,
+                uv: &FLOATING_BALLOON.uv,
+                half_w: FLOATING_BALLOON.world_w * sx,
+                half_h: FLOATING_BALLOON.world_h * sy,
                 world_x: xf.world_x,
                 world_y: balloon_y,
                 flip_x: false,
@@ -364,10 +234,18 @@ pub fn draw_compound(
         //    Unity LineRenderer width = 0.05 world units
         let cos_r = xf.rotation_z.cos();
         let sin_r = xf.rotation_z.sin();
-        let rbx = (1.25 * cos_r - 1.25 * sin_r) * sx;
-        let rby = (1.25 * sin_r + 1.25 * cos_r) * sy;
-        let rtx = 0.0;
-        let rty = balloon_dist + (balloon_bob - box_bob) - 0.875 * sy;
+        let rope_box_anchor_local = if is_part_box {
+            *FLOATING_PART_ROPE_BOX_ANCHOR_LOCAL
+        } else {
+            *FLOATING_STAR_ROPE_BOX_ANCHOR_LOCAL
+        };
+        let rope_balloon_anchor_local = if is_part_box {
+            *FLOATING_PART_ROPE_BALLOON_ANCHOR_LOCAL
+        } else {
+            *FLOATING_STAR_ROPE_BALLOON_ANCHOR_LOCAL
+        };
+        let [rbx, rby] = rotate_scaled_xy(rope_box_anchor_local, sx, sy, cos_r, sin_r);
+        let [rtx, rty] = rotate_scaled_xy(rope_balloon_anchor_local, sx, sy, cos_r, sin_r);
         let rope_bot = ctx.camera.world_to_screen(
             crate::domain::types::Vec2 {
                 x: xf.world_x + rbx,
@@ -378,7 +256,7 @@ pub fn draw_compound(
         let rope_top = ctx.camera.world_to_screen(
             crate::domain::types::Vec2 {
                 x: xf.world_x + rtx,
-                y: box_y + rty,
+                y: box_y + rty + (balloon_bob - box_bob),
             },
             ctx.canvas_center,
         );
@@ -394,7 +272,7 @@ pub fn draw_compound(
     if let Some(layers) = crate::data::prefab_sprites::get_multi_sprite_layers(name) {
         let mut generic_xf = xf;
         let name_lower = name.to_ascii_lowercase();
-        if name_lower.contains("goal") || name_lower.contains("dessert") {
+        if name_lower.contains("goal") {
             generic_xf.world_y += (time * 3.0).sin() as f32 * 0.25;
         }
         draw_prefab_layers(ctx, layers, generic_xf);
@@ -437,7 +315,7 @@ pub fn draw_bird_face(
         draw_uv_quad_rotated(
             ctx,
             QuadDraw {
-                atlas: "IngameAtlas.png",
+                atlas: face.atlas,
                 uv: &face.uv,
                 half_w: face.world_w * xf.scale_x.abs() * breath_sx,
                 half_h: face.world_h * xf.scale_y.abs() * breath_sy,
@@ -452,6 +330,21 @@ pub fn draw_bird_face(
 }
 
 // ─── Internal helpers ───────────────────────────────────────────────────
+
+fn rotate_scaled_xy(
+    local: (f32, f32),
+    scale_x: f32,
+    scale_y: f32,
+    cos_r: f32,
+    sin_r: f32,
+) -> [f32; 2] {
+    let scaled_x = local.0 * scale_x;
+    let scaled_y = local.1 * scale_y;
+    [
+        scaled_x * cos_r - scaled_y * sin_r,
+        scaled_x * sin_r + scaled_y * cos_r,
+    ]
+}
 
 fn draw_sub_sprites_rotated(ctx: &DrawCtx, sprites: &[&SubSprite], xf: CompoundTransform) {
     let cos_r = xf.rotation_z.cos();
@@ -478,6 +371,38 @@ fn draw_sub_sprites_rotated(ctx: &DrawCtx, sprites: &[&SubSprite], xf: CompoundT
             },
         );
     }
+}
+
+fn bridge_rope_transform(
+    start_world: crate::domain::types::Vec2,
+    end_world: crate::domain::types::Vec2,
+) -> CompoundTransform {
+    let delta_x = end_world.x - start_world.x;
+    let delta_y = end_world.y - start_world.y;
+    let segment_length = (delta_x * delta_x + delta_y * delta_y).sqrt();
+    let (scale_x, scale_y) = if segment_length >= 1.0 {
+        (0.01, 0.01)
+    } else {
+        (1.0 - segment_length, 1.0)
+    };
+
+    CompoundTransform {
+        world_x: start_world.x,
+        world_y: start_world.y,
+        scale_x,
+        scale_y,
+        rotation_z: delta_y.atan2(delta_x),
+    }
+}
+
+fn draw_bridge_rope_segment(
+    ctx: &DrawCtx<'_>,
+    start_world: crate::domain::types::Vec2,
+    end_world: crate::domain::types::Vec2,
+) {
+    let layers = crate::data::prefab_sprites::get_multi_sprite_layers("StepRope")
+        .expect("StepRope prefab layers must load from embedded assets");
+    draw_prefab_layers(ctx, layers, bridge_rope_transform(start_world, end_world));
 }
 
 fn draw_prefab_layers(ctx: &DrawCtx<'_>, layers: &[PrefabSpriteLayer], xf: CompoundTransform) {
@@ -539,6 +464,37 @@ fn draw_prefab_layers(ctx: &DrawCtx<'_>, layers: &[PrefabSpriteLayer], xf: Compo
         ];
         let mesh = mesh_quad(tex_id, positions, uvs);
         ctx.painter.add(egui::Shape::mesh(mesh));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bridge_rope_transform;
+    use crate::domain::types::Vec2;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-6,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn bridge_rope_transform_matches_unity_short_segment_scale() {
+        let xf = bridge_rope_transform(Vec2 { x: 1.0, y: 2.0 }, Vec2 { x: 1.2, y: 2.0 });
+        assert_close(xf.world_x, 1.0);
+        assert_close(xf.world_y, 2.0);
+        assert_close(xf.scale_x, 0.8);
+        assert_close(xf.scale_y, 1.0);
+        assert_close(xf.rotation_z, 0.0);
+    }
+
+    #[test]
+    fn bridge_rope_transform_clamps_long_segments_like_unity() {
+        let xf = bridge_rope_transform(Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 1.2, y: 0.0 });
+        assert_close(xf.scale_x, 0.01);
+        assert_close(xf.scale_y, 0.01);
+        assert_close(xf.rotation_z, 0.0);
     }
 }
 

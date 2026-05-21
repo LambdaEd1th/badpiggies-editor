@@ -318,8 +318,8 @@ impl FillTextureCache {
         if let Some(arc) = self.textures.get(filename) {
             return Some(arc.clone());
         }
-        let path = format!("ground/{}", filename);
-        let data = crate::data::assets::read_asset(&path)?;
+        let path = crate::data::assets::terrain_texture_asset_key(filename)?;
+        let data = crate::data::assets::read_pathname(&path)?;
         let img = image::load_from_memory(&data).ok()?.to_rgba8();
         let (w, h) = (img.width(), img.height());
         let pixels = img.into_raw();

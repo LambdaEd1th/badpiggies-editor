@@ -11,6 +11,7 @@ mod draw;
 mod tests;
 
 pub use cache::{BgGpuState, BgLayerCache, build_bg_layer_cache};
+pub use cache::build_bg_layer_cache_with_root_offset;
 pub(in crate::renderer) use draw::hermite;
 pub use draw::{draw_background, draw_bg_layers};
 
@@ -19,6 +20,14 @@ use eframe::egui;
 use crate::data::bg_data;
 
 use super::{DrawCtx, LevelRenderer, clouds};
+
+const CLOUD_BACKDROP_ORDER_BUCKET: i32 = 15;
+
+#[derive(Clone, Copy)]
+enum BackdropItem {
+    BgSprite(usize),
+    Cloud(usize),
+}
 
 impl LevelRenderer {
     pub(in crate::renderer) fn draw_bg_sprite_index(
@@ -90,14 +99,18 @@ impl LevelRenderer {
             if let (Some(theme_name), Some(cache)) = (self.bg_theme, self.bg_layer_cache.as_ref()) {
                 if let Some(theme) = bg_data::get_theme(theme_name) {
                     let sprites = cache.sprites(theme);
-                    cache
+                    let mut queue: Vec<(f32, usize)> = cache
                         .sorted_indices
                         .iter()
                         .filter_map(|&sprite_index| {
                             let world_z = sprites[sprite_index].world_z;
                             (world_z >= 0.0 && world_z < 5.0).then_some((world_z, sprite_index))
                         })
-                        .collect()
+                        .collect();
+                    queue.sort_by(|a, b| {
+                        b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                    queue
                 } else {
                     Vec::new()
                 }
@@ -146,6 +159,7 @@ impl LevelRenderer {
         canvas_center: egui::Vec2,
         rect: egui::Rect,
         z_range: (f32, f32),
+        draw_after_dark_overlay: Option<bool>,
     ) {
         let Some(theme_name) = self.bg_theme else {
             return;
@@ -176,6 +190,7 @@ impl LevelRenderer {
             z_range,
             cache,
             gpu.as_mut(),
+            draw_after_dark_overlay,
         );
     }
 
@@ -194,37 +209,60 @@ impl LevelRenderer {
         self.sprite_slot_counter = 0;
         self.fill_slot_counter = 0;
 
-        // Parallax background layers: sky (worldZ >= 17.5, before cloud instances)
-        self.draw_bg_z_range(painter, canvas_center, rect, (17.5, f32::INFINITY));
+        clouds::update_cloud_positions(&mut self.cloud_instances, dt);
 
-        // Parallax background layers + clouds: (5 <= worldZ < 17.5)
+        let mut backdrop_queue: Vec<(i32, f32, BackdropItem)> = Vec::new();
+
+        if let (Some(theme_name), Some(cache)) = (self.bg_theme, self.bg_layer_cache.as_ref())
+            && let Some(theme) = bg_data::get_theme(theme_name)
         {
-            let cloud_z_min = self
-                .cloud_instances
-                .iter()
-                .map(|c| c.z)
-                .fold(f32::INFINITY, f32::min);
-            let cloud_z_max = self
-                .cloud_instances
-                .iter()
-                .map(|c| c.z)
-                .fold(f32::NEG_INFINITY, f32::max);
+            let sprites = cache.sprites(theme);
+            backdrop_queue.extend(cache.sorted_indices.iter().filter_map(|&sprite_index| {
+                let authored_z = sprites[sprite_index].world_z;
+                let sort_z = cache.sort_world_z(sprites, sprite_index);
+                (authored_z >= 5.0).then_some((
+                    sprites[sprite_index].layer.order() * 10,
+                    sort_z,
+                    BackdropItem::BgSprite(sprite_index),
+                ))
+            }));
+        }
 
-            if !self.cloud_instances.is_empty() {
-                self.draw_bg_z_range(painter, canvas_center, rect, (cloud_z_max, 17.5));
-                clouds::update_and_draw_clouds(
-                    &mut self.cloud_instances,
-                    dt,
-                    &self.camera,
-                    painter,
-                    canvas_center,
-                    rect,
-                    &self.tex_cache,
-                );
-                self.draw_bg_z_range(painter, canvas_center, rect, (5.0, cloud_z_min));
-            } else {
-                self.draw_bg_z_range(painter, canvas_center, rect, (5.0, 17.5));
-                clouds::update_cloud_positions(&mut self.cloud_instances, dt);
+        backdrop_queue.extend(
+            self.cloud_instances
+                .iter()
+                .enumerate()
+                .map(|(cloud_index, cloud)| {
+                    (
+                        CLOUD_BACKDROP_ORDER_BUCKET,
+                        cloud.z,
+                        BackdropItem::Cloud(cloud_index),
+                    )
+                }),
+        );
+
+        backdrop_queue.sort_by(|a, b| {
+            a.0.cmp(&b.0).then_with(|| {
+                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+            })
+        });
+
+        for (_, _, item) in backdrop_queue {
+            match item {
+                BackdropItem::BgSprite(sprite_index) => {
+                    self.draw_bg_sprite_index(sprite_index, painter, canvas_center, rect);
+                }
+                BackdropItem::Cloud(cloud_index) => {
+                    clouds::draw_cloud_index(
+                        &self.cloud_instances,
+                        cloud_index,
+                        &self.camera,
+                        painter,
+                        canvas_center,
+                        rect,
+                        &self.tex_cache,
+                    );
+                }
             }
         }
     }

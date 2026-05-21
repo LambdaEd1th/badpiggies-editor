@@ -12,7 +12,7 @@ use sha1::{Digest, Sha1};
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
-const LEVELS_PREFAB_DIR: &str = "Prefab/";
+const LEVELS_PREFAB_DIR: &str = "Assets/Prefab/";
 const LEVELS_PREFAB_SUFFIX: &str = "Levels.prefab";
 const SANDBOX_SLOT_COUNT: u32 = 40;
 const RACE_TRACK_COUNT: u32 = 20;
@@ -80,13 +80,15 @@ fn build_lookup() -> HashMap<String, (String, String)> {
 fn load_base_level_entries() -> Vec<LevelEntry> {
     let mut entries = Vec::new();
 
-    for filename in assets::list_asset_paths(LEVELS_PREFAB_DIR, LEVELS_PREFAB_SUFFIX) {
+    for asset_key in assets::list_pathnames(LEVELS_PREFAB_DIR, LEVELS_PREFAB_SUFFIX) {
+        let filename = asset_key
+            .strip_prefix(LEVELS_PREFAB_DIR)
+            .unwrap_or(asset_key.as_str());
         if !filename.starts_with("Episode") {
             continue;
         }
 
-        let asset_key = format!("{LEVELS_PREFAB_DIR}{filename}");
-        let Some(text) = assets::read_asset_text(&asset_key) else {
+        let Some(text) = assets::read_pathname_text(&asset_key) else {
             log::warn!("Missing embedded level prefab for contraption lookup: {}", asset_key);
             continue;
         };

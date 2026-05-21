@@ -78,7 +78,7 @@ struct ParsedParticlePrefab {
 }
 
 pub(super) fn load_bird_sleep_prefab(asset_key: &str) -> Option<BirdSleepParticlePrefab> {
-    let text = assets::read_asset_text(asset_key)?;
+    let text = assets::read_pathname_text(asset_key)?;
     let parsed = parse_prefab(&text);
     let system = parsed.particle_systems.iter().find_map(|doc| {
         let game_object = parsed.game_objects.get(&doc.game_object_id)?;
@@ -103,7 +103,7 @@ pub(super) fn load_bird_sleep_prefab(asset_key: &str) -> Option<BirdSleepParticl
 }
 
 pub(super) fn load_fan_puff_prefab(asset_key: &str) -> Option<FanPuffParticlePrefab> {
-    let text = assets::read_asset_text(asset_key)?;
+    let text = assets::read_pathname_text(asset_key)?;
     let parsed = parse_prefab(&text);
     let system = parsed.particle_systems.iter().find_map(|doc| {
         let game_object = parsed.game_objects.get(&doc.game_object_id)?;
@@ -128,7 +128,7 @@ pub(super) fn load_fan_puff_prefab(asset_key: &str) -> Option<FanPuffParticlePre
 }
 
 pub(super) fn load_generic_particle_prefab(asset_key: &str) -> Option<GenericParticlePrefab> {
-    let text = assets::read_asset_text(asset_key)?;
+    let text = assets::read_pathname_text(asset_key)?;
     let parsed = parse_prefab(&text);
     let mut systems = Vec::new();
 
@@ -179,15 +179,11 @@ pub(super) fn load_rocket_fire_prefab(
         return Some(prefab);
     }
 
-    let text = assets::read_asset_text(rocket_part_asset_key)?;
+    let text = assets::read_pathname_text(rocket_part_asset_key)?;
     let parsed = parse_prefab(&text);
-    let material_guid = embedded_particle_material_guid(&parsed, "Particles_RocketFire_01_SET");
-
-    if let Some(material_guid) = material_guid {
-        for system in &mut prefab.systems {
-            if system.material_guid.is_none() {
-                system.material_guid = Some(material_guid.clone());
-            }
+    for system in &mut prefab.systems {
+        if system.material_guid.is_none() {
+            system.material_guid = embedded_particle_material_guid(&parsed, &system.name);
         }
     }
 
@@ -195,7 +191,7 @@ pub(super) fn load_rocket_fire_prefab(
 }
 
 pub(super) fn load_wind_area_prefab(asset_key: &str) -> Option<WindAreaParticlePrefab> {
-    let text = assets::read_asset_text(asset_key)?;
+    let text = assets::read_pathname_text(asset_key)?;
     let parsed = parse_prefab(&text);
 
     let root_transform = parsed.transforms.values().find(|transform| {
@@ -662,6 +658,23 @@ fn parse_particle_color_gradient(value: &Value) -> ParticleColorGradient {
             .and_then(Value::as_mapping)
             .map(parse_unity_color_gradient)
             .unwrap_or_else(|| UnityColorGradient::constant(max_color)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn representative_rocket_part_prefab_exposes_embedded_rocket_fire_material() {
+        let text = assets::read_pathname_text("Assets/Prefab/Part_Rocket_01_SET.prefab")
+            .expect("embedded Part_Rocket_01_SET prefab should exist");
+        let parsed = parse_prefab(&text);
+
+        assert_eq!(
+            embedded_particle_material_guid(&parsed, "Particles_RocketFire_01_SET").as_deref(),
+            Some("884b9b90b5f2e49343f6ec0608bc01c9")
+        );
     }
 }
 

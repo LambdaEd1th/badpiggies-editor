@@ -2,8 +2,14 @@
 //! Background unit tests.
 
 use crate::data::bg_data;
+use crate::domain::parser::parse_level;
+use crate::domain::types::LevelObject;
 
-use super::cache::{bg_sprite_x_animation_offset, build_bg_layer_cache, sprite_display_width};
+use super::cache::{
+    bg_sprite_x_animation_offset, build_bg_layer_cache, build_bg_layer_cache_with_root_offset,
+    sprite_display_height, sprite_display_width,
+};
+use super::draw::{background_base_color, content_ratio_x_for_bg_sprite, should_extend_fill_like};
 
 fn median(values: &mut [f32]) -> f32 {
     values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -22,6 +28,82 @@ fn is_maya_high_near_core(sprite: &bg_data::BgSprite) -> bool {
     sprite.parent_group == "BGLayerNear"
         && sprite.name == "Background_Maya_High_Near"
         && sprite.local_x <= 90.0
+}
+
+fn sprite_top_y(sprite: &bg_data::BgSprite) -> f32 {
+    sprite.world_y + sprite_display_height(sprite) * 0.5
+}
+
+fn edge_based_block_width_for_indices(
+    indices: &[usize],
+    sprites: &[bg_data::BgSprite],
+) -> Option<f32> {
+    if indices.len() < 2 {
+        return None;
+    }
+
+    let mut sorted = indices.to_vec();
+    sorted.sort_by(|a, b| sprites[*a].world_x.total_cmp(&sprites[*b].world_x));
+
+    let mut edge_gaps: Vec<f32> = sorted
+        .windows(2)
+        .map(|pair| {
+            let a = &sprites[pair[0]];
+            let b = &sprites[pair[1]];
+            let a_right = a.world_x + sprite_display_width(a) * 0.5;
+            let b_left = b.world_x - sprite_display_width(b) * 0.5;
+            b_left - a_right
+        })
+        .collect();
+    let median_edge_gap = median(&mut edge_gaps);
+
+    let first = &sprites[sorted[0]];
+    let last = &sprites[*sorted.last()?];
+    let min_left = first.world_x - sprite_display_width(first) * 0.5;
+    let max_right = last.world_x + sprite_display_width(last) * 0.5;
+    Some(max_right - min_left + median_edge_gap)
+}
+
+fn collect_override_sprite_axis_values(
+    raw: &str,
+    group_name: &str,
+    sprite_name: &str,
+    axis_name: &str,
+) -> Vec<f32> {
+    let mut current_group = String::new();
+    let mut current_sprite = String::new();
+    let mut parsing_for_sprite = false;
+    let mut values = Vec::new();
+
+    for line in raw.lines() {
+        let stripped = line.trim_end_matches('\r');
+        let depth = stripped.len() - stripped.trim_start_matches('\t').len();
+        let content = stripped.trim();
+        if content.is_empty() {
+            continue;
+        }
+
+        if depth == 1 && content.starts_with("GameObject ") {
+            current_group = content[11..].trim().to_string();
+            current_sprite.clear();
+            parsing_for_sprite = false;
+        } else if depth == 2 && content.starts_with("GameObject ") {
+            current_sprite = content[11..].trim().to_string();
+            parsing_for_sprite = false;
+        } else if depth == 3 && content == "Component UnityEngine.Transform" {
+            parsing_for_sprite = current_group == group_name && current_sprite == sprite_name;
+        } else if parsing_for_sprite
+            && content.starts_with("Float ")
+            && let Some(rest) = content.strip_prefix("Float ")
+            && let Some((axis, value)) = rest.split_once('=')
+            && axis.trim() == axis_name
+            && let Ok(parsed) = value.trim().parse::<f32>()
+        {
+            values.push(parsed);
+        }
+    }
+
+    values
 }
 
 #[test]
@@ -69,6 +151,18 @@ fn jungle_far_tiles_share_one_period_across_z() {
             "expected shared block width, got {width} vs {first_width}"
         );
     }
+}
+
+#[test]
+fn cave_background_base_color_uses_ground_fill_color() {
+    assert_eq!(
+        background_base_color(Some("Cave")),
+        crate::data::assets::ground_color("Cave")
+    );
+    assert_eq!(
+        background_base_color(Some("Jungle")),
+        crate::data::assets::sky_top_color("Jungle")
+    );
 }
 
 #[test]
@@ -851,5 +945,729 @@ fn maya_temple_near_top_still_tiles() {
     assert!(
         cache.tile_info.contains_key(&index),
         "expected MayaTemple near-top strip to keep tiling"
+    );
+}
+
+#[test]
+fn episode6_level1_background_cache_applies_level_root_offset() {
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../test_levels/assetbundles/episode_6_levels.unity3d/episode_6_level_1_data.bytes");
+    let bytes = std::fs::read(&level_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+    let level = parse_level(bytes)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+    let mut bg_override_text = None;
+    let mut bg_root_offset = None;
+    for object in &level.objects {
+        if let LevelObject::Prefab(prefab) = object
+            && prefab.name.contains("Background")
+            && let Some(ref override_data) = prefab.override_data
+        {
+            bg_override_text = Some(override_data.raw_text.clone());
+            bg_root_offset = Some([prefab.position.x, prefab.position.y, prefab.position.z]);
+            break;
+        }
+    }
+
+    let bg_override_text = bg_override_text.expect("episode 6 level 1 background override text");
+    let bg_root_offset = bg_root_offset.expect("episode 6 level 1 background root offset");
+    assert!(
+        bg_root_offset[0].abs() > 1.0 || bg_root_offset[1].abs() > 1.0,
+        "expected episode 6 level 1 to carry a non-default background root offset"
+    );
+
+    let Some(cache_without_offset) = build_bg_layer_cache("Maya", Some(&bg_override_text)) else {
+        panic!("maya cache without level root offset");
+    };
+    let Some(cache_with_offset) = build_bg_layer_cache_with_root_offset(
+        "Maya",
+        Some(&bg_override_text),
+        Some(bg_root_offset),
+    ) else {
+        panic!("maya cache with level root offset");
+    };
+    let Some(theme) = bg_data::get_theme("Maya") else {
+        panic!("maya theme");
+    };
+
+    let without_offset = cache_without_offset
+        .sprites(theme)
+        .iter()
+        .find(|sprite| sprite.parent_group == "BGLayerFar" && sprite.name == "Background_Far_fill")
+        .expect("maya far fill without level root offset");
+    let with_offset = cache_with_offset
+        .sprites(theme)
+        .iter()
+        .find(|sprite| sprite.parent_group == "BGLayerFar" && sprite.name == "Background_Far_fill")
+        .expect("maya far fill with level root offset");
+
+    assert_eq!(with_offset.fill_color, Some([0xcd, 0xab, 0x74]));
+    assert!((with_offset.world_x - without_offset.world_x - bg_root_offset[0]).abs() < 0.001);
+    assert!((with_offset.world_y - without_offset.world_y - bg_root_offset[1]).abs() < 0.001);
+    assert!((with_offset.world_z - without_offset.world_z - bg_root_offset[2]).abs() < 0.001);
+}
+
+#[test]
+fn cave_far_fill_keeps_authored_height_and_sorts_behind_hills() {
+    let Some(cache) = build_bg_layer_cache("Cave", None) else {
+        panic!("cave cache");
+    };
+    let Some(theme) = bg_data::get_theme("Cave") else {
+        panic!("cave theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let Some(fill_index) = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "BGLayerFar"
+                && sprite.name == "Background_Far_fill"
+                && sprite.fill_color.is_some()
+        })
+        .min_by(|(_, a), (_, b)| sprite_top_y(a).total_cmp(&sprite_top_y(b)))
+        .map(|(index, _)| index)
+    else {
+        panic!("missing Cave lower far fill");
+    };
+
+    let fill = &sprites[fill_index];
+    let companion_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == fill.parent_group
+                && sprite.layer == fill.layer
+                && sprite.fill_color.is_none()
+                && sprite.sky_texture.is_none()
+                && !sprite.name.to_ascii_lowercase().contains("fill")
+        })
+        .map(|(index, _)| index)
+        .collect();
+    assert!(!companion_indices.is_empty(), "expected Cave far hill companions");
+
+    let companion_max_z = companion_indices
+        .iter()
+        .map(|&index| sprites[index].world_z)
+        .max_by(|a, b| a.total_cmp(b))
+        .expect("companion z");
+
+    assert!(
+        !cache.fill_top_world_y.contains_key(&fill_index),
+        "background fills should keep their authored height"
+    );
+
+    let overridden_sort_z = cache.sort_world_z(sprites, fill_index);
+    assert!(
+        (overridden_sort_z - (companion_max_z + 0.001)).abs() < 0.001,
+        "expected Cave far fill sort z to move behind hills, got {overridden_sort_z} vs {}",
+        companion_max_z + 0.001
+    );
+
+    let fill_pos = cache
+        .sorted_indices
+        .iter()
+        .position(|&index| index == fill_index)
+        .expect("fill position");
+    let first_companion_pos = companion_indices
+        .iter()
+        .filter_map(|index| cache.sorted_indices.iter().position(|candidate| candidate == index))
+        .min()
+        .expect("companion positions");
+    assert!(
+        fill_pos < first_companion_pos,
+        "expected Cave far fill to draw before companion hills"
+    );
+}
+
+#[test]
+fn cave_preserves_both_fill_bands_and_tiles_top_bottom_rows_separately() {
+    let Some(cache) = build_bg_layer_cache("Cave", None) else {
+        panic!("cave cache");
+    };
+    let Some(theme) = bg_data::get_theme("Cave") else {
+        panic!("cave theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let near_fill_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "BGLayerNear"
+                && sprite.name == "Background_Near_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(near_fill_indices.len(), 2, "expected upper and lower Cave near fills");
+
+    let far_fill_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "BGLayerFar"
+                && sprite.name == "Background_Far_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(far_fill_indices.len(), 2, "expected upper and lower Cave far fills");
+
+    for parent_group in ["BGLayerNear", "BGLayerFar"] {
+        for row_sign in [1.0_f32, -1.0_f32] {
+            let row_indices: Vec<usize> = sprites
+                .iter()
+                .enumerate()
+                .filter(|(_, sprite)| {
+                    sprite.parent_group == parent_group
+                        && sprite.fill_color.is_none()
+                        && sprite.sky_texture.is_none()
+                        && !sprite.name.to_ascii_lowercase().contains("fill")
+                        && sprite.scale_y.signum() == row_sign
+                })
+                .map(|(index, _)| index)
+                .collect();
+
+            assert!(
+                row_indices.len() >= 4,
+                "expected Cave {parent_group} row with sign {row_sign} to have repeated strip sprites"
+            );
+
+            let expected_width = edge_based_block_width_for_indices(&row_indices, sprites)
+                .expect("expected per-row Cave block width");
+
+            for index in row_indices {
+                let Some((actual_width, _)) = cache.tile_info.get(&index) else {
+                    panic!("expected Cave {parent_group} row sprite {index} to tile");
+                };
+                assert!(
+                    (*actual_width - expected_width).abs() < 0.01,
+                    "expected Cave {parent_group} row sign {row_sign} to tile with its own block width, got {actual_width} vs {expected_width}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
+    let bytes = std::fs::read(&level_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+    let level = parse_level(bytes)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+    let mut bg_override_text = None;
+    let mut bg_root_offset = None;
+    for object in &level.objects {
+        if let LevelObject::Prefab(prefab) = object
+            && prefab.name.contains("Background")
+            && let Some(ref override_data) = prefab.override_data
+        {
+            bg_override_text = Some(override_data.raw_text.clone());
+            bg_root_offset = Some([prefab.position.x, prefab.position.y, prefab.position.z]);
+            break;
+        }
+    }
+
+    let bg_override_text = bg_override_text.expect("level 27 background override text");
+    let bg_root_offset = bg_root_offset.expect("level 27 background root offset");
+
+    let Some(cache) = build_bg_layer_cache_with_root_offset(
+        "Cave",
+        Some(&bg_override_text),
+        Some(bg_root_offset),
+    ) else {
+        panic!("level 27 cave cache");
+    };
+    let Some(theme) = bg_data::get_theme("Cave") else {
+        panic!("cave theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let mut near_fill_world_y: Vec<f32> = sprites
+        .iter()
+        .filter(|sprite| {
+            sprite.parent_group == "BGLayerNear"
+                && sprite.name == "Background_Near_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|sprite| sprite.world_y)
+        .collect();
+    near_fill_world_y.sort_by(|a, b| a.total_cmp(b));
+    assert_eq!(near_fill_world_y.len(), 2, "expected two Cave near fills after Level_27 overrides");
+    assert!(
+        near_fill_world_y[1] - near_fill_world_y[0] > 20.0,
+        "expected Level_27 near fill overrides to keep upper and lower bands distinct, got {:?}",
+        near_fill_world_y
+    );
+
+    let mut far_fill_world_y: Vec<f32> = sprites
+        .iter()
+        .filter(|sprite| {
+            sprite.parent_group == "BGLayerFar"
+                && sprite.name == "Background_Far_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|sprite| sprite.world_y)
+        .collect();
+    far_fill_world_y.sort_by(|a, b| a.total_cmp(b));
+    assert_eq!(far_fill_world_y.len(), 2, "expected two Cave far fills after Level_27 overrides");
+    assert!(
+        far_fill_world_y[1] - far_fill_world_y[0] > 3.0,
+        "expected Level_27 far fill overrides to keep upper and lower bands distinct, got {:?}",
+        far_fill_world_y
+    );
+
+    for parent_group in ["BGLayerNear", "BGLayerFar"] {
+        let Some(strip_name) = sprites
+            .iter()
+            .find(|sprite| {
+                sprite.parent_group == parent_group
+                    && sprite.fill_color.is_none()
+                    && sprite.sky_texture.is_none()
+                    && !sprite.name.to_ascii_lowercase().contains("fill")
+            })
+            .map(|sprite| sprite.name.clone())
+        else {
+            panic!("missing strip sprite in {parent_group}");
+        };
+
+        let override_x_values = collect_override_sprite_axis_values(
+            &bg_override_text,
+            parent_group,
+            &strip_name,
+            "x",
+        );
+        let mut distinct_override_x = override_x_values.clone();
+        distinct_override_x.sort_by(|a, b| a.total_cmp(b));
+        distinct_override_x.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+        let has_sprite_level_duplicates = distinct_override_x.len() > 1;
+
+        let mut distinct_world_x: Vec<f32> = sprites
+            .iter()
+            .filter(|sprite| sprite.parent_group == parent_group && sprite.name == strip_name)
+            .map(|sprite| sprite.world_x)
+            .collect();
+        distinct_world_x.sort_by(|a, b| a.total_cmp(b));
+        distinct_world_x.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+        if has_sprite_level_duplicates {
+            assert!(
+                distinct_world_x.len() > 1,
+                "expected Level_27 override application to keep duplicate {strip_name} instances in {parent_group} at distinct x positions, got {:?}",
+                distinct_world_x
+            );
+        }
+    }
+}
+
+#[test]
+fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+    let bytes = std::fs::read(&level_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+    let level = parse_level(bytes)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+    let mut bg_override_text = None;
+    let mut bg_root_offset = None;
+    for object in &level.objects {
+        if let LevelObject::Prefab(prefab) = object
+            && prefab.name.contains("Background")
+            && let Some(ref override_data) = prefab.override_data
+        {
+            bg_override_text = Some(override_data.raw_text.clone());
+            bg_root_offset = Some([prefab.position.x, prefab.position.y, prefab.position.z]);
+            break;
+        }
+    }
+
+    let bg_override_text = bg_override_text.expect("sandbox background override text");
+    let bg_root_offset = bg_root_offset.expect("sandbox background root offset");
+
+    let Some(cache) = build_bg_layer_cache_with_root_offset(
+        "Cave",
+        Some(&bg_override_text),
+        Some(bg_root_offset),
+    ) else {
+        panic!("sandbox cave cache");
+    };
+    let Some(theme) = bg_data::get_theme("Cave") else {
+        panic!("cave theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let mut near_fill_world_y: Vec<f32> = sprites
+        .iter()
+        .filter(|sprite| {
+            sprite.parent_group == "BGLayerNear"
+                && sprite.name == "Background_Near_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|sprite| sprite.world_y)
+        .collect();
+    near_fill_world_y.sort_by(|a, b| a.total_cmp(b));
+    assert_eq!(near_fill_world_y.len(), 2, "expected two sandbox Cave near fills after overrides");
+    assert!(
+        near_fill_world_y[1] - near_fill_world_y[0] > 20.0,
+        "expected sandbox near fill overrides to keep upper and lower bands distinct, got {:?}",
+        near_fill_world_y
+    );
+
+    let mut far_fill_world_y: Vec<f32> = sprites
+        .iter()
+        .filter(|sprite| {
+            sprite.parent_group == "BGLayerFar"
+                && sprite.name == "Background_Far_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|sprite| sprite.world_y)
+        .collect();
+    far_fill_world_y.sort_by(|a, b| a.total_cmp(b));
+    assert_eq!(far_fill_world_y.len(), 2, "expected two sandbox Cave far fills after overrides");
+    assert!(
+        far_fill_world_y[1] - far_fill_world_y[0] > 3.0,
+        "expected sandbox far fill overrides to keep upper and lower bands distinct, got {:?}",
+        far_fill_world_y
+    );
+
+    for parent_group in ["BGLayerNear", "BGLayerFar"] {
+        for row_sign in [1.0_f32, -1.0_f32] {
+            let row_indices: Vec<usize> = sprites
+                .iter()
+                .enumerate()
+                .filter(|(_, sprite)| {
+                    sprite.parent_group == parent_group
+                        && sprite.fill_color.is_none()
+                        && sprite.sky_texture.is_none()
+                        && !sprite.name.to_ascii_lowercase().contains("fill")
+                        && sprite.scale_y.signum() == row_sign
+                })
+                .map(|(index, _)| index)
+                .collect();
+
+            assert!(
+                row_indices.len() >= 4,
+                "expected sandbox Cave {parent_group} row with sign {row_sign} to have repeated strip sprites"
+            );
+
+            for index in row_indices {
+                assert!(
+                    cache.tile_info.contains_key(&index),
+                    "expected sandbox Cave {parent_group} row sprite {} to tile",
+                    sprites[index].name
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn sandbox_cave_foreground_fill_extends_and_pillars_tile() {
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+    let bytes = std::fs::read(&level_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+    let level = parse_level(bytes)
+        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+    let mut bg_override_text = None;
+    let mut bg_root_offset = None;
+    for object in &level.objects {
+        if let LevelObject::Prefab(prefab) = object
+            && prefab.name.contains("Background")
+            && let Some(ref override_data) = prefab.override_data
+        {
+            bg_override_text = Some(override_data.raw_text.clone());
+            bg_root_offset = Some([prefab.position.x, prefab.position.y, prefab.position.z]);
+            break;
+        }
+    }
+
+    let bg_override_text = bg_override_text.expect("sandbox background override text");
+    let bg_root_offset = bg_root_offset.expect("sandbox background root offset");
+
+    let Some(cache) = build_bg_layer_cache_with_root_offset(
+        "Cave",
+        Some(&bg_override_text),
+        Some(bg_root_offset),
+    ) else {
+        panic!("sandbox cave cache");
+    };
+    let Some(theme) = bg_data::get_theme("Cave") else {
+        panic!("cave theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let fill_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "FGLayer"
+                && (sprite.name == "Fill1" || sprite.name == "Fill1_2")
+        })
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(fill_indices.len(), 2, "expected both sandbox cave foreground fill sprites");
+    for index in fill_indices {
+        assert!(
+            should_extend_fill_like(&sprites[index], &cache.name_lower[index], &cache, index),
+            "expected sandbox cave foreground fill {} to extend like the legacy PIXI renderer",
+            sprites[index].name
+        );
+    }
+
+    let pillar_indices: Vec<usize> = sprites
+        .iter()
+        .enumerate()
+        .filter(|(_, sprite)| {
+            sprite.parent_group == "FGLayer"
+                && (sprite
+                    .name
+                    .strip_prefix("Pillars")
+                    .and_then(|suffix| suffix.trim_end_matches("_2").parse::<u32>().ok())
+                    .is_some_and(|index| (1..=18).contains(&index)))
+        })
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(pillar_indices.len(), 36, "expected both sandbox cave foreground stalactite rows and their duplicated continuations");
+    for index in pillar_indices {
+        assert!(
+            cache.tile_info.contains_key(&index),
+            "expected sandbox cave pillar sprite {} to stay in the tiling path",
+            sprites[index].name
+        );
+    }
+
+    for row_sign in [1.0_f32, -1.0_f32] {
+        let row_indices: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(_, sprite)| {
+                sprite.parent_group == "FGLayer"
+                    && (sprite
+                        .name
+                        .strip_prefix("Pillars")
+                        .and_then(|suffix| suffix.trim_end_matches("_2").parse::<u32>().ok())
+                        .is_some_and(|index| (1..=18).contains(&index)))
+                    && sprite.scale_y.signum() == row_sign
+            })
+            .map(|(index, _)| index)
+            .collect();
+
+        assert_eq!(
+            row_indices.len(),
+            18,
+            "expected one full sandbox cave foreground pillar row for sign {row_sign}"
+        );
+
+        let expected_width = edge_based_block_width_for_indices(&row_indices, sprites)
+            .expect("expected sandbox cave foreground row block width");
+        let expected_phase = cache
+            .tile_phase
+            .get(&row_indices[0])
+            .copied()
+            .unwrap_or(0.0);
+
+        for index in row_indices {
+            let Some((actual_width, _)) = cache.tile_info.get(&index) else {
+                panic!("expected sandbox cave foreground pillar row sprite {index} to tile");
+            };
+            assert!(
+                (*actual_width - expected_width).abs() < 0.01,
+                "expected sandbox cave foreground row sign {row_sign} to share one block width, got {actual_width} vs {expected_width} for {}",
+                sprites[index].name
+            );
+
+            let actual_phase = cache.tile_phase.get(&index).copied().unwrap_or(0.0);
+            assert!(
+                (actual_phase - expected_phase).abs() < 0.01,
+                "expected sandbox cave foreground row sign {row_sign} to share one phase, got {actual_phase} vs {expected_phase} for {}",
+                sprites[index].name
+            );
+        }
+    }
+}
+
+#[test]
+fn jungle_near_fill_keeps_authored_height() {
+    let Some(cache) = build_bg_layer_cache("Jungle", None) else {
+        panic!("jungle cache");
+    };
+    let Some(theme) = bg_data::get_theme("Jungle") else {
+        panic!("jungle theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let Some(fill_index) = sprites
+        .iter()
+        .enumerate()
+        .find(|(_, sprite)| {
+            sprite.parent_group == "BGLayerNear"
+                && sprite.name == "Background_Near_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|(index, _)| index)
+    else {
+        panic!("missing Jungle near fill");
+    };
+
+    assert!(
+        !cache.fill_top_world_y.contains_key(&fill_index),
+        "background fills should keep authored Jungle near-fill height"
+    );
+}
+
+#[test]
+fn foreground_fill_does_not_use_background_hill_override() {
+    let Some(cache) = build_bg_layer_cache("MayaCave2Dark", None) else {
+        panic!("maya cave2dark cache");
+    };
+    let Some(theme) = bg_data::get_theme("MayaCave2Dark") else {
+        panic!("maya cave2dark theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let Some(fill_index) = sprites
+        .iter()
+        .enumerate()
+        .find(|(_, sprite)| sprite.parent_group == "FGLayer" && sprite.name == "Fill2")
+        .map(|(index, _)| index)
+    else {
+        panic!("missing MayaCave2Dark FGLayer Fill2");
+    };
+
+    let fill = &sprites[fill_index];
+    let has_fg_companions = sprites.iter().any(|sprite| {
+        sprite.parent_group == fill.parent_group
+            && sprite.layer == fill.layer
+            && sprite.fill_color.is_none()
+            && sprite.sky_texture.is_none()
+            && !sprite.name.to_ascii_lowercase().contains("fill")
+    });
+    assert!(
+        has_fg_companions,
+        "expected foreground fill test case to have non-fill companions"
+    );
+
+    assert!(
+        !cache.fill_top_world_y.contains_key(&fill_index),
+        "foreground fills should keep authored top edge"
+    );
+    assert!(
+        !cache.sort_z_overrides.contains_key(&fill_index),
+        "foreground fills should keep authored sort z"
+    );
+}
+
+#[test]
+fn solid_background_fills_extend_with_viewport_width() {
+    let Some(cache) = build_bg_layer_cache("Cave", None) else {
+        panic!("cave cache");
+    };
+    let Some(theme) = bg_data::get_theme("Cave") else {
+        panic!("cave theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let Some(fill_index) = sprites
+        .iter()
+        .enumerate()
+        .find(|(_, sprite)| {
+            sprite.parent_group == "BGLayerFar"
+                && sprite.name == "Background_Far_fill"
+                && sprite.fill_color.is_some()
+        })
+        .map(|(index, _)| index)
+    else {
+        panic!("missing Cave far fill");
+    };
+
+    assert!(
+        should_extend_fill_like(
+            &sprites[fill_index],
+            &cache.name_lower[fill_index],
+            &cache,
+            fill_index,
+        ),
+        "solid background fills should expand with the viewport like Unity BackgroundScaler"
+    );
+}
+
+#[test]
+fn maya_high_atlas_fill_uses_stretched_extended_uvs() {
+    let Some(cache) = build_bg_layer_cache("MayaHigh", None) else {
+        panic!("maya high cache");
+    };
+    let Some(theme) = bg_data::get_theme("MayaHigh") else {
+        panic!("maya high theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let Some(fill_index) = sprites
+        .iter()
+        .enumerate()
+        .find(|(_, sprite)| sprite.name == "Background_Maya_High_Near_Fill")
+        .map(|(index, _)| index)
+    else {
+        panic!("missing MayaHigh near fill");
+    };
+
+    let sprite = &sprites[fill_index];
+    assert!(sprite.atlas.is_some(), "expected MayaHigh near fill to stay atlas-backed");
+
+    let extend_fill_like = should_extend_fill_like(
+        sprite,
+        &cache.name_lower[fill_index],
+        &cache,
+        fill_index,
+    );
+    assert!(extend_fill_like, "expected MayaHigh near fill to use the viewport extension path");
+
+    let orig_display_w = sprite_display_width(sprite);
+    let extended_display_w = orig_display_w * 3.0;
+    assert_eq!(
+        content_ratio_x_for_bg_sprite(sprite, extend_fill_like, orig_display_w, extended_display_w),
+        1.0,
+        "extended atlas fills should stretch their texture like the old TS renderer"
+    );
+}
+
+#[test]
+fn fill_sort_override_does_not_reorder_background_layers() {
+    let Some(cache) = build_bg_layer_cache("Jungle", None) else {
+        panic!("jungle cache");
+    };
+    let Some(theme) = bg_data::get_theme("Jungle") else {
+        panic!("jungle theme");
+    };
+    let sprites = cache.sprites(theme);
+
+    let far_max_pos = cache
+        .sorted_indices
+        .iter()
+        .enumerate()
+        .filter_map(|(pos, &index)| (sprites[index].layer == bg_data::BgLayer::Far).then_some(pos))
+        .max()
+        .expect("expected Jungle far-layer sprites");
+
+    let near_fill_pos = cache
+        .sorted_indices
+        .iter()
+        .position(|&index| {
+            let sprite = &sprites[index];
+            sprite.parent_group == "BGLayerNear"
+                && sprite.name == "Background_Near_fill"
+                && sprite.fill_color.is_some()
+        })
+        .expect("missing Jungle near fill");
+
+    assert!(
+        far_max_pos < near_fill_pos,
+        "fill sort overrides must not move a near-layer fill ahead of far-layer sprites"
     );
 }

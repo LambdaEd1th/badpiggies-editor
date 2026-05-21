@@ -6,12 +6,12 @@ use super::assets;
 
 pub type HermiteKey = (f32, f32, f32, f32);
 
-const BIRD_SLEEP2_ASSET: &str = "unity/animation/BirdSleep2.anim";
-const ACHIEVEMENT_POPUP_ENTER_ASSET: &str = "unity/animation/AchievementPopupEnter.anim";
-const GOAL_VANISHING_ASSET: &str = "unity/animation/GoalVanishing.anim";
-const OCEAN_ANIMATION_ASSET: &str = "unity/animation/OceanAnimation.anim";
-const OCEAN_FOAM_ANIMATION_ASSET: &str = "unity/animation/OceanFoamAnimation.anim";
-const ROTATING_GLOW_ASSET: &str = "unity/animation/RotatingGlow.anim";
+const BIRD_SLEEP2_ASSET: &str = "Assets/AnimationClip/BirdSleep2.anim";
+const ACHIEVEMENT_POPUP_ENTER_ASSET: &str = "Assets/AnimationClip/AchievementPopupEnter.anim";
+const GOAL_VANISHING_ASSET: &str = "Assets/AnimationClip/GoalVanishing.anim";
+const OCEAN_ANIMATION_ASSET: &str = "Assets/AnimationClip/OceanAnimation.anim";
+const OCEAN_FOAM_ANIMATION_ASSET: &str = "Assets/AnimationClip/OceanFoamAnimation.anim";
+const ROTATING_GLOW_ASSET: &str = "Assets/AnimationClip/RotatingGlow.anim";
 
 static BIRD_SLEEP2_CLIP: OnceLock<Option<UnityAnimationClip>> = OnceLock::new();
 static ACHIEVEMENT_POPUP_ENTER_CLIP: OnceLock<Option<UnityAnimationClip>> = OnceLock::new();
@@ -172,7 +172,7 @@ fn sanitize_unity_yaml(text: &str) -> String {
 }
 
 fn read_animation_text(asset_key: &str) -> Option<String> {
-    assets::read_asset_text(asset_key)
+    assets::read_pathname_text(asset_key)
 }
 
 #[derive(Debug, Deserialize)]
@@ -417,7 +417,7 @@ mod tests {
     use super::*;
 
     fn asset_text(asset_key: &str) -> String {
-        assets::read_asset_text(asset_key).expect("missing embedded animation clip")
+        assets::read_pathname_text(asset_key).expect("missing embedded animation clip")
     }
 
     fn assert_close(actual: f32, expected: f32) {
@@ -448,13 +448,48 @@ mod tests {
     #[test]
     fn bird_sleep_clip_loads_from_asset_pipeline() {
         assert!(
-            assets::read_asset("unity/animation/BirdSleep2.anim").is_some(),
+            assets::read_pathname("Assets/AnimationClip/BirdSleep2.anim").is_some(),
             "embedded BirdSleep2.anim should exist"
         );
 
         let clip = bird_sleep_clip().expect("bird sleep clip should load from assets");
         assert_close(clip.duration, 4.0);
         assert!(clip.loops);
+    }
+
+    #[test]
+    fn ocean_animation_clip_loads_root_position_from_asset_pipeline() {
+        assert!(
+            assets::read_pathname("Assets/AnimationClip/OceanAnimation.anim").is_some(),
+            "embedded OceanAnimation.anim should exist"
+        );
+
+        let clip = ocean_animation_clip().expect("ocean animation clip should load from assets");
+        let position = clip.root_position().expect("ocean animation root position curve should exist");
+
+        assert_close(clip.duration, 6.0);
+        assert!(clip.loops);
+        assert_eq!(position.y.len(), 4);
+        assert_close(position.y[1].0, 2.366667);
+        assert_close(position.y[1].1, 1.0);
+    }
+
+    #[test]
+    fn ocean_foam_animation_clip_loads_root_position_from_asset_pipeline() {
+        assert!(
+            assets::read_pathname("Assets/AnimationClip/OceanFoamAnimation.anim").is_some(),
+            "embedded OceanFoamAnimation.anim should exist"
+        );
+
+        let clip =
+            ocean_foam_animation_clip().expect("ocean foam animation clip should load from assets");
+        let position = clip.root_position().expect("ocean foam root position curve should exist");
+
+        assert_close(clip.duration, 6.0);
+        assert!(clip.loops);
+        assert_eq!(position.y.len(), 6);
+        assert_close(position.y[2].0, 2.466667);
+        assert_close(position.y[2].1, 1.796472);
     }
 
     #[test]

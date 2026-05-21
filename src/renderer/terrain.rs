@@ -44,8 +44,9 @@ pub struct TerrainDrawData {
     pub edge_indices: Vec<u16>,
     /// Decoded control texture RGBA pixels (one pixel per node).
     pub edge_ctrl_pixels: Option<Vec<u8>>,
-    /// Number of curve nodes.
-    pub edge_node_count: usize,
+    /// Decoded control texture size in texels.
+    pub edge_ctrl_width: u32,
+    pub edge_ctrl_height: u32,
     /// splatParamsX = 1 / curveTextures[0].size.x
     pub edge_splat_params_x: f32,
     /// Splat0 (grass/surface) texture filename.
@@ -80,7 +81,8 @@ pub fn build_terrain(
                 edge_vertices: Vec::new(),
                 edge_indices: Vec::new(),
                 edge_ctrl_pixels: None,
-                edge_node_count: 0,
+                edge_ctrl_width: 0,
+                edge_ctrl_height: 0,
                 edge_splat_params_x: 10.0,
                 edge_splat0: None,
                 edge_splat1: None,
@@ -106,11 +108,13 @@ pub fn build_terrain(
 
     // Build shader-ready edge data
     let (edge_vertices, edge_indices) = build_edge_shader_data(td, world_offset);
-    let edge_ctrl_pixels = td
+    let (edge_ctrl_pixels, edge_ctrl_width, edge_ctrl_height) = td
         .control_texture_data
         .as_ref()
-        .and_then(|d| decode_control_png(d));
-    let edge_node_count = td.curve_mesh.vertices.len() / 2;
+        .and_then(|d| decode_control_png(d))
+        .map_or((None, 0, 0), |(pixels, width, height)| {
+            (Some(pixels), width, height)
+        });
     let edge_splat_params_x = if !td.curve_textures.is_empty() && td.curve_textures[0].size.x > 0.0
     {
         1.0 / td.curve_textures[0].size.x
@@ -127,11 +131,11 @@ pub fn build_terrain(
     };
     let fallback_edge_splat1 =
         assets::get_terrain_splat1_for_level(level_key, &prefab.name).map(|s| s.to_string());
-    let edge_splat1 = if assets::terrain_splat1_prefers_prefab_over_level_refs(&prefab.name) {
-        fallback_edge_splat1.clone()
-    } else if td.curve_textures.len() > 1 {
+    // Resolve splat1 from Unity loader refs first; if the level reference is
+    // missing, fall back to the terrain prefab's authored curve texture.
+    let edge_splat1 = if td.curve_textures.len() > 1 {
         crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
-            .filter(|name| crate::data::assets::read_asset(&format!("ground/{}", name)).is_some())
+            .filter(|name| crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", name)).is_some())
             .map(|s| s.to_string())
             .or_else(|| fallback_edge_splat1.clone())
     } else {
@@ -150,17 +154,7 @@ pub fn build_terrain(
     // Derive per-node texture index from control texture pixels
     let node_count = td.curve_mesh.vertices.len() / 2;
     let node_textures: Vec<usize> = (0..node_count)
-        .map(|i| {
-            td.control_texture_data
-                .as_ref()
-                .and_then(|data| {
-                    crate::domain::terrain_gen::decode_control_png_pixels(data).map(|px| {
-                        let gi = i * 4 + 1; // green channel
-                        if gi < px.len() && px[gi] > 128 { 1 } else { 0 }
-                    })
-                })
-                .unwrap_or(0)
-        })
+        .map(|i| usize::from(control_selects_splat1(edge_ctrl_pixels.as_deref(), i)))
         .collect();
 
     // Build CPU-textured edge meshes (fallback for when GLSL is unavailable)
@@ -168,7 +162,6 @@ pub fn build_terrain(
         &edge_vertices,
         &edge_indices,
         edge_ctrl_pixels.as_deref(),
-        edge_node_count,
         edge_splat_params_x,
     );
 
@@ -184,7 +177,8 @@ pub fn build_terrain(
         edge_vertices,
         edge_indices,
         edge_ctrl_pixels,
-        edge_node_count,
+        edge_ctrl_width,
+        edge_ctrl_height,
         edge_splat_params_x,
         edge_splat0,
         edge_splat1,
@@ -278,7 +272,8 @@ fn build_edge_fallback(td: &TerrainData, offset: Vec3, name: &str) -> Option<egu
     let ctrl_pixels = td
         .control_texture_data
         .as_ref()
-        .and_then(|data| decode_control_png(data));
+        .and_then(|data| decode_control_png(data))
+        .map(|(pixels, _, _)| pixels);
 
     let mut mesh = egui::Mesh::default();
     let quad_count = (verts.len() - 2) / 2;
@@ -294,16 +289,11 @@ fn build_edge_fallback(td: &TerrainData, offset: Vec3, name: &str) -> Option<egu
         let ob = &verts[i + 2]; // outer B
         let ib = &verts[i + 3]; // inner B
 
-        // Pick color based on control texture red channel
-        let is_grass = ctrl_pixels
-            .as_ref()
-            .map(|px| {
-                let node_idx = qi;
-                node_idx * 4 < px.len() && px[node_idx * 4] > 128
-            })
-            .unwrap_or(false);
-
-        let color = if is_grass { grass_color } else { outline_color };
+        let color = if control_selects_splat1(ctrl_pixels.as_deref(), qi) {
+            outline_color
+        } else {
+            grass_color
+        };
 
         let base = mesh.vertices.len() as u32;
         let uv = egui::pos2(0.0, 0.0);
@@ -346,13 +336,21 @@ fn build_edge_fallback(td: &TerrainData, offset: Vec3, name: &str) -> Option<egu
 }
 
 /// Decode a raw PNG to get RGBA pixel data (without premultiplied alpha).
-fn decode_control_png(data: &[u8]) -> Option<Vec<u8>> {
+fn decode_control_png(data: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
     let decoder = image::ImageReader::new(std::io::Cursor::new(data))
         .with_guessed_format()
         .ok()?;
     let img = decoder.decode().ok()?;
     let rgba = img.to_rgba8();
-    Some(rgba.into_raw())
+    let width = rgba.width();
+    let height = rgba.height();
+    Some((rgba.into_raw(), width, height))
+}
+
+fn control_selects_splat1(ctrl_pixels: Option<&[u8]>, node_idx: usize) -> bool {
+    ctrl_pixels
+        .and_then(|px| px.get(node_idx * 4 + 1).copied())
+        == Some(255)
 }
 
 /// Build shader-ready edge vertex and index arrays from curve mesh.
@@ -412,7 +410,6 @@ fn build_edge_textured_meshes(
     edge_verts: &[EdgeVertex],
     edge_indices: &[u16],
     ctrl_pixels: Option<&[u8]>,
-    _node_count: usize,
     splat_params_x: f32,
 ) -> (Option<egui::Mesh>, Option<egui::Mesh>) {
     if edge_verts.is_empty() || edge_indices.len() < 3 {
@@ -434,13 +431,7 @@ fn build_edge_textured_meshes(
 
         // Determine splat selection from the node index of the first vertex
         let node_idx = edge_verts[i0].uv[1] as usize;
-        let use_splat1 = ctrl_pixels
-            .map(|px| {
-                // Green channel: pixels[node * 4 + 1]
-                let gi = node_idx * 4 + 1;
-                gi < px.len() && px[gi] > 128
-            })
-            .unwrap_or(false);
+        let use_splat1 = control_selects_splat1(ctrl_pixels, node_idx);
 
         let target = if use_splat1 { &mut mesh1 } else { &mut mesh0 };
         let base = target.vertices.len() as u32;
@@ -473,6 +464,28 @@ fn build_edge_textured_meshes(
             Some(mesh1)
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::control_selects_splat1;
+
+    #[test]
+    fn control_selector_matches_unity_green_channel_rule() {
+        let pixels = [
+            255, 0, 0, 255,
+            0, 255, 0, 255,
+            0, 128, 0, 255,
+            0, 0, 255, 255,
+        ];
+
+        assert!(!control_selects_splat1(Some(&pixels), 0));
+        assert!(control_selects_splat1(Some(&pixels), 1));
+        assert!(!control_selects_splat1(Some(&pixels), 2));
+        assert!(!control_selects_splat1(Some(&pixels), 3));
+        assert!(!control_selects_splat1(Some(&pixels), 99));
+        assert!(!control_selects_splat1(None, 0));
+    }
 }
 
 /// Transform world-space mesh into a reusable output buffer, avoiding allocation
@@ -620,91 +633,6 @@ impl LevelRenderer {
                 &self.tex_cache,
                 &mut self.terrain_scratch_mesh,
             );
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::build_terrain;
-    use crate::domain::level::refs::get_level_ref;
-    use crate::domain::types::{
-        Color, CurveTexture, DataType, PrefabInstance, TerrainData, TerrainMesh, Vec2, Vec3,
-    };
-
-    #[test]
-    fn mm_sand_edge_splat1_prefers_border_over_loader_outline() {
-        assert_eq!(
-            get_level_ref("scenario_12_data", 17),
-            Some("Ground_Rocks_Outline_Texture_03.png")
-        );
-
-        let prefab = terrain_prefab("e2dTerrainBase_MM_sand", 17);
-        let draw = build_terrain(&prefab, Vec3::default(), "scenario_12_data", 0);
-
-        assert_eq!(draw.edge_splat1.as_deref(), Some("Border.png"));
-    }
-
-    fn terrain_prefab(name: &str, splat1_texture_index: i32) -> PrefabInstance {
-        PrefabInstance {
-            name: name.to_string(),
-            position: Vec3::default(),
-            prefab_index: 0,
-            rotation: Vec3::default(),
-            scale: Vec3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
-            data_type: DataType::Terrain,
-            terrain_data: Some(Box::new(TerrainData {
-                fill_texture_tile_offset_x: 0.0,
-                fill_texture_tile_offset_y: 0.0,
-                fill_mesh: TerrainMesh {
-                    vertices: vec![
-                        Vec2 { x: 0.0, y: 0.0 },
-                        Vec2 { x: 1.0, y: 0.0 },
-                        Vec2 { x: 0.0, y: -1.0 },
-                    ],
-                    indices: vec![0, 1, 2],
-                },
-                fill_color: Color {
-                    r: 1.0,
-                    g: 1.0,
-                    b: 1.0,
-                    a: 1.0,
-                },
-                fill_texture_index: -1,
-                curve_mesh: TerrainMesh {
-                    vertices: vec![
-                        Vec2 { x: 0.0, y: 0.0 },
-                        Vec2 { x: 0.0, y: -1.0 },
-                        Vec2 { x: 1.0, y: 0.0 },
-                        Vec2 { x: 1.0, y: -1.0 },
-                    ],
-                    indices: vec![0, 2, 3, 0, 3, 1],
-                },
-                curve_textures: vec![
-                    CurveTexture {
-                        texture_index: -1,
-                        size: Vec2 { x: 0.1, y: 0.5 },
-                        fixed_angle: false,
-                        fade_threshold: 0.0,
-                    },
-                    CurveTexture {
-                        texture_index: splat1_texture_index,
-                        size: Vec2 { x: 0.1, y: 0.5 },
-                        fixed_angle: false,
-                        fade_threshold: 0.0,
-                    },
-                ],
-                control_texture_count: 0,
-                control_texture_data: None,
-                has_collider: true,
-                fill_boundary: None,
-            })),
-            override_data: None,
-            parent: None,
         }
     }
 }

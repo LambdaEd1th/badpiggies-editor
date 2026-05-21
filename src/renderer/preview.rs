@@ -63,6 +63,16 @@ impl LevelRenderer {
         self.dark_level
     }
 
+    /// Whether the night-vision dark overlay variant is enabled.
+    pub fn night_vision_enabled(&self) -> bool {
+        self.night_vision_enabled
+    }
+
+    /// Toggle the night-vision dark overlay variant.
+    pub fn set_night_vision_enabled(&mut self, enabled: bool) {
+        self.night_vision_enabled = enabled;
+    }
+
     /// Shared transparent sprite shader resources, if the current backend has wgpu.
     pub fn preview_sprite_resources(&self) -> Option<Arc<sprite_shader::SpriteResources>> {
         self.sprite_resources.clone()

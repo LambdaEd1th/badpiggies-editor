@@ -16,13 +16,17 @@ use crate::data::assets;
 
 pub use types::{SpriteInfo, UvRect};
 
-const PREFAB_MANIFEST_ASSET: &str = "unity/prefabs/manifest.txt";
-const PREFAB_DIR_ASSET: &str = "unity/prefabs";
+const PREFAB_DIR_ASSET: &str = "Assets/Prefab/";
 
 /// World-size formula: pixelSize * prefabScale * 10 / 768
 pub(super) const WORLD_SCALE: f32 = 10.0 / 768.0;
 
 static SPRITE_DB: OnceLock<HashMap<String, SpriteInfo>> = OnceLock::new();
+static RUNTIME_SPRITES: OnceLock<HashMap<String, types::RuntimeSpriteMeta>> = OnceLock::new();
+
+fn runtime_sprites() -> &'static HashMap<String, types::RuntimeSpriteMeta> {
+    RUNTIME_SPRITES.get_or_init(runtime::load_runtime_sprites)
+}
 
 /// Get the sprite database (lazily initialized).
 pub fn sprite_db() -> &'static HashMap<String, SpriteInfo> {
@@ -75,29 +79,33 @@ pub fn get_sprite_info(name: &str) -> Option<&'static SpriteInfo> {
     None
 }
 
-fn build_db() -> HashMap<String, SpriteInfo> {
-    let runtime_sprites = runtime::load_runtime_sprites();
-    let Some(manifest) = read_embedded_text(PREFAB_MANIFEST_ASSET) else {
-        log::error!(
-            "Failed to read embedded prefab manifest for sprite database: {}",
-            PREFAB_MANIFEST_ASSET
-        );
-        return HashMap::new();
-    };
+pub fn runtime_sprite_dimensions(sprite_id: &str) -> Option<(UvRect, f32, f32, String)> {
+    runtime_sprites().get(sprite_id).map(|meta| {
+        (
+            meta.uv,
+            meta.width,
+            meta.height,
+            meta.material_id.clone(),
+        )
+    })
+}
 
+pub fn runtime_sprite_pivot(sprite_id: &str) -> Option<(f32, f32)> {
+    runtime_sprites()
+        .get(sprite_id)
+        .map(|meta| (meta.pivot_x, meta.pivot_y))
+}
+
+fn build_db() -> HashMap<String, SpriteInfo> {
+    let runtime_sprites = runtime_sprites();
     let mut map = HashMap::new();
-    for filename in manifest
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-    {
-        if !filename.ends_with(".prefab") {
-            continue;
-        }
+    for asset_path in assets::list_pathnames(PREFAB_DIR_ASSET, ".prefab") {
+        let filename = asset_path
+            .strip_prefix(PREFAB_DIR_ASSET)
+            .unwrap_or(asset_path.as_str());
         let Some(name) = filename.strip_suffix(".prefab") else {
             continue;
         };
-        let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
         let Some(text) = read_embedded_text(&asset_path) else {
             log::warn!(
                 "Missing embedded prefab for sprite database: {}",
@@ -107,7 +115,7 @@ fn build_db() -> HashMap<String, SpriteInfo> {
         };
 
         let parsed = parse::parse_prefab(&text);
-        let info = builder::find_runtime_sprite_info(name, &parsed, &runtime_sprites)
+        let info = builder::find_runtime_sprite_info(&parsed, &runtime_sprites)
             .or_else(|| builder::find_unmanaged_sprite_info(name, &parsed));
         if let Some(info) = info {
             map.insert(name.to_string(), info);
@@ -118,7 +126,7 @@ fn build_db() -> HashMap<String, SpriteInfo> {
 }
 
 pub(super) fn read_embedded_text(path: &str) -> Option<String> {
-    let bytes = assets::read_asset(path)?;
+    let bytes = assets::read_pathname(path)?;
     Some(String::from_utf8_lossy(bytes.as_ref()).into_owned())
 }
 
@@ -134,9 +142,9 @@ mod tests {
     }
 
     #[test]
-    fn box_icon_uses_character_sheet_alias() {
+    fn box_icon_uses_prefab_backed_ingame_atlas2() {
         let sprite = get_sprite_info("BoxIcon").expect("missing BoxIcon sprite info");
-        assert_eq!(sprite.atlas, "Ingame_Characters_Sheet_01.png");
+        assert_eq!(sprite.atlas, "IngameAtlas2.png");
         assert_close(sprite.uv.x, 0.6630859);
         assert_close(sprite.uv.y, 0.6743164);
         assert_close(sprite.uv.w, 0.02587891);
@@ -166,16 +174,45 @@ mod tests {
     }
 
     #[test]
-    fn level_row_unlock_panel_uses_background_runtime_sprite() {
+    fn level_row_unlock_panel_uses_renderer_backed_menu_atlas() {
         let sprite = get_sprite_info("LevelRowUnlockPanel")
             .expect("missing LevelRowUnlockPanel sprite info");
-        assert_eq!(sprite.atlas, "Ingame_Sheet_04.png");
+        assert_eq!(sprite.atlas, "MenuAtlas.png");
         assert_close(sprite.uv.x, 0.7270508);
         assert_close(sprite.uv.y, 0.3481445);
         assert_close(sprite.uv.w, 0.05908203);
         assert_close(sprite.uv.h, 0.05908203);
         assert_close(sprite.world_w, 121.0 * 0.85 * WORLD_SCALE);
         assert_close(sprite.world_h, 121.0 * 0.85 * WORLD_SCALE);
+    }
+
+    #[test]
+    fn daily_challenge_dialog_uses_renderer_backed_menu_atlas() {
+        let sprite =
+            get_sprite_info("DailyChallengeDialog").expect("missing DailyChallengeDialog sprite info");
+        assert_eq!(sprite.atlas, "MenuAtlas.png");
+    }
+
+    #[test]
+    fn purchase_piggy_pack_iap_uses_renderer_backed_ingame_atlas2() {
+        let sprite =
+            get_sprite_info("PurchasePiggyPackIAP").expect("missing PurchasePiggyPackIAP sprite info");
+        assert_eq!(sprite.atlas, "IngameAtlas2.png");
+    }
+
+    #[test]
+    fn ask_about_notifications_prefers_close_button_sprite() {
+        let sprite =
+            get_sprite_info("AskAboutNotifications").expect("missing AskAboutNotifications sprite info");
+        assert_eq!(sprite.atlas, "IngameAtlas2.png");
+        assert_close(sprite.world_w, 0.7877604);
+    }
+
+    #[test]
+    fn resource_bar_prefers_level_icon_sprite() {
+        let sprite = get_sprite_info("ResourceBar").expect("missing ResourceBar sprite info");
+        assert_eq!(sprite.atlas, "MenuAtlas2.png");
+        assert_close(sprite.world_w, 0.6380208);
     }
 
     #[test]
@@ -201,5 +238,12 @@ mod tests {
         assert_close(alias.uv.h, direct.uv.h);
         assert_close(alias.world_w, direct.world_w);
         assert_close(alias.world_h, direct.world_h);
+    }
+
+    #[test]
+    fn star_boxes_and_tnt_box_have_sprite_info() {
+        assert!(get_sprite_info("StarBox").is_some());
+        assert!(get_sprite_info("DynamicStarBox").is_some());
+        assert!(get_sprite_info("TNT_Box").is_some());
     }
 }

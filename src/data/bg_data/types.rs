@@ -64,7 +64,14 @@ pub struct BgSprite {
     pub local_y: f32,
     pub parent_group: String,
     pub tint: [f32; 4],
+    pub custom_render_queue: Option<i32>,
     pub alpha_blend: bool,
+    pub alpha8bit: bool,
+    /// Alpha-test cutoff threshold from the material's `_Cutoff` YAML field.
+    /// Only consulted by the renderer when `alpha_blend` is false (cutout path).
+    /// Unity built-in `Unlit/Transparent Cutout` default is 0.5; some materials
+    /// override to 0.1.
+    pub cutoff: f32,
 }
 
 /// Full theme data with sprites organized by layer.

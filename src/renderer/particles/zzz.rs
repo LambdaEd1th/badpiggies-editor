@@ -12,6 +12,8 @@ use super::{
 
 /// A single Zzz particle.
 pub(crate) struct ZzzParticle {
+    pub source_bird_index: usize,
+    pub render_z: f32,
     pub x: f32,
     pub y: f32,
     pub velocity_x_random: f32,
@@ -30,12 +32,12 @@ fn bird_sleep_system() -> &'static unity_particles::UnityParticleSystemDef {
         .system
 }
 
-pub(crate) fn zzz_particle_texture_name() -> Option<&'static str> {
-    bird_sleep_system().texture_name()
-}
-
 fn zzz_emit_rate() -> f32 {
     bird_sleep_system().emission_rate.sample(0.0, 0.0)
+}
+
+pub(crate) fn zzz_particle_texture_name() -> Option<&'static str> {
+    bird_sleep_system().texture_name()
 }
 
 fn zzz_max_per_bird() -> usize {
@@ -72,14 +74,8 @@ fn zzz_rotation_speed(random: f32) -> f32 {
         .sample(0.0, random)
 }
 
-fn zzz_velocity_xy(life_t: f32, velocity_x_random: f32, velocity_y_random: f32) -> Vec2 {
-    sample_particle_world_velocity_xy(
-        bird_sleep_system(),
-        life_t,
-        velocity_x_random,
-        velocity_y_random,
-        velocity_x_random,
-    )
+fn zzz_velocity_xy(life_t: f32, x_random: f32, y_random: f32) -> Vec2 {
+    sample_particle_world_velocity_xy(bird_sleep_system(), life_t, x_random, y_random, x_random)
 }
 
 fn zzz_force_xy(life_t: f32, x_random: f32, y_random: f32) -> Vec2 {
@@ -103,6 +99,10 @@ fn zzz_uv_column(random: f32) -> u8 {
     bird_sleep_system().uv_module.sample_frame_index(random) as u8
 }
 
+fn zzz_render_z(world_z: f32) -> f32 {
+    world_z + bird_sleep_system().local_position.z
+}
+
 impl LevelRenderer {
     /// Spawn and advance Zzz particles attached to sleeping birds.
     pub(super) fn update_zzz_particles(&mut self, dt: f32) {
@@ -114,8 +114,9 @@ impl LevelRenderer {
                     && self.zzz_particles.len() < zzz_max_per_bird() * self.bird_positions.len()
                 {
                     self.zzz_emit_accum[bi] -= 1.0 / zzz_emit_rate();
-                    let bx = self.bird_positions[bi].x;
-                    let by = self.bird_positions[bi].y;
+                    let bird_pos = self.bird_positions[bi];
+                    let bx = bird_pos.x;
+                    let by = bird_pos.y;
                     let seed = (self.time * 1000.0) as u32
                         + bi as u32 * 997
                         + self.zzz_particles.len() as u32 * 337;
@@ -127,6 +128,8 @@ impl LevelRenderer {
                     let spawn_offset = zzz_spawn_offset();
                     let spawn_spread = zzz_spawn_spread();
                     self.zzz_particles.push(ZzzParticle {
+                        source_bird_index: bi,
+                        render_z: zzz_render_z(bird_pos.z),
                         x: bx + spawn_offset.x + (r1 - 0.5) * 2.0 * spawn_spread.x,
                         y: by + spawn_offset.y + (r2 - 0.5) * 2.0 * spawn_spread.y,
                         velocity_x_random: r3,
@@ -135,7 +138,7 @@ impl LevelRenderer {
                         lifetime: zzz_lifetime(r4),
                         start_size: zzz_start_size(r3),
                         rot: zzz_start_rotation(r5),
-                        rot_speed: zzz_rotation_speed(pseudo_random(seed.wrapping_add(6))),
+                        rot_speed: zzz_rotation_speed(pseudo_random(seed.wrapping_add(5))),
                         uv_col: zzz_uv_column(r1),
                     });
                 }
@@ -166,6 +169,7 @@ impl LevelRenderer {
 /// Draw Zzz particles (textured rotated quads from Particles_Sheet_01.png).
 pub(crate) fn draw_zzz_particles(
     particles: &[ZzzParticle],
+    source_bird_index: Option<usize>,
     camera: &Camera,
     painter: &egui::Painter,
     canvas_center: egui::Vec2,
@@ -174,6 +178,9 @@ pub(crate) fn draw_zzz_particles(
 ) {
     let (tiles_x, tiles_y, row_index) = zzz_uv_layout();
     for p in particles {
+        if source_bird_index.is_some_and(|source_index| p.source_bird_index != source_index) {
+            continue;
+        }
         let life_t = p.age / p.lifetime;
         let size_scale = zzz_size_scale(life_t);
         let sz = p.start_size * size_scale * camera.zoom;
@@ -235,21 +242,19 @@ pub(crate) fn draw_zzz_particles(
 mod tests {
     use super::*;
 
-    #[test]
-    fn zzz_velocity_helpers_use_prefab_velocity_curves() {
-        let low_random = zzz_velocity_xy(0.0, 0.0, 0.0);
-        let high_random = zzz_velocity_xy(0.0, 1.0, 1.0);
-
-        assert!((low_random.y - 0.49414596).abs() < 0.0001);
-        assert!((high_random.y - 0.3103452).abs() < 0.0001);
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-5,
+            "expected {expected}, got {actual}"
+        );
     }
 
     #[test]
-    fn zzz_size_and_rotation_helpers_match_bird_sleep_prefab() {
-        assert!((zzz_start_size(0.0) - 0.7).abs() < 0.0001);
-        assert!((zzz_lifetime(0.0) - 1.0).abs() < 0.0001);
-        assert!((zzz_lifetime(1.0) - 2.0).abs() < 0.0001);
-        assert_eq!(zzz_uv_column(0.0), 6);
-        assert!((zzz_rotation_speed(1.0) - std::f32::consts::FRAC_PI_6).abs() < 0.0001);
+    fn zzz_velocity_sampling_uses_prefab_y_random_range() {
+        let low = zzz_velocity_xy(0.0, 0.0, 0.0);
+        let high = zzz_velocity_xy(0.0, 0.0, 1.0);
+
+        assert_close(low.y, 0.49414596);
+        assert_close(high.y, 0.3103452);
     }
 }

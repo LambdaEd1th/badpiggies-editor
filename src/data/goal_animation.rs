@@ -2,33 +2,12 @@ use crate::data::unity_anim;
 use crate::domain::prefab_override::{
     OverrideNode, find_first_node_mut, parse_override_text, serialize_override_tree,
 };
-use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
+use crate::unity_runtime::scene::{Scene, SceneValue};
 
 pub const GOAL_ANIMATION_OVERRIDE_NAME: &str = "bp_goalAnimation";
 const GOAL_ANIMATION_IDLE_VALUE: &str = "Idle";
 const GOAL_ANIMATION_VANISHING_VALUE: &str = "Vanishing";
-const DEFAULT_GOAL_VANISH_DURATION: f32 = 1.0;
 const DEFAULT_GOAL_VANISH_HOLD: f32 = 0.35;
-const DEFAULT_GOAL_VANISH_POS_Y: &[unity_anim::HermiteKey] = &[
-    (0.0, -0.01172495, -2.38242, -2.38242),
-    (0.5, -1.202935, 0.415809, 0.415809),
-    (1.0, 13.51, 29.42587, 29.42587),
-];
-const DEFAULT_GOAL_VANISH_SCALE_X: &[unity_anim::HermiteKey] = &[
-    (0.0, 1.3, -2.1, -2.1),
-    (0.5, 0.25, 0.2071749, 0.2071749),
-    (1.0, 15.0, 29.5, 29.5),
-];
-const DEFAULT_GOAL_VANISH_SCALE_Y: &[unity_anim::HermiteKey] = &[
-    (0.0, 0.6500001, 1.7, 1.7),
-    (0.5, 1.5, -0.6500001, -0.6500001),
-    (1.0, 0.0, -3.0, -3.0),
-];
-const DEFAULT_GOAL_VANISH_ALPHA: &[unity_anim::HermiteKey] = &[
-    (0.0, 1.0, -0.4367118, -0.4367118),
-    (0.6166667, 0.7306944, -0.6272243, -0.6272243),
-    (1.0, 0.0, -1.906159, -1.906159),
-];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GoalAnimationState {
@@ -60,12 +39,17 @@ pub fn set_goal_animation_state(raw_text: &mut String, state: GoalAnimationState
             if let Some(node) = find_first_node_mut(&mut nodes, &is_goal_animation_node) {
                 node.value = Some(value.to_string());
             } else {
-                nodes.push(OverrideNode {
+                let new_node = OverrideNode {
                     node_type: "String".to_string(),
                     name: GOAL_ANIMATION_OVERRIDE_NAME.to_string(),
                     value: Some(value.to_string()),
                     children: Vec::new(),
-                });
+                };
+                if let Some(component) = find_first_node_mut(&mut nodes, &is_component_node) {
+                    component.children.push(new_node);
+                } else {
+                    nodes.push(new_node);
+                }
             }
         }
         None => remove_goal_animation_nodes(&mut nodes),
@@ -97,7 +81,7 @@ impl GoalAnimationState {
     fn override_value(self) -> Option<&'static str> {
         match self {
             GoalAnimationState::Idle => None,
-            GoalAnimationState::Vanishing => Some(GOAL_ANIMATION_VANISHING_VALUE),
+            GoalAnimationState::Vanishing => Some("\"Vanishing\""),
         }
     }
 
@@ -111,21 +95,37 @@ impl GoalAnimationState {
 }
 
 fn goal_animation_override_value(raw_text: &str) -> Option<String> {
-    let document = RuntimeOverrideDocument::parse(raw_text);
-    document
-        .roots
-        .iter()
-        .find_map(|root| root.find_descendant(&is_goal_animation_runtime_node))
-        .and_then(|node| node.value_as_str())
-        .map(ToOwned::to_owned)
+    let (scene, _root) = Scene::from_override_text(raw_text)?;
+    for (_, c) in scene.iter_components() {
+        if let Some(value) = find_string_field(c.behavior.extra(), GOAL_ANIMATION_OVERRIDE_NAME) {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn find_string_field(entries: &[(String, SceneValue)], field_name: &str) -> Option<String> {
+    for (name, value) in entries {
+        if name == field_name
+            && let SceneValue::String(s) = value
+        {
+            return Some(s.clone());
+        }
+        if let SceneValue::Generic(inner) = value
+            && let Some(s) = find_string_field(inner, field_name)
+        {
+            return Some(s);
+        }
+    }
+    None
 }
 
 fn is_goal_animation_node(node: &OverrideNode) -> bool {
     node.node_type == "String" && node.name == GOAL_ANIMATION_OVERRIDE_NAME
 }
 
-fn is_goal_animation_runtime_node(node: &RuntimeOverrideNode) -> bool {
-    node.node_type == "String" && node.name == GOAL_ANIMATION_OVERRIDE_NAME
+fn is_component_node(node: &OverrideNode) -> bool {
+    node.node_type == "Component"
 }
 
 fn remove_goal_animation_nodes(nodes: &mut Vec<OverrideNode>) {
@@ -167,41 +167,63 @@ fn goal_vanishing_visual_state(time: f64, preview_seed: usize) -> GoalVisualStat
 }
 
 fn goal_vanishing_duration() -> f32 {
-    unity_anim::goal_vanishing_clip()
-        .map(|clip| clip.duration)
-        .filter(|duration| *duration > 0.0)
-        .unwrap_or(DEFAULT_GOAL_VANISH_DURATION)
+    let duration = unity_anim::goal_vanishing_clip()
+        .expect("GoalVanishing.anim should load from embedded assets")
+        .duration;
+    if duration <= 0.0 {
+        panic!("GoalVanishing.anim must have positive duration");
+    }
+    duration
 }
 
 fn goal_vanishing_pos_y_curve() -> &'static [unity_anim::HermiteKey] {
-    unity_anim::goal_vanishing_clip()
-        .and_then(|clip| clip.root_position())
-        .map(|curve| curve.y.as_slice())
-        .filter(|curve| !curve.is_empty())
-        .unwrap_or(DEFAULT_GOAL_VANISH_POS_Y)
+    let curve = unity_anim::goal_vanishing_clip()
+        .expect("GoalVanishing.anim should load from embedded assets")
+        .root_position()
+        .expect("GoalVanishing.anim must include root position curves")
+        .y
+        .as_slice();
+    if curve.is_empty() {
+        panic!("GoalVanishing.anim root position Y curve must not be empty");
+    }
+    curve
 }
 
 fn goal_vanishing_scale_x_curve() -> &'static [unity_anim::HermiteKey] {
-    unity_anim::goal_vanishing_clip()
-        .and_then(|clip| clip.root_scale())
-        .map(|curve| curve.x.as_slice())
-        .filter(|curve| !curve.is_empty())
-        .unwrap_or(DEFAULT_GOAL_VANISH_SCALE_X)
+    let curve = unity_anim::goal_vanishing_clip()
+        .expect("GoalVanishing.anim should load from embedded assets")
+        .root_scale()
+        .expect("GoalVanishing.anim must include root scale curves")
+        .x
+        .as_slice();
+    if curve.is_empty() {
+        panic!("GoalVanishing.anim root scale X curve must not be empty");
+    }
+    curve
 }
 
 fn goal_vanishing_scale_y_curve() -> &'static [unity_anim::HermiteKey] {
-    unity_anim::goal_vanishing_clip()
-        .and_then(|clip| clip.root_scale())
-        .map(|curve| curve.y.as_slice())
-        .filter(|curve| !curve.is_empty())
-        .unwrap_or(DEFAULT_GOAL_VANISH_SCALE_Y)
+    let curve = unity_anim::goal_vanishing_clip()
+        .expect("GoalVanishing.anim should load from embedded assets")
+        .root_scale()
+        .expect("GoalVanishing.anim must include root scale curves")
+        .y
+        .as_slice();
+    if curve.is_empty() {
+        panic!("GoalVanishing.anim root scale Y curve must not be empty");
+    }
+    curve
 }
 
 fn goal_vanishing_alpha_curve() -> &'static [unity_anim::HermiteKey] {
-    unity_anim::goal_vanishing_clip()
-        .and_then(|clip| clip.root_float_curve("_Color.a"))
-        .filter(|curve| !curve.is_empty())
-        .unwrap_or(DEFAULT_GOAL_VANISH_ALPHA)
+    let curve = unity_anim::goal_vanishing_clip()
+        .expect("GoalVanishing.anim should load from embedded assets")
+        .root_float_curve("_Color.a")
+        .expect("GoalVanishing.anim must include root alpha curve");
+    if curve.is_empty() {
+        panic!("GoalVanishing.anim root alpha curve must not be empty");
+    }
+    curve
 }
 
 fn sample_hermite(keys: &[unity_anim::HermiteKey], time: f32) -> f32 {
@@ -274,7 +296,7 @@ mod tests {
     #[test]
     fn goal_animation_ast_parser_reads_and_removes_nested_override() {
         let mut raw =
-            "Component GoalArea\n\tString bp_goalAnimation = Vanishing\n".to_string();
+            "Component GoalArea\n\tString bp_goalAnimation = \"Vanishing\"\n".to_string();
 
         assert_eq!(
             parse_goal_animation_state(Some(&raw)),

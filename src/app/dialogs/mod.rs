@@ -225,7 +225,7 @@ fn loader_file_name_for_level(file_name: &str) -> Option<String> {
 }
 
 fn collect_prefab_names(names: &mut BTreeSet<String>) {
-    for relative_path in assets::list_asset_paths("Prefab/", ".prefab") {
+    for relative_path in assets::list_pathnames("Assets/Prefab/", ".prefab") {
         let Some(name) = prefab_asset_display_name(&relative_path) else {
             continue;
         };
@@ -246,8 +246,8 @@ fn prefab_asset_display_name(relative_path: &str) -> Option<String> {
     })
 }
 
-fn parse_prefab_root_name(relative_path: &str) -> Option<String> {
-    let text = assets::read_asset_text(&format!("unity/prefabs/{relative_path}"))?;
+fn parse_prefab_root_name(asset_path: &str) -> Option<String> {
+    let text = assets::read_pathname_text(asset_path)?;
     let mut root_file_id = None;
     for line in text.lines() {
         let trimmed = line.trim();
@@ -291,7 +291,7 @@ fn parse_prefab_root_name(relative_path: &str) -> Option<String> {
 
 fn collect_matching_loaders(target_name: &str, matches: &mut Vec<String>) {
     matches.extend(
-        assets::list_asset_paths("Resources/levels/", "_loader.prefab")
+        assets::list_pathnames("Assets/Resources/levels/", "_loader.prefab")
             .into_iter()
             .filter(|relative_path| {
                 Path::new(relative_path)
@@ -340,7 +340,7 @@ fn resolve_loader_prefab_text(
         0 => None,
         1 => matches
             .pop()
-            .and_then(|path| assets::read_asset_text(&format!("unity/levels/{path}"))),
+            .and_then(|path| assets::read_pathname_text(&path)),
         _ => {
             let hint = loader_search_hint(source_path);
             if let Some(hint) = hint
@@ -348,12 +348,12 @@ fn resolve_loader_prefab_text(
                     .iter()
                     .find(|path| path.to_ascii_lowercase().contains(&hint))
             {
-                return assets::read_asset_text(&format!("unity/levels/{path}"));
+                return assets::read_pathname_text(path);
             }
             matches
                 .into_iter()
                 .next()
-                .and_then(|path| assets::read_asset_text(&format!("unity/levels/{path}")))
+                .and_then(|path| assets::read_pathname_text(&path))
         }
     }
 }
@@ -638,11 +638,9 @@ mod tests {
 
     #[test]
     fn embedded_loader_prefab_count_parses_valid_loader() {
-        let has_loader_with_prefabs = assets::list_asset_paths("Resources/levels/", "_loader.prefab")
+        let has_loader_with_prefabs = assets::list_pathnames("Assets/Resources/levels/", "_loader.prefab")
             .into_iter()
-            .filter_map(|relative_path| {
-                assets::read_asset_text(&format!("unity/levels/{relative_path}"))
-            })
+            .filter_map(|asset_path| assets::read_pathname_text(&asset_path))
             .filter_map(|text| parse_loader_prefab_count(&text))
             .any(|count| count > 0);
 

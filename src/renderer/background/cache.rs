@@ -13,6 +13,11 @@ pub struct BgLayerCache {
     pub(super) tile_info: HashMap<usize, (f32, f32)>,
     /// Sprite index → seam phase offset for tiled sprite groups.
     pub(super) tile_phase: HashMap<usize, f32>,
+    /// Reserved top-edge overrides for fill-like sprites.
+    /// Background fills currently keep their authored Y extents.
+    pub(super) fill_top_world_y: HashMap<usize, f32>,
+    /// Sprite index → effective sort Z override.
+    pub(super) sort_z_overrides: HashMap<usize, f32>,
     /// Set of sprite indices that are fill-extended singletons.
     pub(super) singleton_set: HashSet<usize>,
     /// Pre-lowercased sprite names (avoids per-frame String allocation).
@@ -28,10 +33,22 @@ impl BgLayerCache {
     pub fn sprites<'a>(&'a self, theme: &'a bg_data::BgTheme) -> &'a [bg_data::BgSprite] {
         self.effective_sprites.as_deref().unwrap_or(&theme.sprites)
     }
+
+    pub(super) fn sort_world_z(&self, sprites: &[bg_data::BgSprite], sprite_index: usize) -> f32 {
+        self.sort_z_overrides
+            .get(&sprite_index)
+            .copied()
+            .unwrap_or_else(|| sprites[sprite_index].world_z)
+    }
 }
 
 pub(super) fn sprite_display_width(sprite: &bg_data::BgSprite) -> f32 {
     sprite.sprite_w * WORLD_SCALE * 2.0 * sprite.scale_x.abs()
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(super) fn sprite_display_height(sprite: &bg_data::BgSprite) -> f32 {
+    sprite.sprite_h * WORLD_SCALE * 2.0 * sprite.scale_y.abs()
 }
 
 const MAX_MULTI_NAME_TILE_Y_SPAN: f32 = 10.0;
@@ -41,6 +58,66 @@ const MAYA_HIGH_FURTHER_CORE_MAX_LOCAL_X: f32 = 15.0;
 const MAYA_HIGH_FURTHER_CORE_BLOCK_WIDTH: f32 = 77.4;
 const MAYA_TEMPLE_PATTERN_CLUSTER_X_THRESHOLD: f32 = 4.0;
 const MAYA_TEMPLE_NEAR_BOTTOM_SEAM_BIAS: f32 = 1.5;
+const FILL_SORT_Z_BIAS: f32 = 0.001;
+const FILL_OVERRIDE_EPSILON: f32 = 0.001;
+
+fn is_fill_height_candidate(sprite: &bg_data::BgSprite, name_lower: &str) -> bool {
+    sprite.fill_color.is_some()
+        && name_lower.contains("fill")
+        && sprite.parent_group.starts_with("BGLayer")
+}
+
+fn is_fill_companion_hill(
+    fill_sprite: &bg_data::BgSprite,
+    other_sprite: &bg_data::BgSprite,
+    other_name_lower: &str,
+) -> bool {
+    other_sprite.parent_group == fill_sprite.parent_group
+        && other_sprite.layer == fill_sprite.layer
+        && other_sprite.fill_color.is_none()
+        && other_sprite.sky_texture.is_none()
+        && !other_name_lower.contains("fill")
+}
+
+fn compute_fill_overrides(
+    sprites: &[bg_data::BgSprite],
+    name_lower: &[String],
+) -> (HashMap<usize, f32>, HashMap<usize, f32>) {
+    let fill_top_world_y = HashMap::new();
+    let mut sort_z_overrides = HashMap::new();
+
+    for (fill_index, fill_sprite) in sprites.iter().enumerate() {
+        if !is_fill_height_candidate(fill_sprite, &name_lower[fill_index]) {
+            continue;
+        }
+
+        let companion_indices: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(other_index, other_sprite)| {
+                *other_index != fill_index
+                    && is_fill_companion_hill(fill_sprite, other_sprite, &name_lower[*other_index])
+            })
+            .map(|(other_index, _)| other_index)
+            .collect();
+        if companion_indices.is_empty() {
+            continue;
+        }
+
+        let companion_max_z = companion_indices
+            .iter()
+            .map(|&index| sprites[index].world_z)
+            .max_by(|a, b| a.total_cmp(b))
+            .unwrap_or(fill_sprite.world_z);
+
+        let sort_z = companion_max_z + FILL_SORT_Z_BIAS;
+        if sort_z > fill_sprite.world_z + FILL_OVERRIDE_EPSILON {
+            sort_z_overrides.insert(fill_index, sort_z);
+        }
+    }
+
+    (fill_top_world_y, sort_z_overrides)
+}
 
 fn is_maya_high_near_core_sprite(sprite: &bg_data::BgSprite) -> bool {
     sprite.parent_group == "BGLayerNear"
@@ -249,16 +326,6 @@ fn forced_tile_phase_offset(
     sprites: &[bg_data::BgSprite],
     block_width: f32,
 ) -> Option<f32> {
-    if theme_name == "MayaHigh"
-        && group_key
-            == format!(
-                "forced:g:BGLayerFurther:{}:core77",
-                bg_data::BgLayer::Further.order()
-            )
-    {
-        return Some(0.0);
-    }
-
     if theme_name == "MayaTemple"
         && group_key
             == format!(
@@ -278,11 +345,26 @@ fn forced_tile_phase_offset(
     None
 }
 
+fn multi_name_row_fallback_group_key(sprite: &bg_data::BgSprite) -> String {
+    let atlas_key = sprite.atlas.as_deref().unwrap_or("");
+    let scale_y_sign = if sprite.scale_y < 0.0 { -1 } else { 1 };
+    format!(
+        "g:{}:{}:{}:row:{}:{}:sy:{}",
+        sprite.parent_group,
+        sprite.layer.order(),
+        parent_group_z_key(sprite),
+        sprite.world_y.round() as i32,
+        atlas_key,
+        scale_y_sign
+    )
+}
+
 pub(super) fn tile_group_key(
     sprite: &bg_data::BgSprite,
     name_lower: &str,
     distinct_name_count: usize,
     split_by_name: bool,
+    split_by_scale_y_sign: bool,
 ) -> Option<String> {
     if sprite.fill_color.is_some() || sprite.sky_texture.is_some() || name_lower.contains("fill") {
         return None;
@@ -291,7 +373,18 @@ pub(super) fn tile_group_key(
     let layer_key = sprite.layer.order();
     if !sprite.parent_group.is_empty() {
         if distinct_name_count <= 1 {
-            Some(format!("g:{}:{}", sprite.parent_group, layer_key))
+            if split_by_scale_y_sign {
+                let scale_y_sign = if sprite.scale_y < 0.0 { -1 } else { 1 };
+                Some(format!(
+                    "g:{}:{}:{}:sy:{}",
+                    sprite.parent_group,
+                    layer_key,
+                    parent_group_z_key(sprite),
+                    scale_y_sign
+                ))
+            } else {
+                Some(format!("g:{}:{}", sprite.parent_group, layer_key))
+            }
         } else {
             let z_key = parent_group_z_key(sprite);
             if split_by_name {
@@ -328,7 +421,18 @@ pub fn build_bg_layer_cache(
     theme_name: &str,
     bg_override_text: Option<&str>,
 ) -> Option<BgLayerCache> {
+    build_bg_layer_cache_with_root_offset(theme_name, bg_override_text, None)
+}
+
+pub fn build_bg_layer_cache_with_root_offset(
+    theme_name: &str,
+    bg_override_text: Option<&str>,
+    root_offset: Option<[f32; 3]>,
+) -> Option<BgLayerCache> {
     let theme = bg_data::get_theme(theme_name)?;
+    let root_offset = root_offset.filter(|[x, y, z]| {
+        x.abs() > f32::EPSILON || y.abs() > f32::EPSILON || z.abs() > f32::EPSILON
+    });
 
     let effective_sprites = if let Some(raw) = bg_override_text {
         let overrides = bg_data::parse_runtime_bg_overrides(raw, &theme.child_order);
@@ -339,6 +443,26 @@ pub fn build_bg_layer_cache(
         }
     } else {
         None
+    };
+    let effective_sprites = match (effective_sprites, root_offset) {
+        (Some(mut sprites), Some([dx, dy, dz])) => {
+            for sprite in &mut sprites {
+                sprite.world_x += dx;
+                sprite.world_y += dy;
+                sprite.world_z += dz;
+            }
+            Some(sprites)
+        }
+        (None, Some([dx, dy, dz])) => {
+            let mut sprites = theme.sprites.clone();
+            for sprite in &mut sprites {
+                sprite.world_x += dx;
+                sprite.world_y += dy;
+                sprite.world_z += dz;
+            }
+            Some(sprites)
+        }
+        (sprites, None) => sprites,
     };
     let sprites = effective_sprites.as_deref().unwrap_or(&theme.sprites);
 
@@ -355,6 +479,8 @@ pub fn build_bg_layer_cache(
         HashMap::new();
     let mut parent_group_z_y_extents: HashMap<(String, i32, i32), (f32, f32)> = HashMap::new();
     let mut parent_group_z_name_y_extents: HashMap<(String, i32, i32, String), (f32, f32)> =
+        HashMap::new();
+    let mut parent_group_z_scale_y_signs: HashMap<(String, i32, i32), HashSet<i8>> =
         HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
@@ -395,6 +521,10 @@ pub fn build_bg_layer_cache(
                 .or_insert((sprite.world_y, sprite.world_y));
             name_y_extents.0 = name_y_extents.0.min(sprite.world_y);
             name_y_extents.1 = name_y_extents.1.max(sprite.world_y);
+            parent_group_z_scale_y_signs
+                .entry((sprite.parent_group.clone(), layer_key, parent_group_z_key(sprite)))
+                .or_default()
+                .insert(if sprite.scale_y < 0.0 { -1 } else { 1 });
         }
     }
 
@@ -422,24 +552,27 @@ pub fn build_bg_layer_cache(
             groups.entry(group_key).or_default().push(i);
             continue;
         }
-        let (distinct_name_count, split_by_name) = if sprite.parent_group.is_empty() {
-            (0, false)
+        let (distinct_name_count, split_by_name, split_by_scale_y_sign) = if sprite.parent_group.is_empty() {
+            (0, false, false)
         } else {
             let layer_key = sprite.layer.order();
+            let z_key = parent_group_z_key(sprite);
             let distinct_name_count = parent_group_names
                 .get(&(sprite.parent_group.clone(), layer_key))
                 .map(HashSet::len)
                 .unwrap_or(0);
             let split_by_name = parent_group_z_name_counts
-                .get(&(
-                    sprite.parent_group.clone(),
-                    layer_key,
-                    parent_group_z_key(sprite),
-                ))
+                .get(&(sprite.parent_group.clone(), layer_key, z_key))
                 .map(|counts| counts.len() > 1 && counts.values().any(|count| *count > 1))
                 .unwrap_or(false);
-            (distinct_name_count, split_by_name)
+            let split_by_scale_y_sign = distinct_name_count <= 1
+                && parent_group_z_scale_y_signs
+                    .get(&(sprite.parent_group.clone(), layer_key, z_key))
+                    .map(|signs| signs.len() > 1)
+                    .unwrap_or(false);
+            (distinct_name_count, split_by_name, split_by_scale_y_sign)
         };
+        let mut use_multi_name_row_fallback = false;
         if distinct_name_count > 1 {
             let layer_key = sprite.layer.order();
             let z_key = parent_group_z_key(sprite);
@@ -460,13 +593,22 @@ pub fn build_bg_layer_cache(
                     .unwrap_or(0.0)
             };
             if y_span > MAX_MULTI_NAME_TILE_Y_SPAN {
-                continue;
+                use_multi_name_row_fallback = true;
             }
         }
-        let Some(group_key) =
-            tile_group_key(sprite, &name_lower[i], distinct_name_count, split_by_name)
-        else {
-            continue;
+        let group_key = if use_multi_name_row_fallback {
+            multi_name_row_fallback_group_key(sprite)
+        } else {
+            let Some(group_key) = tile_group_key(
+                sprite,
+                &name_lower[i],
+                distinct_name_count,
+                split_by_name,
+                split_by_scale_y_sign,
+            ) else {
+                continue;
+            };
+            group_key
         };
         groups.entry(group_key).or_default().push(i);
     }
@@ -504,23 +646,32 @@ pub fn build_bg_layer_cache(
         }
     }
 
-    // Sort sprites by worldZ descending (farthest first = back-to-front),
-    // matching Unity's Transparent queue rendering order.
-    // Fill sprites (e.g. z=9.9) have slightly lower Z than their companion
-    // hills (e.g. z=10.0), so they naturally render AFTER (on top of) the
-    // hills — covering the lower portion while hilltops remain visible.
+    let (fill_top_world_y, sort_z_overrides) = compute_fill_overrides(sprites, &name_lower);
+
+    // Sort sprites by authored layer order first, then back-to-front within
+    // each layer. Fill sprites can override sort Z inside their own layer so
+    // they draw behind their companion hills without hopping into another
+    // background container.
     let s = effective_sprites.as_deref().unwrap_or(&theme.sprites);
     let mut idx: Vec<usize> = (0..s.len()).collect();
     idx.sort_by(|a, b| {
-        s[*b]
-            .world_z
-            .partial_cmp(&s[*a].world_z)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        let a_sprite = &s[*a];
+        let b_sprite = &s[*b];
+        let a_z = sort_z_overrides.get(a).copied().unwrap_or(s[*a].world_z);
+        let b_z = sort_z_overrides.get(b).copied().unwrap_or(s[*b].world_z);
+        a_sprite
+            .layer
+            .order()
+            .cmp(&b_sprite.layer.order())
+            .then_with(|| b_z.partial_cmp(&a_z).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| a.cmp(b))
     });
 
     Some(BgLayerCache {
         tile_info,
         tile_phase,
+        fill_top_world_y,
+        sort_z_overrides,
         singleton_set,
         name_lower,
         sorted_indices: idx,
@@ -539,3 +690,37 @@ pub struct BgGpuState<'a> {
 
 /// World-size formula: pixelSize * 10 / 768
 pub(super) const WORLD_SCALE: f32 = 10.0 / 768.0;
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        forced_tile_block_width, forced_tile_phase_offset, is_maya_high_further_core_sprite,
+        tile_block_width,
+    };
+    use crate::data::bg_data::{self, BgLayer};
+
+    #[test]
+    fn maya_high_further_still_needs_forced_block_width_but_not_phase_patch() {
+        let theme = bg_data::get_theme("MayaHigh").expect("missing MayaHigh theme");
+        let sprites = &theme.sprites;
+
+        let mut sorted: Vec<usize> = sprites
+            .iter()
+            .enumerate()
+            .filter(|(_, sprite)| is_maya_high_further_core_sprite(sprite))
+            .map(|(index, _)| index)
+            .collect();
+        sorted.sort_by(|a, b| sprites[*a].world_x.total_cmp(&sprites[*b].world_x));
+
+        let group_key = format!("forced:g:BGLayerFurther:{}:core77", BgLayer::Further.order());
+        let generic = tile_block_width(&sorted, sprites).expect("missing generic block width");
+        let forced = forced_tile_block_width("MayaHigh", &group_key, &sorted, sprites)
+            .expect("missing forced block width");
+
+        assert!((generic - forced).abs() > 1.0, "generic={generic}, forced={forced}");
+        assert_eq!(
+            forced_tile_phase_offset("MayaHigh", &group_key, &sorted, sprites, forced),
+            None
+        );
+    }
+}

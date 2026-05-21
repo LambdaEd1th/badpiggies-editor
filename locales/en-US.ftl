@@ -27,6 +27,7 @@ menu_grid = Grid
 menu_physics_ground = Physics Ground
 menu_level_bounds = Level Bounds
 menu_dark_overlay = Dark Overlay
+menu_night_vision_overlay = Night Vision Overlay
 menu_terrain_tris = Terrain Triangles
 menu_language = Language
 menu_help = Help

@@ -47,154 +47,6 @@ pub(super) struct CloudSpriteInfo {
     pub scale_y: f32,
 }
 
-struct LegacyCloudConfig {
-    name: &'static str,
-    max_clouds: usize,
-    velocity: f32,
-    limits: f32,
-    height: f32,
-    far_plane: f32,
-    sprites: &'static [LegacyCloudSpriteInfo],
-}
-
-struct LegacyCloudSpriteInfo {
-    name: &'static str,
-    atlas: &'static str,
-    scale_x: f32,
-    scale_y: f32,
-}
-
-const LEGACY_CLOUD_CONFIGS: &[LegacyCloudConfig] = &[
-    LegacyCloudConfig {
-        name: "CloudPlateauSet",
-        max_clouds: 8,
-        velocity: 0.2,
-        limits: 93.24,
-        height: 5.0,
-        far_plane: 1.0,
-        sprites: &[
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_01_SET_0",
-                atlas: "Background_Plateaus_Sheet_01.png",
-                scale_x: 3.0,
-                scale_y: 3.0,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_02_SET_0",
-                atlas: "Background_Plateaus_Sheet_01.png",
-                scale_x: 3.0,
-                scale_y: 3.0,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_03_SET_0",
-                atlas: "Background_Plateaus_Sheet_01.png",
-                scale_x: 3.0,
-                scale_y: 3.0,
-            },
-        ],
-    },
-    LegacyCloudConfig {
-        name: "CloudJungleSet",
-        max_clouds: 8,
-        velocity: 0.2,
-        limits: 93.24,
-        height: 10.0,
-        far_plane: 1.0,
-        sprites: &[
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_01_SET",
-                atlas: "Background_Jungle_Sheet_01.png",
-                scale_x: 0.87,
-                scale_y: 0.6525,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_02_SET",
-                atlas: "Background_Jungle_Sheet_01.png",
-                scale_x: 1.0875,
-                scale_y: 0.87,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_03_SET",
-                atlas: "Background_Jungle_Sheet_01.png",
-                scale_x: 1.0,
-                scale_y: 0.8,
-            },
-        ],
-    },
-    LegacyCloudConfig {
-        name: "CloudNightSet",
-        max_clouds: 5,
-        velocity: 0.2,
-        limits: 40.0,
-        height: 2.5,
-        far_plane: 1.0,
-        sprites: &[
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_01_SET_1",
-                atlas: "Background_Night_Sheet_01.png",
-                scale_x: 2.0,
-                scale_y: 2.0,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_02_SET_1",
-                atlas: "Background_Night_Sheet_01.png",
-                scale_x: 2.0,
-                scale_y: 2.0,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_03_SET_1",
-                atlas: "Background_Night_Sheet_01.png",
-                scale_x: 2.0,
-                scale_y: 2.0,
-            },
-        ],
-    },
-    LegacyCloudConfig {
-        name: "CloudHalloweenSet",
-        max_clouds: 5,
-        velocity: 0.5,
-        limits: 93.0,
-        height: 4.0,
-        far_plane: 1.0,
-        sprites: &[
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_01_SET_2",
-                atlas: "Background_Halloween_Sheet_01.png",
-                scale_x: 1.5,
-                scale_y: 1.5,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_02_SET_2",
-                atlas: "Background_Halloween_Sheet_01.png",
-                scale_x: 1.2,
-                scale_y: 1.2,
-            },
-        ],
-    },
-    LegacyCloudConfig {
-        name: "CloudLPASet",
-        max_clouds: 10,
-        velocity: 0.1,
-        limits: 250.0,
-        height: 0.84,
-        far_plane: 1.0,
-        sprites: &[
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_02_SET_3",
-                atlas: "Background_Maya_Sheet_02.png",
-                scale_x: 1.0,
-                scale_y: 1.0,
-            },
-            LegacyCloudSpriteInfo {
-                name: "Background_Cloud_03_SET_2",
-                atlas: "Background_Maya_Sheet_02.png",
-                scale_x: 1.0,
-                scale_y: 1.0,
-            },
-        ],
-    },
-];
-
 #[derive(Clone)]
 struct ParsedCloudSpritePrefab {
     name: String,
@@ -205,57 +57,23 @@ struct ParsedCloudSpritePrefab {
 
 pub(super) fn cloud_config(name: &str) -> Option<&'static CloudConfig> {
     static PREFAB_CLOUD_CONFIGS: OnceLock<HashMap<String, CloudConfig>> = OnceLock::new();
-    static FALLBACK_CLOUD_CONFIGS: OnceLock<HashMap<String, CloudConfig>> = OnceLock::new();
 
-    PREFAB_CLOUD_CONFIGS
-        .get_or_init(load_cloud_configs_from_prefabs)
-        .get(name)
-        .or_else(|| {
-            FALLBACK_CLOUD_CONFIGS
-                .get_or_init(build_legacy_cloud_config_map)
-                .get(name)
-        })
-}
-
-fn build_legacy_cloud_config_map() -> HashMap<String, CloudConfig> {
-    LEGACY_CLOUD_CONFIGS
-        .iter()
-        .map(|config| {
-            (
-                config.name.to_string(),
-                CloudConfig {
-                    max_clouds: config.max_clouds,
-                    velocity: config.velocity,
-                    limits: config.limits,
-                    height: config.height,
-                    far_plane: config.far_plane,
-                    sprites: config
-                        .sprites
-                        .iter()
-                        .map(|sprite| CloudSpriteInfo {
-                            name: sprite.name.to_string(),
-                            atlas: sprite.atlas.to_string(),
-                            scale_x: sprite.scale_x,
-                            scale_y: sprite.scale_y,
-                        })
-                        .collect(),
-                },
-            )
-        })
-        .collect()
+    PREFAB_CLOUD_CONFIGS.get_or_init(load_cloud_configs_from_prefabs).get(name)
 }
 
 fn load_cloud_configs_from_prefabs() -> HashMap<String, CloudConfig> {
     let cloud_sprite_prefabs = load_cloud_sprite_prefabs();
     let mut configs = HashMap::new();
 
-    for prefab_path in assets::list_asset_paths("Prefab/", ".prefab") {
-        if !is_cloud_set_prefab_path(&prefab_path) {
+    for prefab_path in assets::list_pathnames("Assets/Prefab/", ".prefab") {
+        let filename = prefab_path
+            .strip_prefix("Assets/Prefab/")
+            .unwrap_or(prefab_path.as_str());
+        if !is_cloud_set_prefab_path(filename) {
             continue;
         }
 
-        let Some(prefab_text) = assets::read_asset_text(&format!("unity/prefabs/{prefab_path}"))
-        else {
+        let Some(prefab_text) = assets::read_pathname_text(&prefab_path) else {
             continue;
         };
 
@@ -270,18 +88,21 @@ fn load_cloud_configs_from_prefabs() -> HashMap<String, CloudConfig> {
 fn load_cloud_sprite_prefabs() -> HashMap<String, ParsedCloudSpritePrefab> {
     let mut prefabs = HashMap::new();
 
-    for prefab_path in assets::list_asset_paths("Prefab/", ".prefab") {
-        if !is_cloud_sprite_prefab_path(&prefab_path) {
+    for prefab_path in assets::list_pathnames("Assets/Prefab/", ".prefab") {
+        let filename = prefab_path
+            .strip_prefix("Assets/Prefab/")
+            .unwrap_or(prefab_path.as_str());
+        if !is_cloud_sprite_prefab_path(filename) {
             continue;
         }
 
-        let Some(prefab_text) = assets::read_asset_text(&format!("unity/prefabs/{prefab_path}"))
+        let Some(prefab_text) = assets::read_pathname_text(&prefab_path)
         else {
             continue;
         };
 
         if let Some((root_transform_id, prefab)) =
-            parse_cloud_sprite_prefab(&prefab_path, &prefab_text)
+            parse_cloud_sprite_prefab(filename, &prefab_text)
         {
             prefabs.insert(root_transform_id, prefab);
         }
@@ -495,6 +316,55 @@ pub(super) fn update_cloud_positions(clouds: &mut [CloudInstance], dt: f32) {
     }
 }
 
+pub(super) fn draw_cloud_index(
+    clouds: &[CloudInstance],
+    cloud_index: usize,
+    camera: &Camera,
+    painter: &egui::Painter,
+    canvas_center: egui::Vec2,
+    rect: egui::Rect,
+    tex_cache: &assets::TextureCache,
+) {
+    let Some(cloud) = clouds.get(cloud_index) else {
+        return;
+    };
+    let Some(info) = crate::data::sprite_db::get_sprite_info(&cloud.sprite_name) else {
+        return;
+    };
+
+    let hw = info.world_w * cloud.scale_x;
+    let hh = info.world_h * cloud.scale_y;
+    let center = camera.world_to_screen(
+        Vec2 {
+            x: cloud.x + camera.center.x,
+            y: cloud.y,
+        },
+        canvas_center,
+    );
+    let sw = hw * 2.0 * camera.zoom;
+    let sh = hh * 2.0 * camera.zoom;
+    if center.x + sw < rect.left() - 50.0
+        || center.x - sw > rect.right() + 50.0
+        || center.y + sh < rect.top() - 50.0
+        || center.y - sh > rect.bottom() + 50.0
+    {
+        return;
+    }
+
+    let draw_rect = egui::Rect::from_center_size(center, egui::vec2(sw, sh));
+    if let Some(tex_id) = tex_cache.get(&cloud.atlas) {
+        let uv_rect = egui::Rect::from_min_max(
+            egui::pos2(info.uv.x, 1.0 - info.uv.y - info.uv.h),
+            egui::pos2(info.uv.x + info.uv.w, 1.0 - info.uv.y),
+        );
+        let alpha = (cloud.opacity * 255.0) as u8;
+        let tint = egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
+        let mut mesh = egui::Mesh::with_texture(tex_id);
+        mesh.add_rect_with_uv(draw_rect, uv_rect, tint);
+        painter.add(egui::Shape::mesh(mesh));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::cloud_config;
@@ -514,6 +384,19 @@ mod tests {
     }
 
     #[test]
+    fn all_runtime_cloud_sets_load_from_prefabs() {
+        for name in [
+            "CloudPlateauSet",
+            "CloudJungleSet",
+            "CloudNightSet",
+            "CloudHalloweenSet",
+            "CloudLPASet",
+        ] {
+            assert!(cloud_config(name).is_some(), "missing {name} config");
+        }
+    }
+
+    #[test]
     fn cloud_lpa_set_resolves_sprite_prefabs_by_file_id() {
         let config = cloud_config("CloudLPASet").expect("missing CloudLPASet config");
         assert_eq!(config.sprites.len(), 2);
@@ -524,62 +407,3 @@ mod tests {
     }
 }
 
-/// Update cloud positions and draw them sorted by Z (farthest first).
-pub(super) fn update_and_draw_clouds(
-    clouds: &mut [CloudInstance],
-    dt: f32,
-    camera: &Camera,
-    painter: &egui::Painter,
-    canvas_center: egui::Vec2,
-    rect: egui::Rect,
-    tex_cache: &assets::TextureCache,
-) {
-    let mut cloud_order: Vec<usize> = (0..clouds.len()).collect();
-    cloud_order.sort_by(|&a, &b| {
-        clouds[b]
-            .z
-            .partial_cmp(&clouds[a].z)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-    for ci in cloud_order {
-        let cloud = &mut clouds[ci];
-        cloud.x += cloud.velocity * dt;
-        if cloud.x > cloud.center_x + cloud.limits {
-            cloud.x = cloud.center_x - cloud.limits;
-        } else if cloud.x < cloud.center_x - cloud.limits {
-            cloud.x = cloud.center_x + cloud.limits;
-        }
-        if let Some(info) = crate::data::sprite_db::get_sprite_info(&cloud.sprite_name) {
-            let hw = info.world_w * cloud.scale_x;
-            let hh = info.world_h * cloud.scale_y;
-            let center = camera.world_to_screen(
-                Vec2 {
-                    x: cloud.x + camera.center.x,
-                    y: cloud.y,
-                },
-                canvas_center,
-            );
-            let sw = hw * 2.0 * camera.zoom;
-            let sh = hh * 2.0 * camera.zoom;
-            if center.x + sw < rect.left() - 50.0
-                || center.x - sw > rect.right() + 50.0
-                || center.y + sh < rect.top() - 50.0
-                || center.y - sh > rect.bottom() + 50.0
-            {
-                continue;
-            }
-            let draw_rect = egui::Rect::from_center_size(center, egui::vec2(sw, sh));
-            if let Some(tex_id) = tex_cache.get(&cloud.atlas) {
-                let uv_rect = egui::Rect::from_min_max(
-                    egui::pos2(info.uv.x, 1.0 - info.uv.y - info.uv.h),
-                    egui::pos2(info.uv.x + info.uv.w, 1.0 - info.uv.y),
-                );
-                let alpha = (cloud.opacity * 255.0) as u8;
-                let tint = egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
-                let mut mesh = egui::Mesh::with_texture(tex_id);
-                mesh.add_rect_with_uv(draw_rect, uv_rect, tint);
-                painter.add(egui::Shape::mesh(mesh));
-            }
-        }
-    }
-}

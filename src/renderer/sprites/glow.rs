@@ -35,6 +35,7 @@ struct GlowRenderState {
     uv: UvRect,
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn has_glow(name: &str) -> bool {
     glow_sprite_config(name).is_some()
 }
@@ -182,8 +183,8 @@ fn glow_sprite_config(prefab_name: &str) -> Option<GlowSpriteConfig> {
 }
 
 fn load_glow_sprite_config(prefab_name: &str) -> Option<GlowSpriteConfig> {
-    let asset_path = format!("unity/prefabs/{prefab_name}.prefab");
-    let text = assets::read_asset_text(&asset_path)?;
+    let asset_path = format!("Assets/Prefab/{prefab_name}.prefab");
+    let text = assets::read_pathname_text(&asset_path)?;
     let prefab = PrefabAssetDocument::parse(&text)?;
     let world_scale = prefab.cumulative_scale_by_game_object_name("Glow")?;
     let sprite = prefab.component_by_game_object_name("Glow", "UnmanagedSprite")?;
@@ -261,11 +262,11 @@ fn unmanaged_sprite_pixel_size(sprite: &PrefabAssetComponent) -> Option<[f32; 2]
 }
 
 fn glow_rotation_angle(time: f64) -> f32 {
-    if let Some(clip) = unity_anim::rotating_glow_clip() {
-        return glow_rotation_angle_from_clip(clip, time);
-    }
-
-    (time * std::f64::consts::PI / 10.0) as f32
+    glow_rotation_angle_from_clip(
+        unity_anim::rotating_glow_clip()
+            .expect("RotatingGlow.anim should load from embedded assets"),
+        time,
+    )
 }
 
 fn glow_rotation_angle_from_clip(clip: &unity_anim::UnityAnimationClip, time: f64) -> f32 {
@@ -286,7 +287,7 @@ fn glow_rotation_angle_from_clip(clip: &unity_anim::UnityAnimationClip, time: f6
         return background::hermite(euler_z, sample_time).to_radians();
     }
 
-    (time * std::f64::consts::PI / 10.0) as f32
+    panic!("RotatingGlow.anim must include quaternion or Euler Z rotation curves");
 }
 
 fn quaternion_z_angle(x: f32, y: f32, z: f32, w: f32) -> f32 {
@@ -320,6 +321,8 @@ mod tests {
             is_terrain: false,
             atlas: None,
             uv: None,
+            opaque_tint_color: [1.0, 1.0, 1.0, 1.0],
+            is_alpha_blend: false,
             is_hidden: false,
             parent: None,
             override_text: None,

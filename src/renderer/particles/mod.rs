@@ -16,10 +16,8 @@ mod wind;
 mod zzz;
 
 pub(crate) use attached::{
-    AttachedEffectEmitter, AttachedEffectKind, AttachedEffectParticle,
-    attached_effect_draw_texture_names,
-    attached_effect_kind_for_sprite_name, attached_effect_systems,
-    draw_attached_effect_particles,
+    AttachedEffectEmitter, AttachedEffectParticle, attached_effect_kind_for_sprite_name,
+    attached_effect_systems, draw_attached_effect_particles,
 };
 pub(crate) use fan::{
     FanEmitter, FanParticle, FanState, draw_fan_particles, fan_particle_texture_name,
@@ -38,9 +36,7 @@ pub(crate) fn pseudo_random(seed: u32) -> f32 {
     ((n >> 16) & 0x7fff) as f32 / 32768.0
 }
 
-const FAN_PREFAB_ASSET: &str = "unity/prefabs/Fan.prefab";
-const FALLBACK_FAN_FIELD_SIZE: [f32; 3] = [3.81, 9.650253, 0.0];
-const FALLBACK_FAN_FIELD_CENTER: [f32; 3] = [-7.271767e-06, 4.825125, 0.0];
+const FAN_PREFAB_ASSET: &str = "Assets/Prefab/Fan.prefab";
 
 #[derive(Clone, Copy)]
 pub(super) struct FanFieldDefaults {
@@ -57,8 +53,6 @@ struct FanFieldProfile {
     horizontal_ramp: Vec<HermiteKey>,
     spinup_ramp: Vec<HermiteKey>,
 }
-
-const FAN_RAMP_FALLBACK: &[HermiteKey] = &[(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 2.0, 2.0)];
 
 fn fan_field_profile() -> &'static FanFieldProfile {
     static PROFILE: OnceLock<FanFieldProfile> = OnceLock::new();
@@ -88,56 +82,40 @@ pub(crate) fn fan_propeller_visual_angle(fan_angle: Option<f32>) -> f32 {
     fan_angle.unwrap_or(0.0)
 }
 
+pub(crate) fn fan_propeller_foreshorten(fan_angle: Option<f32>) -> f32 {
+    fan_propeller_visual_angle(fan_angle).cos().abs()
+}
+
 pub(super) fn fan_spinup_profile_weight(time: f32) -> f32 {
     sample_hermite(&fan_field_profile().spinup_ramp, time.clamp(0.0, 1.0))
 }
 
 fn load_fan_field_profile() -> FanFieldProfile {
-    let fallback_defaults = fallback_fan_field_defaults();
-    let mut vertical_ramp = FAN_RAMP_FALLBACK.to_vec();
-    let mut horizontal_ramp = FAN_RAMP_FALLBACK.to_vec();
-    let mut spinup_ramp = FAN_RAMP_FALLBACK.to_vec();
-    let Some(text) = assets::read_asset_text(FAN_PREFAB_ASSET) else {
-        return FanFieldProfile {
-            defaults: fallback_defaults,
-            vertical_ramp,
-            horizontal_ramp,
-            spinup_ramp,
-        };
-    };
-    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
-        return FanFieldProfile {
-            defaults: fallback_defaults,
-            vertical_ramp,
-            horizontal_ramp,
-            spinup_ramp,
-        };
-    };
-    let Some(collider) = prefab.root_component("BoxCollider") else {
-        return FanFieldProfile {
-            defaults: fallback_defaults,
-            vertical_ramp,
-            horizontal_ramp,
-            spinup_ramp,
-        };
-    };
-
-    let size = collider.field_vec3("m_Size").unwrap_or(FALLBACK_FAN_FIELD_SIZE);
+    let text = assets::read_pathname_text(FAN_PREFAB_ASSET)
+        .expect("Fan.prefab should load from embedded assets");
+    let prefab =
+        PrefabAssetDocument::parse(&text).expect("Fan.prefab should parse from embedded assets");
+    let collider = prefab
+        .root_component("BoxCollider")
+        .expect("Fan.prefab must include a root BoxCollider");
+    let size = collider
+        .field_vec3("m_Size")
+        .expect("Fan.prefab BoxCollider must include m_Size");
     let center = collider
         .field_vec3("m_Center")
-        .unwrap_or(FALLBACK_FAN_FIELD_CENTER);
-
-    if let Some(fan) = prefab.root_component("Fan") {
-        if let Some(curve) = fan.field_curve("verticalRamp") {
-            vertical_ramp = curve;
-        }
-        if let Some(curve) = fan.field_curve("horizontalRamp") {
-            horizontal_ramp = curve;
-        }
-        if let Some(curve) = fan.field_curve("spinupRamp") {
-            spinup_ramp = curve;
-        }
-    }
+        .expect("Fan.prefab BoxCollider must include m_Center");
+    let fan = prefab
+        .root_component("Fan")
+        .expect("Fan.prefab must include a root Fan component");
+    let vertical_ramp = fan
+        .field_curve("verticalRamp")
+        .expect("Fan.prefab Fan component must include verticalRamp");
+    let horizontal_ramp = fan
+        .field_curve("horizontalRamp")
+        .expect("Fan.prefab Fan component must include horizontalRamp");
+    let spinup_ramp = fan
+        .field_curve("spinupRamp")
+        .expect("Fan.prefab Fan component must include spinupRamp");
 
     FanFieldProfile {
         defaults: FanFieldDefaults {
@@ -149,15 +127,6 @@ fn load_fan_field_profile() -> FanFieldProfile {
         vertical_ramp,
         horizontal_ramp,
         spinup_ramp,
-    }
-}
-
-fn fallback_fan_field_defaults() -> FanFieldDefaults {
-    FanFieldDefaults {
-        half_w: FALLBACK_FAN_FIELD_SIZE[0] * 0.5,
-        half_h: FALLBACK_FAN_FIELD_SIZE[1] * 0.5,
-        center_x: FALLBACK_FAN_FIELD_CENTER[0],
-        center_y: FALLBACK_FAN_FIELD_CENTER[1],
     }
 }
 
@@ -281,8 +250,8 @@ impl LevelRenderer {
 #[cfg(test)]
 mod tests {
     use super::{
-        fan_field_defaults, fan_field_profile_weight, fan_propeller_visual_angle,
-        fan_spinup_profile_weight, particle_sheet_uv_rect,
+        fan_field_defaults, fan_field_profile_weight, fan_propeller_foreshorten,
+        fan_propeller_visual_angle, fan_spinup_profile_weight, particle_sheet_uv_rect,
     };
 
     #[test]
@@ -316,6 +285,13 @@ mod tests {
     fn fan_propeller_visual_angle_defaults_to_idle_pose_without_runtime_state() {
         assert_eq!(fan_propeller_visual_angle(None), 0.0);
         assert_eq!(fan_propeller_visual_angle(Some(1.25)), 1.25);
+    }
+
+    #[test]
+    fn fan_propeller_foreshorten_matches_exact_y_axis_projection() {
+        assert_eq!(fan_propeller_foreshorten(None), 1.0);
+        assert!(fan_propeller_foreshorten(Some(std::f32::consts::FRAC_PI_2)) < 1e-6);
+        assert!((fan_propeller_foreshorten(Some(std::f32::consts::PI)) - 1.0).abs() < 1e-6);
     }
 
     #[test]

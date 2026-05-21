@@ -43,7 +43,7 @@ pub(super) struct ParsedPrefab {
 }
 
 pub(super) fn read_embedded_text(path: &str) -> Option<String> {
-    let bytes = assets::read_asset(path)?;
+    let bytes = assets::read_pathname(path)?;
     Some(String::from_utf8_lossy(bytes.as_ref()).into_owned())
 }
 

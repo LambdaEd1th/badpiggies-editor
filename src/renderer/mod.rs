@@ -2,6 +2,7 @@
 
 pub mod background;
 pub mod bg_shader;
+pub mod dark_mask_shader;
 mod clouds;
 mod compound_data;
 mod compound_overrides;
@@ -204,6 +205,8 @@ pub struct LevelRenderer {
     dark_level: bool,
     /// Whether to show the dark overlay (togglable in UI).
     pub show_dark_overlay: bool,
+    /// Whether to draw the night-vision dark-overlay variant.
+    night_vision_enabled: bool,
     /// Parsed camera limits from LevelManager (topLeft + size).
     pub camera_limits: Option<[f32; 4]>,
     /// Whether to show the level bounds border.
@@ -226,8 +229,8 @@ pub struct LevelRenderer {
     zzz_particles: Vec<ZzzParticle>,
     /// Per-bird Zzz emit accumulator.
     zzz_emit_accum: Vec<f32>,
-    /// Bird positions for Zzz spawning.
-    bird_positions: Vec<Vec2>,
+    /// Bird positions for Zzz spawning, including world Z for transparent sorting.
+    bird_positions: Vec<Vec3>,
     /// Attached particle emitters for rocket, turbo, and magnet effects.
     attached_effect_emitters: Vec<particles::AttachedEffectEmitter>,
     /// Active attached-effect particles.
@@ -266,12 +269,16 @@ pub struct LevelRenderer {
     sprite_slot_counter: u32,
     /// Shared wgpu terrain fill shader pipeline + resources.
     fill_resources: Option<Arc<fill_shader::FillResources>>,
+    /// Shared wgpu dark mask shader pipeline + resources.
+    dark_mask_resources: Option<Arc<dark_mask_shader::DarkMaskResources>>,
     /// Cached GPU fill textures (loaded lazily per ground texture).
     fill_texture_cache: fill_shader::FillTextureCache,
     /// Pre-built GPU vertex/index buffers for terrain fill meshes.
     fill_gpu_meshes: Vec<Option<Arc<fill_shader::FillGpuMesh>>>,
     /// Per-frame fill shader draw slot counter.
     fill_slot_counter: u32,
+    /// Per-frame dark mask shader draw slot counter.
+    dark_mask_slot_counter: u32,
     /// Index of the terrain node currently hovered by the mouse: (object, node_index).
     /// Currently hovered terrain node (object_index, node_index).
     pub hovered_terrain_node: Option<(ObjectIndex, usize)>,
@@ -285,10 +292,16 @@ pub struct LevelRenderer {
     pub clicked_empty: bool,
     /// Cached dark overlay mesh (layer 1: dark complement).
     dark_overlay_mesh: Option<egui::Mesh>,
+    /// GPU-uploaded dark overlay complement mesh.
+    dark_overlay_mesh_gpu: Option<Arc<dark_mask_shader::DarkMaskGpuMesh>>,
     /// Cached dark overlay light fill mesh (layer 2: faintly darkened lit area).
     dark_overlay_light: Option<egui::Mesh>,
+    /// GPU-uploaded dark overlay light fill mesh.
+    dark_overlay_light_gpu: Option<Arc<dark_mask_shader::DarkMaskGpuMesh>>,
     /// Cached dark overlay border ring mesh (layer 3).
     dark_overlay_ring: Option<egui::Mesh>,
+    /// GPU-uploaded dark overlay border mesh.
+    dark_overlay_ring_gpu: Option<Arc<dark_mask_shader::DarkMaskGpuMesh>>,
     /// Camera/viewport state when dark overlay was last built.
     dark_overlay_key: DarkOverlayKey,
     /// Most recent camera/viewport state seen by the dark overlay draw path.

@@ -27,11 +27,14 @@ const MAX_DRAW_SLOTS: u32 = 2048;
 
 const WGSL_SOURCE: &str = r#"
 // Port of Unity _Custom/Unlit_ColorTransparent_Geometry + Gray + Shiny variants
-// mode 0 (normal):  return tex2D(_MainTex, uv) * _Color
-// mode 1 (gray):    lum = dot(tex.rgb, vec3(0.2989, 0.587, 0.114));
-//                   return vec4(lum,lum,lum,tex.a) * _Color
-// mode 2 (shiny):   shine = 1 - abs((screen_x - _Center) * _Scale);
-//                   return tex + clamp(shine,0,1) * _Color * tex.a
+// mode 0 (normal):       return tex2D(_MainTex, uv) * _Color
+// mode 1 (gray):         lum = dot(tex.rgb, vec3(0.2989, 0.587, 0.114));
+//                        return vec4(lum,lum,lum,tex.a) * _Color
+// mode 2 (shiny):        shine = 1 - abs((screen_x - _Center) * _Scale);
+//                        return tex + clamp(shine,0,1) * _Color * tex.a
+// mode 3 (prealpha):     same as normal, but sampled RGB is already premultiplied
+//                        in the source atlas, so the fragment must not multiply
+//                        RGB by alpha a second time before blending.
 //
 // Blend SrcAlpha OneMinusSrcAlpha, ZWrite Off, Cull Off
 
@@ -44,7 +47,7 @@ struct Uniforms {
     half_size: vec2<f32>,         // 32..40    half-extents in world units
     uv_min: vec2<f32>,            // 40..48
     uv_max: vec2<f32>,            // 48..56
-    mode: f32,                    // 56..60    0=normal, 1=gray, 2=shiny
+    mode: f32,                    // 56..60    0=normal, 1=gray, 2=shiny, 3=prealpha normal
     shine_center: f32,            // 60..64    screen-space X for shiny sweep
     tint_color: vec4<f32>,        // 64..80
 };
@@ -96,13 +99,18 @@ fn vs_main(in: VIn) -> VOut {
 fn fs_main(in: VOut) -> @location(0) vec4<f32> {
     let tex = textureSample(main_tex, main_sampler, in.uv);
     var c: vec4<f32>;
+    let prealpha = u.mode > 2.5;
+    var render_mode = u.mode;
+    if (prealpha) {
+        render_mode = u.mode - 3.0;
+    }
 
-    if (u.mode > 1.5) {
+    if (render_mode > 1.5) {
         // Shiny: tex + clamp(shine, 0, 1) * tint_color * tex.a
         // Unity: _Scale default = 10.0
         let shine = 1.0 - abs((in.screen_x - u.shine_center) * 10.0);
         c = tex + clamp(shine, 0.0, 1.0) * u.tint_color * tex.a;
-    } else if (u.mode > 0.5) {
+    } else if (render_mode > 0.5) {
         // Gray: luminance desaturation then tint
         let lum = 0.2989 * tex.r + 0.587 * tex.g + 0.114 * tex.b;
         c = vec4<f32>(lum, lum, lum, tex.a) * u.tint_color;
@@ -111,10 +119,14 @@ fn fs_main(in: VOut) -> @location(0) vec4<f32> {
         c = tex * u.tint_color;
     }
 
-    // Discard fully transparent pixels to avoid Z artifacts
-    if (c.a < 0.004) { discard; }
-
-    // Premultiply for egui compositor (egui uses premultiplied alpha blending)
+    // Strict 1:1 with Unity: no discard. Unity uses
+    //   Blend SrcAlpha OneMinusSrcAlpha → pixels with alpha=0 contribute nothing.
+    // egui compositor is premultiplied, so straight-alpha inputs must multiply
+    // RGB by alpha here. PreAlpha atlases already store premultiplied RGB and
+    // must pass through unchanged to avoid dimming twice.
+    if (prealpha) {
+        return vec4<f32>(c.rgb, c.a);
+    }
     return vec4<f32>(c.rgb * c.a, c.a);
 }
 "#;
@@ -132,12 +144,14 @@ pub struct SpriteUniforms {
     pub half_size: [f32; 2],
     pub uv_min: [f32; 2],
     pub uv_max: [f32; 2],
-    /// 0.0 = normal, 1.0 = gray (luminance), 2.0 = shiny (screen-space sweep)
+    /// 0.0 = normal, 1.0 = gray, 2.0 = shiny, 3.0 = prealpha normal
     pub mode: f32,
     /// Screen-space X center for shiny sweep (only used when mode == 2.0)
     pub shine_center: f32,
     pub tint_color: [f32; 4],
 }
+
+pub const MODE_PREALPHA_NORMAL: f32 = 3.0;
 
 // ── Shared pipeline resources ──
 
@@ -428,9 +442,10 @@ fn load_sprite_atlas(
     resources: &SpriteResources,
     filename: &str,
 ) -> Option<SpriteAtlasGpu> {
-    let path = format!("sprites/{}", filename);
-    let data = crate::data::assets::read_asset(&path)
-        .or_else(|| crate::data::assets::read_asset(&format!("props/{}", filename)))?;
+    let path = format!("Assets/Texture2D/{}", filename);
+    let data = crate::data::assets::read_pathname(&path)
+        .or_else(|| crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", filename)))
+        .or_else(|| crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", filename)))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
     let pixels = img.into_raw();

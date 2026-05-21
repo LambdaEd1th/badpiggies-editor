@@ -1,8 +1,11 @@
-//! wgpu + WGSL opaque sprite shader — exact port of Unity `_Custom/Unlit_Color_Geometry`.
+//! wgpu + WGSL opaque sprite shader — exact port of Unity `Unlit/Transparent Cutout`.
 //!
-//! Renders textured quads matching Unity's Blend Off behavior.
-//! Used for `Props_Generic_Sheet_01.png` sprites (CartoonFrameSprite) which use
-//! this shader in the original game: `frag: return tex2D(_MainTex, uv) * _Color`.
+//! Renders textured quads matching Unity's alpha-test cutout behavior used by
+//! `Props_Generic_Sheet_01.png` sprites (`GenericProps.mat` uses Unity builtin
+//! `Unlit/Transparent Cutout` with `_Cutoff = 0.5`).
+//!
+//! Original Unity fragment (conceptually):
+//!   `clip(tex.a - _Cutoff); return tex * _Color;`  (Blend Off, ZWrite On)
 
 use std::sync::Arc;
 
@@ -14,9 +17,9 @@ use crate::data::sprite_db::UvRect;
 // ── WGSL shader source — exact port of Unity _Custom/Unlit_Color_Geometry ──
 
 const WGSL_SOURCE: &str = r#"
-// Unity _Custom/Unlit_Color_Geometry — Properties { _MainTex, _Color }
-// Original: return tex2D(_MainTex, i.texcoord) * _Color;
-// Blend Off, ZWrite Off, Cull Off
+// Unity Unlit/Transparent Cutout — Properties { _MainTex, _Color (unused), _Cutoff = 0.5 }
+// Fragment: clip(tex.a - _Cutoff); return tex * _Color;
+// Blend Off, ZWrite On, Cull Back (we use Cull Off — editor 2D).
 
 struct Uniforms {
     screen_size: vec2<f32>,
@@ -57,16 +60,15 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Exact Unity shader: return tex2D(_MainTex, i.texcoord) * _Color;
+    // Exact Unity Unlit/Transparent Cutout fragment:
+    //   clip(tex.a * _Color.a - _Cutoff)   with _Cutoff = 0.5
+    //   return tex * _Color
+    // Blend Off → kept pixels are fully opaque in the framebuffer.
     let c = textureSample(main_tex, main_sampler, in.uv) * u.tint_color;
-
-    // Editor adaptation: Unity uses Blend Off with shaped meshes (no transparent
-    // pixels drawn). The editor uses full quads, so we discard transparent pixels
-    // and premultiply for egui's compositing pipeline.
-    if (c.a < 0.004) { discard; }
-    // Interior pixels (alpha >= ~200/255) → fully opaque, matching Blend Off
-    let a = select(c.a, 1.0, c.a >= 0.784);
-    return vec4<f32>(c.rgb * a, a);
+    if (c.a < 0.5) { discard; }
+    // Force alpha = 1 to match Unity's Blend Off (opaque) behavior in egui's
+    // premultiplied compositor; kept pixels have already passed the 0.5 alpha test.
+    return vec4<f32>(c.rgb, 1.0);
 }
 "#;
 
@@ -237,8 +239,8 @@ pub struct OpaqueAtlas {
 
 /// Load and upload the Props_Generic_Sheet_01 atlas as a raw wgpu texture.
 pub fn load_props_atlas(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<OpaqueAtlas> {
-    let data = crate::data::assets::read_asset("sprites/Props_Generic_Sheet_01.png")
-        .or_else(|| crate::data::assets::read_asset("props/Props_Generic_Sheet_01.png"))?;
+    let data = crate::data::assets::read_pathname("Assets/Texture2D/Props_Generic_Sheet_01.png")
+        .or_else(|| crate::data::assets::read_pathname("Assets/Texture2D/Props_Generic_Sheet_01.png"))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let width = img.width();
     let height = img.height();
@@ -484,6 +486,7 @@ pub struct OpaqueBatchDraw {
     pub cam_x: f32,
     pub cam_y: f32,
     pub y_offset: f32,
+    pub tint_color: [f32; 4],
 }
 
 struct OpaqueBatchPaintCallback {
@@ -492,7 +495,6 @@ struct OpaqueBatchPaintCallback {
     screen_w: f32,
     screen_h: f32,
     zoom: f32,
-    tint_color: [f32; 4],
     draws: Vec<OpaqueBatchDraw>,
 }
 
@@ -513,7 +515,7 @@ impl egui_wgpu::CallbackTrait for OpaqueBatchPaintCallback {
                 y_offset: draw.y_offset,
                 _pad0: 0.0,
                 _pad1: 0.0,
-                tint_color: self.tint_color,
+                tint_color: draw.tint_color,
             };
             let sprite = &self.batch.sprites[draw.sprite_index as usize];
             queue.write_buffer(&sprite.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
@@ -553,7 +555,6 @@ pub struct OpaqueBatchParams {
     pub screen_w: f32,
     pub screen_h: f32,
     pub zoom: f32,
-    pub tint_color: [f32; 4],
 }
 
 pub fn make_opaque_batch_callback(
@@ -569,7 +570,6 @@ pub fn make_opaque_batch_callback(
         screen_w: params.screen_w,
         screen_h: params.screen_h,
         zoom: params.zoom,
-        tint_color: params.tint_color,
         draws,
     };
     egui::Shape::Callback(egui_wgpu::Callback::new_paint_callback(clip_rect, cb))

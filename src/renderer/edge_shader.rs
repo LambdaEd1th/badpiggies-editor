@@ -1,4 +1,4 @@
-//! wgpu + WGSL terrain edge shader — port of Unity e2d/Curve shader.
+//! wgpu + WGSL terrain edge shader — Unity e2d/Curve-aligned shader path.
 //!
 //! Two splat textures blended via a per-node control texture.
 //! Works on Metal (macOS), Vulkan (Linux/Windows), DX12, and WebGPU (WASM).
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
-// ── WGSL shader source — exact port of Unity e2d/Curve ──
+// ── WGSL shader source — Unity e2d/Curve-aligned port ──
 
 const WGSL_SOURCE: &str = r#"
 // Uniform buffer: camera + per-terrain parameters
@@ -53,8 +53,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     let ndc_y = sy / (u.screen_size.y * 0.5);
     out.position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
 
-    // Control texture UV: sample at texel center for this node
-    out.control_uv = vec2<f32>(in.uv.y * u.inv_control_size + u.inv_control_size_half, 0.5);
+    // Match Unity: texcoord0 = float2(v.texcoord.y * _InvControlSize + _InvControlSizeHalf, 0.0)
+    out.control_uv = vec2<f32>(in.uv.y * u.inv_control_size + u.inv_control_size_half, 0.0);
 
     // Splat texture UV: x = horizontal tiling, y = gradient position (outer=1, inner=0)
     out.splat_uv = vec2<f32>(in.uv.x * u.splat_params_x, in.color);
@@ -65,15 +65,9 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let splat1 = textureSample(splat1_tex, repeat_sampler, in.splat_uv);
-    // Control green channel selects splat (matches Unity "floor(tex2D(_Control, uv).y)")
     let selector = floor(textureSample(control_tex, clamp_sampler, in.control_uv).y);
     var result = textureSample(splat0_tex, repeat_sampler, in.splat_uv);
-    result = vec4<f32>(
-        result.xyz + (splat1.xyz - result.xyz) * selector,
-        result.w,
-    );
-    // Premultiply alpha for egui's default blending
-    result = vec4<f32>(result.xyz * result.w, result.w);
+    result = vec4<f32>(result.xyz + (splat1.xyz - result.xyz) * selector, result.w);
     return result;
 }
 "#;
@@ -218,7 +212,7 @@ pub fn init_edge_resources(
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: target_format,
-                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: Default::default(),
@@ -226,8 +220,8 @@ pub fn init_edge_resources(
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: None,
+            front_face: wgpu::FrontFace::Cw,
+            cull_mode: Some(wgpu::Face::Back),
             ..Default::default()
         },
         depth_stencil: None,
@@ -295,7 +289,8 @@ pub struct EdgeMeshInput<'a> {
     pub vertices: &'a [EdgeVertex],
     pub indices: &'a [u16],
     pub control_pixels: &'a [u8],
-    pub control_node_count: usize,
+    pub control_w: u32,
+    pub control_h: u32,
     pub splat0_pixels: Option<&'a [u8]>,
     pub splat0_w: u32,
     pub splat0_h: u32,
@@ -326,7 +321,8 @@ pub fn upload_edge_mesh(
         vertices,
         indices,
         control_pixels,
-        control_node_count,
+        control_w,
+        control_h,
         splat0_pixels,
         splat0_w,
         splat0_h,
@@ -366,17 +362,16 @@ pub fn upload_edge_mesh(
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
     });
 
-    // Control texture: pad to next power of 2
-    let mut ctrl_size = 1u32;
-    while (ctrl_size as usize) < control_node_count {
-        ctrl_size *= 2;
-    }
-    let mut padded_ctrl = vec![0u8; (ctrl_size * 4) as usize];
-    let copy_len = control_pixels.len().min(padded_ctrl.len());
-    padded_ctrl[..copy_len].copy_from_slice(&control_pixels[..copy_len]);
-
-    let control_view =
-        create_rgba_texture(device, queue, &padded_ctrl, ctrl_size, 1, "edge_control");
+    let control_w = control_w.max(1);
+    let control_h = control_h.max(1);
+    let control_view = create_rgba_texture(
+        device,
+        queue,
+        control_pixels,
+        control_w,
+        control_h,
+        "edge_control",
+    );
 
     // Splat textures (1×1 white fallback if missing)
     let has_splat0 = splat0_pixels.is_some();
@@ -394,7 +389,7 @@ pub fn upload_edge_mesh(
         create_rgba_texture(device, queue, &[255, 255, 255, 255], 1, 1, "edge_splat1_fb")
     };
 
-    let inv = 1.0 / ctrl_size as f32;
+    let inv = 1.0 / control_w as f32;
 
     // Bind group
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

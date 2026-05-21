@@ -1,62 +1,101 @@
 use std::collections::HashMap;
 
-use crate::domain::prefab_override_host::{
-    RuntimeComponentContext, RuntimeOnDataLoadedHook,
-    apply_runtime_on_data_loaded_hooks_with_prefab_asset,
-};
-use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
+use crate::domain::types::Vec3;
+use crate::unity_runtime::scene::{Scene, SceneValue};
 
 use super::types::{BgOverrides, BgSprite, BgTheme};
 
-const BACKGROUND_OBJECT_PREFAB_ASSET: &str = "unity/background/backgroundobject.prefab";
-
-/// Parse BG overrides using Unity-like runtime ordering.
-///
-/// `Transform` fields are applied first from the generic override document,
-/// then `PositionSerializer.childLocalPositions` may overwrite group
-/// positions by root-order, mirroring Unity's post-apply `OnDataLoaded`
-/// behavior for EP6 background prefabs.
-pub fn parse_runtime_bg_overrides(raw: &str, child_order: &[String]) -> BgOverrides {
-    let mut result = BgOverrides::default();
-    let document = RuntimeOverrideDocument::parse(raw);
-
-    for root in document.roots_of_type("GameObject") {
-        for group in root.children_of_type("GameObject") {
-            if let Some(position) = local_position_override(group) {
-                result.groups.insert(group.name.clone(), position);
+fn scene_value_as_vec3(value: &SceneValue) -> Option<Vec3> {
+    match value {
+        SceneValue::Vector3(value) => Some(*value),
+        SceneValue::Generic(entries) => {
+            if let Some(value) = entries.iter().find_map(|(name, value)| {
+                (name == "data").then(|| scene_value_as_vec3(value)).flatten()
+            }) {
+                return Some(value);
             }
 
-            for sprite in group.children_of_type("GameObject") {
-                if let Some(position) = local_position_override(sprite) {
-                    result.sprites.insert(sprite.name.clone(), position);
+            let mut x = None;
+            let mut y = None;
+            let mut z = None;
+            for (name, value) in entries {
+                match (name.as_str(), value) {
+                    ("x", SceneValue::Float(value)) => x = Some(*value),
+                    ("x", SceneValue::Integer(value)) => x = Some(*value as f32),
+                    ("y", SceneValue::Float(value)) => y = Some(*value),
+                    ("y", SceneValue::Integer(value)) => y = Some(*value as f32),
+                    ("z", SceneValue::Float(value)) => z = Some(*value),
+                    ("z", SceneValue::Integer(value)) => z = Some(*value as f32),
+                    _ => {}
+                }
+            }
+
+            Some(Vec3 {
+                x: x.unwrap_or(0.0),
+                y: y.unwrap_or(0.0),
+                z: z.unwrap_or(0.0),
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Parse BG override text from a BackgroundObject's PrefabOverrideData.
+pub fn parse_bg_overrides(raw: &str) -> BgOverrides {
+    let mut result = BgOverrides::default();
+    let mut current_group = String::new();
+    let mut current_sprite = String::new();
+    // "group" or "sprite" — what m_LocalPosition applies to
+    let mut parsing_for = "";
+
+    for line in raw.lines() {
+        let stripped = line.trim_end_matches('\r');
+        let depth = stripped.len() - stripped.trim_start_matches('\t').len();
+        let content = stripped.trim();
+        if content.is_empty() {
+            continue;
+        }
+
+        if depth == 1 && content.starts_with("GameObject ") {
+            current_group = content[11..].trim().to_string();
+            current_sprite.clear();
+            parsing_for = "";
+        } else if depth == 2 && content.starts_with("GameObject ") {
+            current_sprite = content[11..].trim().to_string();
+            parsing_for = "";
+        } else if depth == 2 && content == "Component UnityEngine.Transform" {
+            parsing_for = "group";
+        } else if depth == 3 && content == "Component UnityEngine.Transform" {
+            parsing_for = "sprite";
+        } else if content.starts_with("Float ")
+            && let Some(rest) = content.strip_prefix("Float ")
+        {
+            // Parse "x = 1.23" or "y = -4.56"
+            let parts: Vec<&str> = rest.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                let axis = parts[0].trim();
+                if let Ok(val) = parts[1].trim().parse::<f32>() {
+                    let (target_name, target_map) = match parsing_for {
+                        "group" => (&current_group, &mut result.groups),
+                        "sprite" => (&current_sprite, &mut result.sprites),
+                        _ => continue,
+                    };
+                    if !target_name.is_empty() {
+                        let entry = target_map
+                            .entry(target_name.clone())
+                            .or_insert([None, None, None]);
+                        match axis {
+                            "x" => entry[0] = Some(val),
+                            "y" => entry[1] = Some(val),
+                            "z" => entry[2] = Some(val),
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
     }
-
-    let hook = PositionSerializerBgHook { child_order };
-    apply_runtime_on_data_loaded_hooks_with_prefab_asset(
-        &document,
-        &mut result,
-        BACKGROUND_OBJECT_PREFAB_ASSET,
-        &[&hook],
-    );
-
     result
-}
-
-fn local_position_override(node: &RuntimeOverrideNode) -> Option<[Option<f32>; 3]> {
-    let local_position = node
-        .component("Transform")?
-        .child("Vector3", "m_LocalPosition")?;
-
-    let out = local_position.partial_vec3();
-
-    if out.iter().all(Option::is_none) {
-        None
-    } else {
-        Some(out)
-    }
 }
 
 /// Apply BG overrides to a theme's sprites, returning modified copies with updated positions.
@@ -119,97 +158,46 @@ pub fn parse_position_serializer_overrides(raw: &str, child_order: &[String]) ->
         groups: HashMap::new(),
         sprites: HashMap::new(),
     };
-    let document = RuntimeOverrideDocument::parse(raw);
-    let hook = PositionSerializerBgHook { child_order };
-    apply_runtime_on_data_loaded_hooks_with_prefab_asset(
-        &document,
-        &mut result,
-        BACKGROUND_OBJECT_PREFAB_ASSET,
-        &[&hook],
-    );
-    result
-}
 
-struct PositionSerializerBgHook<'a> {
-    child_order: &'a [String],
-}
-
-impl RuntimeOnDataLoadedHook<BgOverrides> for PositionSerializerBgHook<'_> {
-    fn component_suffix(&self) -> &'static str {
-        "PositionSerializer"
+    if child_order.is_empty() {
+        return result;
     }
 
-    fn on_data_loaded(&self, context: RuntimeComponentContext<'_>, result: &mut BgOverrides) {
-        if self.child_order.is_empty() {
-            return;
+    let Some((scene, _root)) = Scene::from_override_text(raw) else {
+        return result;
+    };
+
+    for (_, component) in scene.iter_components() {
+        if component.behavior.component_suffix() != "PositionSerializer" {
+            continue;
         }
 
-        let Some(array) = context
-            .component
-            .and_then(|component| component.child("Array", "childLocalPositions"))
-            .and_then(|node| node.as_array())
+        let Some((_, SceneValue::Generic(entries))) = component
+            .behavior
+            .extra()
+            .iter()
+            .find(|(name, _)| name == "childLocalPositions")
         else {
-            return;
+            continue;
         };
 
-        for element in array.iter() {
-            let idx = element.index;
-            if idx >= self.child_order.len() || self.child_order[idx].is_empty() {
+        for (name, value) in entries {
+            let Ok(idx) = name.parse::<usize>() else {
+                continue;
+            };
+            if idx >= child_order.len() || child_order[idx].is_empty() {
                 continue;
             }
+            let Some(value) = scene_value_as_vec3(value) else {
+                continue;
+            };
+
             result.groups.insert(
-                self.child_order[idx].clone(),
-                partial_position_override(&element.value),
+                child_order[idx].clone(),
+                [Some(value.x), Some(value.y), Some(value.z)],
             );
         }
     }
-}
 
-fn partial_position_override(node: &RuntimeOverrideNode) -> [Option<f32>; 3] {
-    if node.node_type == "Vector3" {
-        node.partial_vec3()
-    } else {
-        node.find_descendant(&|child| child.node_type == "Vector3" && child.name == "data")
-            .map(RuntimeOverrideNode::partial_vec3)
-            .unwrap_or([None, None, None])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{parse_position_serializer_overrides, parse_runtime_bg_overrides};
-
-    const POSITION_SERIALIZER_OVERRIDE: &str = "GameObject BackgroundObject\n\tComponent PositionSerializer\n\t\tObjectReference prefab = 4\n\t\tArray childLocalPositions\n\t\t\tArraySize size = 7\n\t\t\tElement 0\n\t\t\t\tVector3 data\n\t\t\t\tFloat y = 62.22481\n\t\t\t\tFloat z = 50\n\t\t\tElement 1\n\t\t\t\tVector3 data\n\t\t\t\tFloat y = 7.8\n\t\t\t\tFloat z = 40\n\t\t\tElement 5\n\t\t\t\tVector3 data\n\t\t\t\tFloat z = -5\n\t\t\tElement 6\n\t\t\t\tVector3 data\n\t\t\t\tFloat y = -14.15611\n";
-
-    const COMBINED_BG_OVERRIDE: &str = "GameObject BackgroundObject\n\tGameObject Far\n\t\tComponent UnityEngine.Transform\n\t\t\tVector3 m_LocalPosition\n\t\t\t\tFloat x = 1\n\t\t\t\tFloat y = 2\n\t\t\t\tFloat z = 3\n\tComponent PositionSerializer\n\t\tArray childLocalPositions\n\t\t\tArraySize size = 1\n\t\t\tElement 0\n\t\t\t\tVector3 data\n\t\t\t\tFloat y = 20\n\t\t\t\tFloat z = 30\n";
-
-    #[test]
-    fn parses_position_serializer_child_local_positions_from_ast() {
-        let child_order = vec![
-            "Sky".to_string(),
-            "Far".to_string(),
-            String::new(),
-            String::new(),
-            String::new(),
-            "Near".to_string(),
-            "FG".to_string(),
-        ];
-
-        let overrides = parse_position_serializer_overrides(POSITION_SERIALIZER_OVERRIDE, &child_order);
-
-        assert_eq!(overrides.groups.get("Sky"), Some(&[None, Some(62.22481), Some(50.0)]));
-        assert_eq!(overrides.groups.get("Far"), Some(&[None, Some(7.8), Some(40.0)]));
-        assert_eq!(overrides.groups.get("Near"), Some(&[None, None, Some(-5.0)]));
-        assert_eq!(overrides.groups.get("FG"), Some(&[None, Some(-14.15611), None]));
-        assert_eq!(overrides.groups.len(), 4);
-    }
-
-    #[test]
-    fn runtime_bg_overrides_apply_position_serializer_after_transform() {
-        let child_order = vec!["Far".to_string()];
-
-        let overrides = parse_runtime_bg_overrides(COMBINED_BG_OVERRIDE, &child_order);
-
-        assert_eq!(overrides.groups.get("Far"), Some(&[None, Some(20.0), Some(30.0)]));
-    }
+    result
 }

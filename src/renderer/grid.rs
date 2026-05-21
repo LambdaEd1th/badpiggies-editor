@@ -5,22 +5,25 @@
 //! default `ConstructionUI` uses `GridCell`, while an explicit
 //! `m_gridCellPrefab` ObjectReference override switches to `GridCellLight`.
 //!
-//! Unity rendering: shader `_Custom/Unlit_ColorTransparent_Geometry` applies
-//! `tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)` and standard
-//! alpha blending (`Blend SrcAlpha OneMinusSrcAlpha`). The sprite's own RGBA
-//! pixels determine the final visual.
+//! In the extracted atlas assets used by the editor, the grid cell pixels need
+//! to bypass the sprite shader's final `rgb *= alpha` step to recover the same
+//! bright rounded-cell appearance that the user expects from the older square
+//! fallback. The editor therefore keeps the rounded GPU sprite path but uses a
+//! dedicated mode for grid cells that preserves sampled RGB.
 
 use eframe::egui;
 
 use crate::data::assets::TextureCache;
 use crate::data::sprite_db;
-use crate::domain::prefab_override_runtime::{RuntimeOverrideDocument, RuntimeOverrideNode};
 use crate::domain::types::*;
+use crate::unity_runtime::components::LevelManager;
+use crate::unity_runtime::scene::Scene;
 
-use super::Camera;
+use super::{Camera, LevelRenderer, sprite_shader};
 
 const GRID_PREFAB_LOCAL_SCALE: f32 = 0.3;
 const WORLD_SCALE: f32 = 10.0 / 768.0;
+const GRID_SPRITE_PAD_PX: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConstructionGridCellStyle {
@@ -33,13 +36,6 @@ impl ConstructionGridCellStyle {
         match self {
             Self::Default => "GridCell",
             Self::Light => "GridCellLight",
-        }
-    }
-
-    pub(crate) fn texture_cache_key(self) -> &'static str {
-        match self {
-            Self::Default => "GridCell_raw",
-            Self::Light => "GridCellLight_raw",
         }
     }
 
@@ -81,17 +77,157 @@ pub struct ConstructionGrid {
     pub cell_style: ConstructionGridCellStyle,
 }
 
-fn parse_grid_cell_style(document: &RuntimeOverrideDocument) -> ConstructionGridCellStyle {
-    if document.roots.iter().any(|root| {
-        root.find_descendant(&|node| {
-            node.node_type == "ObjectReference" && node.name == "m_gridCellPrefab"
-        })
-        .is_some()
-    })
-    {
+fn parse_grid_cell_style(lm: &LevelManager) -> ConstructionGridCellStyle {
+    if lm.grid_cell_prefab.is_some() {
         ConstructionGridCellStyle::Light
     } else {
         ConstructionGridCellStyle::Default
+    }
+}
+
+fn load_grid_cell_texture_and_uv(
+    sprite: Option<&sprite_db::SpriteInfo>,
+    tex_cache: &mut TextureCache,
+    ctx: &egui::Context,
+) -> (Option<egui::TextureId>, egui::Pos2, egui::Pos2) {
+    let Some(sprite) = sprite else {
+        return (None, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+    };
+
+    let atlas_path = format!("sprites/{}", sprite.atlas);
+    let cache_key = format!("{}_grid_premult_pad_{}", sprite.atlas, GRID_SPRITE_PAD_PX);
+    let Some((tex_id, uv_min, uv_max)) = tex_cache.load_sprite_crop_padded_premultiplied(
+        ctx,
+        &cache_key,
+        &atlas_path,
+        [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
+        GRID_SPRITE_PAD_PX,
+    ) else {
+        return (None, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+    };
+
+    (Some(tex_id), uv_min, uv_max)
+}
+
+impl LevelRenderer {
+    pub(super) fn draw_construction_grid_overlay(
+        &mut self,
+        painter: &egui::Painter,
+        canvas_center: egui::Vec2,
+        canvas_rect: egui::Rect,
+    ) {
+        let Some(grid) = self.construction_grid.as_ref() else {
+            return;
+        };
+
+        let style = grid.cell_style;
+        let sprite = sprite_db::get_sprite_info(style.sprite_name());
+        let Some(sprite) = sprite else {
+            draw_construction_grid_cpu(
+                painter,
+                grid,
+                &self.camera,
+                canvas_center,
+                canvas_rect,
+                &mut self.tex_cache,
+                painter.ctx(),
+            );
+            return;
+        };
+
+        if let (Some(resources), Some(device), Some(queue)) = (
+            &self.sprite_resources,
+            &self.wgpu_device,
+            &self.wgpu_queue,
+        )
+            && let Some(atlas) = self
+                .sprite_atlas_cache
+                .get_or_load(device, queue, resources, &sprite.atlas)
+        {
+            let (uv_min, uv_max) = sprite_shader::compute_uvs(
+                &sprite.uv,
+                atlas.width as f32,
+                atlas.height as f32,
+                false,
+                false,
+            );
+
+            let (half_w, half_h) = style.half_extents();
+            // GridCell and GridCellLight need to preserve sampled RGB in the
+            // editor's premultiplied compositor; the generic sprite path darkens
+            // them too much, while this dedicated mode keeps the rounded shape
+            // and restores the expected brighter fill.
+            let mut gpu_draws = Vec::new();
+
+            for row in 0..grid.grid_height {
+                let bits = grid.rows[row as usize];
+                if bits == 0 {
+                    continue;
+                }
+                for col in 0..grid.grid_width {
+                    if bits & (1 << col) == 0 {
+                        continue;
+                    }
+                    if self.sprite_slot_counter >= sprite_shader::max_draw_slots() {
+                        break;
+                    }
+
+                    let wx = grid.base_x + (grid.x_min + col) as f32;
+                    let wy = grid.base_y + row as f32;
+
+                    let center = self.camera.world_to_screen(
+                        crate::domain::types::Vec2 { x: wx, y: wy },
+                        canvas_center,
+                    );
+                    let cell_rect = egui::Rect::from_center_size(
+                        center,
+                        egui::vec2(half_w * self.camera.zoom * 2.0, half_h * self.camera.zoom * 2.0),
+                    );
+                    if !cell_rect.intersects(canvas_rect) {
+                        continue;
+                    }
+
+                    let slot = self.sprite_slot_counter;
+                    self.sprite_slot_counter += 1;
+                    gpu_draws.push(sprite_shader::SpriteBatchDraw {
+                        atlas: atlas.clone(),
+                        slot,
+                        uniforms: sprite_shader::SpriteUniforms {
+                            screen_size: [canvas_rect.width(), canvas_rect.height()],
+                            camera_center: [self.camera.center.x, self.camera.center.y],
+                            zoom: self.camera.zoom,
+                            rotation: 0.0,
+                            world_center: [wx, wy],
+                            half_size: [half_w, half_h],
+                            uv_min,
+                            uv_max,
+                            mode: sprite_shader::MODE_PREALPHA_NORMAL,
+                            shine_center: 0.0,
+                            tint_color: [1.0, 1.0, 1.0, 1.0],
+                        },
+                    });
+                }
+            }
+
+            if !gpu_draws.is_empty() {
+                painter.add(sprite_shader::make_sprite_batch_callback(
+                    canvas_rect,
+                    resources.clone(),
+                    gpu_draws,
+                ));
+                return;
+            }
+        }
+
+        draw_construction_grid_cpu(
+            painter,
+            grid,
+            &self.camera,
+            canvas_center,
+            canvas_rect,
+            &mut self.tex_cache,
+            painter.ctx(),
+        );
     }
 }
 
@@ -126,28 +262,13 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     }
 
     let text = lm_override?;
+    let (scene, root) = Scene::from_override_text(text)?;
+    let (_, lm) = scene.get_component_of::<LevelManager>(root)?;
 
-    let document = RuntimeOverrideDocument::parse(text);
-    let cell_style = parse_grid_cell_style(&document);
-    let rows_node = document.roots.iter().find_map(|root| {
-        root.find_descendant(&|node| {
-            node.node_type == "Array" && node.name == "m_constructionGridRows"
-        })
-    })?;
-    let rows_array = rows_node.as_array()?;
-    let row_count = rows_array.size?;
+    let cell_style = parse_grid_cell_style(lm);
+    let rows = lm.construction_grid_rows.as_ref()?.clone();
 
-    if row_count == 0 {
-        return None;
-    }
-
-    let mut rows = Vec::with_capacity(row_count);
-    for element in rows_array.iter() {
-        let value = read_grid_row_value(&element.value)?;
-        rows.push(value);
-    }
-
-    if rows.len() != row_count {
+    if rows.is_empty() {
         return None;
     }
 
@@ -182,21 +303,15 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
     })
 }
 
-fn read_grid_row_value(node: &RuntimeOverrideNode) -> Option<i32> {
-    if node.node_type == "Integer" && node.name == "data" {
-        node.value_as_i32()
-    } else {
-        node.find_descendant(&|child| child.node_type == "Integer" && child.name == "data")
-            .and_then(RuntimeOverrideNode::value_as_i32)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{parse_construction_grid, ConstructionGridCellStyle};
+    use super::{ConstructionGridCellStyle, GRID_PREFAB_LOCAL_SCALE, parse_construction_grid};
+    use crate::data::sprite_db;
+    use crate::domain::parser::parse_level;
     use crate::domain::types::{
         DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
+    use std::path::Path;
 
     const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tArray m_constructionGridRows\n\t\t\tArraySize size = 4\n\t\t\tElement 0\n\t\t\t\tInteger data = 15\n\t\t\tElement 1\n\t\t\t\tInteger data = 15\n\t\t\tElement 2\n\t\t\t\tInteger data = 0\n\t\t\tElement 3\n\t\t\t\tInteger data = 2\n\t\tObjectReference m_gridCellPrefab = 6\n";
 
@@ -226,6 +341,42 @@ mod tests {
         assert_eq!(grid.grid_height, 4);
         assert_eq!(grid.x_min, -1);
         assert_eq!(grid.cell_style, ConstructionGridCellStyle::Light);
+    }
+
+    #[test]
+    fn grid_cell_styles_match_runtime_sprite_atlas_and_size() {
+        for (style, atlas) in [
+            (ConstructionGridCellStyle::Default, "IngameAtlas2.png"),
+            (ConstructionGridCellStyle::Light, "IngameAtlas.png"),
+        ] {
+            let sprite = sprite_db::get_sprite_info(style.sprite_name())
+                .expect("missing construction grid sprite info");
+            let (half_w, half_h) = style.half_extents();
+            assert_eq!(sprite.atlas, atlas);
+            assert!((sprite.world_w * GRID_PREFAB_LOCAL_SCALE - half_w).abs() < 1e-6);
+            assert!((sprite.world_h * GRID_PREFAB_LOCAL_SCALE - half_h).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn dump_dark_sandbox_prefab_index_6_names() {
+        let level_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes");
+        let level = parse_level(std::fs::read(&level_path).expect("read dark sandbox"))
+            .expect("parse dark sandbox");
+
+        let matches: Vec<_> = level
+            .objects
+            .iter()
+            .filter_map(|object| match object {
+                LevelObject::Prefab(prefab) if prefab.prefab_index == 6 => {
+                    Some((prefab.name.clone(), prefab.prefab_index))
+                }
+                _ => None,
+            })
+            .collect();
+
+        println!("prefab_index=6 objects: {matches:?}");
     }
 
     fn prefab(name: &str, position: Vec3, raw_text: &str) -> PrefabInstance {
@@ -259,7 +410,7 @@ mod tests {
 /// Unity shader: `output = tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)`,
 /// blend mode `Blend SrcAlpha OneMinusSrcAlpha`.  The sprite texture's own RGBA
 /// values determine the final appearance.
-pub fn draw_construction_grid(
+fn draw_construction_grid_cpu(
     painter: &egui::Painter,
     grid: &ConstructionGrid,
     camera: &Camera,
@@ -270,21 +421,7 @@ pub fn draw_construction_grid(
 ) {
     let style = grid.cell_style;
     let sprite = sprite_db::get_sprite_info(style.sprite_name());
-
-    let tex_id = if let Some(s) = sprite {
-        let uv = &s.uv;
-        let atlas_path = format!("sprites/{}", s.atlas);
-        tex_cache.load_sprite_crop(
-            ctx,
-            style.texture_cache_key(),
-            &atlas_path,
-            [uv.x, uv.y, uv.w, uv.h],
-        )
-    } else {
-        None
-    };
-    let uv_min = egui::pos2(0.0, 0.0);
-    let uv_max = egui::pos2(1.0, 1.0);
+    let (tex_id, uv_min, uv_max) = load_grid_cell_texture_and_uv(sprite, tex_cache, ctx);
 
     let (half_w, half_h) = style.half_extents();
 

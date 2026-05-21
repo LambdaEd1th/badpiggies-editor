@@ -3,10 +3,9 @@
 //! Must not depend on `egui`, `wgpu`, or any I/O.
 
 pub mod level;
+pub mod object_deserializer;
 pub mod parser;
 pub mod prefab_asset;
-pub mod prefab_override_host;
 pub mod prefab_override;
-pub mod prefab_override_runtime;
 pub mod terrain_gen;
 pub mod types;

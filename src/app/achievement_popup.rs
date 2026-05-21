@@ -7,17 +7,10 @@ use crate::data::{assets, unity_anim};
 
 use super::EditorApp;
 
-const ACHIEVEMENT_ICON_PREFAB_ASSET: &str = "unity/prefabs/GameCenterManager.prefab";
-const ACHIEVEMENT_SHEET_ASSET: &str = "unity/resources/achievements/achievements_sheet.png";
+const ACHIEVEMENT_ICON_PREFAB_ASSET: &str = "Assets/Prefab/GameCenterManager.prefab";
+const ACHIEVEMENT_SHEET_ASSET: &str = "Assets/Resources/achievements/achievements_sheet.png";
 const ACHIEVEMENT_SHEET_GRID_COLUMNS: usize = 8;
 const ACHIEVEMENT_SHEET_GRID_ROWS: usize = 8;
-const DEFAULT_ACHIEVEMENT_POPUP_DURATION: f32 = 2.666667;
-const DEFAULT_ACHIEVEMENT_POPUP_POS_Y: &[unity_anim::HermiteKey] = &[
-    (0.0, 13.0, -9.0, -9.0),
-    (0.5, 8.5, -9.0, 0.0),
-    (2.166667, 8.5, 0.0, 9.000005),
-    (2.666667, 13.0, 9.000005, 2.454545),
-];
 const POPUP_VISIBLE_Y: f32 = 8.5;
 const POPUP_VISIBLE_TOP: f32 = 20.0;
 const POPUP_PIXELS_PER_UNIT: f32 = 30.0;
@@ -27,7 +20,7 @@ fn achievement_icon_prefab_text() -> &'static str {
     static PREFAB_TEXT: OnceLock<String> = OnceLock::new();
     PREFAB_TEXT
         .get_or_init(|| {
-            assets::read_asset_text(ACHIEVEMENT_ICON_PREFAB_ASSET)
+            assets::read_pathname_text(ACHIEVEMENT_ICON_PREFAB_ASSET)
                 .expect("missing embedded GameCenterManager prefab")
         })
         .as_str()
@@ -172,7 +165,7 @@ impl EditorApp {
     ) -> Option<egui::TextureId> {
         match source {
             AchievementIconSource::Individual(icon_name) => {
-                let asset_key = format!("unity/resources/achievements/{icon_name}.png");
+                let asset_key = format!("Assets/Resources/achievements/{icon_name}.png");
                 let cache_key = format!("achievement_popup_icon::{icon_name}");
                 self.achievement_popup_tex_cache
                     .load_texture(ctx, &asset_key, &cache_key)
@@ -191,7 +184,7 @@ fn achievement_icon_lookup() -> &'static HashMap<String, AchievementIconSource> 
     static LOOKUP: OnceLock<HashMap<String, AchievementIconSource>> = OnceLock::new();
     LOOKUP.get_or_init(|| {
         parse_achievement_icon_lookup(achievement_icon_prefab_text(), |icon_name| {
-            assets::read_asset(&format!("unity/resources/achievements/{icon_name}.png")).is_some()
+            assets::read_pathname(&format!("Assets/Resources/achievements/{icon_name}.png")).is_some()
         })
     })
 }
@@ -247,10 +240,13 @@ fn achievement_sheet_uv(sheet_index: usize) -> Option<[f32; 4]> {
 }
 
 fn achievement_popup_duration() -> f32 {
-    unity_anim::achievement_popup_enter_clip()
-        .map(|clip| clip.duration)
-        .filter(|duration| *duration > 0.0)
-        .unwrap_or(DEFAULT_ACHIEVEMENT_POPUP_DURATION)
+    let duration = unity_anim::achievement_popup_enter_clip()
+        .expect("AchievementPopupEnter.anim should load from embedded assets")
+        .duration;
+    if duration <= 0.0 {
+        panic!("AchievementPopupEnter.anim must have positive duration");
+    }
+    duration
 }
 
 fn achievement_popup_y(time: f32) -> f32 {
@@ -259,11 +255,16 @@ fn achievement_popup_y(time: f32) -> f32 {
 }
 
 fn achievement_popup_pos_y_curve() -> &'static [unity_anim::HermiteKey] {
-    unity_anim::achievement_popup_enter_clip()
-        .and_then(|clip| clip.root_position())
-        .map(|curve| curve.y.as_slice())
-        .filter(|curve| !curve.is_empty())
-        .unwrap_or(DEFAULT_ACHIEVEMENT_POPUP_POS_Y)
+    let curve = unity_anim::achievement_popup_enter_clip()
+        .expect("AchievementPopupEnter.anim should load from embedded assets")
+        .root_position()
+        .expect("AchievementPopupEnter.anim must include root position curves")
+        .y
+        .as_slice();
+    if curve.is_empty() {
+        panic!("AchievementPopupEnter.anim root position Y curve must not be empty");
+    }
+    curve
 }
 
 fn sample_hermite(keys: &[unity_anim::HermiteKey], time: f32) -> f32 {

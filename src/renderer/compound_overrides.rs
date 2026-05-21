@@ -1,19 +1,18 @@
 //! Override parsers for compound prefab components (Bridge, Fan).
 //!
-//! Parses tab-indented ObjectDeserializer format to extract field values.
+//! Drives the typed [`Scene`] via `ObjectDeserializer` and reads typed field
+//! values back through component downcasts — mirroring Unity's runtime
+//! `ApplyOverrides` + reflection pipeline.
 
 use std::sync::OnceLock;
 
 use crate::data::assets;
 use crate::domain::prefab_asset::PrefabAssetDocument;
-use crate::domain::prefab_override_host::{
-    RuntimeComponentContext, RuntimeOnDataLoadedHook,
-    apply_runtime_on_data_loaded_hooks_with_prefab_asset,
-};
-use crate::domain::prefab_override_runtime::RuntimeOverrideDocument;
+use crate::unity_runtime::components::{Bridge, Fan, Transform};
+use crate::unity_runtime::scene::Scene;
 
-const BRIDGE_PREFAB_ASSET: &str = "unity/prefabs/Bridge.prefab";
-const FAN_PREFAB_ASSET: &str = "unity/prefabs/Fan.prefab";
+const BRIDGE_PREFAB_ASSET: &str = "Assets/Prefab/Bridge.prefab";
+const FAN_PREFAB_ASSET: &str = "Assets/Prefab/Fan.prefab";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct BridgePrefabDefaults {
@@ -22,13 +21,6 @@ struct BridgePrefabDefaults {
     end_point_x: f32,
     end_point_y: f32,
 }
-
-const FALLBACK_BRIDGE_PREFAB_DEFAULTS: BridgePrefabDefaults = BridgePrefabDefaults {
-    step_length: 1.0,
-    step_gap: 0.2,
-    end_point_x: 2.561546,
-    end_point_y: 0.0,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct FanPrefabDefaults {
@@ -39,15 +31,6 @@ struct FanPrefabDefaults {
     delayed_start: f32,
     always_on: bool,
 }
-
-const FALLBACK_FAN_PREFAB_DEFAULTS: FanPrefabDefaults = FanPrefabDefaults {
-    target_force: 115.0,
-    start_time: 2.0,
-    on_time: 4.0,
-    off_time: 2.0,
-    delayed_start: 1.0,
-    always_on: true,
-};
 
 pub(super) struct BridgeOverrides {
     pub end_point_x: Option<f32>,
@@ -69,7 +52,7 @@ pub(super) struct BridgeRuntimeProjection {
     pub angle: f32,
 }
 
-/// Parse Bridge component overrides from tab-indented ObjectDeserializer format.
+/// Parse Bridge component overrides via the typed [`Scene`] pipeline.
 pub(super) fn parse_bridge_overrides(raw_text: Option<&str>) -> BridgeOverrides {
     let mut result = BridgeOverrides {
         end_point_x: None,
@@ -77,19 +60,25 @@ pub(super) fn parse_bridge_overrides(raw_text: Option<&str>) -> BridgeOverrides 
         step_length: None,
         step_gap: None,
     };
-    let text = match raw_text {
-        Some(t) => t,
-        None => return result,
+    let Some(text) = raw_text else {
+        return result;
+    };
+    let Some((scene, root)) = Scene::from_override_text(text) else {
+        return result;
     };
 
-    let document = RuntimeOverrideDocument::parse(text);
-    let hook = BridgeOnDataLoadedHook;
-    apply_runtime_on_data_loaded_hooks_with_prefab_asset(
-        &document,
-        &mut result,
-        BRIDGE_PREFAB_ASSET,
-        &[&hook],
-    );
+    if let Some((_, bridge)) = scene.get_component_of::<Bridge>(root) {
+        result.step_length = bridge.step_length;
+        result.step_gap = bridge.step_gap;
+    }
+
+    if let Some(endpoint) = scene.find_child(root, "EndPoint")
+        && let Some((_, transform)) = scene.get_component_of::<Transform>(endpoint)
+        && let Some(pos) = transform.local_position
+    {
+        result.end_point_x = Some(pos.x);
+        result.end_point_y = Some(pos.y);
+    }
 
     result
 }
@@ -106,38 +95,8 @@ pub(super) fn project_bridge_runtime(raw_text: Option<&str>) -> BridgeRuntimePro
     build_bridge_runtime_projection(step_length, step_gap, raw_end_point_x, raw_end_point_y)
 }
 
-struct BridgeOnDataLoadedHook;
-
-impl RuntimeOnDataLoadedHook<BridgeOverrides> for BridgeOnDataLoadedHook {
-    fn component_suffix(&self) -> &'static str {
-        "Bridge"
-    }
-
-    fn on_data_loaded(&self, context: RuntimeComponentContext<'_>, result: &mut BridgeOverrides) {
-        result.step_length = context
-            .component
-            .and_then(|component| component.child("Float", "stepLength"))
-            .and_then(|node| node.value_as_f32());
-        result.step_gap = context
-            .component
-            .and_then(|component| component.child("Float", "stepGap"))
-            .and_then(|node| node.value_as_f32());
-
-        let end_point = context
-            .root
-            .child("GameObject", "EndPoint")
-            .and_then(|endpoint| endpoint.component("Transform"))
-            .and_then(|transform| transform.child("Vector3", "m_LocalPosition"));
-
-        result.end_point_x = end_point
-            .and_then(|position| position.child("Float", "x"))
-            .and_then(|node| node.value_as_f32());
-        result.end_point_y = end_point
-            .and_then(|position| position.child("Float", "y"))
-            .and_then(|node| node.value_as_f32());
-    }
-}
-
+// (Legacy AST-based hook implementation removed: the typed `Scene` pipeline
+// now drives Bridge override parsing directly. See `parse_bridge_overrides`.)
 fn bridge_prefab_defaults() -> BridgePrefabDefaults {
     static DEFAULTS: OnceLock<BridgePrefabDefaults> = OnceLock::new();
 
@@ -145,26 +104,24 @@ fn bridge_prefab_defaults() -> BridgePrefabDefaults {
 }
 
 fn load_bridge_prefab_defaults() -> BridgePrefabDefaults {
-    let Some(text) = assets::read_asset_text(BRIDGE_PREFAB_ASSET) else {
-        return FALLBACK_BRIDGE_PREFAB_DEFAULTS;
-    };
-    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
-        return FALLBACK_BRIDGE_PREFAB_DEFAULTS;
-    };
-    let Some(component) = prefab.root_component("Bridge") else {
-        return FALLBACK_BRIDGE_PREFAB_DEFAULTS;
-    };
-    let Some(step_length) = component.field_f32("stepLength") else {
-        return FALLBACK_BRIDGE_PREFAB_DEFAULTS;
-    };
-    let Some(step_gap) = component.field_f32("stepGap") else {
-        return FALLBACK_BRIDGE_PREFAB_DEFAULTS;
-    };
+    let text = assets::read_pathname_text(BRIDGE_PREFAB_ASSET)
+        .unwrap_or_else(|| panic!("missing embedded prefab {BRIDGE_PREFAB_ASSET}"));
+    let prefab = PrefabAssetDocument::parse(&text)
+        .unwrap_or_else(|| panic!("failed to parse embedded prefab {BRIDGE_PREFAB_ASSET}"));
+    let component = prefab
+        .root_component("Bridge")
+        .unwrap_or_else(|| panic!("missing Bridge component in {BRIDGE_PREFAB_ASSET}"));
+    let step_length = component
+        .field_f32("stepLength")
+        .unwrap_or_else(|| panic!("missing Bridge.stepLength in {BRIDGE_PREFAB_ASSET}"));
+    let step_gap = component
+        .field_f32("stepGap")
+        .unwrap_or_else(|| panic!("missing Bridge.stepGap in {BRIDGE_PREFAB_ASSET}"));
     let Some(end_point_position) = prefab
         .transform_by_game_object_name("EndPoint")
         .map(|transform| transform.local_pos)
     else {
-        return FALLBACK_BRIDGE_PREFAB_DEFAULTS;
+        panic!("missing EndPoint transform in {BRIDGE_PREFAB_ASSET}");
     };
 
     BridgePrefabDefaults {
@@ -234,9 +191,9 @@ pub(super) struct FanRuntimeConfig {
     pub always_on: bool,
 }
 
-/// Parse Fan component overrides from tab-indented ObjectDeserializer format.
+/// Parse Fan component overrides via the typed [`Scene`] pipeline.
 pub(super) fn parse_fan_overrides(raw_text: Option<&str>) -> FanOverrides {
-    let result = FanOverrides {
+    let empty = FanOverrides {
         target_force: None,
         start_time: None,
         on_time: None,
@@ -244,40 +201,23 @@ pub(super) fn parse_fan_overrides(raw_text: Option<&str>) -> FanOverrides {
         delayed_start: None,
         always_on: None,
     };
-    let text = match raw_text {
-        Some(t) => t,
-        None => return result,
+    let Some(text) = raw_text else {
+        return empty;
     };
-
-    let document = RuntimeOverrideDocument::parse(text);
-    let root = match document.roots.first() {
-        Some(node) => node,
-        None => return result,
+    let Some((scene, root)) = Scene::from_override_text(text) else {
+        return empty;
     };
-    let fan = match root.component("Fan") {
-        Some(component) => component,
-        None => return result,
+    let Some((_, fan)) = scene.get_component_of::<Fan>(root) else {
+        return empty;
     };
 
     FanOverrides {
-        target_force: fan
-            .child("Float", "targetForce")
-            .and_then(|node| node.value_as_f32()),
-        start_time: fan
-            .child("Float", "startTime")
-            .and_then(|node| node.value_as_f32()),
-        on_time: fan
-            .child("Float", "onTime")
-            .and_then(|node| node.value_as_f32()),
-        off_time: fan
-            .child("Float", "offTime")
-            .and_then(|node| node.value_as_f32()),
-        delayed_start: fan
-            .child("Float", "delayedStart")
-            .and_then(|node| node.value_as_f32()),
-        always_on: fan
-            .child("Boolean", "alwaysOn")
-            .and_then(|node| node.value_as_bool()),
+        target_force: fan.target_force,
+        start_time: fan.start_time,
+        on_time: fan.on_time,
+        off_time: fan.off_time,
+        delayed_start: fan.delayed_start,
+        always_on: fan.always_on,
     }
 }
 
@@ -303,33 +243,31 @@ fn fan_prefab_defaults() -> FanPrefabDefaults {
 }
 
 fn load_fan_prefab_defaults() -> FanPrefabDefaults {
-    let Some(text) = assets::read_asset_text(FAN_PREFAB_ASSET) else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(component) = prefab.root_component("Fan") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(target_force) = component.field_f32("targetForce") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(start_time) = component.field_f32("startTime") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(on_time) = component.field_f32("onTime") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(off_time) = component.field_f32("offTime") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(delayed_start) = component.field_f32("delayedStart") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
-    let Some(always_on) = component.field_bool("alwaysOn") else {
-        return FALLBACK_FAN_PREFAB_DEFAULTS;
-    };
+    let text = assets::read_pathname_text(FAN_PREFAB_ASSET)
+        .unwrap_or_else(|| panic!("missing embedded prefab {FAN_PREFAB_ASSET}"));
+    let prefab = PrefabAssetDocument::parse(&text)
+        .unwrap_or_else(|| panic!("failed to parse embedded prefab {FAN_PREFAB_ASSET}"));
+    let component = prefab
+        .root_component("Fan")
+        .unwrap_or_else(|| panic!("missing Fan component in {FAN_PREFAB_ASSET}"));
+    let target_force = component
+        .field_f32("targetForce")
+        .unwrap_or_else(|| panic!("missing Fan.targetForce in {FAN_PREFAB_ASSET}"));
+    let start_time = component
+        .field_f32("startTime")
+        .unwrap_or_else(|| panic!("missing Fan.startTime in {FAN_PREFAB_ASSET}"));
+    let on_time = component
+        .field_f32("onTime")
+        .unwrap_or_else(|| panic!("missing Fan.onTime in {FAN_PREFAB_ASSET}"));
+    let off_time = component
+        .field_f32("offTime")
+        .unwrap_or_else(|| panic!("missing Fan.offTime in {FAN_PREFAB_ASSET}"));
+    let delayed_start = component
+        .field_f32("delayedStart")
+        .unwrap_or_else(|| panic!("missing Fan.delayedStart in {FAN_PREFAB_ASSET}"));
+    let always_on = component
+        .field_bool("alwaysOn")
+        .unwrap_or_else(|| panic!("missing Fan.alwaysOn in {FAN_PREFAB_ASSET}"));
 
     FanPrefabDefaults {
         target_force,

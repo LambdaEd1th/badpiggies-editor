@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use eframe::egui;
 
-use super::embedded::read_asset;
+use super::embedded::read_pathname;
 
 /// Build an `egui::ColorImage` with gamma-space premultiplied alpha.
 fn color_image_premultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {
@@ -24,6 +24,14 @@ fn color_image_premultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage 
                 egui::Color32::from_rgba_premultiplied(rp, gp, bp, a)
             }
         })
+        .collect();
+    egui::ColorImage::new(size, pixels)
+}
+
+fn color_image_from_premultiplied_rgba(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {
+    let pixels = rgba
+        .chunks_exact(4)
+        .map(|p| egui::Color32::from_rgba_premultiplied(p[0], p[1], p[2], p[3]))
         .collect();
     egui::ColorImage::new(size, pixels)
 }
@@ -51,7 +59,7 @@ impl TextureCache {
             return Some(handle.id());
         }
 
-        let data = read_asset(path)?;
+        let data = read_pathname(path)?;
         let img = image::load_from_memory(&data).ok()?.to_rgba8();
         let size = [img.width() as usize, img.height() as usize];
         let pixels = img.into_raw();
@@ -73,7 +81,7 @@ impl TextureCache {
             return Some(handle.id());
         }
 
-        let data = read_asset(path)?;
+        let data = read_pathname(path)?;
         let img = image::load_from_memory(&data).ok()?.to_rgba8();
         let size = [img.width() as usize, img.height() as usize];
         let pixels = img.into_raw();
@@ -99,7 +107,7 @@ impl TextureCache {
             return Some(handle.id());
         }
 
-        let data = read_asset(path)?;
+        let data = read_pathname(path)?;
         let img = image::load_from_memory(&data).ok()?.to_rgba8();
         let img = image::imageops::flip_vertical(&img);
         let size = [img.width() as usize, img.height() as usize];
@@ -127,7 +135,7 @@ impl TextureCache {
             return Some(handle.id());
         }
         let [uv_x, uv_y, uv_w, uv_h] = uv_rect;
-        let data = read_asset(atlas_path)?;
+        let data = read_pathname(atlas_path)?;
         let img = image::load_from_memory(&data).ok()?.to_rgba8();
         let (aw, ah) = (img.width(), img.height());
         // UV → pixel coords (Unity V=0 at bottom)
@@ -146,6 +154,59 @@ impl TextureCache {
         let id = handle.id();
         self.textures.insert(key.to_string(), handle);
         Some(id)
+    }
+
+    /// Load a sprite region cropped from its atlas with transparent padding on
+    /// all sides, interpreting source RGB as already premultiplied by alpha.
+    pub fn load_sprite_crop_padded_premultiplied(
+        &mut self,
+        ctx: &egui::Context,
+        key: &str,
+        atlas_path: &str,
+        uv_rect: [f32; 4],
+        pad_px: u32,
+    ) -> Option<(egui::TextureId, egui::Pos2, egui::Pos2)> {
+        if let Some(handle) = self.textures.get(key) {
+            let size = handle.size();
+            let tex_w = size[0] as f32;
+            let tex_h = size[1] as f32;
+            let uv_min = egui::pos2(pad_px as f32 / tex_w, pad_px as f32 / tex_h);
+            let uv_max = egui::pos2(
+                (tex_w - pad_px as f32) / tex_w,
+                (tex_h - pad_px as f32) / tex_h,
+            );
+            return Some((handle.id(), uv_min, uv_max));
+        }
+
+        let [uv_x, uv_y, uv_w, uv_h] = uv_rect;
+        let data = read_pathname(atlas_path)?;
+        let img = image::load_from_memory(&data).ok()?.to_rgba8();
+        let (aw, ah) = (img.width(), img.height());
+        let px0 = (uv_x * aw as f32) as u32;
+        let py0 = ((1.0 - uv_y - uv_h) * ah as f32) as u32;
+        let pw = (uv_w * aw as f32) as u32;
+        let ph = (uv_h * ah as f32) as u32;
+        let crop = image::imageops::crop_imm(&img, px0, py0, pw, ph).to_image();
+
+        let tex_w = pw + pad_px * 2;
+        let tex_h = ph + pad_px * 2;
+        let mut padded = image::RgbaImage::from_pixel(tex_w, tex_h, image::Rgba([0, 0, 0, 0]));
+        image::imageops::replace(&mut padded, &crop, pad_px.into(), pad_px.into());
+
+        let size = [padded.width() as usize, padded.height() as usize];
+        let color_image = color_image_from_premultiplied_rgba(size, &padded.into_raw());
+        let handle = ctx.load_texture(key, color_image, egui::TextureOptions::LINEAR);
+        let id = handle.id();
+        self.textures.insert(key.to_string(), handle);
+
+        let tex_w = tex_w as f32;
+        let tex_h = tex_h as f32;
+        let uv_min = egui::pos2(pad_px as f32 / tex_w, pad_px as f32 / tex_h);
+        let uv_max = egui::pos2(
+            (pad_px + pw) as f32 / tex_w,
+            (pad_px + ph) as f32 / tex_h,
+        );
+        Some((id, uv_min, uv_max))
     }
 
     pub fn get(&self, path: &str) -> Option<egui::TextureId> {

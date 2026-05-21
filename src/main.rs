@@ -19,6 +19,7 @@ mod domain;
 mod i18n;
 mod io;
 mod renderer;
+mod unity_runtime;
 
 use app::EditorApp;
 

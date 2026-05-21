@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::data::assets;
-use crate::domain::types::{LevelData, LevelObject, Vec2};
+use crate::domain::types::{LevelData, LevelObject, Vec3};
 
 use super::super::LevelRenderer;
 use super::super::background;
@@ -15,14 +15,16 @@ use super::super::fill_shader;
 use super::super::grid;
 use super::super::opaque_shader;
 use super::super::particles::{
-    AttachedEffectEmitter, FanEmitter, FanState, attached_effect_kind_for_sprite_name,
-    build_wind_area_def, reset_fan_emitter_for_build,
-    wind_area_particle_system_count,
+    AttachedEffectEmitter, FanEmitter, FanState, build_wind_area_def,
+    attached_effect_kind_for_sprite_name, wind_area_particle_system_count,
 };
 use super::super::sprites;
 use super::super::terrain;
 use super::super::PreviewPlaybackState;
-use super::{compute_world_position, find_bg_override_text, load_raw_rgba, parse_camera_limits};
+use super::{
+    compute_world_position, find_bg_override_text, find_bg_root_position, load_raw_rgba,
+    parse_authored_camera, parse_camera_limits,
+};
 
 impl LevelRenderer {
     pub fn set_level(&mut self, level: &LevelData) {
@@ -48,17 +50,19 @@ impl LevelRenderer {
         self.attached_effect_particles.clear();
         self.cloud_instances.clear();
         self.dark_level = false;
+        self.night_vision_enabled = false;
         self.lit_area_polygons.clear();
         self.dark_overlay_mesh = None;
+        self.dark_overlay_mesh_gpu = None;
         self.dark_overlay_light = None;
+        self.dark_overlay_light_gpu = None;
         self.dark_overlay_ring = None;
+        self.dark_overlay_ring_gpu = None;
         self.dark_overlay_key = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         self.dark_overlay_live_key = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         self.dark_overlay_stable_frames = 0;
 
         // Collect all object names for BG theme detection
-        self.bg_override_text = find_bg_override_text(&level.objects);
-
         let names: Vec<String> = level
             .objects
             .iter()
@@ -67,12 +71,25 @@ impl LevelRenderer {
                 LevelObject::Parent(p) => p.name.clone(),
             })
             .collect();
+        // Find BackgroundObject override text for BG position adjustments
+        self.bg_override_text = find_bg_override_text(&level.objects);
+        let bg_root_offset =
+            find_bg_root_position(&level.objects).map(|pos| [pos.x, pos.y, pos.z]);
+
         self.bg_theme =
             assets::detect_bg_theme(&self.level_key, &names, self.bg_override_text.as_deref());
 
         // Build background layer cache (pre-compute tile grouping/singletons)
         self.bg_layer_cache = self.bg_theme.and_then(|theme| {
-            background::build_bg_layer_cache(theme, self.bg_override_text.as_deref())
+            if let Some(root_offset) = bg_root_offset {
+                background::build_bg_layer_cache_with_root_offset(
+                    theme,
+                    self.bg_override_text.as_deref(),
+                    Some(root_offset),
+                )
+            } else {
+                background::build_bg_layer_cache(theme, self.bg_override_text.as_deref())
+            }
         });
 
         // Compute world positions and build draw data
@@ -185,11 +202,11 @@ impl LevelRenderer {
                 let splat0 = td
                     .edge_splat0
                     .as_ref()
-                    .and_then(|name| load_raw_rgba(&format!("ground/{}", name)));
+                    .and_then(|name| load_raw_rgba(&format!("Assets/Texture2D/{}", name)));
                 let splat1 = td
                     .edge_splat1
                     .as_ref()
-                    .and_then(|name| load_raw_rgba(&format!("ground/{}", name)));
+                    .and_then(|name| load_raw_rgba(&format!("Assets/Texture2D/{}", name)));
                 log::info!(
                     "terrain[{}] edge: verts={} indices={} ctrl={}B splat0={} splat1={} splatParamsX={:.4}",
                     ti,
@@ -208,7 +225,8 @@ impl LevelRenderer {
                         vertices: &td.edge_vertices,
                         indices: &td.edge_indices,
                         control_pixels: ctrl,
-                        control_node_count: td.edge_node_count,
+                        control_w: td.edge_ctrl_width,
+                        control_h: td.edge_ctrl_height,
                         splat0_pixels: splat0.as_ref().map(|(px, _, _)| px.as_slice()),
                         splat0_w: splat0.as_ref().map(|(_, w, _)| *w).unwrap_or(0),
                         splat0_h: splat0.as_ref().map(|(_, _, h)| *h).unwrap_or(0),
@@ -219,7 +237,8 @@ impl LevelRenderer {
                         decorative: td.decorative,
                     },
                 );
-                if gpu_mesh.has_both_splats {
+                let use_gpu_edge = gpu_mesh.has_both_splats;
+                if use_gpu_edge {
                     self.edge_gpu_mesh_index[ti] = Some(gpu_meshes.len());
                     log::info!("  → terrain[{}] GPU edge active (both splats loaded)", ti);
                 } else {
@@ -275,7 +294,9 @@ impl LevelRenderer {
                     }
                     // Emissive / collectible sprites keep their original material
                     // and are NOT tinted by GenericProps theme variants.
-                    if assets::skip_props_tint(&sprite.name) {
+                    // Alpha-blend material sprites (Night/Morning variants) are
+                    // also excluded — they render via the transparent sprite path.
+                    if assets::skip_props_tint(&sprite.name) || sprite.is_alpha_blend {
                         continue;
                     }
                     if let Some(uv) = &sprite.uv {
@@ -310,29 +331,38 @@ impl LevelRenderer {
         // Build fan emitter state machines + wind area definitions
         for (i, sprite) in self.sprite_data.iter().enumerate() {
             if sprite.name == "Fan" {
-                let fan = compounds::project_fan_runtime_public(sprite.override_text.as_deref());
-                let mut emitter = FanEmitter {
+                let ovr = compounds::project_fan_runtime_public(sprite.override_text.as_deref());
+                let on_time = ovr.on_time;
+                let delayed_start = ovr.delayed_start + on_time;
+                let always_on = ovr.always_on;
+                let init_state = if always_on {
+                    FanState::SpinUp
+                } else if delayed_start > 0.0 {
+                    FanState::DelayedStart
+                } else {
+                    FanState::SpinUp
+                };
+                self.fan_emitters.push(FanEmitter {
                     sprite_index: i,
-                    state: FanState::Inactive,
+                    state: init_state,
                     counter: 0.0,
                     force: 0.0,
-                    target_force: fan.target_force,
-                    emitting: false,
+                    target_force: ovr.target_force,
+                    emitting: init_state == FanState::SpinUp,
                     angle: 0.0,
                     spin_down_start_force: 0.0,
                     spin_down_angle_left: 0.0,
                     world_x: sprite.world_pos.x,
                     world_y: sprite.world_pos.y,
+                    world_z: sprite.world_pos.z,
                     rot: sprite.rotation,
                     burst_time: 0.0,
-                    start_time: fan.start_time,
-                    on_time: fan.on_time,
-                    off_time: fan.off_time,
-                    delayed_start: fan.delayed_start,
-                    always_on: fan.always_on,
-                };
-                reset_fan_emitter_for_build(&mut emitter);
-                self.fan_emitters.push(emitter);
+                    start_time: ovr.start_time,
+                    on_time,
+                    off_time: ovr.off_time,
+                    delayed_start,
+                    always_on,
+                });
             }
             // Collect WindArea zones
             if sprite.name.starts_with("WindArea") {
@@ -349,9 +379,10 @@ impl LevelRenderer {
             }
             // Collect Bird positions for Zzz particles
             if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
-                self.bird_positions.push(Vec2 {
+                self.bird_positions.push(Vec3 {
                     x: sprite.world_pos.x,
                     y: sprite.world_pos.y,
+                    z: sprite.world_pos.z,
                 });
             }
             if let Some(kind) = attached_effect_kind_for_sprite_name(&sprite.name) {
@@ -359,6 +390,7 @@ impl LevelRenderer {
                 self.attached_effect_emitters.push(AttachedEffectEmitter {
                     world_x: sprite.world_pos.x,
                     world_y: sprite.world_pos.y,
+                    world_z: sprite.world_pos.z,
                     rot: sprite.rotation,
                     kind,
                     system_time: vec![0.0; system_count],
@@ -427,101 +459,12 @@ impl LevelRenderer {
         // Parse camera limits from LevelManager
         self.camera_limits = parse_camera_limits(level);
 
-        // Fit camera to level bounds
-        self.fit_to_level();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::types::{
-        DataType, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
-    };
-    use crate::renderer::particles::{AttachedEffectKind, FanState};
-
-    const FAN_OVERRIDE: &str = "GameObject Fan\n\tComponent Fan\n\t\tFloat targetForce = 12.5\n\t\tFloat startTime = 1\n\t\tFloat onTime = 2\n\t\tFloat offTime = 3\n\t\tFloat delayedStart = 4\n\t\tBoolean alwaysOn = False\n";
-
-    #[test]
-    fn set_level_initializes_fan_emitter_from_prefab_defaults() {
-        let mut renderer = LevelRenderer::new(None);
-        let level = LevelData {
-            objects: vec![LevelObject::Prefab(prefab("Fan", None))],
-            roots: vec![0],
-        };
-
-        renderer.set_level(&level);
-
-        assert_eq!(renderer.fan_emitters.len(), 1);
-        let emitter = &renderer.fan_emitters[0];
-        assert_eq!(emitter.state, FanState::SpinUp);
-        assert_eq!(emitter.target_force, 115.0);
-        assert_eq!(emitter.start_time, 2.0);
-        assert_eq!(emitter.on_time, 4.0);
-        assert_eq!(emitter.off_time, 2.0);
-        assert_eq!(emitter.delayed_start, 5.0);
-        assert_eq!(emitter.burst_time, 0.0);
-        assert!(emitter.always_on);
-    }
-
-    #[test]
-    fn set_level_merges_fan_override_and_unity_init_delay() {
-        let mut renderer = LevelRenderer::new(None);
-        let level = LevelData {
-            objects: vec![LevelObject::Prefab(prefab("Fan", Some(FAN_OVERRIDE)))],
-            roots: vec![0],
-        };
-
-        renderer.set_level(&level);
-
-        assert_eq!(renderer.fan_emitters.len(), 1);
-        let emitter = &renderer.fan_emitters[0];
-        assert_eq!(emitter.state, FanState::DelayedStart);
-        assert_eq!(emitter.target_force, 12.5);
-        assert_eq!(emitter.start_time, 1.0);
-        assert_eq!(emitter.on_time, 2.0);
-        assert_eq!(emitter.off_time, 3.0);
-        assert_eq!(emitter.delayed_start, 6.0);
-        assert_eq!(emitter.burst_time, 0.0);
-        assert!(!emitter.always_on);
-        assert!(!emitter.emitting);
-    }
-
-    #[test]
-    fn set_level_only_registers_attached_effect_emitters_when_prefab_has_effect_refs() {
-        let mut renderer = LevelRenderer::new(None);
-        let level = LevelData {
-            objects: vec![
-                LevelObject::Prefab(prefab("Part_EngineBig_03_SET", None)),
-                LevelObject::Prefab(prefab("Part_EngineSmall_05_SET", None)),
-            ],
-            roots: vec![0, 1],
-        };
-
-        renderer.set_level(&level);
-
-        assert_eq!(renderer.attached_effect_emitters.len(), 1);
-        assert_eq!(renderer.attached_effect_emitters[0].kind, AttachedEffectKind::TurboCharger);
-    }
-
-    fn prefab(name: &str, raw_text: Option<&str>) -> PrefabInstance {
-        PrefabInstance {
-            name: name.to_string(),
-            position: Vec3::default(),
-            prefab_index: 0,
-            rotation: Vec3::default(),
-            scale: Vec3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
-            data_type: DataType::None,
-            terrain_data: None,
-            override_data: raw_text.map(|text| PrefabOverrideData {
-                raw_text: text.to_string(),
-                raw_bytes: text.as_bytes().to_vec(),
-            }),
-            parent: None,
+        if let Some((center, zoom)) = parse_authored_camera(level) {
+            self.camera.center = center;
+            self.camera.zoom = zoom;
+        } else {
+            // Fallback for levels without an authored CameraSystem view.
+            self.fit_to_level();
         }
     }
 }

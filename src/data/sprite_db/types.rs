@@ -30,11 +30,16 @@ pub(super) struct RuntimeSpriteMeta {
     pub(super) width: f32,
     pub(super) height: f32,
     pub(super) uv: UvRect,
+    /// Atlas-pixel pivot read from sprites.bytes (fields 7/8). Equal to the
+    /// tk2dSpriteCollection per-sprite anchor offset; not present in PartSprite YAML.
+    pub(super) pivot_x: f32,
+    pub(super) pivot_y: f32,
 }
 
 #[derive(Debug, Clone)]
 pub(super) struct GameObjectInfo {
     pub(super) active: bool,
+    pub(super) name: String,
 }
 
 #[derive(Debug, Clone)]

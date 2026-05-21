@@ -15,7 +15,9 @@ mod stripe_mesh;
 
 pub use curve::{CurveNode, extract_curve_nodes, is_closed_loop};
 pub use fill_mesh::rebuild_fill_mesh;
-pub use png::{decode_control_png_pixels, encode_control_png};
+pub use png::encode_control_png;
+#[cfg(test)]
+pub use png::decode_control_png_pixels;
 pub use stripe_mesh::rebuild_curve_mesh;
 
 use crate::domain::types::{TerrainData, Vec2};
@@ -64,7 +66,9 @@ pub fn regenerate_terrain(td: &mut TerrainData, nodes: &[CurveNode]) {
     // Collect strip widths from curve textures
     let strip_widths: Vec<f32> = td.curve_textures.iter().map(|ct| ct.size.y).collect();
     let strip_widths = if strip_widths.is_empty() {
-        vec![0.5, 0.1]
+        // Unity injects a single defaultCurveTexture when CurveTextures is empty.
+        // Its constructor default is size=(1,1), so stripe width falls back to 1.
+        vec![1.0]
     } else {
         strip_widths
     };

@@ -1,12 +1,17 @@
 //! `draw_sprite` and helpers.
 
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
 use eframe::egui;
 
+use crate::data::assets;
 use crate::domain::types::*;
+use crate::domain::prefab_asset::PrefabAssetDocument;
 use crate::data::goal_animation::goal_visual_state;
 
 use super::super::particles::{
-    WindAreaDef, fan_field_defaults, fan_field_profile_weight, fan_propeller_visual_angle,
+    WindAreaDef, fan_field_defaults, fan_field_profile_weight, fan_propeller_foreshorten,
 };
 use super::super::{CompoundTransform, DrawCtx, PreviewPlaybackState};
 use super::{bird_sleep_scale_factors, bird_sleep_y_offset, SpriteDrawData, SpriteDrawOpts};
@@ -72,8 +77,6 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
         .then(|| goal_visual_state(sprite.goal_animation_state, time, sprite.index));
     let y_offset = if let Some(visual) = goal_visual {
         visual.y_offset
-    } else if name_lower.contains("dessert") {
-        (time * 3.0).sin() as f32 * 0.25
     } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
         bird_sleep_y_offset(time, sprite.bird_phase)
     } else {
@@ -113,8 +116,7 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 
     // Fan propeller rotation: foreshorten X via cos(angle) from state machine
     let (hw, hh) = if sprite.name == "Fan" {
-        let angle = fan_propeller_visual_angle(fan_angle);
-        let foreshorten = angle.cos().abs().max(0.05);
+        let foreshorten = fan_propeller_foreshorten(fan_angle);
         (hw * foreshorten, hh)
     } else if sprite.name.starts_with("Bird_") && !sprite.name.starts_with("BirdCompass") {
         let (sx, sy) = bird_sleep_scale_factors(time, sprite.bird_phase);
@@ -483,27 +485,58 @@ pub fn draw_fan_field_overlay(
     }
 }
 
-/// Y offset per dessert variant (from prefab BoxCollider center.y).
+const DESSERT_PREFAB_NAMES: &[&str] = &[
+    "Cupcake",
+    "StrawberryCake",
+    "VanillaCakeSlice",
+    "GoldenCake",
+    "CreamyBun",
+    "IcecreamBalls",
+];
+
+static DESSERT_Y_OFFSETS: LazyLock<HashMap<&'static str, f32>> = LazyLock::new(|| {
+    DESSERT_PREFAB_NAMES
+        .iter()
+        .copied()
+        .map(|name| (name, load_dessert_y_offset(name)))
+        .collect()
+});
+
+fn load_dessert_y_offset(name: &str) -> f32 {
+    let asset_key = format!("Assets/Prefab/{name}.prefab");
+    let text = assets::read_pathname_text(&asset_key)
+        .unwrap_or_else(|| panic!("{asset_key} should load from embedded assets"));
+    let prefab = PrefabAssetDocument::parse(&text)
+        .unwrap_or_else(|| panic!("{asset_key} should parse from embedded assets"));
+    let collider = prefab
+        .root_component("BoxCollider")
+        .unwrap_or_else(|| panic!("{asset_key} must include a root BoxCollider"));
+    let center = collider
+        .field_vec3("m_Center")
+        .unwrap_or_else(|| panic!("{asset_key} BoxCollider must include m_Center"));
+    center[1]
+}
+
+/// Y offset per dessert variant (from the embedded prefab root BoxCollider center.y).
 pub(in crate::renderer::sprites) fn dessert_y_offset(name: &str) -> f32 {
-    match name {
-        "Cupcake" => 0.4167,
-        "StrawberryCake" => 0.7813,
-        "VanillaCakeSlice" => 0.4688,
-        "GoldenCake" => 0.2604,
-        "CreamyBun" => 0.3125,
-        "IcecreamBalls" => 0.6771,
-        _ => 0.0,
-    }
+    DESSERT_Y_OFFSETS.get(name).copied().unwrap_or(0.0)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::selection_outline_metrics;
+    use super::{dessert_y_offset, selection_outline_metrics};
     use crate::domain::types::Vec3;
     use crate::renderer::Camera;
 
     use super::super::data::SpriteDrawData;
     use crate::data::goal_animation::GoalAnimationState;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 1e-6,
+            "expected {expected}, got {actual}"
+        );
+    }
 
     fn test_sprite(name: &str) -> SpriteDrawData {
         SpriteDrawData {
@@ -520,6 +553,8 @@ mod tests {
             is_terrain: false,
             atlas: None,
             uv: None,
+            opaque_tint_color: [1.0, 1.0, 1.0, 1.0],
+            is_alpha_blend: false,
             is_hidden: false,
             parent: None,
             override_text: None,
@@ -560,5 +595,15 @@ mod tests {
         assert_eq!(sel_center, animated_center);
         assert_eq!(sel_hw, 5.0);
         assert_eq!(sel_hh, 6.0);
+    }
+
+    #[test]
+    fn dessert_y_offsets_match_embedded_prefab_box_colliders() {
+        assert_close(dessert_y_offset("Cupcake"), 0.4166667);
+        assert_close(dessert_y_offset("StrawberryCake"), 0.78125);
+        assert_close(dessert_y_offset("VanillaCakeSlice"), 0.46875);
+        assert_close(dessert_y_offset("GoldenCake"), 0.2604167);
+        assert_close(dessert_y_offset("CreamyBun"), 0.3125);
+        assert_close(dessert_y_offset("IcecreamBalls"), 0.6770833);
     }
 }

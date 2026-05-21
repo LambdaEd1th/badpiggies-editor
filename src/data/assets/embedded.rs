@@ -1,112 +1,101 @@
 //! Project asset loading via rust-embed.
+//!
+//! On-disk layout is the native Unity package layout:
+//!     unity_assets/<guid>/asset
+//!     unity_assets/<guid>/asset.meta
+//!     unity_assets/<guid>/pathname
+//!
+//! Lookups go through a pathname index built once at startup. The GUID is
+//! used internally as the rust-embed key; consumers address assets by Unity
+//! pathname (`"Assets/Texture2D/foo.png"`).
 
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Project assets exposed through rust-embed on all targets.
 #[derive(rust_embed::RustEmbed)]
 #[folder = "unity_assets/"]
 pub struct ProjectAssets;
 
-/// Read asset bytes by relative path (e.g. "sprites/IngameAtlas.png").
-pub fn read_asset(key: &str) -> Option<Cow<'static, [u8]>> {
-    if let Some(text) = generated_asset_text(key) {
-        return Some(Cow::Owned(text.into_bytes()));
-    }
-
-    let mapped = map_asset_key(key)?;
-    read_project_asset(mapped.as_ref())
+struct AssetIndex {
+    /// "Assets/<...>" pathname -> GUID
+    by_pathname: HashMap<String, String>,
+    /// GUID -> "Assets/<...>" pathname
+    by_guid: HashMap<String, String>,
 }
 
-pub fn read_asset_text(key: &str) -> Option<String> {
-    read_asset(key).map(|bytes| String::from_utf8_lossy(bytes.as_ref()).into_owned())
+fn index() -> &'static AssetIndex {
+    static INDEX: OnceLock<AssetIndex> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut by_pathname: HashMap<String, String> = HashMap::new();
+        let mut by_guid: HashMap<String, String> = HashMap::new();
+        for path in ProjectAssets::iter() {
+            let path_ref: &str = path.as_ref();
+            let Some(guid) = path_ref.strip_suffix("/pathname") else {
+                continue;
+            };
+            let Some(file) = ProjectAssets::get(path_ref) else {
+                continue;
+            };
+            let pathname = String::from_utf8_lossy(file.data.as_ref())
+                .trim()
+                .to_string();
+            if pathname.is_empty() {
+                continue;
+            }
+            if ProjectAssets::get(&format!("{guid}/asset")).is_none() {
+                continue;
+            }
+            by_guid.insert(guid.to_string(), pathname.clone());
+            by_pathname.insert(pathname, guid.to_string());
+        }
+        AssetIndex {
+            by_pathname,
+            by_guid,
+        }
+    })
 }
 
-pub fn list_asset_paths(prefix: &str, suffix: &str) -> Vec<String> {
-    let mut files: Vec<String> = ProjectAssets::iter()
-        .filter_map(|path| {
-            let path = path.as_ref();
-            path.strip_prefix(prefix)
-                .filter(|path| path.ends_with(suffix))
-                .map(str::to_string)
-        })
+fn read_asset_by_guid(guid: &str) -> Option<Cow<'static, [u8]>> {
+    ProjectAssets::get(&format!("{guid}/asset")).map(|f| f.data)
+}
+
+fn pathname_by_guid(guid: &str) -> Option<&'static str> {
+    index().by_guid.get(guid).map(|s| s.as_str())
+}
+
+pub fn guid_for_pathname(pathname: &str) -> Option<&'static str> {
+    index().by_pathname.get(pathname).map(|s| s.as_str())
+}
+
+/// Read by full Unity pathname, e.g. `"Assets/Texture2D/foo.png"`.
+pub fn read_pathname(pathname: &str) -> Option<Cow<'static, [u8]>> {
+    read_asset_by_guid(guid_for_pathname(pathname)?)
+}
+
+pub fn read_pathname_text(pathname: &str) -> Option<String> {
+    read_pathname(pathname).map(|bytes| String::from_utf8_lossy(bytes.as_ref()).into_owned())
+}
+
+pub fn read_guid_text(guid: &str) -> Option<String> {
+    read_asset_by_guid(guid).map(|bytes| String::from_utf8_lossy(bytes.as_ref()).into_owned())
+}
+
+pub fn pathname_for_guid(guid: &str) -> Option<&'static str> {
+    pathname_by_guid(guid)
+}
+
+/// Iterate full Unity pathnames matching `prefix` and `suffix`.
+/// Example: `list_pathnames("Assets/Prefab/", ".prefab")` returns
+/// `["Assets/Prefab/Cake_01.prefab", ...]`.
+pub fn list_pathnames(prefix: &str, suffix: &str) -> Vec<String> {
+    let mut out: Vec<String> = index()
+        .by_pathname
+        .keys()
+        .filter(|p| p.starts_with(prefix) && p.ends_with(suffix))
+        .cloned()
         .collect();
-    files.sort();
-    files
-}
-
-fn generated_asset_text(key: &str) -> Option<String> {
-    match key {
-        "unity/prefabs/manifest.txt" => Some(prefab_manifest_text()),
-        "unity/levels/loader-manifest.txt" => Some(loader_manifest_text()),
-        _ => None,
-    }
-}
-
-fn map_asset_key(key: &str) -> Option<Cow<'static, str>> {
-    if key.starts_with("Texture2D/")
-        || key.starts_with("Resources/")
-        || key.starts_with("Prefab/")
-        || key.starts_with("ScriptableObject/")
-        || key.starts_with("AnimationClip/")
-    {
-        return Some(Cow::Owned(key.to_string()));
-    }
-
-    if let Some(filename) = key
-        .strip_prefix("sprites/")
-        .or_else(|| key.strip_prefix("props/"))
-        .or_else(|| key.strip_prefix("bg/"))
-        .or_else(|| key.strip_prefix("sky/"))
-        .or_else(|| key.strip_prefix("ground/"))
-        .or_else(|| key.strip_prefix("particles/"))
-    {
-        return Some(Cow::Owned(format!("Texture2D/{filename}")));
-    }
-
-    if let Some(filename) = key.strip_prefix("unity/animation/") {
-        return Some(Cow::Owned(format!("AnimationClip/{filename}")));
-    }
-
-    if let Some(path) = key.strip_prefix("unity/background/") {
-        return Some(Cow::Owned(format!(
-            "Resources/environment/background/{path}"
-        )));
-    }
-
-    if let Some(path) = key.strip_prefix("unity/levels/") {
-        return Some(Cow::Owned(format!("Resources/levels/{path}")));
-    }
-
-    if let Some(path) = key.strip_prefix("unity/prefabs/") {
-        return Some(Cow::Owned(format!("Prefab/{path}")));
-    }
-
-    if let Some(path) = key.strip_prefix("unity/scriptableobject/") {
-        return Some(Cow::Owned(format!("ScriptableObject/{path}")));
-    }
-
-    match key {
-        "unity/resources/textureloader.prefab" => {
-            Some(Cow::Borrowed("Resources/prefabs/textureloader.prefab"))
-        }
-        "unity/resources/guisystem/Sprites.bytes" => {
-            Some(Cow::Borrowed("Resources/guisystem/sprites.bytes"))
-        }
-        _ => key
-            .strip_prefix("unity/resources/")
-            .map(|path| Cow::Owned(format!("Resources/{path}"))),
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn read_project_asset(path: &str) -> Option<Cow<'static, [u8]>> {
-    ProjectAssets::get(path).map(|f| f.data)
-}
-
-fn prefab_manifest_text() -> String {
-    list_asset_paths("Prefab/", ".prefab").join("\n")
-}
-
-fn loader_manifest_text() -> String {
-    list_asset_paths("Resources/levels/", "_loader.prefab").join("\n")
+    out.sort();
+    out
 }

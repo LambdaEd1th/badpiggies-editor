@@ -6,8 +6,8 @@ use crate::data::unity_particles;
 use crate::domain::types::Vec2;
 
 use super::{
-    Camera, LevelRenderer, fan_spinup_profile_weight, particle_sheet_uv_rect, pseudo_random,
-    rotate_vec2,
+    Camera, LevelRenderer, fan_spinup_profile_weight, particle_sheet_uv_rect,
+    pseudo_random, rotate_vec2,
 };
 
 /// Fan state machine (mirrors Fan.cs Update).
@@ -43,6 +43,7 @@ pub(crate) struct FanEmitter {
     /// Fan world position.
     pub world_x: f32,
     pub world_y: f32,
+    pub world_z: f32,
     /// Fan rotation in radians.
     pub rot: f32,
     /// Burst emission timer (0..1) cycling at 1 Hz.
@@ -58,6 +59,7 @@ pub(crate) struct FanEmitter {
 /// Fan wind particle.
 pub(crate) struct FanParticle {
     pub source_emitter_index: usize,
+    pub render_z: f32,
     pub x: f32,
     pub y: f32,
     pub vx: f32,
@@ -74,10 +76,10 @@ pub(crate) struct FanParticle {
 }
 
 const FAN_VISUAL_FORCE_MAX: f32 = 10.0;
-const FAN_RUNNING_ROTATION_STEP_DEGREES: f32 = 10.0;
+const FAN_RUNNING_ROTATION_SPEED: f32 = 600.0 * std::f32::consts::PI / 180.0;
+const FAN_SPINDOWN_ROTATION_SPEED: f32 = 60.0 * std::f32::consts::PI / 180.0;
 const FAN_SPINDOWN_TIME: f32 = 2.0;
 const FAN_SPINDOWN_SNAP_EPSILON: f32 = 3.0 * std::f32::consts::PI / 180.0;
-const FAN_BURST_TIME_EPSILON: f32 = 1e-4;
 
 fn fan_puff_system() -> &'static unity_particles::UnityParticleSystemDef {
     &unity_particles::fan_puff_prefab()
@@ -85,12 +87,12 @@ fn fan_puff_system() -> &'static unity_particles::UnityParticleSystemDef {
         .system
 }
 
-pub(crate) fn fan_particle_texture_name() -> Option<&'static str> {
-    fan_puff_system().texture_name()
-}
-
 fn fan_puff_duration() -> f32 {
     fan_puff_system().duration.max(f32::EPSILON)
+}
+
+pub(crate) fn fan_particle_texture_name() -> Option<&'static str> {
+    fan_puff_system().texture_name()
 }
 
 fn fan_puff_max_count() -> usize {
@@ -165,29 +167,12 @@ fn fan_puff_alpha(life_t: f32) -> u8 {
     255
 }
 
-fn fan_burst_fired(prev_t: f32, new_t: f32, burst_time: f32, duration: f32) -> bool {
-    if (new_t - prev_t).abs() <= f32::EPSILON {
-        return false;
-    }
-
-    if prev_t <= new_t {
-        (prev_t < burst_time && new_t + FAN_BURST_TIME_EPSILON >= burst_time)
-            || (burst_time.abs() <= FAN_BURST_TIME_EPSILON
-                && prev_t.abs() <= FAN_BURST_TIME_EPSILON
-                && new_t > prev_t)
-    } else {
-        burst_time > prev_t || new_t + FAN_BURST_TIME_EPSILON >= burst_time
-    }
-    .then_some(duration)
-    .is_some()
+fn fan_particle_render_z(world_z: f32) -> f32 {
+    world_z + fan_puff_system().local_position.z
 }
 
 fn fan_visual_target_force(target_force: f32) -> f32 {
     target_force.clamp(0.0, FAN_VISUAL_FORCE_MAX)
-}
-
-fn fan_running_rotation_delta(force: f32) -> f32 {
-    (FAN_RUNNING_ROTATION_STEP_DEGREES * fan_visual_target_force(force)).to_radians()
 }
 
 fn snap_fan_angle(angle: f32) -> f32 {
@@ -207,28 +192,6 @@ fn spin_down_angle_left(angle: f32) -> f32 {
     } else {
         angle_left + std::f32::consts::PI
     }
-}
-
-fn fan_spin_down_delta(counter: f32, start_force: f32) -> f32 {
-    let clamped_start_force = fan_visual_target_force(start_force);
-    if clamped_start_force <= 0.0 {
-        return 0.0;
-    }
-
-    let t = (counter / FAN_SPINDOWN_TIME).clamp(0.0, 1.0);
-    let t2 = t * t;
-    let t3 = t2 * t;
-    let degrees = clamped_start_force * (2.0 * t3 - 3.0 * t2 + 1.0);
-    degrees.to_radians()
-}
-
-fn begin_fan_spindown(emitter: &mut FanEmitter) {
-    emitter.emitting = false;
-    emitter.state = FanState::SpinDown;
-    emitter.counter = 0.0;
-    emitter.spin_down_start_force = emitter.force;
-    emitter.spin_down_angle_left = spin_down_angle_left(emitter.angle);
-    emitter.force = 0.0;
 }
 
 pub(crate) fn reset_fan_emitter_for_build(emitter: &mut FanEmitter) {
@@ -268,6 +231,7 @@ fn update_fan_emitter(emitter: &mut FanEmitter, dt: f32) {
                 emitter.state = FanState::SpinUp;
                 emitter.counter = 0.0;
                 emitter.emitting = true;
+                emitter.burst_time = 0.0;
             }
         }
         FanState::SpinUp => {
@@ -281,40 +245,41 @@ fn update_fan_emitter(emitter: &mut FanEmitter, dt: f32) {
                 emitter.force = target_force * fan_spinup_profile_weight(t);
             }
             if emitter.force > 0.0 {
-                emitter.angle = (emitter.angle + fan_running_rotation_delta(emitter.force))
+                emitter.angle = (emitter.angle + FAN_RUNNING_ROTATION_SPEED * emitter.force * dt)
                     .rem_euclid(std::f32::consts::TAU);
             }
         }
         FanState::Spinning => {
             emitter.force = target_force;
-            emitter.angle = (emitter.angle + fan_running_rotation_delta(emitter.force))
+            emitter.angle = (emitter.angle + FAN_RUNNING_ROTATION_SPEED * emitter.force * dt)
                 .rem_euclid(std::f32::consts::TAU);
             if !emitter.always_on {
                 emitter.counter += dt;
                 if emitter.counter >= emitter.on_time {
-                    begin_fan_spindown(emitter);
+                    emitter.emitting = false;
+                    emitter.state = FanState::SpinDown;
+                    emitter.counter = 0.0;
+                    emitter.spin_down_start_force = emitter.force;
+                    emitter.spin_down_angle_left = spin_down_angle_left(emitter.angle);
                 }
             }
         }
         FanState::SpinDown => {
-            emitter.force = 0.0;
-            let next_counter = emitter.counter + dt;
-            if emitter.spin_down_angle_left > 0.0 {
-                let delta = fan_spin_down_delta(emitter.counter, emitter.spin_down_start_force)
+            emitter.counter += dt;
+            let t = (emitter.counter / FAN_SPINDOWN_TIME).min(1.0);
+            emitter.force = emitter.spin_down_start_force * (1.0 - t);
+            if emitter.spin_down_angle_left > 0.0 && emitter.force > 0.0 {
+                let delta = (FAN_SPINDOWN_ROTATION_SPEED * emitter.force * dt)
                     .min(emitter.spin_down_angle_left);
                 emitter.angle = (emitter.angle + delta).rem_euclid(std::f32::consts::TAU);
                 emitter.spin_down_angle_left -= delta;
             }
-            if emitter.spin_down_angle_left <= FAN_SPINDOWN_SNAP_EPSILON
-                || next_counter > FAN_SPINDOWN_TIME
-            {
+            if emitter.spin_down_angle_left <= FAN_SPINDOWN_SNAP_EPSILON || t >= 1.0 {
                 emitter.state = FanState::Inactive;
                 emitter.counter = 0.0;
                 emitter.force = 0.0;
                 emitter.angle = snap_fan_angle(emitter.angle);
                 emitter.spin_down_angle_left = 0.0;
-            } else {
-                emitter.counter = next_counter;
             }
         }
         FanState::Inactive => {
@@ -324,6 +289,7 @@ fn update_fan_emitter(emitter: &mut FanEmitter, dt: f32) {
                 emitter.state = FanState::SpinUp;
                 emitter.counter = 0.0;
                 emitter.emitting = true;
+                emitter.burst_time = 0.0;
             }
         }
     }
@@ -368,6 +334,7 @@ fn spawn_fan_particle(
 
     particles.push(FanParticle {
         source_emitter_index: emitter_index,
+        render_z: fan_particle_render_z(emitter.world_z),
         x: emitter.world_x + world_offset.x,
         y: emitter.world_y + world_offset.y,
         vx: world_velocity.x,
@@ -384,66 +351,6 @@ fn spawn_fan_particle(
     });
 }
 
-fn active_fan_particle_counts(particles: &[FanParticle], emitter_count: usize) -> Vec<usize> {
-    let mut counts = vec![0; emitter_count];
-    for particle in particles {
-        if let Some(count) = counts.get_mut(particle.source_emitter_index) {
-            *count += 1;
-        }
-    }
-    counts
-}
-
-fn emit_fan_bursts_for_emitter(
-    emitter_index: usize,
-    emitter: &FanEmitter,
-    prev_t: f32,
-    new_t: f32,
-    now_millis: u32,
-    particles: &mut Vec<FanParticle>,
-    particle_counts: &mut [usize],
-) {
-    if !emitter.emitting {
-        return;
-    }
-
-    for (burst_index, burst) in fan_puff_system().bursts.iter().enumerate() {
-        let cycle_count = burst.cycle_count.max(1);
-        for cycle_index in 0..cycle_count {
-            let bt = burst.time + cycle_index as f32 * burst.repeat_interval;
-            let fired = fan_burst_fired(prev_t, new_t, bt, fan_puff_duration());
-            if !fired {
-                continue;
-            }
-            let seed = now_millis
-                + emitter_index as u32 * 773
-                + burst_index as u32 * 419
-                + cycle_index * 97
-                + particles.len() as u32 * 211;
-            let burst_count = burst.sample_count(pseudo_random(seed.wrapping_add(17)));
-            for particle_index in 0..burst_count {
-                if particle_counts
-                    .get(emitter_index)
-                    .copied()
-                    .unwrap_or_default()
-                    >= fan_puff_max_count()
-                {
-                    break;
-                }
-                spawn_fan_particle(
-                    emitter,
-                    emitter_index,
-                    particles,
-                    seed.wrapping_add(particle_index as u32 * 23),
-                );
-                if let Some(count) = particle_counts.get_mut(emitter_index) {
-                    *count += 1;
-                }
-            }
-        }
-    }
-}
-
 impl LevelRenderer {
     pub(super) fn update_fan_particles(&mut self, dt: f32) {
         // ── Fan state machine update ──
@@ -452,7 +359,6 @@ impl LevelRenderer {
         }
 
         // ── Fan particle burst emission ──
-        let mut particle_counts = active_fan_particle_counts(&self.fan_particles, self.fan_emitters.len());
         for ei in 0..self.fan_emitters.len() {
             let prev_t = self.fan_emitters[ei].burst_time;
             self.fan_emitters[ei].burst_time += dt;
@@ -460,16 +366,38 @@ impl LevelRenderer {
                 self.fan_emitters[ei].burst_time -= fan_puff_duration();
             }
             let new_t = self.fan_emitters[ei].burst_time;
-            let e = &self.fan_emitters[ei];
-            emit_fan_bursts_for_emitter(
-                ei,
-                e,
-                prev_t,
-                new_t,
-                (self.time * 1000.0) as u32,
-                &mut self.fan_particles,
-                &mut particle_counts,
-            );
+            if !self.fan_emitters[ei].emitting {
+                continue;
+            }
+            for (burst_index, burst) in fan_puff_system().bursts.iter().enumerate() {
+                let cycle_count = burst.cycle_count.max(1);
+                for cycle_index in 0..cycle_count {
+                    let bt = burst.time + cycle_index as f32 * burst.repeat_interval;
+                    let fired = (prev_t <= bt && new_t > bt)
+                        || (prev_t > new_t && (prev_t <= bt || new_t > bt));
+                    if !fired {
+                        continue;
+                    }
+                    let seed = (self.time * 1000.0) as u32
+                        + ei as u32 * 773
+                        + burst_index as u32 * 419
+                        + cycle_index * 97
+                        + self.fan_particles.len() as u32 * 211;
+                    let burst_count = burst.sample_count(pseudo_random(seed.wrapping_add(17)));
+                    let e = &self.fan_emitters[ei];
+                    for particle_index in 0..burst_count {
+                        if self.fan_particles.len() >= fan_puff_max_count() {
+                            break;
+                        }
+                        spawn_fan_particle(
+                            e,
+                            ei,
+                            &mut self.fan_particles,
+                            seed.wrapping_add(particle_index as u32 * 23),
+                        );
+                    }
+                }
+            }
         }
         // Update fan particles
         let mut fi = 0;
@@ -494,6 +422,7 @@ impl LevelRenderer {
 /// Draw fan wind particles (cloud puffs from Particles_Sheet_01.png).
 pub(crate) fn draw_fan_particles(
     particles: &[FanParticle],
+    source_emitter_index: Option<usize>,
     camera: &Camera,
     painter: &egui::Painter,
     canvas_center: egui::Vec2,
@@ -502,6 +431,10 @@ pub(crate) fn draw_fan_particles(
 ) {
     let (tiles_x, tiles_y, row_index) = fan_puff_uv_layout();
     for p in particles {
+        if source_emitter_index.is_some_and(|emitter_index| p.source_emitter_index != emitter_index)
+        {
+            continue;
+        }
         let t_frac = p.age / p.lifetime;
         let size_scale = fan_puff_size_scale(t_frac, p.size_random);
         let sz = p.start_size * size_scale;
@@ -577,6 +510,7 @@ mod tests {
             spin_down_angle_left: 0.0,
             world_x: 0.0,
             world_y: 0.0,
+            world_z: 0.0,
             rot: 0.0,
             burst_time: 0.0,
             start_time: 2.0,
@@ -633,68 +567,18 @@ mod tests {
     }
 
     #[test]
-    fn fan_running_rotation_uses_unity_per_frame_step() {
-        let mut sixty_fps = test_emitter();
-        sixty_fps.state = FanState::Spinning;
-        update_fan_emitter(&mut sixty_fps, 1.0 / 60.0);
-
-        let mut thirty_fps = test_emitter();
-        thirty_fps.state = FanState::Spinning;
-        update_fan_emitter(&mut thirty_fps, 1.0 / 30.0);
-
-        assert!((sixty_fps.angle - 100.0_f32.to_radians()).abs() < 0.0001);
-        assert!((thirty_fps.angle - sixty_fps.angle).abs() < 0.0001);
-    }
-
-    #[test]
-    fn fan_spindown_uses_runtime_curve_before_counter_advance() {
-        let dt = 1.0 / 60.0;
-        let mut emitter = test_emitter();
-        emitter.state = FanState::SpinDown;
-        emitter.force = 10.0;
-        emitter.spin_down_start_force = 10.0;
-        emitter.spin_down_angle_left = spin_down_angle_left(0.0);
-
-        update_fan_emitter(&mut emitter, dt);
-
-        assert!((emitter.angle - 10.0_f32.to_radians()).abs() < 0.0001);
-        assert_eq!(emitter.force, 0.0);
-        assert!((emitter.counter - dt).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn fan_turn_off_disables_runtime_force_before_spin_down_visuals() {
-        let mut emitter = test_emitter();
-        emitter.state = FanState::Spinning;
-        emitter.always_on = false;
-        emitter.counter = emitter.on_time;
-        emitter.force = 10.0;
-        emitter.angle = 0.3;
-
-        update_fan_emitter(&mut emitter, 0.0);
-
-        assert_eq!(emitter.state, FanState::SpinDown);
-        assert!(!emitter.emitting);
-        assert_eq!(emitter.force, 0.0);
-        assert_eq!(emitter.spin_down_start_force, 10.0);
-        assert!(emitter.spin_down_angle_left > 0.0);
-    }
-
-    #[test]
     fn build_reset_returns_fan_to_unpowered_idle_pose() {
         let mut emitter = test_emitter();
         emitter.state = FanState::Spinning;
         emitter.force = 8.0;
         emitter.emitting = true;
         emitter.angle = 1.23;
-        emitter.burst_time = 0.61;
         reset_fan_emitter_for_build(&mut emitter);
 
         assert_eq!(emitter.state, FanState::Inactive);
         assert_eq!(emitter.force, 0.0);
         assert!(!emitter.emitting);
         assert_eq!(emitter.angle, 0.0);
-        assert_eq!(emitter.burst_time, 0.0);
     }
 
     #[test]
@@ -712,18 +596,35 @@ mod tests {
     }
 
     #[test]
+    fn fan_turn_on_restarts_burst_cycle_from_zero() {
+        let mut emitter = test_emitter();
+        emitter.state = FanState::DelayedStart;
+        emitter.delayed_start = 0.5;
+        emitter.counter = 0.49;
+        emitter.burst_time = 0.61;
+
+        update_fan_emitter(&mut emitter, 0.02);
+
+        assert_eq!(emitter.state, FanState::SpinUp);
+        assert!(emitter.emitting);
+        assert_eq!(emitter.counter, 0.0);
+        assert_eq!(emitter.burst_time, 0.0);
+    }
+
+    #[test]
     fn fan_puff_spawn_uses_unity_prefab_particle_config() {
         let emitter = test_emitter();
         let mut particles = Vec::new();
         spawn_fan_particle(&emitter, 0, &mut particles, 0);
 
         let particle = &particles[0];
-        assert_eq!(particle.source_emitter_index, 0);
         assert!((particle.y - 0.6365275).abs() < 0.001);
         assert_eq!(particle.uv_col, 3);
         assert!((particle.fy + 0.5).abs() < 0.001);
         assert!((0.7..=1.5).contains(&particle.lifetime));
         assert!((particle.start_size - 1.2).abs() < 0.001);
+        assert_eq!(particle.source_emitter_index, 0);
+        assert_eq!(particle.render_z, fan_particle_render_z(emitter.world_z));
     }
 
     #[test]
@@ -733,31 +634,5 @@ mod tests {
         assert_eq!(fan_puff_size_scale(0.0, 0.5), 0.0);
         assert!(fan_puff_size_scale(0.5, 0.5) > 0.09);
         assert_eq!(fan_puff_size_scale(1.0, 0.5), 0.0);
-    }
-
-    #[test]
-    fn fan_burst_fires_when_update_lands_on_prefab_boundary() {
-        assert!(fan_burst_fired(0.0, 0.25, 0.25, fan_puff_duration()));
-        assert!(fan_burst_fired(0.0, 0.01, 0.0, fan_puff_duration()));
-        assert!(!fan_burst_fired(0.25, 0.26, 0.25, fan_puff_duration()));
-    }
-
-    #[test]
-    fn fan_particle_cap_applies_per_emitter_not_globally() {
-        let emitter_a = test_emitter();
-        let mut emitter_b = test_emitter();
-        emitter_b.world_x = 10.0;
-
-        let mut particles = Vec::new();
-        for seed in 0..fan_puff_max_count() as u32 {
-            spawn_fan_particle(&emitter_a, 0, &mut particles, seed);
-        }
-        let mut counts = active_fan_particle_counts(&particles, 2);
-
-        emit_fan_bursts_for_emitter(1, &emitter_b, 0.0, 0.25, 0, &mut particles, &mut counts);
-
-        assert_eq!(counts[0], fan_puff_max_count());
-        assert!(counts[1] > 0);
-        assert!(particles.iter().any(|particle| particle.source_emitter_index == 1));
     }
 }

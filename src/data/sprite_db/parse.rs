@@ -40,15 +40,20 @@ fn parse_doc_header(header: &str) -> Option<(u32, String)> {
 
 fn parse_game_object(doc: &str, file_id: &str, game_objects: &mut HashMap<String, GameObjectInfo>) {
     let mut active = true;
+    let mut name = String::new();
 
     for line in doc.lines() {
         let trimmed = line.trim();
+        if let Some(value) = trimmed.strip_prefix("m_Name:") {
+            name = value.trim().to_string();
+            continue;
+        }
         if let Some(value) = trimmed.strip_prefix("m_IsActive:") {
             active = value.trim() != "0";
         }
     }
 
-    game_objects.insert(file_id.to_string(), GameObjectInfo { active });
+    game_objects.insert(file_id.to_string(), GameObjectInfo { active, name });
 }
 
 fn parse_transform(doc: &str, file_id: &str, transforms: &mut HashMap<String, TransformInfo>) {

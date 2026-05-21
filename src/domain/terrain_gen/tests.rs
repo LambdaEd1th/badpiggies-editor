@@ -5,6 +5,7 @@
 use super::fill_mesh::ear_clip_triangulate;
 use super::math::{count_self_intersections, signed_area};
 use super::*;
+use crate::domain::types::{Color, TerrainMesh};
 
 #[test]
 fn stripe_vertex_basic() {
@@ -92,6 +93,106 @@ fn control_png_roundtrip() {
     // Node 2: R=255, G=0 → texture 0
     assert_eq!(pixels[8], 255);
     assert_eq!(pixels[9], 0);
+}
+
+#[test]
+fn extract_curve_nodes_preserves_rgba_texture_indices() {
+    let nodes = vec![
+        CurveNode {
+            position: Vec2 { x: 0.0, y: 0.0 },
+            texture: 0,
+        },
+        CurveNode {
+            position: Vec2 { x: 1.0, y: 0.0 },
+            texture: 1,
+        },
+        CurveNode {
+            position: Vec2 { x: 2.0, y: 0.0 },
+            texture: 2,
+        },
+        CurveNode {
+            position: Vec2 { x: 3.0, y: 0.0 },
+            texture: 3,
+        },
+    ];
+    let png = encode_control_png(&nodes).expect("control png");
+    let td = TerrainData {
+        fill_texture_tile_offset_x: 0.0,
+        fill_texture_tile_offset_y: 0.0,
+        fill_mesh: TerrainMesh::default(),
+        fill_color: Color {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        },
+        fill_texture_index: 0,
+        curve_mesh: TerrainMesh {
+            vertices: vec![
+                Vec2 { x: 0.0, y: 0.0 },
+                Vec2 { x: 0.0, y: -1.0 },
+                Vec2 { x: 1.0, y: 0.0 },
+                Vec2 { x: 1.0, y: -1.0 },
+                Vec2 { x: 2.0, y: 0.0 },
+                Vec2 { x: 2.0, y: -1.0 },
+                Vec2 { x: 3.0, y: 0.0 },
+                Vec2 { x: 3.0, y: -1.0 },
+            ],
+            indices: vec![0, 2, 3, 0, 3, 1],
+        },
+        curve_textures: Vec::new(),
+        control_texture_count: 1,
+        control_texture_data: Some(png),
+        has_collider: true,
+        fill_boundary: None,
+    };
+
+    let extracted = extract_curve_nodes(&td);
+    let textures: Vec<usize> = extracted.into_iter().map(|node| node.texture).collect();
+
+    assert_eq!(textures, vec![0, 1, 2, 3]);
+}
+
+#[test]
+fn regenerate_terrain_uses_unity_default_curve_width_when_curve_textures_empty() {
+    let nodes = vec![
+        CurveNode {
+            position: Vec2 { x: 0.0, y: 0.0 },
+            texture: 0,
+        },
+        CurveNode {
+            position: Vec2 { x: 1.0, y: 0.0 },
+            texture: 0,
+        },
+        CurveNode {
+            position: Vec2 { x: 2.0, y: 0.0 },
+            texture: 0,
+        },
+    ];
+    let mut td = TerrainData {
+        fill_texture_tile_offset_x: 0.0,
+        fill_texture_tile_offset_y: 0.0,
+        fill_mesh: TerrainMesh::default(),
+        fill_color: Color {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        },
+        fill_texture_index: 0,
+        curve_mesh: TerrainMesh::default(),
+        curve_textures: Vec::new(),
+        control_texture_count: 0,
+        control_texture_data: None,
+        has_collider: true,
+        fill_boundary: None,
+    };
+
+    regenerate_terrain(&mut td, &nodes);
+
+    assert_eq!(td.curve_mesh.vertices.len(), 6);
+    assert!((td.curve_mesh.vertices[1].y - (-1.0)).abs() < 0.01);
+    assert!((td.curve_mesh.vertices[3].y - (-1.0)).abs() < 0.01);
 }
 
 /// Test earcut with the real 109-vertex closed polygon from the user's terrain.

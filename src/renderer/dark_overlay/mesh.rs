@@ -15,7 +15,7 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
     canvas_center: egui::Vec2,
     lit_areas: &[LitAreaPolygon],
 ) -> (egui::Mesh, Option<egui::Mesh>, Option<egui::Mesh>) {
-    let dark_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200);
+    let dark_color = egui::Color32::from_rgba_unmultiplied(12, 15, 12, 255);
     let light_fill_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, LIGHT_FILL_ALPHA);
     let lit_area_border_color =
         egui::Color32::from_rgba_unmultiplied(0, 0, 0, LIT_AREA_BORDER_ALPHA);
@@ -48,18 +48,17 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
     let hole_polys: Vec<Vec<egui::Pos2>> = lit_areas
         .iter()
         .filter_map(|la| {
-            let source = if la.border_vertices.len() >= 3 {
-                &la.border_vertices
-            } else {
-                &la.vertices
-            };
-            let pts: Vec<egui::Pos2> = source.iter().map(|&(wx, wy)| to_screen(wx, wy)).collect();
+            let pts: Vec<egui::Pos2> = la
+                .vertices
+                .iter()
+                .map(|&(wx, wy)| to_screen(wx, wy))
+                .collect();
             if pts.len() >= 3 { Some(pts) } else { None }
         })
         .collect();
 
     struct ScreenLitArea {
-        hole: Vec<egui::Pos2>,
+        outer: Vec<egui::Pos2>,
         inner: Vec<egui::Pos2>,
         border_alpha: u8,
     }
@@ -74,7 +73,7 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
         if inner.len() < 3 {
             continue;
         }
-        let hole = if la.border_vertices.len() >= 3 {
+        let outer = if la.border_vertices.len() >= 3 {
             la.border_vertices
                 .iter()
                 .map(|&(wx, wy)| to_screen(wx, wy))
@@ -83,7 +82,7 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
             inner.clone()
         };
         screen_lit_areas.push(ScreenLitArea {
-            hole,
+            outer,
             inner,
             border_alpha: la.border_alpha,
         });
@@ -118,7 +117,7 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
         .map(|area| area.inner.clone())
         .collect();
 
-    let light_fill_mesh = if inner_polys.is_empty() {
+    let light_fill_mesh = if inner_polys.is_empty() || LIGHT_FILL_ALPHA == 0 {
         None
     } else {
         let mesh = build_scanline_fill_mesh(rect, &inner_polys, light_fill_color);
@@ -131,11 +130,11 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
 
     let ring_mesh = if screen_lit_areas
         .iter()
-        .any(|area| area.hole.len() >= 3 && area.hole != area.inner)
+        .any(|area| area.outer.len() >= 3 && area.outer != area.inner)
     {
         let mut combined = egui::Mesh::default();
         for (index, area) in screen_lit_areas.iter().enumerate() {
-            if area.hole == area.inner {
+            if area.outer == area.inner {
                 continue;
             }
             let color = if area.border_alpha == POINT_LIGHT_BORDER_ALPHA {
@@ -146,13 +145,13 @@ pub(in crate::renderer) fn build_dark_overlay_meshes(
             let mut exclusion_polys = Vec::with_capacity(screen_lit_areas.len());
             for (other_index, other) in screen_lit_areas.iter().enumerate() {
                 if other_index != index {
-                    exclusion_polys.push(other.hole.clone());
+                    exclusion_polys.push(other.outer.clone());
                 }
             }
             exclusion_polys.push(area.inner.clone());
             let part = build_scanline_ring_mesh(
                 rect,
-                std::slice::from_ref(&area.hole),
+                std::slice::from_ref(&area.outer),
                 &exclusion_polys,
                 color,
             );

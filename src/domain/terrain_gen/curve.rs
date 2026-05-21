@@ -3,9 +3,9 @@
 use crate::domain::types::{TerrainData, Vec2};
 
 use super::math::dist_sq;
-use super::png::decode_control_png_pixels;
+use super::png::{decode_control_png_pixels, decode_control_texture_index};
 
-/// A curve node: position + texture index (0 or 1 in practice).
+/// A curve node: position + texture index decoded from the control texture RGBA channels.
 #[derive(Debug, Clone)]
 pub struct CurveNode {
     pub position: Vec2,
@@ -28,10 +28,7 @@ pub fn extract_curve_nodes(td: &TerrainData) -> Vec<CurveNode> {
             let pos = verts[i * 2]; // outer vertex
             let texture = ctrl_pixels
                 .as_ref()
-                .map(|px| {
-                    let gi = i * 4 + 1; // green channel
-                    if gi < px.len() && px[gi] > 128 { 1 } else { 0 }
-                })
+                .map(|px| decode_control_texture_index(px, i))
                 .unwrap_or(0);
             CurveNode {
                 position: pos,

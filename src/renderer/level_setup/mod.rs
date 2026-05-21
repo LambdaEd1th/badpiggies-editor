@@ -5,10 +5,14 @@ mod set_level;
 use std::sync::Arc;
 
 use crate::data::assets;
-use crate::domain::prefab_override_runtime::RuntimeOverrideDocument;
 use crate::domain::types::{LevelData, LevelObject, ObjectIndex, Vec2, Vec3};
+use crate::unity_runtime::components::{
+    Camera as UnityCamera, LevelManager, Transform as UnityTransform,
+};
+use crate::unity_runtime::scene::Scene;
 
 use super::bg_shader;
+use super::dark_mask_shader;
 use super::edge_shader;
 use super::fill_shader;
 use super::opaque_shader;
@@ -52,6 +56,12 @@ impl LevelRenderer {
         });
         let fill_resources = render_state.map(|rs| {
             Arc::new(fill_shader::init_fill_resources(
+                &rs.device,
+                rs.target_format,
+            ))
+        });
+        let dark_mask_resources = render_state.map(|rs| {
+            Arc::new(dark_mask_shader::init_dark_mask_resources(
                 &rs.device,
                 rs.target_format,
             ))
@@ -105,6 +115,7 @@ impl LevelRenderer {
             show_grid: true,
             dark_level: false,
             show_dark_overlay: true,
+            night_vision_enabled: false,
             camera_limits: None,
             show_level_bounds: false,
             show_terrain_tris: false,
@@ -136,17 +147,22 @@ impl LevelRenderer {
             sprite_atlas_cache: sprite_shader::SpriteAtlasCache::new(),
             sprite_slot_counter: 0,
             fill_resources,
+            dark_mask_resources,
             fill_texture_cache: fill_shader::FillTextureCache::new(),
             fill_gpu_meshes: Vec::new(),
             fill_slot_counter: 0,
+            dark_mask_slot_counter: 0,
             hovered_terrain_node: None,
             hovered_rotation_handle: None,
             hovered_scale_handle: None,
             terrain_scratch_mesh: egui::Mesh::default(),
             clicked_empty: false,
             dark_overlay_mesh: None,
+            dark_overlay_mesh_gpu: None,
             dark_overlay_light: None,
+            dark_overlay_light_gpu: None,
             dark_overlay_ring: None,
+            dark_overlay_ring_gpu: None,
             dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             dark_overlay_live_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             dark_overlay_stable_frames: 0,
@@ -206,6 +222,7 @@ impl LevelRenderer {
             show_grid: self.show_grid,
             dark_level: false,
             show_dark_overlay: true,
+            night_vision_enabled: false,
             camera_limits: None,
             show_level_bounds: self.show_level_bounds,
             show_terrain_tris: self.show_terrain_tris,
@@ -237,17 +254,22 @@ impl LevelRenderer {
             sprite_atlas_cache: sprite_shader::SpriteAtlasCache::new(),
             sprite_slot_counter: 0,
             fill_resources: self.fill_resources.clone(),
+            dark_mask_resources: self.dark_mask_resources.clone(),
             fill_texture_cache: fill_shader::FillTextureCache::new(),
             fill_gpu_meshes: Vec::new(),
             fill_slot_counter: 0,
+            dark_mask_slot_counter: 0,
             hovered_terrain_node: None,
             hovered_rotation_handle: None,
             hovered_scale_handle: None,
             terrain_scratch_mesh: egui::Mesh::default(),
             clicked_empty: false,
             dark_overlay_mesh: None,
+            dark_overlay_mesh_gpu: None,
             dark_overlay_light: None,
+            dark_overlay_light_gpu: None,
             dark_overlay_ring: None,
+            dark_overlay_ring_gpu: None,
             dark_overlay_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             dark_overlay_live_key: (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
             dark_overlay_stable_frames: 0,
@@ -256,6 +278,20 @@ impl LevelRenderer {
 
     /// Rebuild cached data when a new level is loaded.
     pub fn fit_to_level(&mut self) {
+        if let Some([tl_x, tl_y, w, h]) = self.camera_limits {
+            let padding = 5.0;
+            self.camera.center = Vec2 {
+                x: tl_x + w * 0.5,
+                y: tl_y - h * 0.5,
+            };
+
+            let range_x = w + padding * 2.0;
+            let range_y = h + padding * 2.0;
+            let range = range_x.max(range_y).max(1.0);
+            self.camera.zoom = (600.0 / range).clamp(5.0, 200.0);
+            return;
+        }
+
         if self.world_positions.is_empty() {
             return;
         }
@@ -286,7 +322,7 @@ impl LevelRenderer {
 }
 
 pub(super) fn load_raw_rgba(asset_key: &str) -> Option<(Vec<u8>, u32, u32)> {
-    let data = crate::data::assets::read_asset(asset_key)?;
+    let data = crate::data::assets::read_pathname(asset_key)?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     // Flip vertically: image crate stores top-to-bottom, but glTexImage2D places
     // row 0 at V=0 (bottom). Flipping matches Three.js flipY=true / Unity convention
@@ -320,6 +356,55 @@ pub(super) fn find_bg_override_text(objects: &[LevelObject]) -> Option<String> {
     None
 }
 
+pub(super) fn find_bg_root_position(objects: &[LevelObject]) -> Option<Vec3> {
+    for obj in objects {
+        if let LevelObject::Prefab(inst) = obj
+            && inst.name.contains("Background")
+            && let Some(ref od) = inst.override_data
+            && background_override_has_transform_or_serializer(&od.raw_text)
+        {
+            return Some(inst.position);
+        }
+    }
+    None
+}
+
+pub(super) fn parse_authored_camera(level: &LevelData) -> Option<(Vec2, f32)> {
+    for obj in &level.objects {
+        if let LevelObject::Prefab(prefab) = obj
+            && prefab.name == "CameraSystem"
+            && let Some(ref od) = prefab.override_data
+            && let Some((scene, root)) = Scene::from_override_text(&od.raw_text)
+        {
+            let camera_owner = scene.find_child(root, "GameCamera").unwrap_or(root);
+            let Some((_, camera)) = scene.get_component_of::<UnityCamera>(camera_owner) else {
+                continue;
+            };
+            if camera.orthographic_size <= 0.0 {
+                continue;
+            }
+
+            let mut center = Vec2 {
+                x: prefab.position.x,
+                y: prefab.position.y,
+            };
+            if camera_owner != root
+                && let Some((_, transform)) = scene.get_component_of::<UnityTransform>(camera_owner)
+                && let Some(local) = transform.local_position
+            {
+                center.x += local.x;
+                center.y += local.y;
+            }
+
+            return Some((
+                center,
+                600.0 / (camera.orthographic_size * 2.0),
+            ));
+        }
+    }
+    None
+}
+
 /// Parse `m_cameraLimits` from LevelManager override data.
 /// Returns `[topLeft.x, topLeft.y, size.x, size.y]` or `None` if not overridden.
 pub(super) fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
@@ -327,48 +412,49 @@ pub(super) fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
         if let LevelObject::Prefab(p) = obj
             && p.name == "LevelManager"
             && let Some(ref od) = p.override_data
+            && let Some((scene, root)) = Scene::from_override_text(&od.raw_text)
+            && let Some((_, lm)) = scene.get_component_of::<LevelManager>(root)
+            && let Some(vals) = lm.camera_limits
+            && vals[2] > 0.0
+            && vals[3] > 0.0
         {
-            let document = RuntimeOverrideDocument::parse(&od.raw_text);
-            let camera_limits = document.roots.iter().find_map(|root| {
-                root.find_descendant(&|node| {
-                    node.node_type == "Generic" && node.name == "m_cameraLimits"
-                })
-            })?;
-            let top_left = camera_limits.child("Vector2", "topLeft")?.value_as_vec2()?;
-            let size = camera_limits.child("Vector2", "size")?.value_as_vec2()?;
-            let vals = [top_left.x, top_left.y, size.x, size.y];
-            if vals[2] > 0.0 && vals[3] > 0.0 {
-                return Some(vals);
-            }
+            return Some(vals);
         }
     }
     None
 }
 
 fn background_override_has_transform_or_serializer(raw_text: &str) -> bool {
-    let document = RuntimeOverrideDocument::parse(raw_text);
-    document.roots.iter().any(|root| {
-        root.find_descendant(&|node| {
-            (node.node_type == "Component"
-                && node
-                    .name
-                    .rsplit('.')
-                    .next()
-                    .is_some_and(|name| name == "Transform" || name == "PositionSerializer"))
-                || node.name == "childLocalPositions"
-        })
-        .is_some()
+    let Some((scene, _root)) = Scene::from_override_text(raw_text) else {
+        return false;
+    };
+    scene.iter_components().any(|(_, c)| {
+        let suffix = c.behavior.component_suffix();
+        suffix == "Transform"
+            || suffix == "PositionSerializer"
+            || c.behavior
+                .extra()
+                .iter()
+                .any(|(name, _)| name == "childLocalPositions")
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{find_bg_override_text, parse_camera_limits};
+    use super::{
+        find_bg_override_text, find_bg_root_position, parse_authored_camera,
+        parse_camera_limits, LevelRenderer,
+    };
+    use crate::domain::parser::parse_level;
     use crate::domain::types::{
         DataType, LevelData, LevelObject, ParentObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
 
     const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n\t\tGeneric m_cameraLimits\n\t\t\tVector2 topLeft\n\t\t\t\tFloat x = -202.43\n\t\t\t\tFloat y = 28.3\n\t\t\tVector2 size\n\t\t\t\tFloat x = 96.5\n\t\t\t\tFloat y = 49.7\n";
+
+    const CAMERA_SYSTEM_OVERRIDE: &str = "GameObject CameraSystem\n\tComponent Camera\n\t\tBoolean orthographic = True\n\t\tFloat orthographic size = 9.430499\n";
+
+    const NESTED_CAMERA_SYSTEM_OVERRIDE: &str = "GameObject CameraSystem\n\tGameObject GameCamera\n\t\tComponent UnityEngine.Transform\n\t\t\tVector3 m_LocalPosition\n\t\t\t\tFloat x = -92.76147\n\t\t\t\tFloat y = 51.59889\n\t\tComponent UnityEngine.Camera\n\t\t\tBoolean orthographic = True\n\t\t\tFloat orthographic size = 9.430499\n";
 
     const BG_OVERRIDE: &str = "GameObject Background_Cave_01_SET 1\n\tComponent PositionSerializer\n\t\tArray childLocalPositions\n\t\t\tArraySize size = 1\n";
 
@@ -383,6 +469,80 @@ mod tests {
             parse_camera_limits(&level),
             Some([-202.43, 28.3, 96.5, 49.7])
         );
+    }
+
+    #[test]
+    fn parses_authored_camera_from_camera_system_override_ast() {
+        let mut camera = prefab("CameraSystem", CAMERA_SYSTEM_OVERRIDE);
+        camera.position = Vec3 {
+            x: 12.5,
+            y: -3.75,
+            z: 0.0,
+        };
+        let level = LevelData {
+            objects: vec![LevelObject::Prefab(camera)],
+            roots: vec![0],
+        };
+
+        let Some((center, zoom)) = parse_authored_camera(&level) else {
+            panic!("expected CameraSystem override to produce an authored camera");
+        };
+        assert!((center.x - 12.5).abs() < 0.001);
+        assert!((center.y + 3.75).abs() < 0.001);
+        assert!((zoom - (600.0 / (9.430499 * 2.0))).abs() < 0.001);
+    }
+
+    #[test]
+    fn parses_authored_camera_from_nested_game_camera_override_ast() {
+        let mut camera = prefab("CameraSystem", NESTED_CAMERA_SYSTEM_OVERRIDE);
+        camera.position = Vec3 {
+            x: 32.8404,
+            y: -2.0766,
+            z: -15.0,
+        };
+        let level = LevelData {
+            objects: vec![LevelObject::Prefab(camera)],
+            roots: vec![0],
+        };
+
+        let Some((center, zoom)) = parse_authored_camera(&level) else {
+            panic!("expected nested GameCamera override to produce an authored camera");
+        };
+        assert!((center.x - (32.8404 - 92.76147)).abs() < 0.001);
+        assert!((center.y - (-2.0766 + 51.59889)).abs() < 0.001);
+        assert!((zoom - (600.0 / (9.430499 * 2.0))).abs() < 0.001);
+    }
+
+    #[test]
+    fn level27_parses_authored_camera_system_view() {
+        let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
+        let bytes = std::fs::read(&level_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+        let level = parse_level(bytes)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+        let Some((_, zoom)) = parse_authored_camera(&level) else {
+            panic!("expected Level_27 CameraSystem to provide an authored camera view");
+        };
+        assert!(zoom > 20.0, "expected authored Level_27 zoom to be much tighter than bounds-fit, got {zoom}");
+    }
+
+    #[test]
+    fn sandbox_level_parses_authored_camera_center_from_game_camera_transform() {
+        let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+        let bytes = std::fs::read(&level_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+        let level = parse_level(bytes)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+        let Some((center, zoom)) = parse_authored_camera(&level) else {
+            panic!("expected Level_Sandbox_01 CameraSystem to provide an authored camera view");
+        };
+        assert!((center.x - -59.92106).abs() < 0.01, "expected sandbox camera center x to include nested GameCamera transform, got {}", center.x);
+        assert!((center.y - 49.52229).abs() < 0.01, "expected sandbox camera center y to include nested GameCamera transform, got {}", center.y);
+        assert!((zoom - (600.0 / (9.430499 * 2.0))).abs() < 0.001);
     }
 
     #[test]
@@ -401,6 +561,42 @@ mod tests {
         };
 
         assert_eq!(find_bg_override_text(&level.objects), Some(BG_OVERRIDE.to_string()));
+    }
+
+    #[test]
+    fn finds_background_root_position_from_matching_prefab() {
+        let mut bg = prefab("BackgroundObject", BG_OVERRIDE);
+        bg.position = Vec3 {
+            x: -172.66,
+            y: -0.21,
+            z: 0.0,
+        };
+        let level = LevelData {
+            objects: vec![LevelObject::Prefab(bg)],
+            roots: vec![0],
+        };
+
+        let position = find_bg_root_position(&level.objects)
+            .expect("background root position should be detected");
+        assert!((position.x + 172.66).abs() < f32::EPSILON);
+        assert!((position.y + 0.21).abs() < f32::EPSILON);
+        assert!(position.z.abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn fit_to_level_prefers_camera_limits_over_object_bounds() {
+        let mut renderer = LevelRenderer::new(None);
+        renderer.world_positions = vec![
+            (0, Vec3 { x: -500.0, y: -200.0, z: 0.0 }),
+            (1, Vec3 { x: 400.0, y: 300.0, z: 0.0 }),
+        ];
+        renderer.camera_limits = Some([-20.0, 30.0, 80.0, 40.0]);
+
+        renderer.fit_to_level();
+
+        assert!((renderer.camera.center.x - 20.0).abs() < 0.001);
+        assert!((renderer.camera.center.y - 10.0).abs() < 0.001);
+        assert!((renderer.camera.zoom - (600.0 / 90.0)).abs() < 0.001);
     }
 
     fn prefab(name: &str, raw_text: &str) -> PrefabInstance {

@@ -16,8 +16,7 @@ use crate::data::assets;
 
 pub use types::{IconLayer, PartInfo};
 
-const PREFAB_MANIFEST_ASSET: &str = "unity/prefabs/manifest.txt";
-const PREFAB_DIR_ASSET: &str = "unity/prefabs";
+const PREFAB_DIR_ASSET: &str = "Assets/Prefab/";
 
 static ICON_DB: OnceLock<HashMap<String, PartInfo>> = OnceLock::new();
 
@@ -42,28 +41,18 @@ fn load() -> HashMap<String, PartInfo> {
         return HashMap::new();
     }
 
-    let Some(manifest) = read_embedded_text(PREFAB_MANIFEST_ASSET) else {
-        log::error!(
-            "Failed to read embedded prefab manifest for icon layer database: {}",
-            PREFAB_MANIFEST_ASSET
-        );
-        return HashMap::new();
-    };
-
     let mut map = HashMap::new();
-    for filename in manifest
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-    {
-        if !filename.starts_with("Part_") || !filename.ends_with("_SET.prefab") {
+    for asset_path in assets::list_pathnames(PREFAB_DIR_ASSET, "_SET.prefab") {
+        let filename = asset_path
+            .strip_prefix(PREFAB_DIR_ASSET)
+            .unwrap_or(asset_path.as_str());
+        if !filename.starts_with("Part_") {
             continue;
         }
         let Some(default_custom_part_index) = default_custom_part_index(filename) else {
             continue;
         };
 
-        let asset_path = format!("{}/{}", PREFAB_DIR_ASSET, filename);
         let Some(text) = read_embedded_text(&asset_path) else {
             log::warn!(
                 "Missing embedded part prefab for icon layers: {}",
@@ -97,7 +86,7 @@ fn load() -> HashMap<String, PartInfo> {
 }
 
 pub(super) fn read_embedded_text(path: &str) -> Option<String> {
-    let bytes = assets::read_asset(path)?;
+    let bytes = assets::read_pathname(path)?;
     Some(String::from_utf8_lossy(bytes.as_ref()).into_owned())
 }
 

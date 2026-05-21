@@ -32,6 +32,10 @@ pub struct SpriteDrawData {
     pub atlas: Option<String>,
     /// UV rect if sprite was found in database.
     pub uv: Option<sprite_db::UvRect>,
+    /// Per-prefab material tint for opaque Props sprites.
+    pub opaque_tint_color: [f32; 4],
+    /// Whether this sprite's material uses alpha-blend (not opaque/cutout).
+    pub is_alpha_blend: bool,
     /// Whether this sprite is hidden (not rendered and not hit-testable unless selected).
     pub is_hidden: bool,
     /// Parent container index (for showing siblings when parent is selected).
@@ -111,8 +115,6 @@ pub fn build_sprite(
         world_pos
     };
 
-    let color = assets::get_object_color(sprite_name, prefab.prefab_index);
-
     let sx = prefab.scale.x.abs().max(0.01);
     let sy = prefab.scale.y.abs().max(0.01);
 
@@ -140,6 +142,7 @@ pub fn build_sprite(
     };
 
     let has_atlas = atlas.is_some();
+    let color = assets::get_object_color(sprite_name, prefab.prefab_index, has_atlas);
 
     SpriteDrawData {
         world_pos,
@@ -151,6 +154,8 @@ pub fn build_sprite(
         is_terrain,
         atlas,
         uv,
+        opaque_tint_color: assets::props_tint_color_for_prefab(sprite_name),
+        is_alpha_blend: assets::props_tint_is_alpha_blend(sprite_name),
         is_hidden: is_dessert_place
             || sprite_name.starts_with("WindArea")
             || (!has_atlas && assets::should_skip_render(sprite_name)),

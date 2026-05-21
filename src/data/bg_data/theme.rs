@@ -1,17 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::OnceLock;
-
-use crate::data::assets;
 
 use super::parse::{
     GameObjectInfo, ParsedPrefab, SpriteComponent, asset_filename, is_sky_texture_asset,
     load_textureloader_materials, parse_prefab, read_embedded_text,
 };
-use super::tables::{
-    alpha_blend_override, classify_group_layer, fill_color_override, supplemental_atlas_for_material,
-    uses_own_group_context,
-};
+use super::tables::{bg_atlas_files, classify_group_layer, explicit_parallax_layer};
 use super::types::{BgLayer, BgSprite, BgTheme};
 
 #[derive(Clone)]
@@ -43,17 +39,35 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
         material_guid,
         textureloader_materials,
     } = input;
-    let fill_color = fill_color_override(theme_name, &game_object.name, &group.name);
-    let (atlas, sky_texture) = if fill_color.is_some() {
-        (None, None)
-    } else if let Some(asset_name) = textureloader_materials.get(material_guid) {
+    let material_fill_color = crate::domain::level::refs::material_color_for_guid_prefix(material_guid);
+    let material_tint = crate::domain::level::refs::material_color_rgba_for_guid_prefix(material_guid)
+        .map(|[red, green, blue, alpha]| {
+            [
+                red as f32 / 255.0,
+                green as f32 / 255.0,
+                blue as f32 / 255.0,
+                alpha as f32 / 255.0,
+            ]
+        })
+        .unwrap_or([1.0, 1.0, 1.0, 1.0]);
+    let material_alpha_blend =
+        crate::domain::level::refs::material_alpha_blend_for_guid_prefix(material_guid);
+    let material_alpha8bit =
+        crate::domain::level::refs::material_alpha8bit_for_guid_prefix(material_guid);
+    let material_cutoff = crate::domain::level::refs::material_cutoff_for_guid_prefix(material_guid)
+        .unwrap_or(0.5);
+    let custom_render_queue =
+        crate::domain::level::refs::material_custom_render_queue_for_guid_prefix(material_guid);
+    let (atlas, sky_texture, fill_color) = if let Some(asset_name) = textureloader_materials.get(material_guid) {
         if is_sky_texture_asset(asset_name) {
-            (None, Some(asset_filename(asset_name)))
+            (None, Some(asset_filename(asset_name)), None)
         } else {
-            (Some(asset_filename(asset_name)), None)
+            (Some(asset_filename(asset_name)), None, None)
         }
-    } else if let Some(atlas_name) = supplemental_atlas_for_material(material_guid) {
-        (Some(atlas_name.to_string()), None)
+    } else if let Some(atlas_name) = super::atlas_for_material_guid(material_guid) {
+        (Some(atlas_name.to_string()), None, None)
+    } else if let Some(fill_color) = material_fill_color {
+        (None, None, Some(fill_color))
     } else {
         log::warn!(
             "Missing background material mapping for theme={}, sprite={}, guid={}",
@@ -63,6 +77,9 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
         );
         return None;
     };
+    let atlas_soft_alpha_blend = atlas
+        .as_deref()
+        .is_some_and(|atlas_name| sprite_requires_soft_alpha_blend(atlas_name, sprite_component));
 
     let is_group_root = game_object.name == group.name;
     Some(BgSprite {
@@ -95,8 +112,73 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
             world_pos[1] - group.origin[1]
         },
         parent_group: group.name.clone(),
-        tint: [1.0, 1.0, 1.0, 1.0],
-        alpha_blend: alpha_blend_override(theme_name, &game_object.name, &group.name, group.layer),
+        tint: material_tint,
+        custom_render_queue,
+        alpha_blend: material_alpha_blend
+            || material_alpha8bit
+            || group.layer == BgLayer::Camera
+            || atlas_soft_alpha_blend,
+        alpha8bit: material_alpha8bit,
+        cutoff: material_cutoff,
+    })
+}
+
+fn sprite_requires_soft_alpha_blend(
+    atlas_name: &str,
+    sprite_component: &SpriteComponent,
+) -> bool {
+    let Some(image) = background_atlas_images().get(atlas_name) else {
+        return false;
+    };
+
+    let subdiv = sprite_component.subdiv;
+    if subdiv <= 0.0 {
+        return false;
+    }
+
+    let width = image.width() as f32;
+    let height = image.height() as f32;
+    let x0 = ((sprite_component.uv_x / subdiv) * width).round() as u32;
+    let x1 = (((sprite_component.uv_x + sprite_component.width) / subdiv) * width).round() as u32;
+    let y0 = (((subdiv - sprite_component.uv_y - sprite_component.height) / subdiv) * height).round() as u32;
+    let y1 = (((subdiv - sprite_component.uv_y) / subdiv) * height).round() as u32;
+    let x0 = x0.min(image.width());
+    let x1 = x1.min(image.width());
+    let y0 = y0.min(image.height());
+    let y1 = y1.min(image.height());
+    if x0 >= x1 || y0 >= y1 {
+        return false;
+    }
+
+    let mut saw_visible_pixel = false;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let alpha = image.get_pixel(x, y).0[3];
+            if alpha == 0 {
+                continue;
+            }
+            saw_visible_pixel = true;
+            if alpha >= 128 {
+                return false;
+            }
+        }
+    }
+
+    saw_visible_pixel
+}
+
+fn background_atlas_images() -> &'static HashMap<String, image::RgbaImage> {
+    static IMAGES: OnceLock<HashMap<String, image::RgbaImage>> = OnceLock::new();
+
+    IMAGES.get_or_init(|| {
+        bg_atlas_files()
+            .iter()
+            .filter_map(|atlas_name| {
+                let data = crate::data::assets::read_pathname(&format!("Assets/Texture2D/{atlas_name}"))?;
+                let image = image::load_from_memory(&data).ok()?.to_rgba8();
+                Some((atlas_name.clone(), image))
+            })
+            .collect()
     })
 }
 
@@ -132,6 +214,16 @@ struct BgTraverseOutput<'a> {
     sprites: &'a mut Vec<BgSprite>,
 }
 
+fn set_child_order_entry(child_order: &mut Vec<String>, root_order: i32, name: &str) {
+    let Ok(index) = usize::try_from(root_order) else {
+        return;
+    };
+    if child_order.len() <= index {
+        child_order.resize(index + 1, String::new());
+    }
+    child_order[index] = name.to_string();
+}
+
 fn traverse_group(
     ctx: &BgTraverseCtx<'_>,
     transform_id: &str,
@@ -157,22 +249,22 @@ fn traverse_group(
         None => {
             out.group_defaults
                 .insert(game_object.name.clone(), world_pos);
-            out.child_order.push(game_object.name.clone());
+            set_child_order_entry(out.child_order, transform.root_order, &game_object.name);
             GroupContext {
                 name: game_object.name.clone(),
-                layer: classify_group_layer(&game_object.tag, &game_object.name),
+                layer: classify_group_layer(&game_object.tag),
                 origin: world_pos,
             }
         }
     };
 
-    let group = if uses_own_group_context(ctx.theme_name, &game_object.name, &group.name) {
+    let group = if let Some(layer) = explicit_parallax_layer(&game_object.tag) {
         out.group_defaults
             .entry(game_object.name.clone())
             .or_insert(world_pos);
         GroupContext {
             name: game_object.name.clone(),
-            layer: classify_group_layer(&game_object.tag, &game_object.name),
+            layer,
             origin: world_pos,
         }
     } else {
@@ -277,16 +369,19 @@ static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
     let textureloader_materials = load_textureloader_materials();
+    let prefab_paths = crate::data::assets::list_pathnames(
+        "Assets/Resources/environment/background/",
+        ".prefab",
+    );
     let mut themes = HashMap::new();
 
-    for relative_path in assets::list_asset_paths("Resources/environment/background/", ".prefab") {
-        let Some(prefab_name) = relative_path.strip_suffix(".prefab") else {
+    for prefab_path in prefab_paths {
+        let Some(prefab_name) = Path::new(&prefab_path).file_stem().and_then(|stem| stem.to_str()) else {
             continue;
         };
-        let Some(theme_name) = assets::theme_name_for_background_prefab(prefab_name) else {
+        let Some(theme_name) = crate::data::assets::theme_name_for_background_prefab(prefab_name) else {
             continue;
         };
-        let prefab_path = format!("unity/background/{relative_path}");
 
         match build_theme(theme_name, &prefab_path, &textureloader_materials) {
             Some(theme) => {
@@ -301,7 +396,6 @@ fn build_themes() -> HashMap<String, BgTheme> {
             }
         }
     }
-
     themes
 }
 

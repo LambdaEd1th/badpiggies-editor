@@ -5,6 +5,7 @@ edition = "2024"
 authors = ["LambdaEd1th"]
 description = "Editor for Bad Piggies"
 license = "AGPL-3.0-or-later"
+build = "build.rs"
 
 [dependencies]
 eframe = { version = "0.34", default-features = false, features = [
@@ -66,6 +67,11 @@ web-sys = { version = "0.3", features = [
 ] }
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
+
+[build-dependencies]
+flate2 = "1"
+sha2 = "0.10"
+tar = "0.4"
 
 # Optimize dependencies in dev builds for smoother editor experience
 [profile.dev.package."*"]

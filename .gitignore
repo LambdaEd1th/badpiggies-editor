@@ -1,6 +1,7 @@
 /target
 dist/
 Cargo.lock
+unity_assets/
 
 # IDE / editor
 .idea/

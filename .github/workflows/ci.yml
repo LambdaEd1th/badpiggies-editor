@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  BP_EDITOR_FETCH_UNITY_ASSETS: "1"
 
 jobs:
   check:

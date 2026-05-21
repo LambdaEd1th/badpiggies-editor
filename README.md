@@ -43,7 +43,34 @@ Release build:
 cargo build --release
 ```
 
-The editor looks for extracted Unity content in a `unity_assets/` directory next to the executable. The repository ships with pre-extracted game assets under `unity_assets/`, while editor-only icons and fonts live under `editor_assets/`.
+The editor looks for extracted Unity content in a `unity_assets/` directory next to the executable when you want to keep a local extracted tree around. The repository no longer ships pre-extracted game assets under `unity_assets/`; editor-only icons and fonts still live under `editor_assets/`.
+
+Builds embed Unity content into the editor crate. If `unity_assets/` exists locally, build.rs uses it. Otherwise, build.rs automatically downloads the pinned Bad Piggies 2.3.6 Windows Unity package from the BP-Innovation release, verifies its SHA-256, extracts only the runtime-needed files into a cache under `target/`, and embeds assets from there.
+
+To regenerate a local `unity_assets/` tree from the local `../Bad-Piggies-2.3.6-Unity-Windows.unitypackage`, run:
+
+```bash
+python3 ../_extract_unitypackage_to_guid_layout.py
+```
+
+Use `python3 ../_extract_unitypackage_to_guid_layout.py --help` for alternate package/target paths or to keep a backup of the previous tree. The helper extracts only `asset`, `asset.meta`, and `pathname`, skips Unity preview images, and normalizes file modes so the rebuilt tree stays git-clean on macOS. The regenerated `unity_assets/` directory is ignored by git.
+
+GitHub Actions forces the download/cache path with `BP_EDITOR_FETCH_UNITY_ASSETS=1`, but local builds no longer need that environment variable when `unity_assets/` is absent.
+
+Advanced overrides:
+
+```bash
+# Use a pre-extracted asset tree instead of editor/unity_assets
+BP_EDITOR_UNITY_ASSETS_DIR=/abs/path/to/unity_assets cargo check
+
+# Force the fetch/cache path even if a local unity_assets/ tree exists
+BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check
+
+# Exercise the fetch/cache path with a local unitypackage instead of downloading
+BP_EDITOR_FETCH_UNITY_ASSETS=1 \
+BP_EDITOR_UNITYPACKAGE_PATH=../Bad-Piggies-2.3.6-Unity-Windows.unitypackage \
+cargo check
+```
 
 ### WASM (browser)
 
@@ -163,11 +190,11 @@ editor/
 ├── editor_assets/       # Editor-only SVG icons and bundled fonts
 │   ├── fonts/
 │   └── ui/
-├── unity_assets/        # Extracted Unity assets used by the runtime loaders
-│   ├── AnimationClip/
-│   ├── Prefab/
-│   ├── Resources/
-│   └── Texture2D/
+├── unity_assets/        # Optional local GUID-keyed extracted Unity assets used by the runtime loaders
+│   ├── <guid>/
+│   │   ├── asset
+│   │   ├── asset.meta
+│   │   └── pathname
 ├── locales/             # Fluent translation files (embedded via include_str!)
 │   ├── zh-CN.ftl        # Chinese (Simplified)
 │   └── en-US.ftl        # English

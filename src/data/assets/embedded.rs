@@ -13,10 +13,10 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// Project assets exposed through rust-embed on all targets.
-#[derive(rust_embed::RustEmbed)]
-#[folder = "unity_assets/"]
-pub struct ProjectAssets;
+#[path = "generated.rs"]
+mod generated;
+
+pub use generated::ProjectAssets;
 
 struct AssetIndex {
     /// "Assets/<...>" pathname -> GUID

@@ -14,6 +14,9 @@ concurrency:
   group: release-pages-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  BP_EDITOR_FETCH_UNITY_ASSETS: "1"
+
 jobs:
   # ── Native binaries ──────────────────────────────────────────────────────────
   build_native:

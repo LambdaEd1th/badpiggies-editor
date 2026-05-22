@@ -194,10 +194,42 @@ fn wind_particle_emitter_offsets(area: &WindAreaDef, system_index: usize) -> (f3
     (dot2(local, dir), dot2(local, side))
 }
 
-fn wind_particle_shape_half_extents(area: &WindAreaDef, system_index: usize) -> (f32, f32) {
+fn wind_particle_shape_spawn_offset(area: &WindAreaDef, system_index: usize, seed: u32) -> Vec2 {
     let system = wind_area_particle_system(area, system_index);
-    let extents = system.projected_ellipsoid_half_extents_xy();
-    (extents.x.max(f32::EPSILON), extents.y.max(f32::EPSILON))
+    let axis_x = system.shape_scale.x.abs() * system.shape_radius;
+    let axis_y = system.shape_scale.y.abs() * system.shape_radius;
+    let axis_z = system.shape_scale.z.abs() * system.shape_radius;
+    let right = system.projected_right_xy();
+    let up = system.projected_up_xy();
+    let forward = system.projected_forward_xy();
+
+    for attempt in 0..8u32 {
+        let local_x =
+            pseudo_random(seed.wrapping_mul(17).wrapping_add(1 + attempt * 3)) * 2.0 - 1.0;
+        let local_y =
+            pseudo_random(seed.wrapping_mul(19).wrapping_add(2 + attempt * 3)) * 2.0 - 1.0;
+        let local_z =
+            pseudo_random(seed.wrapping_mul(23).wrapping_add(3 + attempt * 3)) * 2.0 - 1.0;
+        if local_x * local_x + local_y * local_y + local_z * local_z > 1.0 {
+            continue;
+        }
+        return Vec2 {
+            x: right.x * local_x * axis_x + up.x * local_y * axis_y + forward.x * local_z * axis_z,
+            y: right.y * local_x * axis_x + up.y * local_y * axis_y + forward.y * local_z * axis_z,
+        };
+    }
+
+    let fallback_x = pseudo_random(seed.wrapping_mul(29).wrapping_add(5)) * 2.0 - 1.0;
+    let fallback_y = pseudo_random(seed.wrapping_mul(31).wrapping_add(7)) * 2.0 - 1.0;
+    let fallback_z = pseudo_random(seed.wrapping_mul(37).wrapping_add(11)) * 2.0 - 1.0;
+    Vec2 {
+        x: right.x * fallback_x * axis_x
+            + up.x * fallback_y * axis_y
+            + forward.x * fallback_z * axis_z,
+        y: right.y * fallback_x * axis_x
+            + up.y * fallback_y * axis_y
+            + forward.y * fallback_z * axis_z,
+    }
 }
 
 fn wind_particle_lifetime(area: &WindAreaDef, system_index: usize, random: f32) -> f32 {
@@ -489,15 +521,14 @@ fn spawn_wind_particle(
     let side_y = dir_x;
     let (emitter_offset_dir, emitter_offset_side) =
         wind_particle_emitter_offsets(area, system_index);
-    let (_, shape_half_side) = wind_particle_shape_half_extents(area, system_index);
     let emitter_center_x =
         area.center_x + dir_x * emitter_offset_dir + side_x * emitter_offset_side;
     let emitter_center_y =
         area.center_y + dir_y * emitter_offset_dir + side_y * emitter_offset_side;
-    let side_offset =
-        (pseudo_random(seed.wrapping_mul(7).wrapping_add(1)) - 0.5) * shape_half_side * 2.0;
-    let x = emitter_center_x + side_x * side_offset;
-    let y = emitter_center_y + side_y * side_offset;
+    let shape_offset =
+        wind_particle_shape_spawn_offset(area, system_index, seed.wrapping_mul(7).wrapping_add(1));
+    let x = emitter_center_x + shape_offset.x;
+    let y = emitter_center_y + shape_offset.y;
     let size_random = pseudo_random(seed.wrapping_mul(11).wrapping_add(5));
     let speed_random = pseudo_random(seed.wrapping_mul(13).wrapping_add(9));
     let rot_random = pseudo_random(seed.wrapping_mul(23));
@@ -868,7 +899,7 @@ mod tests {
     }
 
     #[test]
-    fn wind_particle_horizontal_area_spawns_along_side_strip() {
+    fn wind_particle_horizontal_area_spawns_across_prefab_shape() {
         let area = build_wind_area_def(
             0,
             Vec2 {
@@ -899,9 +930,9 @@ mod tests {
 
         let x_span = max_x - min_x;
         let y_span = max_y - min_y;
-        assert!(x_span < 0.1);
+        assert!(x_span > 1.0);
         assert!(y_span > 1.0);
-        assert!(y_span > x_span * 20.0);
+        assert!(x_span > 0.0);
     }
 
     #[test]

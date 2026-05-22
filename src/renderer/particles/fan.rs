@@ -99,6 +99,14 @@ fn fan_puff_max_count() -> usize {
     fan_puff_system().max_particles
 }
 
+fn fan_puff_slots_remaining(particles: &[FanParticle], emitter_index: usize) -> usize {
+    let used = particles
+        .iter()
+        .filter(|particle| particle.source_emitter_index == emitter_index)
+        .count();
+    fan_puff_max_count().saturating_sub(used)
+}
+
 fn fan_puff_offset() -> Vec2 {
     let system = fan_puff_system();
     Vec2 {
@@ -360,6 +368,7 @@ impl LevelRenderer {
 
         // ── Fan particle burst emission ──
         for ei in 0..self.fan_emitters.len() {
+            let mut slots_remaining = fan_puff_slots_remaining(&self.fan_particles, ei);
             let prev_t = self.fan_emitters[ei].burst_time;
             self.fan_emitters[ei].burst_time += dt;
             if self.fan_emitters[ei].burst_time >= fan_puff_duration() {
@@ -386,7 +395,7 @@ impl LevelRenderer {
                     let burst_count = burst.sample_count(pseudo_random(seed.wrapping_add(17)));
                     let e = &self.fan_emitters[ei];
                     for particle_index in 0..burst_count {
-                        if self.fan_particles.len() >= fan_puff_max_count() {
+                        if slots_remaining == 0 {
                             break;
                         }
                         spawn_fan_particle(
@@ -395,6 +404,7 @@ impl LevelRenderer {
                             &mut self.fan_particles,
                             seed.wrapping_add(particle_index as u32 * 23),
                         );
+                        slots_remaining -= 1;
                     }
                 }
             }
@@ -634,5 +644,34 @@ mod tests {
         assert_eq!(fan_puff_size_scale(0.0, 0.5), 0.0);
         assert!(fan_puff_size_scale(0.5, 0.5) > 0.09);
         assert_eq!(fan_puff_size_scale(1.0, 0.5), 0.0);
+    }
+
+    #[test]
+    fn fan_puff_max_particles_are_per_emitter() {
+        let particles: Vec<_> = (0..fan_puff_max_count())
+            .map(|_| FanParticle {
+                source_emitter_index: 0,
+                render_z: 0.0,
+                x: 0.0,
+                y: 0.0,
+                vx: 0.0,
+                vy: 0.0,
+                fx: 0.0,
+                fy: 0.0,
+                age: 0.0,
+                lifetime: 1.0,
+                start_size: 1.0,
+                size_random: 0.0,
+                rot: 0.0,
+                rot_random: 0.0,
+                uv_col: 3,
+            })
+            .collect();
+
+        assert_eq!(fan_puff_slots_remaining(&particles, 0), 0);
+        assert_eq!(
+            fan_puff_slots_remaining(&particles, 1),
+            fan_puff_max_count()
+        );
     }
 }

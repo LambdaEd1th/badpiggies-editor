@@ -206,7 +206,8 @@ impl EditorApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.group(|ui| {
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(&state.title).strong());
+                            ui.heading(&state.title);
+                            ui.separator();
                             ui.horizontal(|ui| {
                                 for (next_state, key) in [
                                     (PreviewPlaybackState::Build, "tool_preview_build"),

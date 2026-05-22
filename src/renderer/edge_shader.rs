@@ -8,7 +8,7 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
-const WGSL_SOURCE: &str = include_str!("../../editor_assets/shader/e2d__curve.wgsl");
+const WGSL_SOURCE: &str = include_str!("../../assets/shader/e2d__curve.wgsl");
 
 // ── GPU uniform buffer layout (matches WGSL struct Uniforms) ──
 

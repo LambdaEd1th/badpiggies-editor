@@ -26,17 +26,17 @@ const MAX_DRAW_SLOTS: u32 = 1024;
 pub const WHITE_TEXTURE_KEY: &str = "__bg_white__";
 
 const CUSTOM_UNLIT_MONOCHROME_WGSL: &str =
-    include_str!("../../editor_assets/shader/_custom__unlit_monochrome.wgsl");
+    include_str!("../../assets/shader/_custom__unlit_monochrome.wgsl");
 const CUSTOM_UNLIT_COLOR_GEOMETRY_WGSL: &str =
-    include_str!("../../editor_assets/shader/_custom__unlit_color_geometry.wgsl");
+    include_str!("../../assets/shader/_custom__unlit_color_geometry.wgsl");
 const CUSTOM_UNLIT_COLOR_TRANSPARENT_GEOMETRY_WGSL: &str =
-    include_str!("../../editor_assets/shader/_custom__unlit_colortransparent_geometry.wgsl");
+    include_str!("../../assets/shader/_custom__unlit_colortransparent_geometry.wgsl");
 const CUSTOM_UNLIT_ALPHA8BIT_COLOR_WGSL: &str =
-    include_str!("../../editor_assets/shader/_custom__unlit_alpha8bit_color.wgsl");
+    include_str!("../../assets/shader/_custom__unlit_alpha8bit_color.wgsl");
 const BUILTIN_UNLIT_TRANSPARENT_WGSL: &str =
-    include_str!("../../editor_assets/shader/unlit__transparent.wgsl");
+    include_str!("../../assets/shader/unlit__transparent.wgsl");
 const BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL: &str =
-    include_str!("../../editor_assets/shader/unlit__transparent_cutout.wgsl");
+    include_str!("../../assets/shader/unlit__transparent_cutout.wgsl");
 
 const BACKGROUND_SHADER_KINDS: [MaterialShaderKind; 6] = [
     MaterialShaderKind::CustomUnlitMonochrome,

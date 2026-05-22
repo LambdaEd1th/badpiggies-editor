@@ -15,7 +15,7 @@ use eframe::wgpu;
 use crate::data::sprite_db::UvRect;
 
 const WGSL_SOURCE: &str =
-    include_str!("../../editor_assets/shader/unlit__transparent_cutout__sprite.wgsl");
+    include_str!("../../assets/shader/unlit__transparent_cutout__sprite.wgsl");
 
 // ── GPU uniform buffer layout ──
 

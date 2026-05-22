@@ -87,7 +87,7 @@ mod tests {
     }
 
     fn wgsl_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("editor_assets/shader")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/shader")
     }
 
     #[test]
@@ -132,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn runtime_shader_sources_live_in_editor_assets_shader() {
+    fn runtime_shader_sources_live_in_assets_shader() {
         for wgsl_name in RUNTIME_SHADER_ASSETS {
             let wgsl_path = wgsl_dir().join(wgsl_name);
             assert!(

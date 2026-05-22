@@ -18,7 +18,7 @@ use eframe::wgpu;
 const MAX_DRAW_SLOTS: u32 = 256;
 
 const WGSL_SOURCE: &str =
-    include_str!("../../editor_assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl");
+    include_str!("../../assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl");
 
 // ── GPU uniform buffer layout (32 bytes) ──
 

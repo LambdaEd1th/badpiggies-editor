@@ -31,11 +31,11 @@ pub enum DarkMaskPipelineKind {
 }
 
 const UNLIT_TRANSPARENT_CG_RUNTIME_WGSL: &str =
-    include_str!("../../editor_assets/shader/depth_mask__unlit_transparent_cg__runtime.wgsl");
+    include_str!("../../assets/shader/depth_mask__unlit_transparent_cg__runtime.wgsl");
 const MASK_OVERLAY_RUNTIME_WGSL: &str =
-    include_str!("../../editor_assets/shader/depth_mask__maskoverlay__runtime.wgsl");
+    include_str!("../../assets/shader/depth_mask__maskoverlay__runtime.wgsl");
 const MASK_OVERLAY_NV_RUNTIME_WGSL: &str =
-    include_str!("../../editor_assets/shader/depth_mask__maskoverlaynv__runtime.wgsl");
+    include_str!("../../assets/shader/depth_mask__maskoverlaynv__runtime.wgsl");
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]

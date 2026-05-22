@@ -43,9 +43,9 @@ Release build:
 cargo build --release
 ```
 
-The editor looks for extracted Unity content in a `unity_assets/` directory next to the executable when you want to keep a local extracted tree around. The repository no longer ships pre-extracted game assets under `unity_assets/`; editor-only icons and fonts still live under `editor_assets/`.
+The editor looks for extracted Unity content in a `unity_assets/` directory next to the executable when you want to keep a local extracted tree around. The repository no longer ships pre-extracted game assets under `unity_assets/`; editor-only icons, fonts, shaders, and locales live under `assets/`.
 
-Builds embed Unity content into the editor crate. If `unity_assets/` exists locally, build.rs uses it. Otherwise, build.rs automatically downloads the pinned Bad Piggies 2.3.6 Windows Unity package from the BP-Innovation release, verifies its SHA-256, extracts only the runtime-needed files into a cache under `target/`, and embeds assets from there.
+Builds embed Unity content into the editor crate. If `unity_assets/` exists locally, build.rs uses it. Otherwise, build.rs automatically downloads the pinned Bad Piggies 2.3.6 Windows Unity package from the BP-Innovation release, verifies its SHA-256, extracts only the runtime-needed files into `target/unity_asset_cache/`, and embeds assets from there. Bundled editor resources under `assets/` are also compiled in directly via `include_bytes!` and `include_str!`.
 
 To regenerate a local `unity_assets/` tree from the local `../Bad-Piggies-2.3.6-Unity-Windows.unitypackage`, run:
 
@@ -55,7 +55,7 @@ python3 ../_extract_unitypackage_to_guid_layout.py
 
 Use `python3 ../_extract_unitypackage_to_guid_layout.py --help` for alternate package/target paths or to keep a backup of the previous tree. The helper extracts only `asset`, `asset.meta`, and `pathname`, skips Unity preview images, and normalizes file modes so the rebuilt tree stays git-clean on macOS. The regenerated `unity_assets/` directory is ignored by git.
 
-GitHub Actions forces the download/cache path with `BP_EDITOR_FETCH_UNITY_ASSETS=1`, but local builds no longer need that environment variable when `unity_assets/` is absent.
+GitHub Actions forces the download/cache path with `BP_EDITOR_FETCH_UNITY_ASSETS=1` and caches the extracted Unity asset cache between runs, but it does not cache the full Rust build output. Local builds no longer need that environment variable when `unity_assets/` is absent.
 
 Advanced overrides:
 
@@ -187,17 +187,16 @@ editor/
 │       ├── bg_shader.rs     # Parallax background shader
 │       ├── particles.rs     # Particle rendering helpers
 │       └── grid.rs          # Editor grid overlay
-├── editor_assets/       # Editor-only SVG icons and bundled fonts
+├── assets/              # Editor-only bundled icons, fonts, shaders, and locales
 │   ├── fonts/
+│   ├── locales/
+│   ├── shader/
 │   └── ui/
 ├── unity_assets/        # Optional local GUID-keyed extracted Unity assets used by the runtime loaders
 │   ├── <guid>/
 │   │   ├── asset
 │   │   ├── asset.meta
 │   │   └── pathname
-├── locales/             # Fluent translation files (embedded via include_str!)
-│   ├── zh-CN.ftl        # Chinese (Simplified)
-│   └── en-US.ftl        # English
 ├── index.html           # WASM host page
 └── Cargo.toml
 ```

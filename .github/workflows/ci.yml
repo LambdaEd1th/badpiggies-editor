@@ -46,9 +46,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Cache Unity asset extraction
+        uses: actions/cache@v5
+        with:
+          path: target/unity_asset_cache
+          key: ${{ runner.os }}-unity-assets-${{ hashFiles('build.rs') }}
+          restore-keys: ${{ runner.os }}-unity-assets-
 
       - name: cargo check
         run: cargo check --all-targets
@@ -74,9 +80,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: wasm-cargo-
+
+      - name: Cache Unity asset extraction
+        uses: actions/cache@v5
+        with:
+          path: target/unity_asset_cache
+          key: wasm-unity-assets-${{ hashFiles('build.rs') }}
+          restore-keys: wasm-unity-assets-
 
       - name: cargo check (wasm32)
         run: cargo check --target wasm32-unknown-unknown

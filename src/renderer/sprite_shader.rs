@@ -23,9 +23,8 @@ use crate::data::sprite_db::UvRect;
 /// Maximum number of sprite draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 2048;
 
-const WGSL_SOURCE: &str = include_str!(
-    "../../editor_assets/shader/_custom__unlit_colortransparent_geometry__sprite.wgsl"
-);
+const WGSL_SOURCE: &str =
+    include_str!("../../assets/shader/_custom__unlit_colortransparent_geometry__sprite.wgsl");
 
 // ── GPU uniform buffer layout (80 bytes, 16-byte aligned) ──
 

@@ -186,10 +186,10 @@ impl I18n {
 }
 
 static ZH_I18N: LazyLock<I18n> =
-    LazyLock::new(|| I18n::new(include_str!("../../locales/zh-CN.ftl"), "zh-CN"));
+    LazyLock::new(|| I18n::new(include_str!("../../assets/locales/zh-CN.ftl"), "zh-CN"));
 
 static EN_I18N: LazyLock<I18n> =
-    LazyLock::new(|| I18n::new(include_str!("../../locales/en-US.ftl"), "en-US"));
+    LazyLock::new(|| I18n::new(include_str!("../../assets/locales/en-US.ftl"), "en-US"));
 
 impl Language {
     pub fn i18n(self) -> &'static I18n {

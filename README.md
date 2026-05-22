@@ -1,37 +1,34 @@
 # Bad Piggies Editor
 
-A native desktop (and WASM) level editor for the **Bad Piggies** mobile game, built with Rust and GPU-accelerated rendering.
+A Rust-based level and save editor for **Bad Piggies**, built with `egui`, `eframe`, and `wgpu`.
+
+It runs as a native desktop application on macOS, Windows, and Linux, and it also has a WASM build for browser-based testing and preview.
 
 [![Rust](https://img.shields.io/badge/Rust-2024-orange)](https://www.rust-lang.org)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](../LICENSE)
 
-## Features
+## Highlights
 
-- **Level parsing** — Full binary `.bytes` level format parser, mirroring the original Unity `LevelLoader.cs`
-- **GPU rendering** — Custom WGSL shaders via [wgpu](https://wgpu.rs) for all visual layers
-- **Terrain** — Fill meshes + edge/curve meshes with splat-mapped textures
-- **Backgrounds** — 10 parallax themes (Jungle, Forest, Plateau, Night, Halloween, MayaCave, …)
-- **Sprites** — Atlas-based rendering with `RuntimeSpriteDatabase` and `CartoonFrameSprite` support
-- **Compound objects** — Multi-part objects (fans, motors, hinges, boxes, …) with sub-sprite composition
-- **Performance** — Frustum culling + GPU draw call batching (one render pass per shader type per frame)
-- **Properties panel** — Editable object properties with override tree
-- **Save viewer / editor** — Open `Progress.dat`, `*.contraption`, and `Achievements.xml`, edit raw XML or structured tables, export XML or re-encrypted save files, and preview contraptions on a grid
-- **Undo / Redo** — Full snapshot-based undo/redo history (⌘Z / Ctrl+Z, ⇧⌘Z / Ctrl+Y)
-- **Multi-format I/O** — Import/export levels as binary `.bytes`, YAML, or TOML
-- **CLI** — Command-line format conversion between `.bytes` / `.yaml` / `.toml`
-- **i18n** — Chinese and English UI, auto-detected from system locale
-- **Cross-platform** — Native desktop (macOS / Windows / Linux) + WASM browser build
+- Visual editing for Bad Piggies level files, including object transforms, hierarchy, terrain, and overrides
+- GPU-backed rendering for terrain fills, terrain edges, sprites, opaque props, parallax backgrounds, and dark overlay effects
+- Import and export for binary `.bytes`, YAML, and TOML level formats
+- Save-file viewer and editor for `Progress.dat`, `*.contraption`, and `Achievements.xml`
+- Contraption preview support inside the save viewer
+- English and Simplified Chinese UI with system-locale auto-detection
+- Native desktop UI plus a WASM/browser target
+- Built-in CLI for conversion, decryption, and re-encryption tasks
 
 ## Requirements
 
-- Rust 1.85+ (edition 2024)
-- For native: a GPU supporting Vulkan / Metal / DirectX 12 / OpenGL ES 3.1
-- For WASM target checks/builds: `rustup target add wasm32-unknown-unknown`
-- For WASM: [Trunk](https://trunkrs.dev) — `cargo install trunk`
+- Rust 1.85 or newer
+- For native builds: a GPU/API stack that supports Vulkan, Metal, DirectX 12, or OpenGL ES 3.1 via `wgpu`
+- For Linux native builds: the system libraries required by the `eframe`/`winit` stack, similar to the packages installed in CI
+- For WASM builds: `rustup target add wasm32-unknown-unknown`
+- For browser serving: [Trunk](https://trunkrs.dev), installed with `cargo install trunk`
 
-## Getting Started
+## Quick Start
 
-### Native
+### Native desktop
 
 ```bash
 cargo run
@@ -43,99 +40,113 @@ Release build:
 cargo build --release
 ```
 
-The editor looks for extracted Unity content in a `unity_assets/` directory next to the executable when you want to keep a local extracted tree around. The repository no longer ships pre-extracted game assets under `unity_assets/`; editor-only icons, fonts, shaders, and locales live under `assets/`.
-
-Builds embed Unity content into the editor crate. If `unity_assets/` exists locally, build.rs uses it. Otherwise, build.rs automatically downloads the pinned Bad Piggies 2.3.6 Windows Unity package from the BP-Innovation release, verifies its SHA-256, extracts only the runtime-needed files into `target/unity_asset_cache/`, and embeds assets from there. Bundled editor resources under `assets/` are also compiled in directly via `include_bytes!` and `include_str!`.
-
-To regenerate a local `unity_assets/` tree from the local `../Bad-Piggies-2.3.6-Unity-Windows.unitypackage`, run:
+### WASM / browser
 
 ```bash
-python3 ../_extract_unitypackage_to_guid_layout.py
-```
-
-Use `python3 ../_extract_unitypackage_to_guid_layout.py --help` for alternate package/target paths or to keep a backup of the previous tree. The helper extracts only `asset`, `asset.meta`, and `pathname`, skips Unity preview images, and normalizes file modes so the rebuilt tree stays git-clean on macOS. The regenerated `unity_assets/` directory is ignored by git.
-
-GitHub Actions forces the download/cache path with `BP_EDITOR_FETCH_UNITY_ASSETS=1` and caches the extracted Unity asset cache between runs, but it does not cache the full Rust build output. Local builds no longer need that environment variable when `unity_assets/` is absent.
-
-Advanced overrides:
-
-```bash
-# Use a pre-extracted asset tree instead of editor/unity_assets
-BP_EDITOR_UNITY_ASSETS_DIR=/abs/path/to/unity_assets cargo check
-
-# Force the fetch/cache path even if a local unity_assets/ tree exists
-BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check
-
-# Exercise the fetch/cache path with a local unitypackage instead of downloading
-BP_EDITOR_FETCH_UNITY_ASSETS=1 \
-BP_EDITOR_UNITYPACKAGE_PATH=../Bad-Piggies-2.3.6-Unity-Windows.unitypackage \
-cargo check
-```
-
-### WASM (browser)
-
-```bash
+rustup target add wasm32-unknown-unknown
+cargo install trunk
 trunk serve index.html
 ```
 
 Then open `http://localhost:8080` in your browser.
 
-## Development Checks
+## Assets And Build Inputs
 
-Native checks:
+The editor uses two different asset sources:
+
+- `assets/` contains bundled editor resources such as icons, fonts, locales, and WGSL shader files
+- `unity_assets/` contains extracted runtime data from the original game, keyed by Unity GUID
+
+Bundled editor resources under `assets/` are compiled into the crate directly with `include_bytes!` and `include_str!`, so native and WASM builds do not require an external `assets/` directory at runtime.
+
+During builds, the crate first looks for a local `unity_assets/` directory next to this crate's `Cargo.toml`, which means `editor/unity_assets/`. If that directory is present, `build.rs` embeds assets from it.
+
+If `unity_assets/` is missing, `build.rs` automatically:
+
+1. Downloads the pinned Bad Piggies 2.3.6 Windows Unity package
+2. Verifies its SHA-256
+3. Extracts only the runtime-needed files into `target/unity_asset_cache/`
+4. Embeds those extracted files into the build
+
+GitHub Actions forces that fetch path with `BP_EDITOR_FETCH_UNITY_ASSETS=1` and caches only the extracted Unity asset cache, not the full Rust build output.
+
+To regenerate a local `unity_assets/` tree from a local Unity package:
 
 ```bash
-cargo test --message-format=short
-cargo clippy --all-targets --message-format=short
+python3 ../_extract_unitypackage_to_guid_layout.py
 ```
 
-WASM checks:
+Use `python3 ../_extract_unitypackage_to_guid_layout.py --help` for alternate package and target paths.
+
+`unity_assets/` is not ignored by git. If you want to keep a private extracted tree outside the repo, point the build to it with `BP_EDITOR_UNITY_ASSETS_DIR`.
+
+### Asset-related environment variables
+
+| Variable | Purpose |
+|---|---|
+| `BP_EDITOR_UNITY_ASSETS_DIR` | Use a pre-extracted asset tree outside `editor/unity_assets/` |
+| `BP_EDITOR_FETCH_UNITY_ASSETS` | Force the download/extract/cache path even if `unity_assets/` exists |
+| `BP_EDITOR_UNITYPACKAGE_PATH` | Use a local `.unitypackage` file instead of downloading |
+| `BP_EDITOR_UNITYPACKAGE_URL` | Override the download URL |
+| `BP_EDITOR_UNITYPACKAGE_SHA256` | Override the expected SHA-256 for the package |
+| `BP_EDITOR_UNITY_ASSET_CACHE_DIR` | Override the base cache directory used by `build.rs` |
+
+Example overrides:
 
 ```bash
-cargo check --target wasm32-unknown-unknown --message-format=short
-cargo clippy --target wasm32-unknown-unknown --all-targets --message-format=short
+BP_EDITOR_UNITY_ASSETS_DIR=/abs/path/to/unity_assets cargo check
+
+BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check
+
+BP_EDITOR_FETCH_UNITY_ASSETS=1 \
+BP_EDITOR_UNITYPACKAGE_PATH=../Bad-Piggies-2.3.6-Unity-Windows.unitypackage \
+cargo check
 ```
 
-For the remaining asset-migration blockers that are still intentionally kept as documented fallbacks, see [../ASSET_MIGRATION_BLOCKERS.md](../ASSET_MIGRATION_BLOCKERS.md).
+## What The Editor Can Do
 
-## Usage
+### Levels
 
-### GUI
+- Open `.bytes`, `.yaml`, `.yml`, and `.toml` level files
+- Pan, zoom, and inspect the scene visually
+- Select objects and edit their properties and overrides
+- Edit terrain data and terrain-generated geometry
+- Export levels back to binary, YAML, or TOML
 
-1. **Open a level** — `File → Open Level File…` or drag-and-drop a `.bytes` / `.yaml` / `.toml` file onto the canvas
-2. **Navigate** — Scroll wheel to zoom, drag on empty canvas to pan
-3. **Select objects** — Click on any sprite or terrain in the canvas
-4. **Edit properties** — Use the right-side properties panel to modify object fields and overrides
-5. **Undo / Redo** — `Edit → Undo / Redo` or keyboard shortcuts
-6. **Toggle panels** — `View → Object List / Properties / Physics Ground`
-7. **Toggle background** — Press `B` or `View → Hide/Show Background`
-8. **Export level** — `File → Export Level / Export as YAML / Export as TOML`
-9. **Import text format** — `File → Import YAML/TOML…`
-10. **Open a save file** — `File → Open Save File…` for `Progress.dat`, `*.contraption`, or `Achievements.xml`
-11. **Edit save data** — Use the raw XML panel or the structured table view side-by-side
-12. **Preview contraptions** — For `.contraption` saves, toggle `View → Contraption Preview`
-13. **Export saves** — `File → Export Save` to re-encrypt, or `File → Export XML` for decrypted XML
-14. **Import decrypted XML** — `File → Import XML…` and let the editor detect the save type from content
-15. **Switch language** — `View → Switch to 中文 / English`
+### Saves
 
-### CLI
+- Open `Progress.dat`, `*.contraption`, and `Achievements.xml`
+- View and edit save content as raw XML or structured tables
+- Re-export save data as encrypted game files or plain XML
+- Preview contraptions from save files directly inside the editor
 
-The executable doubles as a command-line format converter:
+### Interface
+
+- Toggle editor panels from the View menu
+- Switch UI language between English and Simplified Chinese
+- Toggle background rendering with the `B` shortcut
+- Use snapshot-based undo/redo across editing operations
+
+## CLI
+
+The binary also works as a command-line tool. The installed executable name is `badpiggies-editor`; from the repo you can use the same commands via `cargo run -- ...`.
+
+Examples:
 
 ```bash
-# Convert binary to YAML
+# Convert a level from binary to YAML
 badpiggies-editor convert level.bytes level.yaml
 
-# Convert YAML to TOML
+# Convert a level from YAML to TOML
 badpiggies-editor convert level.yaml level.toml
 
-# Convert TOML back to binary
+# Convert a level from TOML back to binary
 badpiggies-editor convert level.toml level.bytes
 
 # Decrypt a save file to XML
 badpiggies-editor decrypt Progress.dat -o Progress.xml
 
-# Encrypt edited XML back to a save file
+# Encrypt edited XML back to a game save
 badpiggies-editor encrypt Progress.xml Progress.dat
 
 # Show help
@@ -145,93 +156,74 @@ badpiggies-editor decrypt --help
 badpiggies-editor encrypt --help
 ```
 
-CLI messages are localized based on system locale.
+CLI messages are localized from the system locale in the same way as the GUI.
 
-## Project Structure
+## Development And Validation
 
+Quick local checks:
+
+```bash
+cargo test --message-format=short
+cargo check --all-targets --message-format=short
+cargo clippy --all-targets --message-format=short -- -D warnings
+cargo check --target wasm32-unknown-unknown --message-format=short
+cargo clippy --target wasm32-unknown-unknown --all-targets --message-format=short -- -D warnings
 ```
+
+CI-equivalent validation:
+
+```bash
+BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check --all-targets
+BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo clippy --all-targets -- -D warnings
+BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check --target wasm32-unknown-unknown
+BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings
+```
+
+Optional fixture-backed parser roundtrip test:
+
+```bash
+cargo test test_level_roundtrip
+```
+
+That test looks for `../test_levels/assetbundles/episode_1_levels.unity3d/Level_05_data.bytes`. If the fixture is absent, the test skips itself instead of breaking CI compilation.
+
+For the remaining asset-migration blockers that are intentionally still documented, see [../ASSET_MIGRATION_BLOCKERS.md](../ASSET_MIGRATION_BLOCKERS.md).
+
+## Repository Layout
+
+```text
 editor/
+├── assets/              # Bundled editor-only resources: fonts, locales, WGSL shaders, UI icons
 ├── src/
-│   ├── main.rs              # Native + WASM entry point
-│   ├── app/                 # egui app shell, menu/dialog/panel orchestration
-│   │   ├── mod.rs
-│   │   ├── app_loop.rs      # Main frame update loop and shortcuts
-│   │   ├── canvas.rs        # Center canvas UI and renderer writeback
-│   │   ├── dialogs/         # Tool/about/add-object/shortcut dialogs
-│   │   ├── menu/            # File/Edit/View/Help menus
-│   │   ├── properties/      # Object properties and override editors
-│   │   ├── save_tables/     # Structured save-data table editors
-│   │   ├── save_viewer/     # Save viewer UI + previews
-│   │   └── tree/            # Object tree rendering and drag/drop
-│   ├── data/                # Embedded asset/theme/sprite/icon lookup data
-│   ├── diagnostics/         # Shared error/logging helpers
-│   ├── domain/              # Level types, parser, terrain generation
-│   │   ├── level/           # Level DB helpers
-│   │   ├── parser.rs        # Binary .bytes parser / serializer
-│   │   ├── types.rs         # Core level/object/terrain data structures
-│   │   └── terrain_gen/     # Fill/stripe mesh generation utilities
-│   ├── i18n/                # Fluent locale loading and language switching
-│   ├── io/                  # Crypto and save-file parsing/export helpers
-│   └── renderer/            # wgpu-backed scene rendering
-│       ├── mod.rs           # Main render loop and renderer state
-│       ├── background/      # Background cache, draw path, tests
-│       ├── dark_overlay/    # Dark overlay interval/mesh parsing
-│       ├── input/           # Camera, hit-test, interaction, terrain edit
-│       ├── level_setup/     # Renderer cache rebuild when loading levels
-│       ├── sprites/         # Sprite data extraction and drawing
-│       ├── terrain.rs       # Terrain draw data construction
-│       ├── fill_shader.rs   # Terrain fill shader
-│       ├── edge_shader.rs   # Terrain edge shader
-│       ├── sprite_shader.rs # Transparent sprite batching
-│       ├── opaque_shader.rs # Opaque props batching
-│       ├── bg_shader.rs     # Parallax background shader
-│       ├── particles.rs     # Particle rendering helpers
-│       └── grid.rs          # Editor grid overlay
-├── assets/              # Editor-only bundled icons, fonts, shaders, and locales
-│   ├── fonts/
-│   ├── locales/
-│   ├── shader/
-│   └── ui/
-├── unity_assets/        # Optional local GUID-keyed extracted Unity assets used by the runtime loaders
-│   ├── <guid>/
-│   │   ├── asset
-│   │   ├── asset.meta
-│   │   └── pathname
-├── index.html           # WASM host page
+│   ├── app/             # egui application shell, menus, dialogs, panels, save viewer
+│   ├── data/            # Embedded databases and asset lookup data
+│   ├── diagnostics/     # Error handling and logging helpers
+│   ├── domain/          # Level types, parser/serializer, terrain generation
+│   ├── i18n/            # Fluent localization
+│   ├── io/              # Save crypto and import/export helpers
+│   ├── renderer/        # wgpu-backed scene rendering
+│   ├── unity_runtime/   # Unity runtime data adapters
+│   └── main.rs          # Native entry point, WASM entry point, CLI wiring
+├── unity_assets/        # Optional local extracted runtime assets
+├── build.rs             # Unity asset resolution, fetch, extraction, embed generation
+├── index.html           # Trunk host page for the WASM build
 └── Cargo.toml
 ```
 
-## Technical Details
+## Rendering Notes
 
-### Rendering Pipeline
+Rendering is integrated into `egui` via `PaintCallback`, so editor UI and custom `wgpu` passes share the same frame.
 
-All rendering is done via `egui`'s `PaintCallback` mechanism, which lets custom wgpu render passes integrate seamlessly with the egui UI.
+Core runtime shader groups:
 
-| Shader | Purpose |
+| Shader module | Purpose |
 |---|---|
-| `fill_shader` | Terrain fill mesh (tiled texture, z = 0) |
-| `edge_shader` | Terrain edge/curve mesh (alpha-blended, z = -0.01) |
-| `sprite_shader` | Transparent sprites (batched, one pass per frame) |
-| `opaque_shader` | Opaque Props sprites (pre-built atlas batch) |
+| `fill_shader` | Terrain fill meshes with tiled textures |
+| `edge_shader` | Terrain edge and curve rendering |
+| `sprite_shader` | Transparent sprite batching |
+| `opaque_shader` | Opaque prop batching |
 | `bg_shader` | Parallax background layers |
-
-### Level Binary Format
-
-The `.bytes` format is a custom binary format used by the Unity game:
-
-- Strings are length-prefixed UTF-8
-- Positions are `f32` little-endian
-- Colors are `u32` packed RGBA (not `float4`)
-- Indices are `i16`
-- Parent nodes store `childCount + name + position`
-- Prefab instances store full `transform + data`
-
-### Z-Ordering
-
-- Pure Z-depth, no sorting layers
-- Camera at Z = -15, orthographic projection
-- Terrain fill at Z = 0, edge at Z = -0.01
-- Smaller Z = closer to camera
+| `dark_mask_shader` | Dark overlay and lit-area masking |
 
 ## Keyboard Shortcuts
 
@@ -240,16 +232,16 @@ The `.bytes` format is a custom binary format used by the Unity game:
 | `B` | Toggle background display |
 | `⌘Z` / `Ctrl+Z` | Undo |
 | `⇧⌘Z` / `Ctrl+Y` | Redo |
-| Scroll wheel | Zoom in / out |
-| Drag (empty area) | Pan view |
-| Click object | Select object |
+| Scroll wheel | Zoom in or out |
+| Drag on empty canvas | Pan the camera |
+| Click object | Select an object |
 
 ## Acknowledgements
 
-- [BP-Innovation/Bad-Piggies-Original](https://github.com/BP-Innovation/Bad-Piggies-Original) — Decompiled game source and asset references that made reverse-engineering the level format and rendering pipeline possible.
+- [BP-Innovation/Bad-Piggies-Original](https://github.com/BP-Innovation/Bad-Piggies-Original) for the decompiled project and asset references that made the level and rendering work possible
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0** — see the [LICENSE](../LICENSE) file for details.
+This project is licensed under the **GNU Affero General Public License v3.0**. See [../LICENSE](../LICENSE) for details.
 
-> Game assets (textures, level data) are property of **Rovio Entertainment** and are not covered by this license. This project is for educational and reverse-engineering purposes only.
+Game assets, textures, and level data remain the property of **Rovio Entertainment** and are not covered by this repository's license.

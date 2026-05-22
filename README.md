@@ -54,23 +54,23 @@ Then open `http://localhost:8080` in your browser.
 
 The editor uses two different asset sources:
 
-- `assets/` contains bundled editor resources such as icons, fonts, locales, and WGSL shader files
-- `unity_assets/` contains extracted runtime data from the original game, keyed by Unity GUID
+- `assets/` contains bundled editor resources such as icons, fonts, locales, WGSL shader files, and the pinned Unity package used for extraction
+- an optional extracted Unity asset tree, keyed by Unity GUID, can be provided through `BP_EDITOR_UNITY_ASSETS_DIR`
 
 Bundled editor resources under `assets/` are compiled into the crate directly with `include_bytes!` and `include_str!`, so native and WASM builds do not require an external `assets/` directory at runtime.
 
-During builds, the crate first looks for a local `unity_assets/` directory next to this crate's `Cargo.toml`, which means `editor/unity_assets/`. If that directory is present, `build.rs` embeds assets from it.
+During builds, the crate uses the bundled package at `assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage` by default and:
 
-If `unity_assets/` is missing, `build.rs` automatically:
-
-1. Downloads the pinned Bad Piggies 2.3.6 Windows Unity package
-2. Verifies its SHA-256
-3. Extracts only the runtime-needed files into `target/unity_asset_cache/`
+1. Computes the package SHA-256 and uses it as the extraction cache key
+2. Extracts only the runtime-needed files into `target/unity_asset_cache/`
+3. Reuses a cache bucket keyed by the current package contents
 4. Embeds those extracted files into the build
 
-GitHub Actions forces that fetch path with `BP_EDITOR_FETCH_UNITY_ASSETS=1` and caches only the extracted Unity asset cache, not the full Rust build output.
+If you want to use a pre-extracted asset tree instead, point `BP_EDITOR_UNITY_ASSETS_DIR` at it.
 
-To regenerate a local `unity_assets/` tree from a local Unity package:
+GitHub Actions uses that same bundled-package extraction path and caches only the extracted Unity asset cache, not the full Rust build output.
+
+To refresh the bundled package from a local source file, replace `assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage`. To regenerate a local `unity_assets/` tree from that package:
 
 ```bash
 python3 ../_extract_unitypackage_to_guid_layout.py
@@ -85,10 +85,7 @@ Use `python3 ../_extract_unitypackage_to_guid_layout.py --help` for alternate pa
 | Variable | Purpose |
 |---|---|
 | `BP_EDITOR_UNITY_ASSETS_DIR` | Use a pre-extracted asset tree outside `editor/unity_assets/` |
-| `BP_EDITOR_FETCH_UNITY_ASSETS` | Force the download/extract/cache path even if `unity_assets/` exists |
-| `BP_EDITOR_UNITYPACKAGE_PATH` | Use a local `.unitypackage` file instead of downloading |
-| `BP_EDITOR_UNITYPACKAGE_URL` | Override the download URL |
-| `BP_EDITOR_UNITYPACKAGE_SHA256` | Override the expected SHA-256 for the package |
+| `BP_EDITOR_UNITYPACKAGE_PATH` | Use a custom local `.unitypackage` file instead of the bundled package |
 | `BP_EDITOR_UNITY_ASSET_CACHE_DIR` | Override the base cache directory used by `build.rs` |
 
 Example overrides:
@@ -96,9 +93,6 @@ Example overrides:
 ```bash
 BP_EDITOR_UNITY_ASSETS_DIR=/abs/path/to/unity_assets cargo check
 
-BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check
-
-BP_EDITOR_FETCH_UNITY_ASSETS=1 \
 BP_EDITOR_UNITYPACKAGE_PATH=../Bad-Piggies-2.3.6-Unity-Windows.unitypackage \
 cargo check
 ```
@@ -173,10 +167,10 @@ cargo clippy --target wasm32-unknown-unknown --all-targets --message-format=shor
 CI-equivalent validation:
 
 ```bash
-BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check --all-targets
-BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo clippy --all-targets -- -D warnings
-BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo check --target wasm32-unknown-unknown
-BP_EDITOR_FETCH_UNITY_ASSETS=1 cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings
+cargo check --all-targets
+cargo clippy --all-targets -- -D warnings
+cargo check --target wasm32-unknown-unknown
+cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings
 ```
 
 Optional fixture-backed parser roundtrip test:
@@ -193,7 +187,7 @@ For the remaining asset-migration blockers that are intentionally still document
 
 ```text
 editor/
-├── assets/              # Bundled editor-only resources: fonts, locales, WGSL shaders, UI icons
+├── assets/              # Bundled editor-only resources, including the pinned Unity package under assets/data/
 ├── src/
 │   ├── app/             # egui application shell, menus, dialogs, panels, save viewer
 │   ├── data/            # Embedded databases and asset lookup data
@@ -204,7 +198,6 @@ editor/
 │   ├── renderer/        # wgpu-backed scene rendering
 │   ├── unity_runtime/   # Unity runtime data adapters
 │   └── main.rs          # Native entry point, WASM entry point, CLI wiring
-├── unity_assets/        # Optional local extracted runtime assets
 ├── build.rs             # Unity asset resolution, fetch, extraction, embed generation
 ├── index.html           # Trunk host page for the WASM build
 └── Cargo.toml

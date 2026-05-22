@@ -219,9 +219,3 @@ pub fn get_terrain_splat1(terrain_name: &str) -> Option<&'static str> {
 pub fn get_terrain_splat1_for_level(_level_key: &str, terrain_name: &str) -> Option<&'static str> {
     get_terrain_splat1(terrain_name)
 }
-
-/// Whether this is a "dark" terrain (underground fill).
-pub fn is_dark_terrain(terrain_name: &str) -> bool {
-    resolve_terrain_prefab_key(terrain_name)
-        .is_some_and(|key| key.starts_with("e2dTerrainDark"))
-}

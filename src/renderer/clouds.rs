@@ -151,11 +151,10 @@ fn parse_cloud_sprite_prefab(
                     scale_y = parse_vec_component(local_scale, "y").unwrap_or(1.0);
                 }
             }
-            23 => {
-                if material_guid.is_none() {
-                    material_guid = doc.lines().find_map(extract_guid);
-                }
+            23 if material_guid.is_none() => {
+                material_guid = doc.lines().find_map(extract_guid);
             }
+            23 => {}
             _ => {}
         }
     }

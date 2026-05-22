@@ -31,9 +31,9 @@ pub(super) fn find_runtime_sprite_info(
     None
 }
 
-fn preferred_runtime_sprite_component<'a>(
-    parsed: &'a ParsedPrefab,
-) -> Option<&'a RuntimeSpriteComponent> {
+fn preferred_runtime_sprite_component(
+    parsed: &ParsedPrefab,
+) -> Option<&RuntimeSpriteComponent> {
     parsed
         .runtime_sprites
         .iter()

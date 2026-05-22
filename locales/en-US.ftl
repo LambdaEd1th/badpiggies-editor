@@ -219,6 +219,7 @@ tool_preview_dark_overlay_title = Dark Overlay Preview
 tool_preview_build = Build
 tool_preview_play = Play
 tool_preview_pause = Pause
+tool_preview_night_vision = Night Vision
 tool_preview_night_vision_powerup = Night Vision Power-up
 tool_preview_night_vision_active = Night Vision Active
 tool_terrain_presets = Terrain Presets

@@ -146,9 +146,15 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         return None;
     }
 
-    // Compute border vertices by expanding polygon outward along vertex normals.
+    // Unity's BezierMesh border strip is centered on the original curve, but
+    // the main lit polygon writes depth in front of it. The visible penumbra
+    // therefore starts at the lit boundary and extends outward by borderWidth.
     let border_width = parse_border_width(prefab).unwrap_or_else(lit_area_prefab_border_width);
-    let border_vertices = expand_polygon(&polygon, border_width);
+    let (border_inner_vertices, border_vertices) = if border_width > 0.0 {
+        (polygon.clone(), offset_polygon(&polygon, border_width))
+    } else {
+        (Vec::new(), Vec::new())
+    };
 
     log::info!(
         "LitArea at ({:.1}, {:.1}): {} bezier nodes → {} polygon vertices, borderWidth={:.2}",
@@ -162,6 +168,7 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     Some(LitAreaPolygon {
         vertices: polygon,
         border_vertices,
+        border_inner_vertices,
         border_alpha: LIT_AREA_BORDER_ALPHA,
     })
 }
@@ -202,35 +209,43 @@ fn point_light_prefab_defaults(prefab_name: &str) -> Option<(f32, f32)> {
     ))
 }
 
-/// Expand a closed polygon outward by `width` along each vertex's averaged normal.
-fn expand_polygon(polygon: &[(f32, f32)], width: f32) -> Vec<(f32, f32)> {
+/// Offset a closed polygon along its averaged outward normals.
+fn offset_polygon(polygon: &[(f32, f32)], distance: f32) -> Vec<(f32, f32)> {
     let n = polygon.len();
-    if n < 3 || width <= 0.0 {
+    if n < 3 || distance.abs() <= f32::EPSILON {
         return polygon.to_vec();
     }
+    let signed_area = polygon
+        .iter()
+        .zip(polygon.iter().cycle().skip(1))
+        .take(n)
+        .fold(0.0, |area, (a, b)| area + (a.0 * b.1 - b.0 * a.1));
+    if signed_area.abs() <= 1e-4 {
+        return polygon.to_vec();
+    }
+    let outward_sign = if signed_area >= 0.0 { -1.0 } else { 1.0 };
     let mut result = Vec::with_capacity(n);
     for i in 0..n {
         let prev = polygon[(i + n - 1) % n];
         let curr = polygon[i];
         let next = polygon[(i + 1) % n];
-        // Compute outward normal as average of two edge normals
-        // Edge prev→curr normal (pointing outward for CCW polygon)
         let e1x = curr.0 - prev.0;
         let e1y = curr.1 - prev.1;
         let len1 = (e1x * e1x + e1y * e1y).sqrt().max(1e-6);
-        let n1x = -e1y / len1;
-        let n1y = e1x / len1;
-        // Edge curr→next normal
+        let n1x = outward_sign * -e1y / len1;
+        let n1y = outward_sign * e1x / len1;
         let e2x = next.0 - curr.0;
         let e2y = next.1 - curr.1;
         let len2 = (e2x * e2x + e2y * e2y).sqrt().max(1e-6);
-        let n2x = -e2y / len2;
-        let n2y = e2x / len2;
-        // Average and normalize
+        let n2x = outward_sign * -e2y / len2;
+        let n2y = outward_sign * e2x / len2;
         let nx = n1x + n2x;
         let ny = n1y + n2y;
         let len = (nx * nx + ny * ny).sqrt().max(1e-6);
-        result.push((curr.0 + width * nx / len, curr.1 + width * ny / len));
+        result.push((
+            curr.0 + distance * nx / len,
+            curr.1 + distance * ny / len,
+        ));
     }
     result
 }
@@ -253,9 +268,15 @@ fn build_point_light_polygon(cx: f32, cy: f32, size: f32, border_width: f32) -> 
             border_vertices.push((cx + outer_size * cos_a, cy + outer_size * sin_a));
         }
     }
+    let border_inner_vertices = if border_width > 0.0 {
+        vertices.clone()
+    } else {
+        Vec::new()
+    };
     LitAreaPolygon {
         vertices,
         border_vertices,
+        border_inner_vertices,
         border_alpha: POINT_LIGHT_BORDER_ALPHA,
     }
 }
@@ -311,8 +332,8 @@ fn parse_point_light(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
 #[cfg(test)]
 mod tests {
     use super::{
-        construction_grid_start_light, parse_dark_level_data, parse_lit_area_bezier,
-        parse_point_light,
+        construction_grid_start_light, offset_polygon, parse_dark_level_data,
+        parse_lit_area_bezier, parse_point_light,
     };
     use crate::domain::parser::parse_level;
     use crate::domain::types::{
@@ -359,6 +380,44 @@ mod tests {
         assert_eq!(lit_areas.len(), 1);
         assert!(lit_areas[0].vertices.len() >= 20);
         assert_eq!(lit_areas[0].vertices.len(), lit_areas[0].border_vertices.len());
+        assert_eq!(
+            lit_areas[0].vertices.len(),
+            lit_areas[0].border_inner_vertices.len()
+        );
+    }
+
+    #[test]
+    fn offset_polygon_expands_and_shrinks_square_for_both_windings() {
+        let polygons = [
+            vec![(0.0, 0.0), (0.0, 4.0), (4.0, 4.0), (4.0, 0.0)],
+            vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+        ];
+
+        for polygon in polygons {
+            let expanded = offset_polygon(&polygon, 0.5);
+            let shrunk = offset_polygon(&polygon, -0.5);
+            let bounds = |points: &[(f32, f32)]| {
+                points.iter().fold(
+                    (f32::MAX, f32::MAX, f32::MIN, f32::MIN),
+                    |(min_x, min_y, max_x, max_y), &(x, y)| {
+                        (min_x.min(x), min_y.min(y), max_x.max(x), max_y.max(y))
+                    },
+                )
+            };
+
+            let original_bounds = bounds(&polygon);
+            let expanded_bounds = bounds(&expanded);
+            let shrunk_bounds = bounds(&shrunk);
+
+            assert!(expanded_bounds.0 < original_bounds.0);
+            assert!(expanded_bounds.1 < original_bounds.1);
+            assert!(expanded_bounds.2 > original_bounds.2);
+            assert!(expanded_bounds.3 > original_bounds.3);
+            assert!(shrunk_bounds.0 > original_bounds.0);
+            assert!(shrunk_bounds.1 > original_bounds.1);
+            assert!(shrunk_bounds.2 < original_bounds.2);
+            assert!(shrunk_bounds.3 < original_bounds.3);
+        }
     }
 
     #[test]
@@ -483,7 +542,8 @@ mod tests {
         ))
         .expect("expected lit area polygon");
 
-        assert_eq!(polygon.vertices, polygon.border_vertices);
+        assert!(polygon.border_vertices.is_empty());
+        assert!(polygon.border_inner_vertices.is_empty());
     }
 
     #[test]
@@ -496,7 +556,8 @@ mod tests {
         .expect("expected lit area polygon");
 
         assert_eq!(polygon.vertices.len(), 20);
-        assert_eq!(polygon.vertices, polygon.border_vertices);
+        assert!(polygon.border_vertices.is_empty());
+        assert!(polygon.border_inner_vertices.is_empty());
     }
 
     #[test]

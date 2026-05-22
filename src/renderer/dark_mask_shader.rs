@@ -1,7 +1,7 @@
 //! wgpu + WGSL dark-overlay shader set.
 //!
 //! This module ports the Unity dark-overlay material stack used by the editor:
-//! - `Depth Mask/Unlit Transparent (CG)` for the border ring multiply pass
+//! - `Depth Mask/Unlit Transparent (CG)` for the border-ring multiply pass
 //! - `Depth Mask/MaskOverlay` for the fullscreen dark complement pass
 //! - `Depth Mask/MaskOverlayNV` for the night-vision fullscreen vignette pass
 

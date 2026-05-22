@@ -104,7 +104,7 @@ impl LevelRenderer {
                         .iter()
                         .filter_map(|&sprite_index| {
                             let world_z = sprites[sprite_index].world_z;
-                            (world_z >= 0.0 && world_z < 5.0).then_some((world_z, sprite_index))
+                            (0.0..5.0).contains(&world_z).then_some((world_z, sprite_index))
                         })
                         .collect();
                     queue.sort_by(|a, b| {

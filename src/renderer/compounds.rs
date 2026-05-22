@@ -468,6 +468,7 @@ fn draw_prefab_layers(ctx: &DrawCtx<'_>, layers: &[PrefabSpriteLayer], xf: Compo
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::bridge_rope_transform;
     use crate::domain::types::Vec2;

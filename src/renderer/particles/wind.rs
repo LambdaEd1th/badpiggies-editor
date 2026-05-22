@@ -14,8 +14,9 @@ use crate::unity_runtime::components::{BoxCollider, ParticleSystem, Transform, W
 use crate::unity_runtime::scene::Scene;
 
 use super::{
-    Camera, LevelRenderer, particle_sheet_uv_rect, pseudo_random, rotate_vec2,
+    LevelRenderer, particle_sheet_uv_rect, pseudo_random, rotate_vec2,
 };
+use super::super::DrawCtx;
 
 /// Wind area zone definition.
 #[derive(Clone, Debug)]
@@ -341,12 +342,10 @@ fn wind_area_render_z(world_z: f32, systems: &[UnityParticleSystemDef]) -> f32 {
 
 pub(crate) fn build_wind_area_def(
     sprite_index: usize,
-    center_x: f32,
-    center_y: f32,
+    center: Vec2,
     world_z: f32,
     rotation: f32,
-    scale_x: f32,
-    scale_y: f32,
+    scale: Vec2,
     override_text: Option<&str>,
 ) -> WindAreaDef {
     let overrides = parse_wind_area_overrides(override_text);
@@ -357,8 +356,8 @@ pub(crate) fn build_wind_area_def(
         .map(|handle_world| {
             rotate_vec2(
                 Vec2 {
-                    x: handle_world.x - center_x,
-                    y: handle_world.y - center_y,
+                    x: handle_world.x - center.x,
+                    y: handle_world.y - center.y,
                 },
                 -rotation,
             )
@@ -373,18 +372,18 @@ pub(crate) fn build_wind_area_def(
         apply_wind_area_system_override(
             system,
             overrides.systems.get(&system.name),
-            scale_x,
-            scale_y,
+            scale.x,
+            scale.y,
         );
     }
 
     WindAreaDef {
         sprite_index,
-        center_x,
-        center_y,
+        center_x: center.x,
+        center_y: center.y,
         render_z: wind_area_render_z(world_z, &systems),
-        half_w: box_size.x.abs() * 0.5 * scale_x.abs(),
-        half_h: box_size.y.abs() * 0.5 * scale_y.abs(),
+        half_w: box_size.x.abs() * 0.5 * scale.x.abs(),
+        half_h: box_size.y.abs() * 0.5 * scale.y.abs(),
         local_dir_x: local_dir.x,
         local_dir_y: local_dir.y,
         dir_x: world_dir.x,
@@ -606,10 +605,7 @@ pub(crate) fn draw_wind_particles(
     particles: &[WindParticle],
     wind_areas: &[WindAreaDef],
     source_sprite_index: Option<usize>,
-    camera: &Camera,
-    painter: &egui::Painter,
-    canvas_center: egui::Vec2,
-    rect: egui::Rect,
+    draw_ctx: &DrawCtx<'_>,
     tex_id: Option<egui::TextureId>,
 ) {
     let Some(leaf_tex) = tex_id else { return };
@@ -633,12 +629,14 @@ pub(crate) fn draw_wind_particles(
         let t_frac = p.age / p.lifetime;
         let size_scale = wind_particle_size_scale(area, p.source_system_index, t_frac);
         let alpha = size_scale.clamp(0.0, 1.0);
-        let sz = p.size * size_scale * camera.zoom;
+        let sz = p.size * size_scale * draw_ctx.camera.zoom;
         if sz < 0.5 {
             continue;
         }
-        let center = camera.world_to_screen(Vec2 { x: p.x, y: p.y }, canvas_center);
-        if !rect.expand(20.0).contains(center) {
+        let center = draw_ctx
+            .camera
+            .world_to_screen(Vec2 { x: p.x, y: p.y }, draw_ctx.canvas_center);
+        if !draw_ctx.canvas_rect.expand(20.0).contains(center) {
             continue;
         }
 
@@ -682,7 +680,7 @@ pub(crate) fn draw_wind_particles(
             color,
         });
         mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
-        painter.add(egui::Shape::mesh(mesh));
+        draw_ctx.painter.add(egui::Shape::mesh(mesh));
     }
 }
 
@@ -703,8 +701,8 @@ mod tests {
             half_h: 7.5,
             local_dir_x: local_dir.x,
             local_dir_y: local_dir.y,
-            dir_x: dir_x,
-            dir_y: dir_y,
+            dir_x,
+            dir_y,
             power_factor: 1.5,
             systems: default_wind_area_systems(),
         }
@@ -727,7 +725,14 @@ mod tests {
 
     #[test]
     fn wind_area_prefab_defaults_match_embedded_prefab() {
-        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+        let area = build_wind_area_def(
+            0,
+            Vec2 { x: 0.0, y: 0.0 },
+            0.0,
+            0.0,
+            Vec2 { x: 1.0, y: 1.0 },
+            None,
+        );
 
         assert!((area.half_w - 20.0).abs() < 0.0001);
         assert!((area.half_h - 7.5).abs() < 0.0001);
@@ -738,7 +743,14 @@ mod tests {
 
     #[test]
     fn wind_particle_side_velocity_curve_matches_unity_prefab_sign_changes() {
-        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+        let area = build_wind_area_def(
+            0,
+            Vec2 { x: 0.0, y: 0.0 },
+            0.0,
+            0.0,
+            Vec2 { x: 1.0, y: 1.0 },
+            None,
+        );
 
         assert!(wind_particle_side_velocity(&area, 0, 0.0) < 0.0);
         assert!(wind_particle_side_velocity(&area, 0, 0.06) > 0.0);
@@ -748,7 +760,14 @@ mod tests {
 
     #[test]
     fn wind_particle_emitter_offsets_match_prefab_xy_plane() {
-        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+        let area = build_wind_area_def(
+            0,
+            Vec2 { x: 0.0, y: 0.0 },
+            0.0,
+            0.0,
+            Vec2 { x: 1.0, y: 1.0 },
+            None,
+        );
         let (dir_offset, side_offset) = wind_particle_emitter_offsets(&area, 0);
         assert!((dir_offset + 12.161071).abs() < 0.001);
         assert!((side_offset + 6.0450926).abs() < 0.001);
@@ -756,7 +775,14 @@ mod tests {
 
     #[test]
     fn wind_particle_size_curve_matches_unity_prefab_envelope() {
-        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+        let area = build_wind_area_def(
+            0,
+            Vec2 { x: 0.0, y: 0.0 },
+            0.0,
+            0.0,
+            Vec2 { x: 1.0, y: 1.0 },
+            None,
+        );
 
         assert_eq!(wind_particle_size_scale(&area, 0, 0.0), 0.0);
         assert!(wind_particle_size_scale(&area, 0, 0.03) > 0.5);
@@ -766,7 +792,14 @@ mod tests {
 
     #[test]
     fn wind_particle_runtime_uses_source_system_specific_curves() {
-        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+        let area = build_wind_area_def(
+            0,
+            Vec2 { x: 0.0, y: 0.0 },
+            0.0,
+            0.0,
+            Vec2 { x: 1.0, y: 1.0 },
+            None,
+        );
 
         assert_eq!(area.systems[0].uv_module.sample_frame_index(0.0), 4);
         assert_eq!(area.systems[2].uv_module.sample_frame_index(0.0), 5);
@@ -778,7 +811,14 @@ mod tests {
 
     #[test]
     fn wind_particle_update_uses_perpendicular_sway_axis() {
-        let area = build_wind_area_def(0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None);
+        let area = build_wind_area_def(
+            0,
+            Vec2 { x: 0.0, y: 0.0 },
+            0.0,
+            0.0,
+            Vec2 { x: 1.0, y: 1.0 },
+            None,
+        );
         let lifetime = wind_particle_lifetime(&area, 0, 0.0);
         let mut particle = WindParticle {
             x: 0.0,
@@ -806,12 +846,13 @@ mod tests {
     fn wind_area_level01_override_produces_horizontal_runtime_values() {
         let area = build_wind_area_def(
             0,
-            16.059305,
-            0.62,
+            Vec2 {
+                x: 16.059305,
+                y: 0.62,
+            },
             0.0,
             0.0,
-            2.0,
-            1.0,
+            Vec2 { x: 2.0, y: 1.0 },
             Some(LEVEL_01_WINDAREA_OVERRIDE),
         );
 
@@ -839,12 +880,13 @@ mod tests {
     fn wind_particle_horizontal_area_spawns_along_side_strip() {
         let area = build_wind_area_def(
             0,
-            16.059305,
-            0.62,
+            Vec2 {
+                x: 16.059305,
+                y: 0.62,
+            },
             0.0,
             0.0,
-            2.0,
-            1.0,
+            Vec2 { x: 2.0, y: 1.0 },
             Some(LEVEL_01_WINDAREA_OVERRIDE),
         );
 

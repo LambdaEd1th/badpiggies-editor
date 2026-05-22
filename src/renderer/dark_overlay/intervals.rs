@@ -18,7 +18,9 @@ pub(in crate::renderer) fn overlay_key(camera: &Camera, rect: egui::Rect) -> Dar
 }
 
 pub(in crate::renderer) fn can_transform_overlay(from: DarkOverlayKey, to: DarkOverlayKey) -> bool {
-    (from.5 - to.5).abs() < 0.5 && (from.6 - to.6).abs() < 0.5 && from.2.abs() > f32::EPSILON
+    (from.5 - to.5).abs() < 0.5
+        && (from.6 - to.6).abs() < 0.5
+        && from.2.abs() > f32::EPSILON
 }
 
 fn transform_overlay_pos(pos: egui::Pos2, from: DarkOverlayKey, to: DarkOverlayKey) -> egui::Pos2 {
@@ -147,4 +149,17 @@ pub(super) fn subtract_intervals(outer: &[(f32, f32)], inner: &[(f32, f32)]) -> 
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::can_transform_overlay;
+
+    #[test]
+    fn transform_overlay_reuse_allows_zoom_out() {
+        let from = (0.0, 0.0, 50.0, 100.0, 100.0, 400.0, 300.0);
+        let to = (0.0, 0.0, 40.0, 100.0, 100.0, 400.0, 300.0);
+
+        assert!(can_transform_overlay(from, to));
+    }
 }

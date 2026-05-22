@@ -1,20 +1,14 @@
-//! Terrain rendering — fill mesh (colored triangles) and curve edge (vertex-colored quads).
+//! Terrain rendering — fill mesh and shader-ready curve edge data.
 //!
 //! The terrain fill mesh is drawn as indexed triangles tinted with the fill color.
-//! The edge mesh uses the fallback approach: per-quad vertex coloring based on
-//! control texture data (grass vs outline selection).
 
 use eframe::egui;
 
 use crate::data::assets;
 use crate::domain::types::*;
 
-use super::{Camera, LevelRenderer, edge_shader, fill_shader};
+use super::{LevelRenderer, edge_shader, fill_shader};
 use edge_shader::EdgeVertex;
-
-/// Terrain edge default colors when no splat pixel data is available.
-const DEFAULT_GRASS_COLOR: egui::Color32 = egui::Color32::from_rgb(0x70, 0xb0, 0x30);
-const DEFAULT_OUTLINE_COLOR: egui::Color32 = egui::Color32::from_rgb(0x55, 0x44, 0x33);
 
 // Note: terrain rendering uses pure Z-depth sorting (matching Unity's orthographic
 // camera), not discrete render-order layers. Decorative terrain typically has Z≈5
@@ -24,8 +18,6 @@ const DEFAULT_OUTLINE_COLOR: egui::Color32 = egui::Color32::from_rgb(0x55, 0x44,
 pub struct TerrainDrawData {
     /// Fill mesh: screen-space triangles with vertex colors.
     pub fill_mesh: Option<egui::Mesh>,
-    /// Edge mesh: screen-space quads with vertex colors (fallback when GLSL unavailable).
-    pub edge_mesh: Option<egui::Mesh>,
     /// World Z position for back-to-front sorting (larger Z = farther from camera).
     pub world_z: f32,
     /// Whether this is a decorative (non-collider) terrain.
@@ -53,10 +45,6 @@ pub struct TerrainDrawData {
     pub edge_splat0: Option<String>,
     /// Splat1 (outline) texture filename.
     pub edge_splat1: Option<String>,
-    /// CPU-textured edge mesh for splat0 regions (fallback when no custom GLSL).
-    pub edge_splat0_mesh: Option<egui::Mesh>,
-    /// CPU-textured edge mesh for splat1 regions (fallback when no custom GLSL).
-    pub edge_splat1_mesh: Option<egui::Mesh>,
 }
 
 /// Build terrain draw data for a single prefab instance with terrain data.
@@ -71,7 +59,6 @@ pub fn build_terrain(
         None => {
             return TerrainDrawData {
                 fill_mesh: None,
-                edge_mesh: None,
                 world_z: world_offset.z,
                 decorative: false,
                 fill_texture: None,
@@ -86,8 +73,6 @@ pub fn build_terrain(
                 edge_splat_params_x: 10.0,
                 edge_splat0: None,
                 edge_splat1: None,
-                edge_splat0_mesh: None,
-                edge_splat1_mesh: None,
             };
         }
     };
@@ -104,7 +89,6 @@ pub fn build_terrain(
         .or_else(|| assets::get_terrain_fill_texture(&prefab.name).map(|s| s.to_string()));
 
     let fill_mesh = build_fill_mesh(td, world_offset);
-    let edge_mesh = build_edge_fallback(td, world_offset, &prefab.name);
 
     // Build shader-ready edge data
     let (edge_vertices, edge_indices) = build_edge_shader_data(td, world_offset);
@@ -157,17 +141,8 @@ pub fn build_terrain(
         .map(|i| usize::from(control_selects_splat1(edge_ctrl_pixels.as_deref(), i)))
         .collect();
 
-    // Build CPU-textured edge meshes (fallback for when GLSL is unavailable)
-    let (edge_splat0_mesh, edge_splat1_mesh) = build_edge_textured_meshes(
-        &edge_vertices,
-        &edge_indices,
-        edge_ctrl_pixels.as_deref(),
-        edge_splat_params_x,
-    );
-
     TerrainDrawData {
         fill_mesh,
-        edge_mesh,
         world_z: world_offset.z,
         decorative,
         fill_texture,
@@ -182,8 +157,6 @@ pub fn build_terrain(
         edge_splat_params_x,
         edge_splat0,
         edge_splat1,
-        edge_splat0_mesh,
-        edge_splat1_mesh,
     }
 }
 
@@ -244,95 +217,6 @@ fn build_fill_mesh(td: &TerrainData, offset: Vec3) -> Option<egui::Mesh> {
     }
 
     Some(mesh)
-}
-
-/// Build terrain edge using the vertex-color fallback approach.
-/// Each quad strip segment gets a flat color based on control texture data.
-fn build_edge_fallback(td: &TerrainData, offset: Vec3, name: &str) -> Option<egui::Mesh> {
-    let verts = &td.curve_mesh.vertices;
-    if verts.len() < 4 {
-        return None;
-    }
-
-    let is_dark = assets::is_dark_terrain(name);
-
-    // Determine grass/outline colors from terrain type
-    let grass_color = if is_dark {
-        egui::Color32::from_rgb(0x44, 0x88, 0x44)
-    } else {
-        DEFAULT_GRASS_COLOR
-    };
-    let outline_color = if is_dark {
-        egui::Color32::from_rgb(0x33, 0x55, 0x22)
-    } else {
-        DEFAULT_OUTLINE_COLOR
-    };
-
-    // Decode control texture if available (raw PNG bytes in terrain data)
-    let ctrl_pixels = td
-        .control_texture_data
-        .as_ref()
-        .and_then(|data| decode_control_png(data))
-        .map(|(pixels, _, _)| pixels);
-
-    let mut mesh = egui::Mesh::default();
-    let quad_count = (verts.len() - 2) / 2;
-
-    for qi in 0..quad_count {
-        let i = qi * 2;
-        if i + 3 >= verts.len() {
-            break;
-        }
-
-        let oa = &verts[i]; // outer A
-        let ia = &verts[i + 1]; // inner A
-        let ob = &verts[i + 2]; // outer B
-        let ib = &verts[i + 3]; // inner B
-
-        let color = if control_selects_splat1(ctrl_pixels.as_deref(), qi) {
-            outline_color
-        } else {
-            grass_color
-        };
-
-        let base = mesh.vertices.len() as u32;
-        let uv = egui::pos2(0.0, 0.0);
-
-        mesh.vertices.push(egui::epaint::Vertex {
-            pos: egui::pos2(oa.x + offset.x, oa.y + offset.y),
-            uv,
-            color,
-        });
-        mesh.vertices.push(egui::epaint::Vertex {
-            pos: egui::pos2(ob.x + offset.x, ob.y + offset.y),
-            uv,
-            color,
-        });
-        mesh.vertices.push(egui::epaint::Vertex {
-            pos: egui::pos2(ib.x + offset.x, ib.y + offset.y),
-            uv,
-            color,
-        });
-        mesh.vertices.push(egui::epaint::Vertex {
-            pos: egui::pos2(ia.x + offset.x, ia.y + offset.y),
-            uv,
-            color,
-        });
-
-        // Two triangles per quad
-        mesh.indices.push(base);
-        mesh.indices.push(base + 1);
-        mesh.indices.push(base + 2);
-        mesh.indices.push(base);
-        mesh.indices.push(base + 2);
-        mesh.indices.push(base + 3);
-    }
-
-    if mesh.vertices.is_empty() {
-        None
-    } else {
-        Some(mesh)
-    }
 }
 
 /// Decode a raw PNG to get RGBA pixel data (without premultiplied alpha).
@@ -403,70 +287,8 @@ fn build_edge_shader_data(td: &TerrainData, offset: Vec3) -> (Vec<EdgeVertex>, V
     (out_verts, indices)
 }
 
-/// Build CPU-textured edge meshes split by control texture selection.
-/// Returns (splat0_mesh, splat1_mesh) with proper UV for texture tiling.
-/// This emulates the GLSL shader logic on CPU for when GL is unavailable.
-fn build_edge_textured_meshes(
-    edge_verts: &[EdgeVertex],
-    edge_indices: &[u16],
-    ctrl_pixels: Option<&[u8]>,
-    splat_params_x: f32,
-) -> (Option<egui::Mesh>, Option<egui::Mesh>) {
-    if edge_verts.is_empty() || edge_indices.len() < 3 {
-        return (None, None);
-    }
-
-    let mut mesh0 = egui::Mesh::default();
-    let mut mesh1 = egui::Mesh::default();
-
-    // Process triangles: each 3 consecutive indices form a triangle.
-    // Determine which splat based on the node index of the first vertex.
-    for tri in edge_indices.chunks_exact(3) {
-        let i0 = tri[0] as usize;
-        let i1 = tri[1] as usize;
-        let i2 = tri[2] as usize;
-        if i0 >= edge_verts.len() || i1 >= edge_verts.len() || i2 >= edge_verts.len() {
-            continue;
-        }
-
-        // Determine splat selection from the node index of the first vertex
-        let node_idx = edge_verts[i0].uv[1] as usize;
-        let use_splat1 = control_selects_splat1(ctrl_pixels, node_idx);
-
-        let target = if use_splat1 { &mut mesh1 } else { &mut mesh0 };
-        let base = target.vertices.len() as u32;
-
-        for &vi in &[i0, i1, i2] {
-            let ev = &edge_verts[vi];
-            target.vertices.push(egui::epaint::Vertex {
-                pos: egui::pos2(ev.pos[0], ev.pos[1]),
-                // UV: horizontal = accumulated_distance * splatParamsX (tiling),
-                //     vertical = inverted gradient because egui has V=0 at image top
-                //     (outer=1.0 should map to image top = green grass)
-                uv: egui::pos2(ev.uv[0] * splat_params_x, 1.0 - ev.color),
-                color: egui::Color32::WHITE,
-            });
-        }
-        target.indices.push(base);
-        target.indices.push(base + 1);
-        target.indices.push(base + 2);
-    }
-
-    (
-        if mesh0.vertices.is_empty() {
-            None
-        } else {
-            Some(mesh0)
-        },
-        if mesh1.vertices.is_empty() {
-            None
-        } else {
-            Some(mesh1)
-        },
-    )
-}
-
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::control_selects_splat1;
 
@@ -488,36 +310,6 @@ mod tests {
     }
 }
 
-/// Transform world-space mesh into a reusable output buffer, avoiding allocation
-/// after the first call. Reuses `out`'s vertex/index Vec capacity.
-pub fn transform_mesh_to_screen_into(
-    mesh: &egui::Mesh,
-    camera: &Camera,
-    canvas_center: egui::Vec2,
-    out: &mut egui::Mesh,
-) {
-    out.texture_id = mesh.texture_id;
-    out.vertices.clear();
-    out.vertices
-        .reserve(mesh.vertices.len().saturating_sub(out.vertices.capacity()));
-    for v in &mesh.vertices {
-        let screen = camera.world_to_screen(
-            crate::domain::types::Vec2 {
-                x: v.pos.x,
-                y: v.pos.y,
-            },
-            canvas_center,
-        );
-        out.vertices.push(egui::epaint::Vertex {
-            pos: screen,
-            uv: v.uv,
-            color: v.color,
-        });
-    }
-    out.indices.clear();
-    out.indices.extend_from_slice(&mesh.indices);
-}
-
 // ── Terrain draw pass (extracted from show()) ──
 
 impl LevelRenderer {
@@ -525,7 +317,7 @@ impl LevelRenderer {
         &mut self,
         terrain_index: usize,
         painter: &egui::Painter,
-        canvas_center: egui::Vec2,
+        _canvas_center: egui::Vec2,
         rect: egui::Rect,
     ) {
         let Some(td) = self.terrain_data.get(terrain_index) else {
@@ -538,7 +330,6 @@ impl LevelRenderer {
 
         // Fill
         if let Some(ref fill_data) = td.fill_mesh {
-            let mut gpu_done = false;
             if let (Some(resources), Some(device), Some(queue)) =
                 (&self.fill_resources, &self.wgpu_device, &self.wgpu_queue)
                 && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(terrain_index)
@@ -573,66 +364,26 @@ impl LevelRenderer {
                     slot,
                     uniforms,
                 ));
-                gpu_done = true;
-            }
-            if !gpu_done {
-                let drag_cam = Camera {
-                    center: Vec2 {
-                        x: cam_cx,
-                        y: cam_cy,
-                    },
-                    ..self.camera.clone()
-                };
-                transform_mesh_to_screen_into(
-                    fill_data,
-                    &drag_cam,
-                    canvas_center,
-                    &mut self.terrain_scratch_mesh,
-                );
-                if let Some(ref tex_name) = td.fill_texture
-                    && let Some(tex_id) = self.tex_cache.get(tex_name)
-                {
-                    self.terrain_scratch_mesh.texture_id = tex_id;
-                }
-                painter.add(egui::Shape::mesh(std::mem::take(
-                    &mut self.terrain_scratch_mesh,
-                )));
             }
         }
 
         // Edge (right after fill)
-        if let Some(gpu_idx) = self.edge_gpu_mesh_index.get(terrain_index).copied().flatten() {
-            if let Some(ref resources) = self.edge_resources {
-                painter.add(edge_shader::make_single_edge_paint_callback(
-                    rect,
-                    resources.clone(),
-                    self.edge_gpu_meshes.clone(),
-                    edge_shader::EdgeCameraParams {
-                        screen_w: rect.width(),
-                        screen_h: rect.height(),
-                        camera_x: cam_cx,
-                        camera_y: cam_cy,
-                        zoom: self.camera.zoom,
-                    },
-                    gpu_idx,
-                ));
-            }
-        } else {
-            let drag_cam = Camera {
-                center: Vec2 {
-                    x: cam_cx,
-                    y: cam_cy,
+        if let Some(gpu_idx) = self.edge_gpu_mesh_index.get(terrain_index).copied().flatten()
+            && let Some(ref resources) = self.edge_resources
+        {
+            painter.add(edge_shader::make_single_edge_paint_callback(
+                rect,
+                resources.clone(),
+                self.edge_gpu_meshes.clone(),
+                edge_shader::EdgeCameraParams {
+                    screen_w: rect.width(),
+                    screen_h: rect.height(),
+                    camera_x: cam_cx,
+                    camera_y: cam_cy,
+                    zoom: self.camera.zoom,
                 },
-                ..self.camera.clone()
-            };
-            Self::draw_terrain_edge_cpu(
-                painter,
-                td,
-                &drag_cam,
-                canvas_center,
-                &self.tex_cache,
-                &mut self.terrain_scratch_mesh,
-            );
+                gpu_idx,
+            ));
         }
     }
 }

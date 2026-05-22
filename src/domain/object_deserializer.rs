@@ -395,19 +395,19 @@ impl ObjectReader {
         }
         if parts.len() > 4 {
             let mut combined_name = String::new();
-            for i in 1..parts.len() {
-                if parts[i] == "=" {
+            for (i, part) in parts.iter().enumerate().skip(1) {
+                if *part == "=" {
                     break;
                 }
                 if i > 1 {
                     combined_name.push(' ');
                 }
-                combined_name.push_str(parts[i]);
+                combined_name.push_str(part);
             }
             return Some(PropertyData::valued(
                 parts[0].to_string(),
                 combined_name,
-                parts[parts.len() - 1].to_string(),
+                parts.last()?.to_string(),
             ));
         }
         None
@@ -416,9 +416,7 @@ impl ObjectReader {
     /// `public PropertyData ReadTypeAndName()` — splits on space exactly once.
     pub fn read_type_and_name(&mut self) -> Option<PropertyData> {
         let line = self.read_line()?;
-        let mut iter = line.splitn(2, ' ');
-        let r#type = iter.next()?;
-        let name = iter.next()?;
+        let (r#type, name) = line.split_once(' ')?;
         Some(PropertyData::typed(r#type.to_string(), name.to_string()))
     }
 
@@ -895,10 +893,10 @@ fn read_animation_curve<H: RuntimeHost>(
 
         // Optional `Integer length = N` at depth+1
         let mut length: i32 = 0;
-        if reader.get_indentation() == depth {
-            if let Some(len_prop) = reader.read_property() {
-                length = len_prop.integer_value();
-            }
+        if reader.get_indentation() == depth
+            && let Some(len_prop) = reader.read_property()
+        {
+            length = len_prop.integer_value();
         }
 
         // Elements
@@ -942,10 +940,10 @@ fn read_array<H: RuntimeHost>(
 ) {
     // `ArraySize size = N` at depth
     let mut size: i32 = 0;
-    if reader.get_indentation() == depth {
-        if let Some(prop) = reader.read_property() {
-            size = prop.integer_value();
-        }
+    if reader.get_indentation() == depth
+        && let Some(prop) = reader.read_property()
+    {
+        size = prop.integer_value();
     }
 
     let mut elements: Vec<ArrayElement<H>> = Vec::new();
@@ -1059,10 +1057,10 @@ fn read_array_into_value<H: RuntimeHost>(
     reader: &mut ObjectReader,
 ) {
     let mut size: i32 = 0;
-    if reader.get_indentation() == depth {
-        if let Some(prop) = reader.read_property() {
-            size = prop.integer_value();
-        }
+    if reader.get_indentation() == depth
+        && let Some(prop) = reader.read_property()
+    {
+        size = prop.integer_value();
     }
 
     let Value::Generic(entries) = out else {
@@ -1147,34 +1145,29 @@ fn read_particle_system_module<H: RuntimeHost>(
         let Some(property) = reader.read_property() else {
             return;
         };
-        match module {
-            "InitialModule" => {
-                if property.r#type == "Generic" && property.name == "startLifetime" {
-                    if reader.get_indentation() == depth + 1 {
-                        if let Some(inner) = reader.read_property() {
-                            host.set_particle_start_lifetime(particle_system, inner.float_value());
-                        }
-                    }
-                } else if property.r#type == "Generic"
-                    && property.name == "startSpeed"
-                    && reader.get_indentation() == depth + 1
+        match (module, property.r#type.as_str(), property.name.as_str()) {
+            ("InitialModule", "Generic", "startLifetime") => {
+                if reader.get_indentation() == depth + 1
+                    && let Some(inner) = reader.read_property()
                 {
-                    if let Some(inner) = reader.read_property() {
-                        host.set_particle_start_speed(particle_system, inner.float_value());
-                    }
+                    host.set_particle_start_lifetime(particle_system, inner.float_value());
                 }
             }
-            "EmissionModule" => {
-                if property.r#type == "Generic"
-                    && property.name == "rate"
-                    && reader.get_indentation() == depth + 1
+            ("InitialModule", "Generic", "startSpeed") => {
+                if reader.get_indentation() == depth + 1
+                    && let Some(inner) = reader.read_property()
                 {
-                    if let Some(inner) = reader.read_property() {
-                        host.set_particle_emission_rate(particle_system, inner.float_value());
-                    }
+                    host.set_particle_start_speed(particle_system, inner.float_value());
                 }
             }
-            "ShapeModule" => {
+            ("EmissionModule", "Generic", "rate") => {
+                if reader.get_indentation() == depth + 1
+                    && let Some(inner) = reader.read_property()
+                {
+                    host.set_particle_emission_rate(particle_system, inner.float_value());
+                }
+            }
+            ("ShapeModule", _, _) => {
                 // C# body is `if (!(... enabled == true)) {}` — i.e. nothing.
                 let _ = property;
             }

@@ -75,10 +75,10 @@ impl UnityComponent for BezierCurve {
 fn decode_nodes(entries: &[(String, SceneValue)]) -> Vec<BezierNode> {
     let mut nodes_entries: &[(String, SceneValue)] = &[];
     for (name, value) in entries {
-        if name == "nodes" {
-            if let SceneValue::Generic(inner) = value {
-                nodes_entries = inner.as_slice();
-            }
+        if name == "nodes"
+            && let SceneValue::Generic(inner) = value
+        {
+            nodes_entries = inner.as_slice();
         }
     }
 
@@ -94,10 +94,10 @@ fn decode_nodes(entries: &[(String, SceneValue)]) -> Vec<BezierNode> {
         let Ok(idx) = name.parse::<usize>() else {
             continue;
         };
-        if let SceneValue::Generic(elem) = value {
-            if let Some(n) = decode_node(elem) {
-                indexed.push((idx, n));
-            }
+        if let SceneValue::Generic(elem) = value
+            && let Some(n) = decode_node(elem)
+        {
+            indexed.push((idx, n));
         }
     }
     let zero = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
@@ -124,10 +124,10 @@ fn decode_node(entries: &[(String, SceneValue)]) -> Option<BezierNode> {
     let data: &[(String, SceneValue)] = entries
         .iter()
         .find_map(|(n, v)| {
-            if n == "data" {
-                if let SceneValue::Generic(inner) = v {
-                    return Some(inner.as_slice());
-                }
+            if n == "data"
+                && let SceneValue::Generic(inner) = v
+            {
+                return Some(inner.as_slice());
             }
             None
         })

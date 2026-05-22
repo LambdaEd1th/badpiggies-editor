@@ -67,6 +67,19 @@ fn get_screen_size_80pct() -> (f32, f32) {
     (1600.0, 1000.0)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn native_app_icon() -> Option<eframe::egui::IconData> {
+    match eframe::icon_data::from_png_bytes(include_bytes!(
+        "../editor_assets/ui/app-icon-menuatlas2-wrench-wings.png",
+    )) {
+        Ok(icon) => Some(icon),
+        Err(error) => {
+            log::error!("Failed to decode native app icon: {error}");
+            None
+        }
+    }
+}
+
 // ── CLI ──────────────────────────────────────────────
 #[cfg(not(target_arch = "wasm32"))]
 mod cli {
@@ -376,11 +389,16 @@ fn main() -> eframe::Result<()> {
     // Falls back to 1600×1000 on other platforms or errors.
     let (w, h) = get_screen_size_80pct();
 
+    let mut viewport = eframe::egui::ViewportBuilder::default()
+        .with_inner_size([w, h])
+        .with_min_inner_size([800.0, 500.0])
+        .with_drag_and_drop(true);
+    if let Some(icon) = native_app_icon() {
+        viewport = viewport.with_icon(icon);
+    }
+
     let options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([w, h])
-            .with_min_inner_size([800.0, 500.0])
-            .with_drag_and_drop(true),
+        viewport,
         ..Default::default()
     };
 

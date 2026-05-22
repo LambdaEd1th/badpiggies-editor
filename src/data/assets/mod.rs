@@ -12,9 +12,7 @@ pub use embedded::{
     guid_for_pathname, list_pathnames, pathname_for_guid, read_guid_text, read_pathname,
     read_pathname_text,
 };
-pub use terrain::{
-    get_terrain_fill_texture, get_terrain_splat0, get_terrain_splat1_for_level, is_dark_terrain,
-};
+pub use terrain::{get_terrain_fill_texture, get_terrain_splat0, get_terrain_splat1_for_level};
 pub use texture_cache::TextureCache;
 pub use theme::{
     detect_bg_theme, get_object_color, ground_color, props_tint_color_for_prefab,

@@ -278,7 +278,6 @@ fn draw_bg_sprite_offset(
     let rect = ctx.canvas_rect;
     let camera = ctx.camera;
     let canvas_center = ctx.canvas_center;
-    let tex_cache = ctx.tex_cache;
     let speed = sprite.layer.parallax_speed();
 
     // Match TS renderer: parent parallax group is positioned at camX * speed.
@@ -372,9 +371,6 @@ fn draw_bg_sprite_offset(
     {
         return;
     }
-
-    let screen_rect =
-        egui::Rect::from_center_size(center, egui::vec2(hw_screen * 2.0, hh_screen * 2.0));
 
     // Cutoff: controls shader blend mode (matches Unity 1:1).
     //   -1.0 → opaque (Unity _Custom/Unlit_Color_Geometry — solid fill layers)
@@ -476,63 +472,5 @@ fn draw_bg_sprite_offset(
             ));
             return;
         }
-    }
-
-    // ── CPU fallback: egui mesh ──
-
-    // Sky texture
-    if let Some(ref sky_name) = sprite.sky_texture {
-        if let Some(tex_id) = tex_cache.get(sky_name) {
-            let tint = egui::Color32::from_rgba_unmultiplied(
-                (sprite.tint[0] * 255.0) as u8,
-                (sprite.tint[1] * 255.0) as u8,
-                (sprite.tint[2] * 255.0) as u8,
-                (sprite.tint[3] * 255.0) as u8,
-            );
-            let mut mesh = egui::Mesh::with_texture(tex_id);
-            mesh.add_rect_with_uv(
-                screen_rect,
-                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                tint,
-            );
-            painter.add(egui::Shape::mesh(mesh));
-        }
-        return;
-    }
-
-    // Atlas sprite with UV mapping
-    if let Some(ref atlas_name) = sprite.atlas {
-        let tex_id = match tex_cache.get(atlas_name) {
-            Some(id) => id,
-            None => return,
-        };
-
-        let cell = 1.0 / sprite.subdiv;
-        let (padding_left_x, padding_right_x, padding_y) = atlas_uv_padding(sprite);
-        let border_off = sprite.border / 1024.0;
-        let u0 = sprite.uv_x * cell + padding_left_x + border_off;
-        let u1 = (sprite.uv_x + sprite.grid_w) * cell - padding_right_x - border_off;
-        let v0_unity = sprite.uv_y * cell + padding_y + border_off;
-        let v1_unity = (sprite.uv_y + sprite.grid_h) * cell - padding_y - border_off;
-        // UV Y flip: Unity V=0 at bottom, egui V=0 at top
-        let v0 = 1.0 - v1_unity;
-        let v1 = 1.0 - v0_unity;
-
-        // Handle flipping via UV swap
-        let (u0, u1) = if sprite.scale_x < 0.0 {
-            (u1, u0)
-        } else {
-            (u0, u1)
-        };
-        let (v0, v1) = if sprite.scale_y < 0.0 {
-            (v1, v0)
-        } else {
-            (v0, v1)
-        };
-
-        let uv_rect = egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1));
-        let mut mesh = egui::Mesh::with_texture(tex_id);
-        mesh.add_rect_with_uv(screen_rect, uv_rect, egui::Color32::WHITE);
-        painter.add(egui::Shape::mesh(mesh));
     }
 }

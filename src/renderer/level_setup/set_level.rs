@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::data::assets;
-use crate::domain::types::{LevelData, LevelObject, Vec3};
+use crate::domain::types::{LevelData, LevelObject, Vec2, Vec3};
 
 use super::super::LevelRenderer;
 use super::super::background;
@@ -243,7 +243,10 @@ impl LevelRenderer {
                     self.edge_gpu_mesh_index[ti] = Some(gpu_meshes.len());
                     log::info!("  → terrain[{}] GPU edge active (both splats loaded)", ti);
                 } else {
-                    log::warn!("  → terrain[{}] GPU edge fallback (missing splat)", ti);
+                    log::warn!(
+                        "  → terrain[{}] GPU edge unavailable (missing splat; CPU fallback removed)",
+                        ti
+                    );
                 }
                 gpu_meshes.push(gpu_mesh);
             }
@@ -369,12 +372,16 @@ impl LevelRenderer {
             if sprite.name.starts_with("WindArea") {
                 self.wind_areas.push(build_wind_area_def(
                     i,
-                    sprite.world_pos.x,
-                    sprite.world_pos.y,
+                    Vec2 {
+                        x: sprite.world_pos.x,
+                        y: sprite.world_pos.y,
+                    },
                     sprite.world_pos.z,
                     sprite.rotation,
-                    sprite.scale.0,
-                    sprite.scale.1,
+                    Vec2 {
+                        x: sprite.scale.0,
+                        y: sprite.scale.1,
+                    },
                     sprite.override_text.as_deref(),
                 ));
             }
@@ -456,6 +463,8 @@ impl LevelRenderer {
             self.lit_area_polygons
                 .push(construction_grid_start_light(construction_grid));
         }
+        self.contraption_has_night_vision = self.dark_level;
+        self.night_vision_enabled = self.dark_level;
 
         // Parse camera limits from LevelManager
         self.camera_limits = parse_camera_limits(level);

@@ -662,6 +662,7 @@ fn parse_particle_color_gradient(value: &Value) -> ParticleColorGradient {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 

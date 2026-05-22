@@ -45,8 +45,8 @@ impl LevelRenderer {
             .hover_pos()
             .map(|p| self.camera.screen_to_world(p, canvas_center));
 
-        // Ensure textures needed by the current frame are resident before any
-        // CPU fallback paths attempt to draw with them.
+        // Ensure textures needed by CPU-drawn sprites, particles, and other
+        // non-shader paths are resident for the current frame.
         self.lazy_load_textures(ui.ctx());
 
         // Background (sky + ground fill + parallax layers + clouds)

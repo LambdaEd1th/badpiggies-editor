@@ -205,9 +205,10 @@ pub struct LevelRenderer {
     dark_level: bool,
     /// Whether to show the dark overlay (togglable in UI).
     pub show_dark_overlay: bool,
-    /// Whether the contraption currently carries the Night Vision power-up in build mode.
+    /// Whether the current level exposes the Night Vision preview toggle.
     contraption_has_night_vision: bool,
     /// Whether to draw the night-vision dark-overlay variant.
+    /// Dark levels default this on, but the user can toggle it off.
     night_vision_enabled: bool,
     /// Parsed camera limits from LevelManager (topLeft + size).
     pub camera_limits: Option<[f32; 4]>,
@@ -288,8 +289,6 @@ pub struct LevelRenderer {
     pub hovered_rotation_handle: Option<ObjectIndex>,
     /// Selected sprite scale handle currently hovered.
     hovered_scale_handle: Option<ScaleHandleTarget>,
-    /// Reusable scratch mesh buffer for terrain CPU transform (avoids per-frame allocation).
-    terrain_scratch_mesh: egui::Mesh,
     /// True when the user clicked the canvas without hitting any object.
     pub clicked_empty: bool,
     /// Cached dark overlay mesh (layer 1: dark complement).

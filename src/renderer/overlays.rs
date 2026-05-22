@@ -320,11 +320,10 @@ impl LevelRenderer {
                     .tex_cache
                     .load_texture(ctx, &sprite_key, atlas)
                     .is_none()
+                    && self.tex_cache.load_texture(ctx, &props_key, atlas).is_none()
                 {
-                    if self.tex_cache.load_texture(ctx, &props_key, atlas).is_none() {
-                        self.tex_cache
-                            .load_texture(ctx, &format!("Assets/Texture2D/{}", atlas), atlas);
-                    }
+                    self.tex_cache
+                        .load_texture(ctx, &format!("Assets/Texture2D/{}", atlas), atlas);
                 }
             }
         }
@@ -345,19 +344,6 @@ impl LevelRenderer {
         // Terrain textures — usually Texture2D/ground, with a few Resources/* fallbacks.
         for td in &self.terrain_data {
             if let Some(ref tex_name) = td.fill_texture
-                && self.tex_cache.get(tex_name).is_none()
-                && let Some(asset_key) = assets::terrain_texture_asset_key(tex_name)
-            {
-                self.tex_cache.load_texture_repeat(ctx, &asset_key, tex_name);
-            }
-            // Splat textures for CPU-textured edge fallback
-            if let Some(ref tex_name) = td.edge_splat0
-                && self.tex_cache.get(tex_name).is_none()
-                && let Some(asset_key) = assets::terrain_texture_asset_key(tex_name)
-            {
-                self.tex_cache.load_texture_repeat(ctx, &asset_key, tex_name);
-            }
-            if let Some(ref tex_name) = td.edge_splat1
                 && self.tex_cache.get(tex_name).is_none()
                 && let Some(asset_key) = assets::terrain_texture_asset_key(tex_name)
             {

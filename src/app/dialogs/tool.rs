@@ -29,8 +29,7 @@ struct PreviewPanelState {
     title: String,
     preview_state: PreviewPlaybackState,
     show_dark_preview_controls: bool,
-    build_has_night_vision: bool,
-    runtime_night_vision_active: bool,
+    night_vision_enabled: bool,
 }
 
 fn preview_panel_state(app: &EditorApp, t: &'static I18n) -> Option<PreviewPanelState> {
@@ -55,12 +54,7 @@ fn preview_panel_state(app: &EditorApp, t: &'static I18n) -> Option<PreviewPanel
         title,
         preview_state: tab.renderer.preview_playback_state(),
         show_dark_preview_controls,
-        build_has_night_vision: if show_dark_preview_controls {
-            tab.renderer.contraption_has_night_vision()
-        } else {
-            false
-        },
-        runtime_night_vision_active: if show_dark_preview_controls {
+        night_vision_enabled: if show_dark_preview_controls {
             tab.renderer.night_vision_enabled()
         } else {
             false
@@ -205,7 +199,7 @@ impl EditorApp {
 
         let button_size = egui::vec2(40.0, 40.0);
         let mut queued_preview_state = None;
-        let mut queued_night_vision_powerup = None;
+        let mut queued_night_vision_enabled = None;
 
         egui::Panel::bottom("preview_controls_panel")
             .resizable(false)
@@ -237,19 +231,15 @@ impl EditorApp {
                             });
 
                             if state.show_dark_preview_controls {
-                                if state.preview_state == PreviewPlaybackState::Build {
-                                    let mut enabled = state.build_has_night_vision;
-                                    if ui
-                                        .checkbox(
-                                            &mut enabled,
-                                            t.get("tool_preview_night_vision_powerup"),
-                                        )
-                                        .clicked()
-                                    {
-                                        queued_night_vision_powerup = Some(enabled);
-                                    }
-                                } else if state.runtime_night_vision_active {
-                                    ui.label(t.get("tool_preview_night_vision_active"));
+                                let mut night_vision_enabled = state.night_vision_enabled;
+                                if ui
+                                    .checkbox(
+                                        &mut night_vision_enabled,
+                                        t.get("tool_preview_night_vision"),
+                                    )
+                                    .clicked()
+                                {
+                                    queued_night_vision_enabled = Some(night_vision_enabled);
                                 }
                             }
                         });
@@ -264,10 +254,10 @@ impl EditorApp {
                 .set_preview_playback_state(next_state);
         }
 
-        if let Some(enabled) = queued_night_vision_powerup {
+        if let Some(enabled) = queued_night_vision_enabled {
             self.tabs[self.active_tab]
                 .renderer
-                .set_contraption_has_night_vision(enabled);
+                .set_night_vision_enabled(enabled);
         }
     }
 }

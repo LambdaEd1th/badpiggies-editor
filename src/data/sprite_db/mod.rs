@@ -115,7 +115,7 @@ fn build_db() -> HashMap<String, SpriteInfo> {
         };
 
         let parsed = parse::parse_prefab(&text);
-        let info = builder::find_runtime_sprite_info(&parsed, &runtime_sprites)
+        let info = builder::find_runtime_sprite_info(&parsed, runtime_sprites)
             .or_else(|| builder::find_unmanaged_sprite_info(name, &parsed));
         if let Some(info) = info {
             map.insert(name.to_string(), info);

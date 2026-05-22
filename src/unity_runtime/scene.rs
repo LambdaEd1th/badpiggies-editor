@@ -153,24 +153,22 @@ impl Scene {
     /// `transform.Find(name)` — first direct child with the given name.
     pub fn find_child(&self, parent: GameObjectId, name: &str) -> Option<GameObjectId> {
         let parent = self.game_object(parent);
-        for &child_id in &parent.children {
-            if self.game_object(child_id).name == name {
-                return Some(child_id);
-            }
-        }
-        None
+        parent
+            .children
+            .iter()
+            .find(|&&child_id| self.game_object(child_id).name == name)
+            .copied()
     }
 
     /// `obj.GetComponent(suffix)` — first component whose `component_suffix`
     /// matches.
     pub fn get_component(&self, owner: GameObjectId, suffix: &str) -> Option<ComponentId> {
         let owner = self.game_object(owner);
-        for &component_id in &owner.components {
-            if self.behavior(component_id).component_suffix() == suffix {
-                return Some(component_id);
-            }
-        }
-        None
+        owner
+            .components
+            .iter()
+            .find(|&&component_id| self.behavior(component_id).component_suffix() == suffix)
+            .copied()
     }
 
     /// First component on `owner` that downcasts to `T`.

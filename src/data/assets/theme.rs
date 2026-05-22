@@ -223,6 +223,7 @@ pub fn detect_bg_theme(
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{
         background_override_root_name, background_prefab_name, background_prefab_ref_index,
@@ -769,7 +770,7 @@ mod tests {
                 let roots = crate::domain::prefab_override::parse_override_text(raw_text);
                 let object_refs = roots
                     .iter()
-                    .flat_map(|root| super::collect_object_reference_values(root))
+                    .flat_map(super::collect_object_reference_values)
                     .collect::<Vec<_>>();
                 let components = roots
                     .iter()
@@ -1070,8 +1071,8 @@ fn resolve_ground_color(theme_name: &str) -> Option<egui::Color32> {
     let theme = crate::data::bg_data::get_theme(theme_name)?;
 
     match theme_name {
-        "Plateau" => resolve_theme_sprite_ground_color(&theme, is_grass_fill_ground_sprite),
-        "Maya" => resolve_theme_sprite_ground_color(&theme, is_beach_ground_sprite),
+        "Plateau" => resolve_theme_sprite_ground_color(theme, is_grass_fill_ground_sprite),
+        "Maya" => resolve_theme_sprite_ground_color(theme, is_beach_ground_sprite),
         "Night"
         | "Morning"
         | "Jungle"
@@ -1082,7 +1083,7 @@ fn resolve_ground_color(theme_name: &str) -> Option<egui::Color32> {
         | "MayaCave2Dark"
         | "MayaHigh"
         | "MayaTemple" => {
-            resolve_theme_sprite_ground_color(&theme, is_near_fill_ground_sprite)
+            resolve_theme_sprite_ground_color(theme, is_near_fill_ground_sprite)
         }
         _ => None,
     }
@@ -1215,7 +1216,7 @@ fn sample_texture_row_color(filename: &str, top_row: bool) -> Option<egui::Color
     let row = if top_row {
         image.rows().next()?
     } else {
-        image.rows().last()?
+        image.rows().next_back()?
     };
     let mut total = [0u64; 3];
     let mut count = 0u64;
@@ -1754,7 +1755,7 @@ fn build_prefab_skip_props_tint_by_root_components() -> HashMap<String, bool> {
 
 fn extract_guid(line: &str) -> Option<&str> {
     let (_, rest) = line.split_once("guid: ")?;
-    rest.split(|ch| ch == ',' || ch == '}')
+    rest.split([',', '}'])
         .next()
         .map(str::trim)
         .filter(|guid| !guid.is_empty())

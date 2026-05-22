@@ -88,7 +88,8 @@ pub(super) fn is_representative_runtime_sprite_name(game_object_name: &str) -> b
     // semantically representative button/icon/loading child the editor should
     // preview. Prefer those asset-authored child names instead of a per-prefab
     // sprite-id table.
-    match normalize_runtime_sprite_name(game_object_name).as_str() {
+    matches!(
+        normalize_runtime_sprite_name(game_object_name).as_str(),
         "closebutton"
         | "backbutton"
         | "loading"
@@ -100,9 +101,8 @@ pub(super) fn is_representative_runtime_sprite_name(game_object_name: &str) -> b
         | "levelicon"
         | "softcurrencyicon"
         | "okbutton"
-        | "infobutton" => true,
-        _ => false,
-    }
+        | "infobutton"
+    )
 }
 
 fn normalize_runtime_sprite_name(name: &str) -> String {

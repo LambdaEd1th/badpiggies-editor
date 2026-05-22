@@ -1,10 +1,8 @@
 //! Hit testing, terrain point tests, and geometry helpers for the renderer.
 
-use crate::data::assets;
 use crate::domain::types::Vec2;
 
-use super::terrain;
-use super::{Camera, LevelRenderer, TerrainPresetShape};
+use super::{LevelRenderer, TerrainPresetShape};
 
 fn constrain_square_end(start: Vec2, end: Vec2) -> Vec2 {
     let dx = end.x - start.x;
@@ -153,18 +151,6 @@ mod interaction;
 mod terrain_edit;
 
 impl LevelRenderer {
-    fn inset_terrain_edge_v_uvs(mesh: &mut egui::Mesh, texture_height: usize) {
-        if texture_height <= 1 {
-            return;
-        }
-
-        let inset = 0.5 / texture_height as f32;
-        let scale = 1.0 - inset * 2.0;
-        for vertex in &mut mesh.vertices {
-            vertex.uv.y = inset + vertex.uv.y.clamp(0.0, 1.0) * scale;
-        }
-    }
-
     pub fn active_terrain_preset(&self) -> Option<TerrainPresetShape> {
         self.terrain_preset_shape
     }
@@ -198,45 +184,5 @@ impl LevelRenderer {
             end,
             self.terrain_round_segments,
         ))
-    }
-
-    /// Draw a single terrain's edge using CPU fallback (splat textures or flat vertex-color).
-    pub(super) fn draw_terrain_edge_cpu(
-        painter: &egui::Painter,
-        td: &terrain::TerrainDrawData,
-        camera: &Camera,
-        canvas_center: egui::Vec2,
-        tex_cache: &assets::TextureCache,
-        scratch: &mut egui::Mesh,
-    ) {
-        let mut drew_textured = false;
-        if let Some(ref sm) = td.edge_splat0_mesh
-            && let Some(ref name) = td.edge_splat0
-            && let Some(tex_id) = tex_cache.get(name)
-        {
-            terrain::transform_mesh_to_screen_into(sm, camera, canvas_center, scratch);
-            if let Some([_, texture_height]) = tex_cache.texture_size(name) {
-                Self::inset_terrain_edge_v_uvs(scratch, texture_height);
-            }
-            scratch.texture_id = tex_id;
-            painter.add(egui::Shape::mesh(std::mem::take(scratch)));
-            drew_textured = true;
-        }
-        if let Some(ref sm) = td.edge_splat1_mesh
-            && let Some(ref name) = td.edge_splat1
-            && let Some(tex_id) = tex_cache.get(name)
-        {
-            terrain::transform_mesh_to_screen_into(sm, camera, canvas_center, scratch);
-            if let Some([_, texture_height]) = tex_cache.texture_size(name) {
-                Self::inset_terrain_edge_v_uvs(scratch, texture_height);
-            }
-            scratch.texture_id = tex_id;
-            painter.add(egui::Shape::mesh(std::mem::take(scratch)));
-            drew_textured = true;
-        }
-        if !drew_textured && let Some(ref edge) = td.edge_mesh {
-            terrain::transform_mesh_to_screen_into(edge, camera, canvas_center, scratch);
-            painter.add(egui::Shape::mesh(std::mem::take(scratch)));
-        }
     }
 }

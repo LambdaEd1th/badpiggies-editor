@@ -219,6 +219,7 @@ tool_preview_dark_overlay_title = 暗层预览
 tool_preview_build = 搭建
 tool_preview_play = 运行
 tool_preview_pause = 暂停
+tool_preview_night_vision = 夜视
 tool_preview_night_vision_powerup = 夜视能力
 tool_preview_night_vision_active = 夜视已激活
 tool_terrain_presets = 地形预制图形

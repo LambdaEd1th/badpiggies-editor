@@ -50,8 +50,9 @@ pub(super) struct BirdFaceData {
     pub world_w: f32,
     pub world_h: f32,
     /// Face offset = (face_cumulative_pos − body_cumulative_pos)
-    /// + (face_pivot − body_pivot) × PIVOT_WORLD. The pivot correction comes
-    /// from the runtime atlas data (`sprites.bytes`).
+    /// + (face_pivot − body_pivot) × PIVOT_WORLD.
+    ///
+    /// The pivot correction comes from the runtime atlas data (`sprites.bytes`).
     pub offset_x: f32,
     pub offset_y: f32,
 }

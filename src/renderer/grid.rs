@@ -7,23 +7,20 @@
 //!
 //! In the extracted atlas assets used by the editor, the grid cell pixels need
 //! to bypass the sprite shader's final `rgb *= alpha` step to recover the same
-//! bright rounded-cell appearance that the user expects from the older square
-//! fallback. The editor therefore keeps the rounded GPU sprite path but uses a
-//! dedicated mode for grid cells that preserves sampled RGB.
+//! bright rounded-cell appearance that Unity shows. The editor therefore keeps
+//! a dedicated GPU sprite mode for grid cells that preserves sampled RGB.
 
 use eframe::egui;
 
-use crate::data::assets::TextureCache;
 use crate::data::sprite_db;
 use crate::domain::types::*;
 use crate::unity_runtime::components::LevelManager;
 use crate::unity_runtime::scene::Scene;
 
-use super::{Camera, LevelRenderer, sprite_shader};
+use super::{LevelRenderer, sprite_shader};
 
 const GRID_PREFAB_LOCAL_SCALE: f32 = 0.3;
 const WORLD_SCALE: f32 = 10.0 / 768.0;
-const GRID_SPRITE_PAD_PX: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConstructionGridCellStyle {
@@ -49,13 +46,6 @@ impl ConstructionGridCellStyle {
                 104.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
                 105.0 * GRID_PREFAB_LOCAL_SCALE * WORLD_SCALE,
             ),
-        }
-    }
-
-    pub(crate) fn fallback_color(self) -> egui::Color32 {
-        match self {
-            Self::Default => egui::Color32::from_rgba_unmultiplied(126, 133, 148, 112),
-            Self::Light => egui::Color32::from_rgba_unmultiplied(48, 48, 48, 64),
         }
     }
 }
@@ -85,30 +75,6 @@ fn parse_grid_cell_style(lm: &LevelManager) -> ConstructionGridCellStyle {
     }
 }
 
-fn load_grid_cell_texture_and_uv(
-    sprite: Option<&sprite_db::SpriteInfo>,
-    tex_cache: &mut TextureCache,
-    ctx: &egui::Context,
-) -> (Option<egui::TextureId>, egui::Pos2, egui::Pos2) {
-    let Some(sprite) = sprite else {
-        return (None, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    };
-
-    let atlas_path = format!("sprites/{}", sprite.atlas);
-    let cache_key = format!("{}_grid_premult_pad_{}", sprite.atlas, GRID_SPRITE_PAD_PX);
-    let Some((tex_id, uv_min, uv_max)) = tex_cache.load_sprite_crop_padded_premultiplied(
-        ctx,
-        &cache_key,
-        &atlas_path,
-        [sprite.uv.x, sprite.uv.y, sprite.uv.w, sprite.uv.h],
-        GRID_SPRITE_PAD_PX,
-    ) else {
-        return (None, egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    };
-
-    (Some(tex_id), uv_min, uv_max)
-}
-
 impl LevelRenderer {
     pub(super) fn draw_construction_grid_overlay(
         &mut self,
@@ -123,15 +89,6 @@ impl LevelRenderer {
         let style = grid.cell_style;
         let sprite = sprite_db::get_sprite_info(style.sprite_name());
         let Some(sprite) = sprite else {
-            draw_construction_grid_cpu(
-                painter,
-                grid,
-                &self.camera,
-                canvas_center,
-                canvas_rect,
-                &mut self.tex_cache,
-                painter.ctx(),
-            );
             return;
         };
 
@@ -218,16 +175,6 @@ impl LevelRenderer {
                 return;
             }
         }
-
-        draw_construction_grid_cpu(
-            painter,
-            grid,
-            &self.camera,
-            canvas_center,
-            canvas_rect,
-            &mut self.tex_cache,
-            painter.ctx(),
-        );
     }
 }
 
@@ -304,6 +251,7 @@ pub fn parse_construction_grid(level: &LevelData) -> Option<ConstructionGrid> {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{ConstructionGridCellStyle, GRID_PREFAB_LOCAL_SCALE, parse_construction_grid};
     use crate::data::sprite_db;
@@ -401,66 +349,6 @@ mod tests {
                 })
             },
             parent: None,
-        }
-    }
-}
-
-/// Draw the construction grid matching Unity's rendering.
-///
-/// Unity shader: `output = tex2D(_MainTex, uv) * _Color` with `_Color = (1,1,1,1)`,
-/// blend mode `Blend SrcAlpha OneMinusSrcAlpha`.  The sprite texture's own RGBA
-/// values determine the final appearance.
-fn draw_construction_grid_cpu(
-    painter: &egui::Painter,
-    grid: &ConstructionGrid,
-    camera: &Camera,
-    canvas_center: egui::Vec2,
-    canvas_rect: egui::Rect,
-    tex_cache: &mut TextureCache,
-    ctx: &egui::Context,
-) {
-    let style = grid.cell_style;
-    let sprite = sprite_db::get_sprite_info(style.sprite_name());
-    let (tex_id, uv_min, uv_max) = load_grid_cell_texture_and_uv(sprite, tex_cache, ctx);
-
-    let (half_w, half_h) = style.half_extents();
-
-    // Vertex tint = white → passes texture through unmodified,
-    // matching Unity's `_Color = (1,1,1,1)`.
-    let tint = egui::Color32::from_rgba_premultiplied(255, 255, 255, 255);
-
-    for row in 0..grid.grid_height {
-        let bits = grid.rows[row as usize];
-        if bits == 0 {
-            continue;
-        }
-        for col in 0..grid.grid_width {
-            if bits & (1 << col) == 0 {
-                continue;
-            }
-            let wx = grid.base_x + (grid.x_min + col) as f32;
-            let wy = grid.base_y + row as f32;
-
-            let center =
-                camera.world_to_screen(crate::domain::types::Vec2 { x: wx, y: wy }, canvas_center);
-
-            let hw = half_w * camera.zoom;
-            let hh = half_h * camera.zoom;
-
-            let cell_rect = egui::Rect::from_center_size(center, egui::vec2(hw * 2.0, hh * 2.0));
-
-            if !cell_rect.intersects(canvas_rect) {
-                continue;
-            }
-
-            if let Some(tid) = tex_id {
-                let mut mesh = egui::Mesh::with_texture(tid);
-                let uv_rect = egui::Rect::from_min_max(uv_min, uv_max);
-                mesh.add_rect_with_uv(cell_rect, uv_rect, tint);
-                painter.add(egui::Shape::mesh(mesh));
-            } else {
-                painter.rect_filled(cell_rect, 0.0, style.fallback_color());
-            }
         }
     }
 }

@@ -123,16 +123,18 @@ enum WorldEffectDraw {
     Attached(usize, usize),
 }
 
+struct WorldEffectTextures {
+    wind_particle: Option<egui::TextureId>,
+    zzz_particle: Option<egui::TextureId>,
+    fan_particle: Option<egui::TextureId>,
+    attached_effect: Option<egui::TextureId>,
+}
+
 fn draw_world_effect(
     renderer: &LevelRenderer,
     effect: WorldEffectDraw,
-    painter: &egui::Painter,
-    canvas_center: egui::Vec2,
-    rect: egui::Rect,
-    wind_particle_tex: Option<egui::TextureId>,
-    zzz_particle_tex: Option<egui::TextureId>,
-    fan_particle_tex: Option<egui::TextureId>,
-    attached_effect_tex: Option<egui::TextureId>,
+    draw_ctx: &DrawCtx<'_>,
+    textures: &WorldEffectTextures,
 ) {
     match effect {
         WorldEffectDraw::Wind(source_sprite_index) => {
@@ -140,44 +142,41 @@ fn draw_world_effect(
                 &renderer.wind_particles,
                 &renderer.wind_areas,
                 Some(source_sprite_index),
-                &renderer.camera,
-                painter,
-                canvas_center,
-                rect,
-                wind_particle_tex,
+                draw_ctx,
+                textures.wind_particle,
             );
         }
         WorldEffectDraw::Zzz(source_bird_index) => {
             super::particles::draw_zzz_particles(
                 &renderer.zzz_particles,
                 Some(source_bird_index),
-                &renderer.camera,
-                painter,
-                canvas_center,
-                rect,
-                zzz_particle_tex,
+                draw_ctx.camera,
+                draw_ctx.painter,
+                draw_ctx.canvas_center,
+                draw_ctx.canvas_rect,
+                textures.zzz_particle,
             );
         }
         WorldEffectDraw::Fan(source_emitter_index) => {
             super::particles::draw_fan_particles(
                 &renderer.fan_particles,
                 Some(source_emitter_index),
-                &renderer.camera,
-                painter,
-                canvas_center,
-                rect,
-                fan_particle_tex,
+                draw_ctx.camera,
+                draw_ctx.painter,
+                draw_ctx.canvas_center,
+                draw_ctx.canvas_rect,
+                textures.fan_particle,
             );
         }
         WorldEffectDraw::Attached(emitter_index, system_index) => {
             super::particles::draw_attached_effect_particles(
                 &renderer.attached_effect_particles,
                 Some((emitter_index, system_index)),
-                &renderer.camera,
-                painter,
-                canvas_center,
-                rect,
-                attached_effect_tex,
+                draw_ctx.camera,
+                draw_ctx.painter,
+                draw_ctx.canvas_center,
+                draw_ctx.canvas_rect,
+                textures.attached_effect,
             );
         }
     }
@@ -357,6 +356,12 @@ impl LevelRenderer {
             "Assets/Texture2D/Particles_Sheet_01.png",
             "Particles_Sheet_01",
         );
+        let effect_textures = WorldEffectTextures {
+            wind_particle: wind_particle_tex,
+            zzz_particle: zzz_particle_tex,
+            fan_particle: fan_particle_tex,
+            attached_effect: attached_effect_tex,
+        };
 
         let mut gpu_draws: Vec<GpuDraw> = Vec::new();
 
@@ -381,13 +386,14 @@ impl LevelRenderer {
                 draw_world_effect(
                     self,
                     effect_queue[effect_cursor].1,
-                    painter,
-                    canvas_center,
-                    rect,
-                    wind_particle_tex,
-                    zzz_particle_tex,
-                    fan_particle_tex,
-                    attached_effect_tex,
+                    &DrawCtx {
+                        painter,
+                        camera: &self.camera,
+                        canvas_center,
+                        canvas_rect: rect,
+                        tex_cache: &self.tex_cache,
+                    },
+                    &effect_textures,
                 );
                 effect_cursor += 1;
             }
@@ -720,13 +726,14 @@ impl LevelRenderer {
             draw_world_effect(
                 self,
                 effect_queue[effect_cursor].1,
-                painter,
-                canvas_center,
-                rect,
-                wind_particle_tex,
-                zzz_particle_tex,
-                fan_particle_tex,
-                attached_effect_tex,
+                &DrawCtx {
+                    painter,
+                    camera: &self.camera,
+                    canvas_center,
+                    canvas_rect: rect,
+                    tex_cache: &self.tex_cache,
+                },
+                &effect_textures,
             );
             effect_cursor += 1;
         }

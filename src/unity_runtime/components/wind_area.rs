@@ -22,7 +22,11 @@ pub struct WindArea {
 
 #[allow(dead_code)]
 impl WindArea {
-    pub const DEFAULT_WIND_DIRECTION_HANDLE: Vec3 = Vec3 { x: 0.0, y: 1.0, z: 0.0 };
+    pub const DEFAULT_WIND_DIRECTION_HANDLE: Vec3 = Vec3 {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
     pub const DEFAULT_WIND_POWER_FACTOR: f32 = 1.0;
     pub const DEFAULT_CALCULATE_PARTICLE_VALUES: bool = true;
 }
@@ -43,9 +47,7 @@ impl UnityComponent for WindArea {
 
     fn set_field(&mut self, _scene: &mut Scene, name: &str, value: SceneValue) -> bool {
         match (name, value) {
-            ("windDirectionHandle", SceneValue::Vector3(v)) => {
-                self.wind_direction_handle = Some(v)
-            }
+            ("windDirectionHandle", SceneValue::Vector3(v)) => self.wind_direction_handle = Some(v),
             ("m_windPowerFactor", SceneValue::Float(v)) => self.wind_power_factor = Some(v),
             ("m_calculateParticleValues", SceneValue::Boolean(v)) => {
                 self.calculate_particle_values = Some(v)

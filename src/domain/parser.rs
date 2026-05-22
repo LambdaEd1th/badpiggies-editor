@@ -484,8 +484,7 @@ mod tests {
     use super::*;
     use std::f32::consts::PI;
 
-    const ROUNDTRIP_LEVEL_ASSET: &str =
-        "assetbundles/episode_1_levels.unity3d/Level_05_data.bytes";
+    const ROUNDTRIP_LEVEL_ASSET: &str = "assetbundles/episode_1_levels.unity3d/Level_05_data.bytes";
 
     #[derive(rust_embed::RustEmbed)]
     #[folder = "../test_levels/"]

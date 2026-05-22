@@ -341,7 +341,9 @@ fn load_sprite_atlas(
     let path = format!("Assets/Texture2D/{}", filename);
     let data = crate::data::assets::read_pathname(&path)
         .or_else(|| crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", filename)))
-        .or_else(|| crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", filename)))?;
+        .or_else(|| {
+            crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", filename))
+        })?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
     let pixels = img.into_raw();

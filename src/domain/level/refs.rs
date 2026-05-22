@@ -136,7 +136,8 @@ fn load_prefab_names_by_file_id() -> AppResult<HashMap<String, String>> {
 fn load_background_prefab_names_by_root_file_id() -> HashMap<String, String> {
     let mut names_by_file_id = HashMap::new();
 
-    for asset_path in assets::list_pathnames("Assets/Resources/environment/background/", ".prefab") {
+    for asset_path in assets::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let Some(text) = assets::read_pathname_text(&asset_path) else {
             continue;
         };
@@ -760,12 +761,14 @@ fn texture_name_from_asset_pathname(pathname: &str) -> Option<&str> {
         return None;
     }
 
-    Path::new(pathname).file_name().and_then(|name| name.to_str())
+    Path::new(pathname)
+        .file_name()
+        .and_then(|name| name.to_str())
 }
 
 fn is_texture_pathname(pathname: &str) -> bool {
-    let is_texture_dir = pathname.starts_with("Assets/Texture2D/")
-        || pathname.starts_with("Assets/Resources/");
+    let is_texture_dir =
+        pathname.starts_with("Assets/Texture2D/") || pathname.starts_with("Assets/Resources/");
     if !is_texture_dir {
         return false;
     }
@@ -862,20 +865,12 @@ fn custom_render_queue_from_material(text: &str) -> Option<i32> {
         .filter(|queue| *queue >= 0)
 }
 
-fn material_uses_alpha_blend_shader(
-    text: &str,
-    shader_names: &HashMap<String, String>,
-) -> bool {
-    material_shader_name(text, shader_names)
-        .is_some_and(|name| shader_name_uses_alpha_blend(&name))
+fn material_uses_alpha_blend_shader(text: &str, shader_names: &HashMap<String, String>) -> bool {
+    material_shader_name(text, shader_names).is_some_and(|name| shader_name_uses_alpha_blend(&name))
 }
 
-fn material_uses_alpha8bit_shader(
-    text: &str,
-    shader_names: &HashMap<String, String>,
-) -> bool {
-    material_shader_name(text, shader_names)
-        .is_some_and(|name| shader_name_uses_alpha8bit(&name))
+fn material_uses_alpha8bit_shader(text: &str, shader_names: &HashMap<String, String>) -> bool {
+    material_shader_name(text, shader_names).is_some_and(|name| shader_name_uses_alpha8bit(&name))
 }
 
 fn material_shader_kind(
@@ -896,15 +891,13 @@ fn material_shader_kind(
     }
 }
 
-fn material_shader_name(
-    text: &str,
-    shader_names: &HashMap<String, String>,
-) -> Option<String> {
-    let line = text.lines().find(|line| line.trim().starts_with("m_Shader:"))?;
+fn material_shader_name(text: &str, shader_names: &HashMap<String, String>) -> Option<String> {
+    let line = text
+        .lines()
+        .find(|line| line.trim().starts_with("m_Shader:"))?;
     let trimmed = line.trim();
 
-    if let Some(guid) = extract_guid(trimmed)
-    {
+    if let Some(guid) = extract_guid(trimmed) {
         if let Some(shader_name) = shader_names.get(guid) {
             return Some(shader_name.clone());
         }
@@ -924,9 +917,7 @@ fn fallback_shader_name_for_guid(guid: &str) -> Option<&'static str> {
         // fill / far-bg materials still need these names to recover exact
         // shader modes from material YAML.
         "3ee1baa860fa20a74fa3b12a3f0bc258" => Some("_Custom/Unlit_Monochrome"),
-        "f2bf0be753c6f2a3466cb9069962a880" => {
-            Some("_Custom/Unlit_ColorTransparent_Geometry")
-        }
+        "f2bf0be753c6f2a3466cb9069962a880" => Some("_Custom/Unlit_ColorTransparent_Geometry"),
         _ => None,
     }
 }
@@ -1000,7 +991,9 @@ fn parse_vec2_like(line: &str) -> Option<[f32; 2]> {
 }
 
 fn shader_name_from_shader_asset(text: &str) -> Option<&str> {
-    let line = text.lines().find(|line| line.trim_start().starts_with("Shader \""))?;
+    let line = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("Shader \""))?;
     let start = line.find('"')? + 1;
     let end = line[start..].find('"')? + start;
     Some(&line[start..end])
@@ -1146,16 +1139,15 @@ pub fn get_background_prefab_ref(level_key: &str, ref_index: i32) -> Option<&'st
 #[cfg(test)]
 mod tests {
     use super::{
-        load_embedded_loaders, load_prefab_names_by_file_id,
-        texture_name_for_guid, get_background_prefab_ref, get_level_ref,
-        get_prefab_override, material_color_for_guid, material_texture_name_for_guid,
-        material_texture_name_for_guid_prefix, material_color_for_guid_prefix,
+        MaterialShaderKind, get_background_prefab_ref, get_level_ref, get_prefab_override,
+        level_key_from_filename, load_embedded_loaders, load_prefab_names_by_file_id,
         material_alpha_blend_for_guid_prefix, material_alpha8bit_for_guid_prefix,
-        material_cutoff_for_guid_prefix, material_custom_render_queue_for_guid_prefix,
+        material_color_for_guid, material_color_for_guid_prefix,
+        material_custom_render_queue_for_guid_prefix, material_cutoff_for_guid_prefix,
         material_main_tex_st_for_guid, material_main_tex_st_for_guid_prefix,
         material_shader_kind_for_guid, material_shader_kind_for_guid_prefix,
-        MaterialShaderKind,
-        level_key_from_filename,
+        material_texture_name_for_guid, material_texture_name_for_guid_prefix,
+        texture_name_for_guid,
     };
     use crate::data::assets;
     use crate::domain::parser::parse_level;
@@ -1176,9 +1168,9 @@ mod tests {
             if path.extension().and_then(|ext| ext.to_str()) != Some("bytes") {
                 continue;
             }
-            let Ok(relative) = path.strip_prefix(
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_levels"),
-            ) else {
+            let Ok(relative) =
+                path.strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_levels"))
+            else {
                 continue;
             };
             out.push(relative.to_string_lossy().replace('\\', "/"));
@@ -1312,12 +1304,15 @@ mod tests {
     fn background_material_shader_kinds_and_main_tex_st_can_come_from_embedded_assets() {
         let jungle_fill_guid = assets::guid_for_pathname("Assets/Material/Jungle_Near_Fill.mat")
             .expect("expected Jungle_Near_Fill material guid");
-        let jungle_far_guid = assets::guid_for_pathname("Assets/Material/Jungle_Environment_Far_BG.mat")
-            .expect("expected Jungle_Environment_Far_BG material guid");
-        let jungle_sky_guid = assets::guid_for_pathname("Assets/Material/Jungle_Environment_Sky.mat")
-            .expect("expected Jungle_Environment_Sky material guid");
-        let jungle_cutout_guid = assets::guid_for_pathname("Assets/Material/Jungle_Environment.mat")
-            .expect("expected Jungle_Environment material guid");
+        let jungle_far_guid =
+            assets::guid_for_pathname("Assets/Material/Jungle_Environment_Far_BG.mat")
+                .expect("expected Jungle_Environment_Far_BG material guid");
+        let jungle_sky_guid =
+            assets::guid_for_pathname("Assets/Material/Jungle_Environment_Sky.mat")
+                .expect("expected Jungle_Environment_Sky material guid");
+        let jungle_cutout_guid =
+            assets::guid_for_pathname("Assets/Material/Jungle_Environment.mat")
+                .expect("expected Jungle_Environment material guid");
 
         assert_eq!(
             material_shader_kind_for_guid(jungle_fill_guid),
@@ -1384,9 +1379,18 @@ mod tests {
 
     #[test]
     fn material_custom_render_queue_can_come_from_runtime_material_assets() {
-        assert_eq!(material_custom_render_queue_for_guid_prefix("0f31fa21"), Some(3006));
-        assert_eq!(material_custom_render_queue_for_guid_prefix("38ea809d"), Some(3006));
-        assert_eq!(material_custom_render_queue_for_guid_prefix("ddb33f64"), None);
+        assert_eq!(
+            material_custom_render_queue_for_guid_prefix("0f31fa21"),
+            Some(3006)
+        );
+        assert_eq!(
+            material_custom_render_queue_for_guid_prefix("38ea809d"),
+            Some(3006)
+        );
+        assert_eq!(
+            material_custom_render_queue_for_guid_prefix("ddb33f64"),
+            None
+        );
     }
 
     #[test]
@@ -1504,7 +1508,6 @@ mod tests {
 
             for object in &level.objects {
                 let LevelObject::Prefab(prefab) = object else {
-
                     continue;
                 };
                 let resolved = get_prefab_override(&level_key, prefab.prefab_index)

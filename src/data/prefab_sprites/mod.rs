@@ -166,9 +166,12 @@ mod tests {
         };
         assert_eq!(layers.len(), 1);
         assert!(!layers[0].atlas.is_empty());
-        assert!(layers[0].vertices.iter().all(|vertex| {
-            vertex.x.is_finite() && vertex.y.is_finite()
-        }));
+        assert!(
+            layers[0]
+                .vertices
+                .iter()
+                .all(|vertex| { vertex.x.is_finite() && vertex.y.is_finite() })
+        );
     }
 
     #[test]

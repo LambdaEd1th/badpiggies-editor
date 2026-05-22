@@ -295,10 +295,16 @@ impl LevelRenderer {
                             );
                         }
                     }
-                    let sign_x =
-                        dragged_scale_sign(original_scale.x, start_pointer_local.x, current_local.x);
-                    let sign_y =
-                        dragged_scale_sign(original_scale.y, start_pointer_local.y, current_local.y);
+                    let sign_x = dragged_scale_sign(
+                        original_scale.x,
+                        start_pointer_local.x,
+                        current_local.x,
+                    );
+                    let sign_y = dragged_scale_sign(
+                        original_scale.y,
+                        start_pointer_local.y,
+                        current_local.y,
+                    );
                     let base_half_x = if original_scale.x.abs() > 0.0001 {
                         original_half_size.0 / original_scale.x.abs()
                     } else {

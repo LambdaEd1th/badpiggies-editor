@@ -24,7 +24,10 @@ fn background_themes_can_come_from_prefab_scan() {
         "Night",
         "Plateau",
     ] {
-        assert!(get_theme(theme_name).is_some(), "missing scanned theme {theme_name}");
+        assert!(
+            get_theme(theme_name).is_some(),
+            "missing scanned theme {theme_name}"
+        );
     }
 
     assert!(get_theme("backgroundobject").is_none());
@@ -44,10 +47,26 @@ fn atlas_for_material_guid_resolves_generated_maya_prefixes() {
 
 #[test]
 fn background_texture_lists_can_come_from_embedded_asset_scan() {
-    assert!(bg_atlas_files().iter().any(|name| name == "Background_Maya_Sheet_05.png"));
-    assert!(bg_atlas_files().iter().any(|name| name == "Background_Night_Sheet_01.png"));
-    assert!(sky_texture_files().iter().any(|name| name == "Maya_Backgrounds_sky.png"));
-    assert!(sky_texture_files().iter().any(|name| name == "Morning_Sky_Texture.png"));
+    assert!(
+        bg_atlas_files()
+            .iter()
+            .any(|name| name == "Background_Maya_Sheet_05.png")
+    );
+    assert!(
+        bg_atlas_files()
+            .iter()
+            .any(|name| name == "Background_Night_Sheet_01.png")
+    );
+    assert!(
+        sky_texture_files()
+            .iter()
+            .any(|name| name == "Maya_Backgrounds_sky.png")
+    );
+    assert!(
+        sky_texture_files()
+            .iter()
+            .any(|name| name == "Morning_Sky_Texture.png")
+    );
     assert!(sky_texture_files().iter().all(|name| {
         let lower = name.to_ascii_lowercase();
         lower.ends_with("_sky_texture.png") || lower.ends_with("_sky.png")
@@ -79,10 +98,19 @@ fn far_fill_colors_can_come_from_material_assets() {
         let fill = theme
             .sprites
             .iter()
-            .find(|sprite| sprite.parent_group == "BGLayerFar" && sprite.name == "Background_Far_fill")
+            .find(|sprite| {
+                sprite.parent_group == "BGLayerFar" && sprite.name == "Background_Far_fill"
+            })
             .unwrap_or_else(|| panic!("missing {theme_name} far fill"));
-        assert_eq!(fill.fill_color, Some([0x21, 0x44, 0x21]), "unexpected far fill for {theme_name}");
-        assert!(fill.atlas.is_none(), "unexpected far fill atlas for {theme_name}");
+        assert_eq!(
+            fill.fill_color,
+            Some([0x21, 0x44, 0x21]),
+            "unexpected far fill for {theme_name}"
+        );
+        assert!(
+            fill.atlas.is_none(),
+            "unexpected far fill atlas for {theme_name}"
+        );
     }
 
     let cave = get_theme("Cave").expect("missing Cave theme");
@@ -115,7 +143,9 @@ fn far_fill_colors_can_come_from_material_assets() {
     let maya_fill2 = maya
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerFurther" && sprite.name == "Background_Far_fill2")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerFurther" && sprite.name == "Background_Far_fill2"
+        })
         .expect("missing Maya far fill2");
     assert_eq!(maya_fill2.fill_color, Some([0xdd, 0xdd, 0xdd]));
     assert!(maya_fill2.atlas.is_none());
@@ -128,17 +158,28 @@ fn near_fill_colors_can_come_from_material_assets() {
         let fill = theme
             .sprites
             .iter()
-            .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+            .find(|sprite| {
+                sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill"
+            })
             .unwrap_or_else(|| panic!("missing {theme_name} near fill"));
-        assert_eq!(fill.fill_color, Some([0x11, 0x21, 0x11]), "unexpected near fill for {theme_name}");
-        assert!(fill.atlas.is_none(), "unexpected near fill atlas for {theme_name}");
+        assert_eq!(
+            fill.fill_color,
+            Some([0x11, 0x21, 0x11]),
+            "unexpected near fill for {theme_name}"
+        );
+        assert!(
+            fill.atlas.is_none(),
+            "unexpected near fill atlas for {theme_name}"
+        );
     }
 
     let cave = get_theme("Cave").expect("missing Cave theme");
     let cave_fill = cave
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill"
+        })
         .expect("missing Cave near fill");
     assert_eq!(cave_fill.fill_color, Some([0x11, 0x21, 0x11]));
     assert!(cave_fill.atlas.is_none());
@@ -147,7 +188,9 @@ fn near_fill_colors_can_come_from_material_assets() {
     let jungle_fill = jungle
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill"
+        })
         .expect("missing Jungle near fill");
     assert_eq!(jungle_fill.fill_color, Some([0x33, 0x88, 0x44]));
     assert!(jungle_fill.atlas.is_none());
@@ -156,7 +199,9 @@ fn near_fill_colors_can_come_from_material_assets() {
     let plateau_fill = plateau
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill"
+        })
         .expect("missing Plateau near fill");
     assert_eq!(plateau_fill.fill_color, Some([0x88, 0x77, 0x21]));
     assert!(plateau_fill.atlas.is_none());
@@ -176,7 +221,9 @@ fn morning_near_fill_keeps_uniform_tinted_atlas() {
     let morning_fill = morning
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill"
+        })
         .expect("missing Morning near fill");
     assert!(morning_fill.atlas.is_some());
     assert!(morning_fill.fill_color.is_none());
@@ -210,9 +257,14 @@ fn jungle_theme_preserves_runtime_material_shader_modes() {
     let near_fill = jungle
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill"
+        })
         .expect("missing Jungle near fill");
-    assert_eq!(near_fill.shader_kind, MaterialShaderKind::CustomUnlitMonochrome);
+    assert_eq!(
+        near_fill.shader_kind,
+        MaterialShaderKind::CustomUnlitMonochrome
+    );
     assert_eq!(near_fill.main_tex_st, [1.0, 1.0, 0.0, 0.0]);
 
     let far_bg = jungle
@@ -223,7 +275,10 @@ fn jungle_theme_preserves_runtime_material_shader_modes() {
                 && sprite.shader_kind == MaterialShaderKind::CustomUnlitAlpha8BitColor
         })
         .expect("missing Jungle alpha8bit atlas sprite");
-    assert_eq!(far_bg.shader_kind, MaterialShaderKind::CustomUnlitAlpha8BitColor);
+    assert_eq!(
+        far_bg.shader_kind,
+        MaterialShaderKind::CustomUnlitAlpha8BitColor
+    );
     assert_eq!(far_bg.main_tex_st, [1.0, 1.0, 0.0, 0.0]);
 
     let sky = jungle
@@ -241,7 +296,9 @@ fn remaining_fill_colors_can_come_from_material_assets() {
     let sky_fill = maya_cave2_dark
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "Background_Sky_Fill1" && sprite.name == "Background_Sky_Fill1")
+        .find(|sprite| {
+            sprite.parent_group == "Background_Sky_Fill1" && sprite.name == "Background_Sky_Fill1"
+        })
         .expect("missing MayaCave2Dark sky fill");
     assert_eq!(sky_fill.fill_color, Some([0x04, 0x0b, 0x12]));
     assert!(sky_fill.atlas.is_none());
@@ -277,10 +334,18 @@ fn maya_tree_fill_keeps_flat_atlas_path() {
         .sprites
         .iter()
         .find(|sprite| sprite.name == "Tree_fill")
-        .unwrap_or_else(|| panic!("missing Maya tree fill; available fill sprites: {available_fill_names:?}"));
+        .unwrap_or_else(|| {
+            panic!("missing Maya tree fill; available fill sprites: {available_fill_names:?}")
+        });
 
-    assert!(tree_fill.atlas.is_some(), "Tree_fill should stay atlas-backed");
-    assert!(tree_fill.fill_color.is_none(), "Tree_fill should not be rewritten into fill_color");
+    assert!(
+        tree_fill.atlas.is_some(),
+        "Tree_fill should stay atlas-backed"
+    );
+    assert!(
+        tree_fill.fill_color.is_none(),
+        "Tree_fill should not be rewritten into fill_color"
+    );
 }
 
 #[test]
@@ -299,7 +364,10 @@ fn level27_cave_background_override_uses_legacy_transform_path() {
             LevelObject::Prefab(prefab)
                 if prefab.name.contains("Background") && prefab.override_data.is_some() =>
             {
-                prefab.override_data.as_ref().map(|data| data.raw_text.clone())
+                prefab
+                    .override_data
+                    .as_ref()
+                    .map(|data| data.raw_text.clone())
             }
             _ => None,
         })
@@ -325,7 +393,8 @@ fn level27_cave_background_override_uses_legacy_transform_path() {
         "expected Level_27 background override AST to include sprite-level transform overrides"
     );
 
-    let serializer = parse_position_serializer_overrides(&bg_override_text, &cave_theme.child_order);
+    let serializer =
+        parse_position_serializer_overrides(&bg_override_text, &cave_theme.child_order);
     assert!(
         serializer.groups.is_empty() && serializer.sprites.is_empty(),
         "expected Level_27 Cave background override to avoid serializer-derived group or sprite overrides"
@@ -354,7 +423,9 @@ fn alpha_blend_can_come_from_materials_camera_layers_and_soft_alpha() {
     let morning_control = morning
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Jungle_01")
+        .find(|sprite| {
+            sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Jungle_01"
+        })
         .expect("missing Morning near control sprite");
     assert!(!morning_control.alpha_blend);
 
@@ -395,7 +466,11 @@ fn alpha_blend_can_come_from_materials_camera_layers_and_soft_alpha() {
         .iter()
         .filter(|sprite| sprite.layer == BgLayer::Camera)
     {
-        assert!(sprite.alpha_blend, "expected camera-layer alpha blend for {}", sprite.name);
+        assert!(
+            sprite.alpha_blend,
+            "expected camera-layer alpha blend for {}",
+            sprite.name
+        );
     }
 }
 
@@ -403,10 +478,9 @@ fn alpha_blend_can_come_from_materials_camera_layers_and_soft_alpha() {
 fn moon_and_castle_root_groups_use_explicit_camera_tags() {
     let mut matched = Vec::new();
 
-    for prefab_path in crate::data::assets::list_pathnames(
-        "Assets/Resources/environment/background/",
-        ".prefab",
-    ) {
+    for prefab_path in
+        crate::data::assets::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let asset_path = prefab_path.clone();
         let Some(raw) = read_embedded_text(&asset_path) else {
             continue;
@@ -430,7 +504,11 @@ fn moon_and_castle_root_groups_use_explicit_camera_tags() {
                 continue;
             }
 
-            matched.push((prefab_path.clone(), game_object.name.clone(), game_object.tag.clone()));
+            matched.push((
+                prefab_path.clone(),
+                game_object.name.clone(),
+                game_object.tag.clone(),
+            ));
             assert_eq!(
                 explicit_parallax_layer(&game_object.tag),
                 Some(BgLayer::Camera),
@@ -441,17 +519,19 @@ fn moon_and_castle_root_groups_use_explicit_camera_tags() {
         }
     }
 
-    assert!(!matched.is_empty(), "expected at least one root moon/castle group");
+    assert!(
+        !matched.is_empty(),
+        "expected at least one root moon/castle group"
+    );
 }
 
 #[test]
 fn cloud_root_groups_use_explicit_parallax_tags() {
     let mut matched = Vec::new();
 
-    for prefab_path in crate::data::assets::list_pathnames(
-        "Assets/Resources/environment/background/",
-        ".prefab",
-    ) {
+    for prefab_path in
+        crate::data::assets::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let asset_path = prefab_path.clone();
         let Some(raw) = read_embedded_text(&asset_path) else {
             continue;
@@ -474,7 +554,11 @@ fn cloud_root_groups_use_explicit_parallax_tags() {
                 continue;
             }
 
-            matched.push((prefab_path.clone(), game_object.name.clone(), game_object.tag.clone()));
+            matched.push((
+                prefab_path.clone(),
+                game_object.name.clone(),
+                game_object.tag.clone(),
+            ));
             assert!(
                 explicit_parallax_layer(&game_object.tag).is_some(),
                 "expected explicit parallax tag for {} / {}",
@@ -484,17 +568,19 @@ fn cloud_root_groups_use_explicit_parallax_tags() {
         }
     }
 
-    assert!(!matched.is_empty(), "expected at least one root cloud group");
+    assert!(
+        !matched.is_empty(),
+        "expected at least one root cloud group"
+    );
 }
 
 #[test]
 fn standard_layer_root_groups_use_explicit_parallax_tags() {
     let mut matched = Vec::new();
 
-    for prefab_path in crate::data::assets::list_pathnames(
-        "Assets/Resources/environment/background/",
-        ".prefab",
-    ) {
+    for prefab_path in
+        crate::data::assets::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let asset_path = prefab_path.clone();
         let Some(raw) = read_embedded_text(&asset_path) else {
             continue;
@@ -550,7 +636,10 @@ fn standard_layer_root_groups_use_explicit_parallax_tags() {
         }
     }
 
-    assert!(!matched.is_empty(), "expected at least one standard named root layer group");
+    assert!(
+        !matched.is_empty(),
+        "expected at least one standard named root layer group"
+    );
 }
 
 #[test]
@@ -630,7 +719,10 @@ fn maya_cave2dark_fg_uses_sheet_02() {
         .iter()
         .find(|sprite| sprite.parent_group == "FGLayer" && sprite.name == "Pillars01")
         .expect("missing MayaCave2Dark Pillars01");
-    assert_eq!(pillars.atlas.as_deref(), Some("Background_Maya_Sheet_02.png"));
+    assert_eq!(
+        pillars.atlas.as_deref(),
+        Some("Background_Maya_Sheet_02.png")
+    );
 }
 
 #[test]
@@ -683,7 +775,9 @@ fn maya_temple_uses_expected_maya_sheets() {
     let fg_fill = theme
         .sprites
         .iter()
-        .find(|sprite| sprite.parent_group == "FGLayer" && sprite.name == "Background_Maya_Temple_FG_Fill")
+        .find(|sprite| {
+            sprite.parent_group == "FGLayer" && sprite.name == "Background_Maya_Temple_FG_Fill"
+        })
         .expect("missing MayaTemple FG fill");
     assert!(fg_fill.atlas.is_some());
     assert!(fg_fill.fill_color.is_none());

@@ -4,8 +4,10 @@ mod overrides;
 
 use eframe::egui;
 
+use crate::data::goal_animation::{
+    GoalAnimationState, parse_goal_animation_state, set_goal_animation_state,
+};
 use crate::domain::types::*;
-use crate::data::goal_animation::{GoalAnimationState, parse_goal_animation_state, set_goal_animation_state};
 use crate::i18n::locale::I18n;
 
 use super::{

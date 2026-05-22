@@ -64,20 +64,30 @@ pub(crate) fn attached_effect_kind_for_sprite_name(name: &str) -> Option<Attache
     }
 }
 
-pub(crate) fn attached_effect_systems(kind: AttachedEffectKind) -> &'static [UnityParticleSystemDef] {
+pub(crate) fn attached_effect_systems(
+    kind: AttachedEffectKind,
+) -> &'static [UnityParticleSystemDef] {
     match kind {
-        AttachedEffectKind::RocketFire => &unity_particles::rocket_fire_prefab()
-            .expect("Rocket fire particle prefab should be available")
-            .systems,
-        AttachedEffectKind::TurboCharger => &unity_particles::turbo_charger_prefab()
-            .expect("Turbo charger particle prefab should be available")
-            .systems,
-        AttachedEffectKind::Magnet => &unity_particles::magnet_effect_prefab()
-            .expect("Magnet effect particle prefab should be available")
-            .systems,
-        AttachedEffectKind::FlySwarm => &unity_particles::fly_swarm_prefab()
-            .expect("Fly swarm particle prefab should be available")
-            .systems,
+        AttachedEffectKind::RocketFire => {
+            &unity_particles::rocket_fire_prefab()
+                .expect("Rocket fire particle prefab should be available")
+                .systems
+        }
+        AttachedEffectKind::TurboCharger => {
+            &unity_particles::turbo_charger_prefab()
+                .expect("Turbo charger particle prefab should be available")
+                .systems
+        }
+        AttachedEffectKind::Magnet => {
+            &unity_particles::magnet_effect_prefab()
+                .expect("Magnet effect particle prefab should be available")
+                .systems
+        }
+        AttachedEffectKind::FlySwarm => {
+            &unity_particles::fly_swarm_prefab()
+                .expect("Fly swarm particle prefab should be available")
+                .systems
+        }
     }
 }
 
@@ -178,13 +188,8 @@ fn attached_effect_spawn_particle(
         velocity_random_y,
         velocity_random_z,
     );
-    let local_force = sample_particle_world_force_xy(
-        system,
-        0.0,
-        force_random_x,
-        force_random_y,
-        force_random_z,
-    );
+    let local_force =
+        sample_particle_world_force_xy(system, 0.0, force_random_x, force_random_y, force_random_z);
     let world_velocity = if system.velocity_world_space {
         local_velocity
     } else {
@@ -285,7 +290,9 @@ impl LevelRenderer {
                     emitter_index,
                     system_index,
                 );
-                while emitter.spawn_accum[system_index] >= 1.0 && system_count < system.max_particles {
+                while emitter.spawn_accum[system_index] >= 1.0
+                    && system_count < system.max_particles
+                {
                     emitter.spawn_accum[system_index] -= 1.0;
                     let seed = (self.time * 1000.0) as u32
                         + emitter_index as u32 * 661
@@ -357,7 +364,10 @@ impl LevelRenderer {
             particle.vy += particle.fy * dt;
             particle.x += particle.vx * dt;
             particle.y += particle.vy * dt;
-            particle.rot += system.rotation_over_lifetime.sample(life_t, particle.rot_random) * dt;
+            particle.rot += system
+                .rotation_over_lifetime
+                .sample(life_t, particle.rot_random)
+                * dt;
             attached_index += 1;
         }
     }
@@ -373,16 +383,16 @@ pub(crate) fn draw_attached_effect_particles(
     tex_id: Option<egui::TextureId>,
 ) {
     for particle in particles {
-        if source_emitter_and_system
-            .is_some_and(|(emitter_index, system_index)| {
-                particle.emitter_index != emitter_index || particle.system_index != system_index
-            })
-        {
+        if source_emitter_and_system.is_some_and(|(emitter_index, system_index)| {
+            particle.emitter_index != emitter_index || particle.system_index != system_index
+        }) {
             continue;
         }
         let system = &attached_effect_systems(particle.kind)[particle.system_index];
         let life_t = particle.age / particle.lifetime;
-        let size_scale = system.size_over_lifetime.sample(life_t, particle.size_random);
+        let size_scale = system
+            .size_over_lifetime
+            .sample(life_t, particle.size_random);
         let sz = particle.start_size * size_scale * camera.zoom;
         if sz < 0.5 {
             continue;
@@ -505,6 +515,9 @@ mod tests {
 
         let particle = &particles[0];
         let system = &attached_effect_systems(AttachedEffectKind::TurboCharger)[0];
-        assert_eq!(particle.render_z, attached_effect_render_z(emitter.world_z, system));
+        assert_eq!(
+            particle.render_z,
+            attached_effect_render_z(emitter.world_z, system)
+        );
     }
 }

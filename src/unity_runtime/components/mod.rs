@@ -72,12 +72,7 @@ pub trait UnityComponent: Any + Debug {
     /// concrete `GameObject` — Unity drops them, but the editor often wants
     /// to remember the raw asset index so it can re-emit the override
     /// verbatim. Default: no-op (caller spills nothing).
-    fn set_object_reference_index(
-        &mut self,
-        _scene: &mut Scene,
-        _name: &str,
-        _index: i32,
-    ) -> bool {
+    fn set_object_reference_index(&mut self, _scene: &mut Scene, _name: &str, _index: i32) -> bool {
         false
     }
 

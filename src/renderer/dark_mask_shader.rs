@@ -51,11 +51,7 @@ impl DarkMaskUniforms {
         Self::for_viewport_with_params(rect, color, [0.0; 4])
     }
 
-    pub fn for_viewport_with_params(
-        rect: egui::Rect,
-        color: [f32; 4],
-        params: [f32; 4],
-    ) -> Self {
+    pub fn for_viewport_with_params(rect: egui::Rect, color: [f32; 4], params: [f32; 4]) -> Self {
         Self {
             viewport_min: [rect.min.x, rect.min.y],
             viewport_size: [rect.width(), rect.height()],
@@ -206,37 +202,38 @@ pub fn init_dark_mask_resources(
         cache: None,
     });
 
-    let night_vision_overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("depth_mask__maskoverlaynv__night_vision_overlay_pipeline"),
-        layout: Some(&pipeline_layout),
-        vertex,
-        fragment: Some(wgpu::FragmentState {
-            module: &mask_overlay_nv_shader,
-            entry_point: Some("fs_night_vision_overlay"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: target_format,
-                blend: Some(wgpu::BlendState {
-                    color: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::Src,
-                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                    alpha: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::Src,
-                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                }),
-                write_mask: wgpu::ColorWrites::COLOR,
-            })],
-            compilation_options: Default::default(),
-        }),
-        primitive,
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview_mask: None,
-        cache: None,
-    });
+    let night_vision_overlay_pipeline =
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("depth_mask__maskoverlaynv__night_vision_overlay_pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex,
+            fragment: Some(wgpu::FragmentState {
+                module: &mask_overlay_nv_shader,
+                entry_point: Some("fs_night_vision_overlay"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::Src,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::Src,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::COLOR,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive,
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
 
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("depth_mask__runtime_uniform_buffer"),

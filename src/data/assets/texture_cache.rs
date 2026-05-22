@@ -202,10 +202,7 @@ impl TextureCache {
         let tex_w = tex_w as f32;
         let tex_h = tex_h as f32;
         let uv_min = egui::pos2(pad_px as f32 / tex_w, pad_px as f32 / tex_h);
-        let uv_max = egui::pos2(
-            (pad_px + pw) as f32 / tex_w,
-            (pad_px + ph) as f32 / tex_h,
-        );
+        let uv_max = egui::pos2((pad_px + pw) as f32 / tex_w, (pad_px + ph) as f32 / tex_h);
         Some((id, uv_min, uv_max))
     }
 

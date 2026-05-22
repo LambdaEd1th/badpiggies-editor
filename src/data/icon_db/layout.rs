@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use super::math::{mat_apply, mat_compose, make_local_trs, round_six};
+use super::math::{make_local_trs, mat_apply, mat_compose, round_six};
 use super::parse::atlas_for_material_guid;
 use super::types::{
     IconLayer, Mat2x3, ParsedPrefab, RendererInfo, RuntimeSpriteMeta, SpriteComponent,

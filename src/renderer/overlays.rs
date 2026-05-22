@@ -320,7 +320,10 @@ impl LevelRenderer {
                     .tex_cache
                     .load_texture(ctx, &sprite_key, atlas)
                     .is_none()
-                    && self.tex_cache.load_texture(ctx, &props_key, atlas).is_none()
+                    && self
+                        .tex_cache
+                        .load_texture(ctx, &props_key, atlas)
+                        .is_none()
                 {
                     self.tex_cache
                         .load_texture(ctx, &format!("Assets/Texture2D/{}", atlas), atlas);
@@ -347,7 +350,8 @@ impl LevelRenderer {
                 && self.tex_cache.get(tex_name).is_none()
                 && let Some(asset_key) = assets::terrain_texture_asset_key(tex_name)
             {
-                self.tex_cache.load_texture_repeat(ctx, &asset_key, tex_name);
+                self.tex_cache
+                    .load_texture_repeat(ctx, &asset_key, tex_name);
             }
         }
         // Goal flag texture (props/ subdir) — repeat wrap + flip V for UV scroll
@@ -376,8 +380,11 @@ impl LevelRenderer {
         }
 
         if self.tex_cache.get(GLOW_ATLAS).is_none() {
-            self.tex_cache
-                .load_texture(ctx, &format!("Assets/Texture2D/{}", GLOW_ATLAS), GLOW_ATLAS);
+            self.tex_cache.load_texture(
+                ctx,
+                &format!("Assets/Texture2D/{}", GLOW_ATLAS),
+                GLOW_ATLAS,
+            );
         }
     }
 

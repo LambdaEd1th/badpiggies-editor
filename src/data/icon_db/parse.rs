@@ -2,9 +2,7 @@
 
 use std::collections::HashMap;
 
-use super::types::{
-    GameObjectInfo, ParsedPrefab, RendererInfo, SpriteComponent, TransformInfo,
-};
+use super::types::{GameObjectInfo, ParsedPrefab, RendererInfo, SpriteComponent, TransformInfo};
 
 const SPRITE_SCRIPT_GUID: &str = "eaa85264a31f76994888187c4d3a9fb9";
 

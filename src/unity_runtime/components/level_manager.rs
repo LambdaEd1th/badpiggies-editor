@@ -62,12 +62,7 @@ impl UnityComponent for LevelManager {
         }
     }
 
-    fn set_object_reference_index(
-        &mut self,
-        _scene: &mut Scene,
-        name: &str,
-        index: i32,
-    ) -> bool {
+    fn set_object_reference_index(&mut self, _scene: &mut Scene, name: &str, index: i32) -> bool {
         if name == "m_gridCellPrefab" {
             self.grid_cell_prefab = Some(index);
             true
@@ -166,7 +161,10 @@ mod tests {
             .expect("LevelManager attached");
         assert_eq!(lm.dark_level, Some(true));
         assert_eq!(lm.grid_cell_prefab, Some(6));
-        assert_eq!(lm.construction_grid_rows.as_deref(), Some(&[15, 15, 0, 2][..]));
+        assert_eq!(
+            lm.construction_grid_rows.as_deref(),
+            Some(&[15, 15, 0, 2][..])
+        );
         assert_eq!(lm.camera_limits, Some([-10.0, 5.0, 20.0, -8.0]));
     }
 }

@@ -8,7 +8,7 @@
 
 use crate::domain::object_deserializer::{ArrayElement, Keyframe, RuntimeHost, Value};
 use crate::unity_runtime::components::{
-    make_component_by_suffix, ParticleSystem, Transform, UnityComponent, UnknownComponent,
+    ParticleSystem, Transform, UnityComponent, UnknownComponent, make_component_by_suffix,
 };
 use crate::unity_runtime::scene::{ComponentId, GameObjectId, Scene, SceneValue};
 
@@ -22,11 +22,7 @@ impl RuntimeHost for Scene {
         None
     }
 
-    fn find_child(
-        &mut self,
-        parent: Self::GameObject,
-        name: &str,
-    ) -> Option<Self::GameObject> {
+    fn find_child(&mut self, parent: Self::GameObject, name: &str) -> Option<Self::GameObject> {
         if let Some(found) = Scene::find_child(self, parent, name) {
             return Some(found);
         }
@@ -38,21 +34,13 @@ impl RuntimeHost for Scene {
         None
     }
 
-    fn get_component(
-        &mut self,
-        obj: Self::GameObject,
-        name: &str,
-    ) -> Option<Self::Target> {
+    fn get_component(&mut self, obj: Self::GameObject, name: &str) -> Option<Self::Target> {
         Scene::get_component(self, obj, name)
     }
 
-    fn add_component(
-        &mut self,
-        obj: Self::GameObject,
-        name: &str,
-    ) -> Option<Self::Target> {
-        let behavior = make_component_by_suffix(name)
-            .unwrap_or_else(|| Box::new(UnknownComponent::new(name)));
+    fn add_component(&mut self, obj: Self::GameObject, name: &str) -> Option<Self::Target> {
+        let behavior =
+            make_component_by_suffix(name).unwrap_or_else(|| Box::new(UnknownComponent::new(name)));
         Some(self.attach_component(obj, behavior))
     }
 
@@ -90,12 +78,7 @@ impl RuntimeHost for Scene {
         }
     }
 
-    fn set_animation_curve(
-        &mut self,
-        target: Self::Target,
-        field: &str,
-        keys: Vec<Keyframe>,
-    ) {
+    fn set_animation_curve(&mut self, target: Self::Target, field: &str, keys: Vec<Keyframe>) {
         // Stash on `extra` via the regular set_field path; typed components
         // that own a curve field override `set_field` to intercept.
         let value = SceneValue::Generic(
@@ -122,12 +105,7 @@ impl RuntimeHost for Scene {
         self.set_field(target, field, SceneValue::Generic(entries));
     }
 
-    fn set_object_reference_index(
-        &mut self,
-        target: Self::Target,
-        field: &str,
-        index: i32,
-    ) {
+    fn set_object_reference_index(&mut self, target: Self::Target, field: &str, index: i32) {
         with_behavior(self, target, |scene, b| {
             if !b.set_object_reference_index(scene, field, index) {
                 // Spill an explicit "(field, ObjectReferenceIndex(idx))"
@@ -182,8 +160,7 @@ fn with_behavior<R>(
 ) -> R {
     let suffix = scene.behavior(target).component_suffix().to_string();
     let placeholder: Box<dyn UnityComponent> = Box::new(UnknownComponent::new(suffix));
-    let mut behavior =
-        std::mem::replace(&mut scene.component_mut(target).behavior, placeholder);
+    let mut behavior = std::mem::replace(&mut scene.component_mut(target).behavior, placeholder);
     let result = f(scene, &mut behavior);
     scene.component_mut(target).behavior = behavior;
     result

@@ -6,15 +6,15 @@ use std::sync::LazyLock;
 use eframe::egui;
 
 use crate::data::assets;
-use crate::domain::types::*;
-use crate::domain::prefab_asset::PrefabAssetDocument;
 use crate::data::goal_animation::goal_visual_state;
+use crate::domain::prefab_asset::PrefabAssetDocument;
+use crate::domain::types::*;
 
 use super::super::particles::{
     WindAreaDef, fan_field_defaults, fan_field_profile_weight, fan_propeller_foreshorten,
 };
 use super::super::{CompoundTransform, DrawCtx, PreviewPlaybackState};
-use super::{bird_sleep_scale_factors, bird_sleep_y_offset, SpriteDrawData, SpriteDrawOpts};
+use super::{SpriteDrawData, SpriteDrawOpts, bird_sleep_scale_factors, bird_sleep_y_offset};
 
 fn with_alpha(color: egui::Color32, alpha: f32) -> egui::Color32 {
     let scaled_alpha = ((color.a() as f32) * alpha.clamp(0.0, 1.0)).round() as u8;
@@ -233,14 +233,8 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 
     // Selection highlight
     if is_selected {
-        let (sel_center, sel_hw, sel_hh) = selection_outline_metrics(
-            sprite,
-            camera,
-            canvas_center,
-            center,
-            hw,
-            hh,
-        );
+        let (sel_center, sel_hw, sel_hh) =
+            selection_outline_metrics(sprite, camera, canvas_center, center, hw, hh);
         if sprite.rotation.abs() > 0.001 {
             let cos_r = sprite.rotation.cos();
             let sin_r = sprite.rotation.sin();
@@ -264,7 +258,8 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
                 egui::Stroke::new(2.0, egui::Color32::YELLOW),
             ));
         } else {
-            let sel_rect = egui::Rect::from_center_size(sel_center, egui::vec2(sel_hw * 2.0, sel_hh * 2.0));
+            let sel_rect =
+                egui::Rect::from_center_size(sel_center, egui::vec2(sel_hw * 2.0, sel_hh * 2.0));
             painter.rect_stroke(
                 sel_rect.expand(2.0),
                 2.0,
@@ -294,7 +289,9 @@ pub fn draw_sprite(ctx: &DrawCtx<'_>, sprite: &SpriteDrawData, opts: SpriteDrawO
 
     // Particle/animation stubs
     // WindArea: semi-transparent zone + direction arrows
-    if name_lower.starts_with("windarea") && let Some(area) = wind_area {
+    if name_lower.starts_with("windarea")
+        && let Some(area) = wind_area
+    {
         draw_wind_area_overlay(ctx, area, preview_state);
     }
 }
@@ -375,7 +372,8 @@ pub fn draw_wind_area_overlay(
     let dir_x = area.dir_x / dir_len;
     let dir_y = area.dir_y / dir_len;
     let arrow_world_len = 2.4 * area.power_factor.max(0.5);
-    let arrow_color = egui::Color32::from_rgba_unmultiplied(120, 220, 255, (110.0 * active_alpha) as u8);
+    let arrow_color =
+        egui::Color32::from_rgba_unmultiplied(120, 220, 255, (110.0 * active_alpha) as u8);
     let mut local_y = -area.half_h;
     while local_y <= area.half_h + 0.001 {
         let mut local_x = -area.half_w;
@@ -452,7 +450,10 @@ pub fn draw_fan_field_overlay(
     .to_vec();
     ctx.painter.add(egui::Shape::line(
         outline,
-        egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(120, 220, 255, 110)),
+        egui::Stroke::new(
+            1.5,
+            egui::Color32::from_rgba_unmultiplied(120, 220, 255, 110),
+        ),
     ));
 
     let preview_scale = if preview_state == PreviewPlaybackState::Play {

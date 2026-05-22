@@ -17,9 +17,8 @@ use eframe::wgpu;
 /// Maximum number of fill mesh draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 256;
 
-const WGSL_SOURCE: &str = include_str!(
-    "../../editor_assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl"
-);
+const WGSL_SOURCE: &str =
+    include_str!("../../editor_assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl");
 
 // ── GPU uniform buffer layout (32 bytes) ──
 

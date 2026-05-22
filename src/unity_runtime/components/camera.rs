@@ -66,9 +66,7 @@ impl UnityComponent for Camera {
                 | "m_OrthographicSize",
                 SceneValue::Float(v),
             ) => self.orthographic_size = v,
-            ("near clip plane" | "nearClipPlane", SceneValue::Float(v)) => {
-                self.near_clip_plane = v
-            }
+            ("near clip plane" | "nearClipPlane", SceneValue::Float(v)) => self.near_clip_plane = v,
             ("far clip plane" | "farClipPlane", SceneValue::Float(v)) => self.far_clip_plane = v,
             ("field of view" | "fieldOfView", SceneValue::Float(v)) => self.field_of_view = v,
             ("m_Depth" | "depth", SceneValue::Float(v)) => self.depth = v,

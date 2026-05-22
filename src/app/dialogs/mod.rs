@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 
 use crate::data::assets;
 use crate::domain::prefab_override::{
-    find_first_node_mut, parse_override_text, serialize_override_tree, OverrideNode,
+    OverrideNode, find_first_node_mut, parse_override_text, serialize_override_tree,
 };
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
@@ -581,7 +581,9 @@ fn ensure_level_manager_component(nodes: &mut Vec<OverrideNode>) -> &mut Overrid
     {
         let root_index = nodes
             .iter()
-            .position(|node| node.node_type == "GameObject" && node.name.starts_with("LevelManager"))
+            .position(|node| {
+                node.node_type == "GameObject" && node.name.starts_with("LevelManager")
+            })
             .unwrap_or_else(|| {
                 nodes.push(OverrideNode {
                     node_type: "GameObject".to_string(),
@@ -640,7 +642,7 @@ mod tests {
         global_prefab_name_options, parse_loader_prefab_count, update_camera_limits_in_level,
     };
     use crate::data::assets;
-    use crate::domain::prefab_override::{find_first_node, parse_override_text, OverrideNode};
+    use crate::domain::prefab_override::{OverrideNode, find_first_node, parse_override_text};
     use crate::domain::types::{
         DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
@@ -649,18 +651,21 @@ mod tests {
 
     #[test]
     fn embedded_prefab_name_options_include_goal_area() {
-        assert!(global_prefab_name_options()
-            .iter()
-            .any(|name| name == "GoalArea_01"));
+        assert!(
+            global_prefab_name_options()
+                .iter()
+                .any(|name| name == "GoalArea_01")
+        );
     }
 
     #[test]
     fn embedded_loader_prefab_count_parses_valid_loader() {
-        let has_loader_with_prefabs = assets::list_pathnames("Assets/Resources/levels/", "_loader.prefab")
-            .into_iter()
-            .filter_map(|asset_path| assets::read_pathname_text(&asset_path))
-            .filter_map(|text| parse_loader_prefab_count(&text))
-            .any(|count| count > 0);
+        let has_loader_with_prefabs =
+            assets::list_pathnames("Assets/Resources/levels/", "_loader.prefab")
+                .into_iter()
+                .filter_map(|asset_path| assets::read_pathname_text(&asset_path))
+                .filter_map(|text| parse_loader_prefab_count(&text))
+                .any(|count| count > 0);
 
         assert!(has_loader_with_prefabs);
     }
@@ -685,8 +690,14 @@ mod tests {
         })
         .expect("missing camera limits");
 
-        assert_eq!(read_vec2(camera_limits.child("Vector2", "topLeft").unwrap()), [-10.0, 20.0]);
-        assert_eq!(read_vec2(camera_limits.child("Vector2", "size").unwrap()), [30.5, 40.5]);
+        assert_eq!(
+            read_vec2(camera_limits.child("Vector2", "topLeft").unwrap()),
+            [-10.0, 20.0]
+        );
+        assert_eq!(
+            read_vec2(camera_limits.child("Vector2", "size").unwrap()),
+            [30.5, 40.5]
+        );
     }
 
     #[test]
@@ -709,8 +720,14 @@ mod tests {
         })
         .expect("missing camera limits");
 
-        assert_eq!(read_vec2(camera_limits.child("Vector2", "topLeft").unwrap()), [1.0, 2.0]);
-        assert_eq!(read_vec2(camera_limits.child("Vector2", "size").unwrap()), [3.0, 4.0]);
+        assert_eq!(
+            read_vec2(camera_limits.child("Vector2", "topLeft").unwrap()),
+            [1.0, 2.0]
+        );
+        assert_eq!(
+            read_vec2(camera_limits.child("Vector2", "size").unwrap()),
+            [3.0, 4.0]
+        );
         assert_eq!(
             level.objects[0]
                 .as_prefab()

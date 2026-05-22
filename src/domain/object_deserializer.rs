@@ -105,12 +105,7 @@ pub trait RuntimeHost {
     /// Extension over the strict Unity port: when the override stream cites an
     /// `ObjectReference` index that `referenced_object` can't resolve, hosts
     /// can stash the raw index here (Unity's loader drops it). Default no-op.
-    fn set_object_reference_index(
-        &mut self,
-        target: Self::Target,
-        field: &str,
-        index: i32,
-    ) {
+    fn set_object_reference_index(&mut self, target: Self::Target, field: &str, index: i32) {
         let _ = (target, field, index);
     }
 
@@ -119,12 +114,7 @@ pub trait RuntimeHost {
     /// `ReadAnimationCurve` collects all keys into a flat list, then hands it
     /// to the host (Unity uses reflection to rebuild the `keys` array on the
     /// curve object). Hosts that don't care can ignore this.
-    fn set_animation_curve(
-        &mut self,
-        target: Self::Target,
-        field: &str,
-        keys: Vec<Keyframe>,
-    ) {
+    fn set_animation_curve(&mut self, target: Self::Target, field: &str, keys: Vec<Keyframe>) {
         let _ = (target, field, keys);
     }
 
@@ -252,7 +242,10 @@ pub struct ArrayElement<H: RuntimeHost + ?Sized> {
 
 impl<H: RuntimeHost + ?Sized> Clone for ArrayElement<H> {
     fn clone(&self) -> Self {
-        Self { index: self.index, value: self.value.clone() }
+        Self {
+            index: self.index,
+            value: self.value.clone(),
+        }
     }
 }
 
@@ -384,7 +377,10 @@ impl ObjectReader {
         let line = self.read_line()?;
         let parts: Vec<&str> = line.split(' ').collect();
         if parts.len() == 2 {
-            return Some(PropertyData::typed(parts[0].to_string(), parts[1].to_string()));
+            return Some(PropertyData::typed(
+                parts[0].to_string(),
+                parts[1].to_string(),
+            ));
         }
         if parts.len() == 4 && parts[2] == "=" {
             return Some(PropertyData::valued(
@@ -622,12 +618,7 @@ fn read_component<H: RuntimeHost>(
 /// `private static void SetProperty(object obj, string name, object value)`.
 ///
 /// All of Unity's quirk renames live here in one table.
-fn set_property<H: RuntimeHost>(
-    host: &mut H,
-    target: H::Target,
-    name: &str,
-    value: Value<H>,
-) {
+fn set_property<H: RuntimeHost>(host: &mut H, target: H::Target, name: &str, value: Value<H>) {
     // Silent ignore list — these names hit the final `else if` and Unity does
     // nothing with them. Reproduce that here so the host never sees them.
     match name {
@@ -976,26 +967,41 @@ fn read_array<H: RuntimeHost>(
                         "Boolean" => Value::Boolean(inner.bool_value()),
                         _ => Value::Enum(inner.integer_value()),
                     };
-                    elements.push(ArrayElement { index: element_index, value });
+                    elements.push(ArrayElement {
+                        index: element_index,
+                        value,
+                    });
                 }
                 "String" => {
                     let value = Value::String(inner.string_value());
                     let _ = reader.read_property();
-                    elements.push(ArrayElement { index: element_index, value });
+                    elements.push(ArrayElement {
+                        index: element_index,
+                        value,
+                    });
                 }
                 "ObjectReference" => {
                     let resolved = host.referenced_object(inner.integer_value());
                     if let Some(value) = resolved {
-                        elements.push(ArrayElement { index: element_index, value });
+                        elements.push(ArrayElement {
+                            index: element_index,
+                            value,
+                        });
                     } else {
-                        elements.push(ArrayElement { index: element_index, value: Value::Null });
+                        elements.push(ArrayElement {
+                            index: element_index,
+                            value: Value::Null,
+                        });
                     }
                 }
-                "Vector2" | "Vector3" | "Quaternion" | "Color" | "Rect" | "Bounds"
-                | "Keyframe" | "16" => {
+                "Vector2" | "Vector3" | "Quaternion" | "Color" | "Rect" | "Bounds" | "Keyframe"
+                | "16" => {
                     let mut value = default_for_type::<H>(&inner.r#type);
                     read_generic(host, &mut value, depth + 2, reader);
-                    elements.push(ArrayElement { index: element_index, value });
+                    elements.push(ArrayElement {
+                        index: element_index,
+                        value,
+                    });
                 }
                 "Generic" => {
                     // Generic element: walk children into a Value::Generic.
@@ -1004,7 +1010,10 @@ fn read_array<H: RuntimeHost>(
                     if child_depth > depth {
                         read_generic(host, &mut value, child_depth, reader);
                     }
-                    elements.push(ArrayElement { index: element_index, value });
+                    elements.push(ArrayElement {
+                        index: element_index,
+                        value,
+                    });
                 }
                 _ => {
                     drain_children(reader, depth + 2);
@@ -1472,11 +1481,17 @@ mod tests {
             panic!("expected first array element to parse as Generic");
         };
         assert!(matches!(
-            first.iter().find(|(name, _)| name == "type").map(|(_, value)| value),
+            first
+                .iter()
+                .find(|(name, _)| name == "type")
+                .map(|(_, value)| value),
             Some(Value::Enum(10))
         ));
         assert!(matches!(
-            first.iter().find(|(name, _)| name == "count").map(|(_, value)| value),
+            first
+                .iter()
+                .find(|(name, _)| name == "count")
+                .map(|(_, value)| value),
             Some(Value::Integer(1))
         ));
 

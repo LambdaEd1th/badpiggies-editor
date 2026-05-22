@@ -70,7 +70,14 @@ fn parse_prefab_layers(
     };
 
     let mut layers = Vec::new();
-    traverse_prefab(&root_transform_id, &ctx, IDENTITY_MAT, 0.0, true, &mut layers);
+    traverse_prefab(
+        &root_transform_id,
+        &ctx,
+        IDENTITY_MAT,
+        0.0,
+        true,
+        &mut layers,
+    );
 
     layers.sort_by(|a, b| b.z_local.partial_cmp(&a.z_local).unwrap_or(Ordering::Equal));
     (!layers.is_empty()).then_some(layers)
@@ -129,7 +136,8 @@ fn traverse_prefab(
         && let (Some(sprite), Some(renderer)) = (
             ctx.sprite_by_go.get(game_object_id),
             ctx.renderer_by_go.get(game_object_id),
-        ) && renderer.enabled
+        )
+        && renderer.enabled
         && let Some(runtime_sprite) = ctx.runtime.get(&sprite.sprite_id)
         && let Some(atlas) = atlas_for_material_guid(&renderer.material_guid)
     {

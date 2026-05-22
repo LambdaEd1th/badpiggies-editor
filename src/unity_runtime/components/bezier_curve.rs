@@ -100,7 +100,11 @@ fn decode_nodes(entries: &[(String, SceneValue)]) -> Vec<BezierNode> {
             indexed.push((idx, n));
         }
     }
-    let zero = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    let zero = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
     let mut out = vec![
         BezierNode {
             position: zero,
@@ -132,19 +136,43 @@ fn decode_node(entries: &[(String, SceneValue)]) -> Option<BezierNode> {
             None
         })
         .unwrap_or(entries);
-    let mut position = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
-    let mut tangent0 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
-    let mut tangent1 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    let mut position = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let mut tangent0 = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let mut tangent1 = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
     for (n, v) in data {
         match (n.as_str(), v) {
             ("position", SceneValue::Vector3(p)) => {
-                position = Vec3 { x: p.x, y: p.y, z: p.z };
+                position = Vec3 {
+                    x: p.x,
+                    y: p.y,
+                    z: p.z,
+                };
             }
             ("tangent0", SceneValue::Vector3(p)) => {
-                tangent0 = Vec3 { x: p.x, y: p.y, z: p.z };
+                tangent0 = Vec3 {
+                    x: p.x,
+                    y: p.y,
+                    z: p.z,
+                };
             }
             ("tangent1", SceneValue::Vector3(p)) => {
-                tangent1 = Vec3 { x: p.x, y: p.y, z: p.z };
+                tangent1 = Vec3 {
+                    x: p.x,
+                    y: p.y,
+                    z: p.z,
+                };
             }
             _ => {}
         }

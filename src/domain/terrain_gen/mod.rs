@@ -15,9 +15,9 @@ mod stripe_mesh;
 
 pub use curve::{CurveNode, extract_curve_nodes, is_closed_loop};
 pub use fill_mesh::rebuild_fill_mesh;
-pub use png::encode_control_png;
 #[cfg(test)]
 pub use png::decode_control_png_pixels;
+pub use png::encode_control_png;
 pub use stripe_mesh::rebuild_curve_mesh;
 
 use crate::domain::types::{TerrainData, Vec2};

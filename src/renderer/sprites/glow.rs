@@ -6,11 +6,11 @@ use std::sync::{Mutex, OnceLock};
 use eframe::egui;
 
 use crate::data::assets;
+use crate::data::goal_animation::goal_visual_state;
 use crate::data::sprite_db::UvRect;
 use crate::data::unity_anim;
 use crate::domain::prefab_asset::{PrefabAssetComponent, PrefabAssetDocument};
 use crate::domain::types::Vec2;
-use crate::data::goal_animation::goal_visual_state;
 
 use super::super::{Camera, background};
 use super::SpriteDrawData;
@@ -141,8 +141,14 @@ fn glow_render_state(sprite: &SpriteDrawData, time: f64) -> Option<GlowRenderSta
     let glow = glow_sprite_config(&sprite.name)?;
     let instance_scale_x = sprite.scale.0.abs().max(0.01);
     let instance_scale_y = sprite.scale.1.abs().max(0.01);
-    let scale_x = goal_visual.map(|visual| visual.scale_x).unwrap_or(1.0).abs();
-    let scale_y = goal_visual.map(|visual| visual.scale_y).unwrap_or(1.0).abs();
+    let scale_x = goal_visual
+        .map(|visual| visual.scale_x)
+        .unwrap_or(1.0)
+        .abs();
+    let scale_y = goal_visual
+        .map(|visual| visual.scale_y)
+        .unwrap_or(1.0)
+        .abs();
 
     Some(GlowRenderState {
         y_offset: goal_visual
@@ -394,8 +400,8 @@ mod tests {
 
     #[test]
     fn dynamic_star_box_glow_includes_prefab_parent_scale() {
-        let glow = glow_sprite_config("DynamicStarBox")
-            .expect("expected DynamicStarBox glow config");
+        let glow =
+            glow_sprite_config("DynamicStarBox").expect("expected DynamicStarBox glow config");
 
         assert_close(glow.half_w, 114.0 * WORLD_SCALE);
         assert_close(glow.half_h, 114.0 * WORLD_SCALE);

@@ -62,7 +62,6 @@ pub(crate) struct CompoundTransform {
     pub rotation_z: f32,
 }
 
-
 /// Result of a completed terrain node drag.
 pub struct NodeDragResult {
     /// Which terrain object.

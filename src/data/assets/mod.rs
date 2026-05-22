@@ -44,14 +44,17 @@ mod tests {
 
     #[test]
     fn embedded_asset_listing_includes_goal_area_prefab() {
-        assert!(list_pathnames("Assets/Prefab/", ".prefab")
-            .iter()
-            .any(|path| path == "Assets/Prefab/GoalArea_01.prefab"));
+        assert!(
+            list_pathnames("Assets/Prefab/", ".prefab")
+                .iter()
+                .any(|path| path == "Assets/Prefab/GoalArea_01.prefab")
+        );
     }
 
     #[test]
     fn embedded_asset_text_reads_animation_clip() {
-        let text = read_pathname_text("Assets/AnimationClip/BirdSleep2.anim").expect("missing anim");
+        let text =
+            read_pathname_text("Assets/AnimationClip/BirdSleep2.anim").expect("missing anim");
         assert!(text.contains("AnimationClip"));
     }
 

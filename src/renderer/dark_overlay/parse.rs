@@ -53,7 +53,9 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     let od = prefab.override_data.as_ref()?;
     let (scene, root) = Scene::from_override_text(&od.raw_text)?;
     let (_, bezier) = scene.get_component_of::<BezierCurve>(root)?;
-    let bezier_mesh = scene.get_component_of::<BezierMesh>(root).map(|(_, mesh)| mesh);
+    let bezier_mesh = scene
+        .get_component_of::<BezierMesh>(root)
+        .map(|(_, mesh)| mesh);
     let nodes = bezier.nodes.as_ref()?;
     let node_count = nodes.len();
     if node_count < 2 {
@@ -151,7 +153,10 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     // therefore starts at the lit boundary and extends outward by borderWidth.
     let border_width = resolved_lit_area_border_width(bezier_mesh);
     let (local_border_inner, local_border_outer) = if border_width > 0.0 {
-        (local_polygon.clone(), offset_polygon(&local_polygon, border_width))
+        (
+            local_polygon.clone(),
+            offset_polygon(&local_polygon, border_width),
+        )
     } else {
         (Vec::new(), Vec::new())
     };
@@ -280,10 +285,7 @@ fn offset_polygon(polygon: &[(f32, f32)], distance: f32) -> Vec<(f32, f32)> {
         let nx = n1x + n2x;
         let ny = n1y + n2y;
         let len = (nx * nx + ny * ny).sqrt().max(1e-6);
-        result.push((
-            curr.0 + distance * nx / len,
-            curr.1 + distance * ny / len,
-        ));
+        result.push((curr.0 + distance * nx / len, curr.1 + distance * ny / len));
     }
     result
 }
@@ -382,7 +384,8 @@ mod tests {
     use crate::unity_runtime::scene::Scene;
     use std::path::Path;
 
-    const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
+    const LEVEL_MANAGER_OVERRIDE: &str =
+        "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
 
     const LIT_AREA_OVERRIDE: &str = "GameObject LitArea\n\tComponent MentalTools.BezierCurve\n\t\tInteger bezierPointCount = 6\n\t\tGeneric bezierCurve\n\t\t\tArray nodes\n\t\t\t\tArraySize size = 2\n\t\t\t\tElement 0\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 1\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 4\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = -1\n\t\t\t\t\t\t\tFloat y = 0\n\tComponent MentalTools.BezierMesh\n\t\tFloat borderWidth = 0.5\n";
 
@@ -398,7 +401,11 @@ mod tests {
         let mut lit_areas = Vec::new();
         let level = LevelData {
             objects: vec![
-                LevelObject::Prefab(prefab("LevelManager", Vec3::default(), LEVEL_MANAGER_OVERRIDE)),
+                LevelObject::Prefab(prefab(
+                    "LevelManager",
+                    Vec3::default(),
+                    LEVEL_MANAGER_OVERRIDE,
+                )),
                 LevelObject::Prefab(prefab(
                     "LitArea",
                     Vec3 {
@@ -417,7 +424,10 @@ mod tests {
         assert!(dark_level);
         assert_eq!(lit_areas.len(), 1);
         assert!(lit_areas[0].vertices.len() >= 20);
-        assert_eq!(lit_areas[0].vertices.len(), lit_areas[0].border_vertices.len());
+        assert_eq!(
+            lit_areas[0].vertices.len(),
+            lit_areas[0].border_vertices.len()
+        );
         assert_eq!(
             lit_areas[0].vertices.len(),
             lit_areas[0].border_inner_vertices.len()
@@ -587,12 +597,8 @@ mod tests {
 
     #[test]
     fn parses_lit_area_border_width_from_bezier_mesh_component() {
-        let polygon = parse_lit_area_bezier(&prefab(
-            "LitArea",
-            Vec3::default(),
-            LIT_AREA_OVERRIDE,
-        ))
-        .expect("expected lit area polygon");
+        let polygon = parse_lit_area_bezier(&prefab("LitArea", Vec3::default(), LIT_AREA_OVERRIDE))
+            .expect("expected lit area polygon");
 
         assert_eq!(polygon.vertices.len(), polygon.border_vertices.len());
         assert!(polygon.vertices.len() >= 20);
@@ -726,8 +732,10 @@ mod tests {
 
         let unscaled_width = max_x(&unscaled.vertices) - min_x(&unscaled.vertices);
         let scaled_width = max_x(&scaled.vertices) - min_x(&scaled.vertices);
-        let unscaled_ring_width = max_x(&unscaled.border_vertices) - max_x(&unscaled.border_inner_vertices);
-        let scaled_ring_width = max_x(&scaled.border_vertices) - max_x(&scaled.border_inner_vertices);
+        let unscaled_ring_width =
+            max_x(&unscaled.border_vertices) - max_x(&unscaled.border_inner_vertices);
+        let scaled_ring_width =
+            max_x(&scaled.border_vertices) - max_x(&scaled.border_inner_vertices);
 
         assert!((scaled_width - unscaled_width * 2.0).abs() < 0.05);
         assert!((scaled_ring_width - unscaled_ring_width * 2.0).abs() < 0.05);
@@ -764,7 +772,12 @@ mod tests {
         )
     }
 
-    fn prefab_with_scale(name: &str, position: Vec3, scale: Vec3, raw_text: &str) -> PrefabInstance {
+    fn prefab_with_scale(
+        name: &str,
+        position: Vec3,
+        scale: Vec3,
+        raw_text: &str,
+    ) -> PrefabInstance {
         PrefabInstance {
             name: name.to_string(),
             position,

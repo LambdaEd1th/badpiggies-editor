@@ -69,9 +69,7 @@ fn get_screen_size_80pct() -> (f32, f32) {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn native_app_icon() -> Option<eframe::egui::IconData> {
-    match eframe::icon_data::from_png_bytes(include_bytes!(
-        "../editor_assets/ui/app-icon-menuatlas2-wrench-wings.png",
-    )) {
+    match eframe::icon_data::from_png_bytes(include_bytes!("../editor_assets/ui/app-icon.png",)) {
         Ok(icon) => Some(icon),
         Err(error) => {
             log::error!("Failed to decode native app icon: {error}");

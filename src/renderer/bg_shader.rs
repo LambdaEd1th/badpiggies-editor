@@ -53,9 +53,7 @@ fn background_shader_kinds() -> &'static [MaterialShaderKind; 6] {
 
 fn background_shader_label(kind: MaterialShaderKind) -> &'static str {
     match kind {
-        MaterialShaderKind::CustomUnlitMonochrome => {
-            "_custom__unlit_monochrome__background_shader"
-        }
+        MaterialShaderKind::CustomUnlitMonochrome => "_custom__unlit_monochrome__background_shader",
         MaterialShaderKind::CustomUnlitColorGeometry => {
             "_custom__unlit_color_geometry__background_shader"
         }
@@ -65,9 +63,7 @@ fn background_shader_label(kind: MaterialShaderKind) -> &'static str {
         MaterialShaderKind::CustomUnlitAlpha8BitColor => {
             "_custom__unlit_alpha8bit_color__background_shader"
         }
-        MaterialShaderKind::BuiltinUnlitTransparent => {
-            "unlit__transparent__background_shader"
-        }
+        MaterialShaderKind::BuiltinUnlitTransparent => "unlit__transparent__background_shader",
         MaterialShaderKind::BuiltinUnlitTransparentCutout => {
             "unlit__transparent_cutout__background_shader"
         }
@@ -88,9 +84,7 @@ fn background_pipeline_label(kind: MaterialShaderKind) -> &'static str {
         MaterialShaderKind::CustomUnlitAlpha8BitColor => {
             "_custom__unlit_alpha8bit_color__background_pipeline"
         }
-        MaterialShaderKind::BuiltinUnlitTransparent => {
-            "unlit__transparent__background_pipeline"
-        }
+        MaterialShaderKind::BuiltinUnlitTransparent => "unlit__transparent__background_pipeline",
         MaterialShaderKind::BuiltinUnlitTransparentCutout => {
             "unlit__transparent_cutout__background_pipeline"
         }
@@ -106,9 +100,7 @@ fn background_shader_source(kind: MaterialShaderKind) -> &'static str {
         }
         MaterialShaderKind::CustomUnlitAlpha8BitColor => CUSTOM_UNLIT_ALPHA8BIT_COLOR_WGSL,
         MaterialShaderKind::BuiltinUnlitTransparent => BUILTIN_UNLIT_TRANSPARENT_WGSL,
-        MaterialShaderKind::BuiltinUnlitTransparentCutout => {
-            BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL
-        }
+        MaterialShaderKind::BuiltinUnlitTransparentCutout => BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL,
     }
 }
 
@@ -449,7 +441,14 @@ pub fn load_bg_texture(
     filename: &str,
 ) -> Option<BgAtlasGpu> {
     if filename == WHITE_TEXTURE_KEY {
-        return Some(upload_bg_atlas(device, queue, resources, &[255, 255, 255, 255], 1, 1));
+        return Some(upload_bg_atlas(
+            device,
+            queue,
+            resources,
+            &[255, 255, 255, 255],
+            1,
+            1,
+        ));
     }
 
     let data = crate::data::assets::read_pathname(&background_texture_asset_path(filename))?;
@@ -488,43 +487,6 @@ impl BgAtlasCache {
         let arc = Arc::new(atlas);
         self.atlases.insert(filename.to_string(), arc.clone());
         Some(arc)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{background_shader_kinds, background_shader_source, background_texture_asset_path};
-
-    #[test]
-    fn background_textures_load_from_unity_texture2d_namespace() {
-        let atlas_name = crate::data::bg_data::bg_atlas_files()
-            .first()
-            .expect("expected embedded background atlas asset");
-        let sky_name = crate::data::bg_data::sky_texture_files()
-            .first()
-            .expect("expected embedded background sky asset");
-
-        assert!(
-            crate::data::assets::read_pathname(&background_texture_asset_path(atlas_name))
-                .is_some(),
-            "expected background atlas {} to exist under Assets/Texture2D",
-            atlas_name
-        );
-        assert!(
-            crate::data::assets::read_pathname(&background_texture_asset_path(sky_name)).is_some(),
-            "expected background sky {} to exist under Assets/Texture2D",
-            sky_name
-        );
-    }
-
-    #[test]
-    fn background_wgsl_shader_file_count_matches_unity_material_modes() {
-        assert_eq!(background_shader_kinds().len(), 6);
-        for kind in background_shader_kinds() {
-            let source = background_shader_source(*kind);
-            assert!(source.contains("@vertex"));
-            assert!(source.contains("@fragment"));
-        }
     }
 }
 
@@ -596,4 +558,41 @@ pub fn make_bg_callback(
 /// Maximum draw slot count (exposed for external slot counter validation).
 pub const fn max_draw_slots() -> u32 {
     MAX_DRAW_SLOTS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{background_shader_kinds, background_shader_source, background_texture_asset_path};
+
+    #[test]
+    fn background_textures_load_from_unity_texture2d_namespace() {
+        let atlas_name = crate::data::bg_data::bg_atlas_files()
+            .first()
+            .expect("expected embedded background atlas asset");
+        let sky_name = crate::data::bg_data::sky_texture_files()
+            .first()
+            .expect("expected embedded background sky asset");
+
+        assert!(
+            crate::data::assets::read_pathname(&background_texture_asset_path(atlas_name))
+                .is_some(),
+            "expected background atlas {} to exist under Assets/Texture2D",
+            atlas_name
+        );
+        assert!(
+            crate::data::assets::read_pathname(&background_texture_asset_path(sky_name)).is_some(),
+            "expected background sky {} to exist under Assets/Texture2D",
+            sky_name
+        );
+    }
+
+    #[test]
+    fn background_wgsl_shader_file_count_matches_unity_material_modes() {
+        assert_eq!(background_shader_kinds().len(), 6);
+        for kind in background_shader_kinds() {
+            let source = background_shader_source(*kind);
+            assert!(source.contains("@vertex"));
+            assert!(source.contains("@fragment"));
+        }
+    }
 }

@@ -198,7 +198,9 @@ pub fn find_first_node<'a, F>(nodes: &'a [OverrideNode], predicate: &F) -> Optio
 where
     F: Fn(&OverrideNode) -> bool,
 {
-    nodes.iter().find_map(|node| node.find_descendant(predicate))
+    nodes
+        .iter()
+        .find_map(|node| node.find_descendant(predicate))
 }
 
 pub fn find_first_node_mut<'a, F>(
@@ -223,7 +225,10 @@ fn serialize_override_tree_at_depth(nodes: &[OverrideNode], depth: usize) -> Str
 
     for node in nodes {
         if let Some(value) = &node.value {
-            out.push_str(&format!("{indent}{} {} = {}\n", node.node_type, node.name, value));
+            out.push_str(&format!(
+                "{indent}{} {} = {}\n",
+                node.node_type, node.name, value
+            ));
         } else {
             out.push_str(&format!("{indent}{} {}\n", node.node_type, node.name));
         }
@@ -248,7 +253,9 @@ mod tests {
         assert_eq!(root.node_type, "GameObject");
         assert_eq!(root.name, "Background_Cave_01_SET 1");
 
-        let fg = root.child("GameObject", "FGLayer").expect("missing FGLayer");
+        let fg = root
+            .child("GameObject", "FGLayer")
+            .expect("missing FGLayer");
         let transform = fg
             .component("Transform")
             .expect("missing Transform component");

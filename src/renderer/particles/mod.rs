@@ -3,8 +3,8 @@
 use std::sync::OnceLock;
 
 use crate::data::assets;
-use crate::data::unity_particles;
 use crate::data::unity_anim::HermiteKey;
+use crate::data::unity_particles;
 use crate::domain::prefab_asset::PrefabAssetDocument;
 use crate::domain::types::Vec2;
 
@@ -21,8 +21,7 @@ pub(crate) use attached::{
 };
 pub(crate) use fan::{
     FanEmitter, FanParticle, FanState, draw_fan_particles, fan_particle_texture_name,
-    reset_fan_emitter_for_build,
-    start_fan_emitter_for_play,
+    reset_fan_emitter_for_build, start_fan_emitter_for_play,
 };
 pub(crate) use wind::{
     WindAreaDef, WindParticle, build_wind_area_def, draw_wind_particles,
@@ -69,10 +68,10 @@ pub(super) fn fan_field_profile_weight(local_x: f32, local_y: f32) -> f32 {
     let defaults = profile.defaults;
     let normalized_x = (1.0
         - ((local_x - defaults.center_x).abs() / defaults.half_w.max(f32::EPSILON)))
-        .clamp(0.0, 1.0);
+    .clamp(0.0, 1.0);
     let normalized_y = ((defaults.center_y + defaults.half_h - local_y)
         / (defaults.half_h * 2.0).max(f32::EPSILON))
-        .clamp(0.0, 1.0);
+    .clamp(0.0, 1.0);
 
     sample_hermite(&profile.vertical_ramp, normalized_y)
         * sample_hermite(&profile.horizontal_ramp, normalized_x)
@@ -268,10 +267,23 @@ mod tests {
     fn fan_field_profile_matches_unity_ramp_orientation() {
         let defaults = fan_field_defaults();
 
-        assert_eq!(fan_field_profile_weight(defaults.center_x, defaults.center_y + defaults.half_h), 0.0);
-        assert!((fan_field_profile_weight(defaults.center_x, defaults.center_y) - 0.25).abs() < 0.0001);
-        assert!((fan_field_profile_weight(defaults.center_x, defaults.center_y - defaults.half_h) - 1.0).abs() < 0.0001);
-        assert_eq!(fan_field_profile_weight(defaults.center_x + defaults.half_w, defaults.center_y), 0.0);
+        assert_eq!(
+            fan_field_profile_weight(defaults.center_x, defaults.center_y + defaults.half_h),
+            0.0
+        );
+        assert!(
+            (fan_field_profile_weight(defaults.center_x, defaults.center_y) - 0.25).abs() < 0.0001
+        );
+        assert!(
+            (fan_field_profile_weight(defaults.center_x, defaults.center_y - defaults.half_h)
+                - 1.0)
+                .abs()
+                < 0.0001
+        );
+        assert_eq!(
+            fan_field_profile_weight(defaults.center_x + defaults.half_w, defaults.center_y),
+            0.0
+        );
     }
 
     #[test]

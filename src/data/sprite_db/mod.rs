@@ -80,14 +80,9 @@ pub fn get_sprite_info(name: &str) -> Option<&'static SpriteInfo> {
 }
 
 pub fn runtime_sprite_dimensions(sprite_id: &str) -> Option<(UvRect, f32, f32, String)> {
-    runtime_sprites().get(sprite_id).map(|meta| {
-        (
-            meta.uv,
-            meta.width,
-            meta.height,
-            meta.material_id.clone(),
-        )
-    })
+    runtime_sprites()
+        .get(sprite_id)
+        .map(|meta| (meta.uv, meta.width, meta.height, meta.material_id.clone()))
 }
 
 pub fn runtime_sprite_pivot(sprite_id: &str) -> Option<(f32, f32)> {
@@ -188,22 +183,22 @@ mod tests {
 
     #[test]
     fn daily_challenge_dialog_uses_renderer_backed_menu_atlas() {
-        let sprite =
-            get_sprite_info("DailyChallengeDialog").expect("missing DailyChallengeDialog sprite info");
+        let sprite = get_sprite_info("DailyChallengeDialog")
+            .expect("missing DailyChallengeDialog sprite info");
         assert_eq!(sprite.atlas, "MenuAtlas.png");
     }
 
     #[test]
     fn purchase_piggy_pack_iap_uses_renderer_backed_ingame_atlas2() {
-        let sprite =
-            get_sprite_info("PurchasePiggyPackIAP").expect("missing PurchasePiggyPackIAP sprite info");
+        let sprite = get_sprite_info("PurchasePiggyPackIAP")
+            .expect("missing PurchasePiggyPackIAP sprite info");
         assert_eq!(sprite.atlas, "IngameAtlas2.png");
     }
 
     #[test]
     fn ask_about_notifications_prefers_close_button_sprite() {
-        let sprite =
-            get_sprite_info("AskAboutNotifications").expect("missing AskAboutNotifications sprite info");
+        let sprite = get_sprite_info("AskAboutNotifications")
+            .expect("missing AskAboutNotifications sprite info");
         assert_eq!(sprite.atlas, "IngameAtlas2.png");
         assert_close(sprite.world_w, 0.7877604);
     }

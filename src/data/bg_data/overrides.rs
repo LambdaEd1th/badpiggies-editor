@@ -10,7 +10,9 @@ fn scene_value_as_vec3(value: &SceneValue) -> Option<Vec3> {
         SceneValue::Vector3(value) => Some(*value),
         SceneValue::Generic(entries) => {
             if let Some(value) = entries.iter().find_map(|(name, value)| {
-                (name == "data").then(|| scene_value_as_vec3(value)).flatten()
+                (name == "data")
+                    .then(|| scene_value_as_vec3(value))
+                    .flatten()
             }) {
                 return Some(value);
             }

@@ -48,10 +48,8 @@ impl EditorApp {
     }
 
     pub(super) fn render_achievement_popup(&mut self, ctx: &egui::Context) {
-        let Some((started_at, achievement_id, icon_source)) = self
-            .achievement_popup
-            .as_ref()
-            .map(|popup| {
+        let Some((started_at, achievement_id, icon_source)) =
+            self.achievement_popup.as_ref().map(|popup| {
                 (
                     popup.started_at,
                     popup.achievement_id.clone(),
@@ -99,7 +97,10 @@ impl EditorApp {
                 painter.rect_stroke(
                     rect,
                     14,
-                    egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(244, 196, 48, 180)),
+                    egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgba_unmultiplied(244, 196, 48, 180),
+                    ),
                     egui::StrokeKind::Inside,
                 );
 
@@ -115,7 +116,10 @@ impl EditorApp {
                 painter.rect_stroke(
                     icon_rect,
                     12.0,
-                    egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 28)),
+                    egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 28),
+                    ),
                     egui::StrokeKind::Inside,
                 );
                 if let Some(texture_id) = icon_texture {
@@ -127,16 +131,8 @@ impl EditorApp {
                     );
                 } else {
                     let icon_center = icon_rect.center();
-                    painter.circle_filled(
-                        icon_center,
-                        18.0,
-                        egui::Color32::from_rgb(244, 196, 48),
-                    );
-                    painter.circle_filled(
-                        icon_center,
-                        9.0,
-                        egui::Color32::from_rgb(255, 243, 194),
-                    );
+                    painter.circle_filled(icon_center, 18.0, egui::Color32::from_rgb(244, 196, 48));
+                    painter.circle_filled(icon_center, 9.0, egui::Color32::from_rgb(255, 243, 194));
                 }
 
                 painter.text(
@@ -173,8 +169,12 @@ impl EditorApp {
             AchievementIconSource::SheetIndex(sheet_index) => {
                 let cache_key = format!("achievement_popup_sheet::{sheet_index}");
                 let uv_rect = achievement_sheet_uv(*sheet_index)?;
-                self.achievement_popup_tex_cache
-                    .load_sprite_crop(ctx, &cache_key, ACHIEVEMENT_SHEET_ASSET, uv_rect)
+                self.achievement_popup_tex_cache.load_sprite_crop(
+                    ctx,
+                    &cache_key,
+                    ACHIEVEMENT_SHEET_ASSET,
+                    uv_rect,
+                )
             }
         }
     }
@@ -184,7 +184,8 @@ fn achievement_icon_lookup() -> &'static HashMap<String, AchievementIconSource> 
     static LOOKUP: OnceLock<HashMap<String, AchievementIconSource>> = OnceLock::new();
     LOOKUP.get_or_init(|| {
         parse_achievement_icon_lookup(achievement_icon_prefab_text(), |icon_name| {
-            assets::read_pathname(&format!("Assets/Resources/achievements/{icon_name}.png")).is_some()
+            assets::read_pathname(&format!("Assets/Resources/achievements/{icon_name}.png"))
+                .is_some()
         })
     })
 }
@@ -353,7 +354,9 @@ mod tests {
         );
         assert_eq!(
             lookup.get("grp.HIDDEN_CRATE"),
-            Some(&AchievementIconSource::Individual("89_hidden_crate".to_string()))
+            Some(&AchievementIconSource::Individual(
+                "89_hidden_crate".to_string()
+            ))
         );
         assert_eq!(
             lookup.get("grp.GROUND_HOG_DAY"),

@@ -62,7 +62,9 @@ GameObject Root
         assert_eq!(scale.x, 2.0);
         assert_eq!(scale.y, 2.0);
 
-        let bc_id = scene.get_component(root, "BoxCollider").expect("BoxCollider");
+        let bc_id = scene
+            .get_component(root, "BoxCollider")
+            .expect("BoxCollider");
         let bc = scene
             .component_as::<BoxCollider>(bc_id)
             .expect("downcast BoxCollider");

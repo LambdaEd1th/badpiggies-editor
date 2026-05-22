@@ -2,11 +2,11 @@
 
 pub mod background;
 pub mod bg_shader;
-pub mod dark_mask_shader;
 mod clouds;
 mod compound_data;
 mod compound_overrides;
 pub mod compounds;
+pub mod dark_mask_shader;
 pub mod dark_overlay;
 pub mod edge_shader;
 pub mod fill_shader;
@@ -17,11 +17,11 @@ mod level_setup;
 pub mod opaque_shader;
 mod overlays;
 mod particles;
+#[cfg(test)]
+mod shader_asset_coverage;
 pub mod sprite_shader;
 pub mod sprites;
 pub mod terrain;
-#[cfg(test)]
-mod shader_asset_coverage;
 
 use std::sync::Arc;
 
@@ -40,16 +40,15 @@ mod preview;
 mod show;
 mod types;
 
-pub use types::*;
 pub(crate) use handles::MIN_OBJECT_SCALE;
 pub(crate) use show::ATLAS_FILES;
+pub use types::*;
 
 /// Goal flag texture (needs repeat wrap for UV scroll).
 pub(super) const GOAL_FLAG_TEXTURE: &str = "Props_Goal_Area_01.png";
 
 /// Glow/starburst atlas.
 pub(super) const GLOW_ATLAS: &str = "Particles_Sheet_01.png";
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ScaleHandleKind {
@@ -312,4 +311,3 @@ pub struct LevelRenderer {
     /// Number of consecutive frames the dark overlay viewport key has stayed stable.
     dark_overlay_stable_frames: u8,
 }
-

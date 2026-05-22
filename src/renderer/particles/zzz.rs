@@ -6,8 +6,8 @@ use crate::data::unity_particles;
 use crate::domain::types::Vec2;
 
 use super::{
-    Camera, LevelRenderer, particle_sheet_uv_rect, pseudo_random,
-    sample_particle_world_force_xy, sample_particle_world_velocity_xy,
+    Camera, LevelRenderer, particle_sheet_uv_rect, pseudo_random, sample_particle_world_force_xy,
+    sample_particle_world_velocity_xy,
 };
 
 /// A single Zzz particle.

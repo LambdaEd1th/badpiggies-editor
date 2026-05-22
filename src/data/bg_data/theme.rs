@@ -79,38 +79,49 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
             ]
         })
         .unwrap_or([1.0, 1.0, 1.0, 1.0]);
-    let legacy_alpha_blend = crate::domain::level::refs::material_alpha_blend_for_guid(material_guid)
-        || crate::domain::level::refs::material_alpha_blend_for_guid_prefix(material_guid);
+    let legacy_alpha_blend =
+        crate::domain::level::refs::material_alpha_blend_for_guid(material_guid)
+            || crate::domain::level::refs::material_alpha_blend_for_guid_prefix(material_guid);
     let legacy_alpha8bit = crate::domain::level::refs::material_alpha8bit_for_guid(material_guid)
         || crate::domain::level::refs::material_alpha8bit_for_guid_prefix(material_guid);
     let material_cutoff = crate::domain::level::refs::material_cutoff_for_guid(material_guid)
         .or_else(|| crate::domain::level::refs::material_cutoff_for_guid_prefix(material_guid))
         .unwrap_or(0.5);
-    let custom_render_queue = crate::domain::level::refs::material_custom_render_queue_for_guid(material_guid)
-        .or_else(|| crate::domain::level::refs::material_custom_render_queue_for_guid_prefix(material_guid));
-    let (atlas, sky_texture, fill_color) = if let Some(asset_name) = textureloader_materials.get(material_guid) {
-        if is_sky_texture_asset(asset_name) {
-            (None, Some(asset_filename(asset_name)), None)
+    let custom_render_queue = crate::domain::level::refs::material_custom_render_queue_for_guid(
+        material_guid,
+    )
+    .or_else(|| {
+        crate::domain::level::refs::material_custom_render_queue_for_guid_prefix(material_guid)
+    });
+    let (atlas, sky_texture, fill_color) =
+        if let Some(asset_name) = textureloader_materials.get(material_guid) {
+            if is_sky_texture_asset(asset_name) {
+                (None, Some(asset_filename(asset_name)), None)
+            } else {
+                (Some(asset_filename(asset_name)), None, None)
+            }
+        } else if let Some(atlas_name) = super::atlas_for_material_guid(material_guid) {
+            (Some(atlas_name.to_string()), None, None)
+        } else if let Some(fill_color) = material_fill_color {
+            (None, None, Some(fill_color))
         } else {
-            (Some(asset_filename(asset_name)), None, None)
-        }
-    } else if let Some(atlas_name) = super::atlas_for_material_guid(material_guid) {
-        (Some(atlas_name.to_string()), None, None)
-    } else if let Some(fill_color) = material_fill_color {
-        (None, None, Some(fill_color))
-    } else {
-        log::warn!(
-            "Missing background material mapping for theme={}, sprite={}, guid={}",
-            theme_name,
-            game_object.name,
-            material_guid
-        );
-        return None;
-    };
+            log::warn!(
+                "Missing background material mapping for theme={}, sprite={}, guid={}",
+                theme_name,
+                game_object.name,
+                material_guid
+            );
+            return None;
+        };
     let shader_kind = crate::domain::level::refs::material_shader_kind_for_guid(material_guid)
         .or_else(|| crate::domain::level::refs::material_shader_kind_for_guid_prefix(material_guid))
         .unwrap_or_else(|| {
-            fallback_bg_shader_kind(fill_color, sky_texture.is_some(), legacy_alpha_blend, legacy_alpha8bit)
+            fallback_bg_shader_kind(
+                fill_color,
+                sky_texture.is_some(),
+                legacy_alpha_blend,
+                legacy_alpha8bit,
+            )
         });
     let main_tex_st = crate::domain::level::refs::material_main_tex_st_for_guid(material_guid)
         .or_else(|| crate::domain::level::refs::material_main_tex_st_for_guid_prefix(material_guid))
@@ -167,10 +178,7 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
     })
 }
 
-fn sprite_requires_soft_alpha_blend(
-    atlas_name: &str,
-    sprite_component: &SpriteComponent,
-) -> bool {
+fn sprite_requires_soft_alpha_blend(atlas_name: &str, sprite_component: &SpriteComponent) -> bool {
     let Some(image) = background_atlas_images().get(atlas_name) else {
         return false;
     };
@@ -184,7 +192,8 @@ fn sprite_requires_soft_alpha_blend(
     let height = image.height() as f32;
     let x0 = ((sprite_component.uv_x / subdiv) * width).round() as u32;
     let x1 = (((sprite_component.uv_x + sprite_component.width) / subdiv) * width).round() as u32;
-    let y0 = (((subdiv - sprite_component.uv_y - sprite_component.height) / subdiv) * height).round() as u32;
+    let y0 = (((subdiv - sprite_component.uv_y - sprite_component.height) / subdiv) * height)
+        .round() as u32;
     let y1 = (((subdiv - sprite_component.uv_y) / subdiv) * height).round() as u32;
     let x0 = x0.min(image.width());
     let x1 = x1.min(image.width());
@@ -218,7 +227,8 @@ fn background_atlas_images() -> &'static HashMap<String, image::RgbaImage> {
         bg_atlas_files()
             .iter()
             .filter_map(|atlas_name| {
-                let data = crate::data::assets::read_pathname(&format!("Assets/Texture2D/{atlas_name}"))?;
+                let data =
+                    crate::data::assets::read_pathname(&format!("Assets/Texture2D/{atlas_name}"))?;
                 let image = image::load_from_memory(&data).ok()?.to_rgba8();
                 Some((atlas_name.clone(), image))
             })
@@ -413,17 +423,19 @@ static BG_THEMES: OnceLock<HashMap<String, BgTheme>> = OnceLock::new();
 
 fn build_themes() -> HashMap<String, BgTheme> {
     let textureloader_materials = load_textureloader_materials();
-    let prefab_paths = crate::data::assets::list_pathnames(
-        "Assets/Resources/environment/background/",
-        ".prefab",
-    );
+    let prefab_paths =
+        crate::data::assets::list_pathnames("Assets/Resources/environment/background/", ".prefab");
     let mut themes = HashMap::new();
 
     for prefab_path in prefab_paths {
-        let Some(prefab_name) = Path::new(&prefab_path).file_stem().and_then(|stem| stem.to_str()) else {
+        let Some(prefab_name) = Path::new(&prefab_path)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+        else {
             continue;
         };
-        let Some(theme_name) = crate::data::assets::theme_name_for_background_prefab(prefab_name) else {
+        let Some(theme_name) = crate::data::assets::theme_name_for_background_prefab(prefab_name)
+        else {
             continue;
         };
 

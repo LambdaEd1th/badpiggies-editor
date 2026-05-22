@@ -56,15 +56,16 @@ pub fn sky_texture_files() -> &'static [String] {
 }
 
 fn texture2d_png_filenames() -> Vec<String> {
-    let mut filenames: Vec<String> = crate::data::assets::list_pathnames("Assets/Texture2D/", ".png")
-        .into_iter()
-        .filter_map(|path| {
-            Path::new(&path)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .map(str::to_string)
-        })
-        .collect();
+    let mut filenames: Vec<String> =
+        crate::data::assets::list_pathnames("Assets/Texture2D/", ".png")
+            .into_iter()
+            .filter_map(|path| {
+                Path::new(&path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(str::to_string)
+            })
+            .collect();
     filenames.sort();
     filenames.dedup();
     filenames

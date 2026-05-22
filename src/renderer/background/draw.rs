@@ -2,8 +2,8 @@
 
 use eframe::egui;
 
-use crate::data::{assets, unity_anim};
 use crate::data::bg_data::{self, BgSprite};
+use crate::data::{assets, unity_anim};
 use crate::domain::types::Vec2;
 
 use super::super::{Camera, DrawCtx, bg_shader};
@@ -312,12 +312,8 @@ fn draw_bg_sprite_offset(
 
     // Old TS/Pixi behavior stretches atlas-based fill-like sprites and large
     // singleton backdrops when they are widened to cover the viewport.
-    let content_ratio_x = content_ratio_x_for_bg_sprite(
-        sprite,
-        extend_fill_like,
-        orig_display_w,
-        display_w,
-    );
+    let content_ratio_x =
+        content_ratio_x_for_bg_sprite(sprite, extend_fill_like, orig_display_w, display_w);
 
     let center = camera.world_to_screen(
         Vec2 {
@@ -347,12 +343,7 @@ fn draw_bg_sprite_offset(
             hh_screen,
         )
     } else {
-        (
-            world_y,
-            display_h,
-            center,
-            display_h * 0.5 * camera.zoom,
-        )
+        (world_y, display_h, center, display_h * 0.5 * camera.zoom)
     };
 
     let hw_screen = display_w * 0.5 * camera.zoom;
@@ -367,19 +358,18 @@ fn draw_bg_sprite_offset(
     // ── GPU path: use WGSL background shader ──
     if let Some(g) = gpu
         && *g.slot_counter < bg_shader::max_draw_slots()
-    {
-        if let Some(atlas_key) = sprite
+        && let Some(atlas_key) = sprite
             .fill_color
             .map(|_| bg_shader::WHITE_TEXTURE_KEY)
             .or(sprite.sky_texture.as_deref())
             .or(sprite.atlas.as_deref())
-            && let Some(atlas) =
-                g.atlas_cache
-                    .get_or_load(g.device, g.queue, &g.resources, atlas_key)
-        {
-            let (uv_min, uv_max) = if sprite.fill_color.is_some() || sprite.sky_texture.is_some() {
-                ([0.0, 0.0], [1.0, 1.0])
-            } else {
+        && let Some(atlas) = g
+            .atlas_cache
+            .get_or_load(g.device, g.queue, &g.resources, atlas_key)
+    {
+        let (uv_min, uv_max) = if sprite.fill_color.is_some() || sprite.sky_texture.is_some() {
+            ([0.0, 0.0], [1.0, 1.0])
+        } else {
             let cell = 1.0 / sprite.subdiv;
             // When border > 0, border_off alone maps to the exact content
             // boundary; the border pixels duplicate edge content for safe
@@ -408,34 +398,32 @@ fn draw_bg_sprite_offset(
                 (v0, v1)
             };
 
-                ([u0, v0], [u1, v1])
-            };
+            ([u0, v0], [u1, v1])
+        };
 
-            let uniforms = bg_shader::BgUniforms {
-                screen_size: [rect.width(), rect.height()],
-                camera_center: [camera.center.x, camera.center.y],
-                zoom: camera.zoom,
-                cutoff: sprite.cutoff,
-                world_center: [world_x, draw_world_y],
-                world_size: [display_w, draw_display_h],
-                uv_min,
-                uv_max,
-                content_ratio_x,
-                _pad0: 0.0,
-                main_tex_st: sprite.main_tex_st,
-                tint_color: sprite.tint,
-            };
-            let slot = *g.slot_counter;
-            *g.slot_counter += 1;
-            painter.add(bg_shader::make_bg_callback(
-                rect,
-                g.resources.clone(),
-                atlas,
-                slot,
-                uniforms,
-                sprite.shader_kind,
-            ));
-            return;
-        }
+        let uniforms = bg_shader::BgUniforms {
+            screen_size: [rect.width(), rect.height()],
+            camera_center: [camera.center.x, camera.center.y],
+            zoom: camera.zoom,
+            cutoff: sprite.cutoff,
+            world_center: [world_x, draw_world_y],
+            world_size: [display_w, draw_display_h],
+            uv_min,
+            uv_max,
+            content_ratio_x,
+            _pad0: 0.0,
+            main_tex_st: sprite.main_tex_st,
+            tint_color: sprite.tint,
+        };
+        let slot = *g.slot_counter;
+        *g.slot_counter += 1;
+        painter.add(bg_shader::make_bg_callback(
+            rect,
+            g.resources.clone(),
+            atlas,
+            slot,
+            uniforms,
+            sprite.shader_kind,
+        ));
     }
 }

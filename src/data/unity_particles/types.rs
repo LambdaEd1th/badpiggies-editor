@@ -137,8 +137,7 @@ impl ParticleUvModule {
             tiles_x.saturating_mul(self.tiles_y.max(1))
         };
         if self.frame_over_time.mode == 3 {
-            let min_frame =
-                (self.frame_over_time.min_scalar.max(0.0) * frame_span as f32).floor();
+            let min_frame = (self.frame_over_time.min_scalar.max(0.0) * frame_span as f32).floor();
             let max_frame = (self.frame_over_time.scalar.max(0.0) * frame_span as f32).floor();
             let min_frame = min_frame.min(max_frame) as u32;
             let max_frame = max_frame.max(min_frame as f32) as u32;
@@ -146,8 +145,7 @@ impl ParticleUvModule {
             let offset = ((frame_count as f32) * random.clamp(0.0, 0.999_999)).floor() as u32;
             (min_frame + offset).min(frame_span - 1)
         } else {
-            ((self.frame_over_time.sample(0.0, random).max(0.0) * frame_span as f32).floor()
-                as u32)
+            ((self.frame_over_time.sample(0.0, random).max(0.0) * frame_span as f32).floor() as u32)
                 .min(frame_span - 1)
         }
     }

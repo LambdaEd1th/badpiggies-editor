@@ -80,7 +80,13 @@ impl PrefabAssetDocument {
                 1 => {
                     let name = field_value(doc, "m_Name: ").unwrap_or(file_id).to_string();
                     let component_ids = parse_component_ids(doc);
-                    game_objects.insert(file_id.to_string(), PrefabAssetGameObject { name, component_ids });
+                    game_objects.insert(
+                        file_id.to_string(),
+                        PrefabAssetGameObject {
+                            name,
+                            component_ids,
+                        },
+                    );
                 }
                 4 => {
                     let Some(game_object_id) =
@@ -242,12 +248,12 @@ impl PrefabAssetDocument {
         game_object_name: &str,
         suffix: &str,
     ) -> Option<&PrefabAssetComponent> {
-        let game_object_id = self
-            .game_objects
-            .iter()
-            .find_map(|(game_object_id, game_object)| {
-                (game_object.name == game_object_name).then_some(game_object_id.as_str())
-            })?;
+        let game_object_id =
+            self.game_objects
+                .iter()
+                .find_map(|(game_object_id, game_object)| {
+                    (game_object.name == game_object_name).then_some(game_object_id.as_str())
+                })?;
 
         self.game_objects
             .get(game_object_id)?
@@ -264,12 +270,12 @@ impl PrefabAssetDocument {
     }
 
     pub fn transform_by_game_object_name(&self, name: &str) -> Option<&PrefabAssetTransform> {
-        let game_object_id = self
-            .game_objects
-            .iter()
-            .find_map(|(game_object_id, game_object)| {
-                (game_object.name == name).then_some(game_object_id.as_str())
-            })?;
+        let game_object_id =
+            self.game_objects
+                .iter()
+                .find_map(|(game_object_id, game_object)| {
+                    (game_object.name == name).then_some(game_object_id.as_str())
+                })?;
 
         self.transforms
             .values()
@@ -277,10 +283,13 @@ impl PrefabAssetDocument {
     }
 
     pub fn cumulative_scale_by_game_object_name(&self, name: &str) -> Option<[f32; 3]> {
-        let transform_id = self.transforms.iter().find_map(|(transform_id, transform)| {
-            let game_object = self.game_objects.get(&transform.game_object_id)?;
-            (game_object.name == name).then_some(transform_id.as_str())
-        })?;
+        let transform_id = self
+            .transforms
+            .iter()
+            .find_map(|(transform_id, transform)| {
+                let game_object = self.game_objects.get(&transform.game_object_id)?;
+                (game_object.name == name).then_some(transform_id.as_str())
+            })?;
 
         let mut scale = [1.0, 1.0, 1.0];
         let mut current_id = Some(transform_id.to_string());
@@ -301,10 +310,13 @@ impl PrefabAssetDocument {
     /// prefab root, ignoring the root's own scene placement. Assumes intermediate
     /// transforms have zero rotation (true for all compound part prefabs).
     pub fn cumulative_local_pos_by_game_object_name(&self, name: &str) -> Option<[f32; 3]> {
-        let transform_id = self.transforms.iter().find_map(|(transform_id, transform)| {
-            let game_object = self.game_objects.get(&transform.game_object_id)?;
-            (game_object.name == name).then_some(transform_id.as_str())
-        })?;
+        let transform_id = self
+            .transforms
+            .iter()
+            .find_map(|(transform_id, transform)| {
+                let game_object = self.game_objects.get(&transform.game_object_id)?;
+                (game_object.name == name).then_some(transform_id.as_str())
+            })?;
 
         let mut pos = [0.0, 0.0, 0.0];
         let mut current_id = Some(transform_id.to_string());
@@ -354,11 +366,7 @@ impl PrefabAssetDocument {
     }
 
     /// Component lookup by slash-separated path (see `transform_by_path`).
-    pub fn component_by_path(
-        &self,
-        path: &str,
-        suffix: &str,
-    ) -> Option<&PrefabAssetComponent> {
+    pub fn component_by_path(&self, path: &str, suffix: &str) -> Option<&PrefabAssetComponent> {
         let transform = self.transform_by_path(path)?;
         let game_object = self.game_objects.get(&transform.game_object_id)?;
         game_object
@@ -436,16 +444,14 @@ impl PrefabAssetDocument {
     pub fn transform_point_by_path(&self, path: &str, point: [f32; 3]) -> Option<[f32; 3]> {
         let transform = self.transform_by_path(path)?;
         self.transform_point_by_file_id(
-            self.transforms
-                .iter()
-                .find_map(|(id, candidate)| {
-                    (candidate.game_object_id == transform.game_object_id
-                        && candidate.local_pos == transform.local_pos
-                        && candidate.local_rotation == transform.local_rotation
-                        && candidate.local_scale == transform.local_scale
-                        && candidate.parent_id == transform.parent_id)
-                        .then_some(id.as_str())
-                })?,
+            self.transforms.iter().find_map(|(id, candidate)| {
+                (candidate.game_object_id == transform.game_object_id
+                    && candidate.local_pos == transform.local_pos
+                    && candidate.local_rotation == transform.local_rotation
+                    && candidate.local_scale == transform.local_scale
+                    && candidate.parent_id == transform.parent_id)
+                    .then_some(id.as_str())
+            })?,
             point,
         )
     }
@@ -808,7 +814,9 @@ mod tests {
     #[test]
     fn parses_root_components_and_named_transform_defaults() {
         let prefab = PrefabAssetDocument::parse(SAMPLE_PREFAB).expect("expected prefab");
-        let bridge = prefab.root_component("Bridge").expect("missing Bridge component");
+        let bridge = prefab
+            .root_component("Bridge")
+            .expect("missing Bridge component");
         let bridge_by_name = prefab
             .component_by_game_object_name("Bridge", "Bridge")
             .expect("missing Bridge component on Bridge GameObject");
@@ -846,8 +854,8 @@ mod tests {
 
     #[test]
     fn transforms_points_through_scaled_and_rotated_children() {
-        let prefab = PrefabAssetDocument::parse(TRANSFORM_POINT_SAMPLE_PREFAB)
-            .expect("expected prefab");
+        let prefab =
+            PrefabAssetDocument::parse(TRANSFORM_POINT_SAMPLE_PREFAB).expect("expected prefab");
 
         assert_eq!(
             prefab.transform_point_by_path("Child", [1.0, 0.0, 0.0]),

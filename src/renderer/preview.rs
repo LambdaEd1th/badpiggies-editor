@@ -127,7 +127,6 @@ impl LevelRenderer {
         self.sprite_atlas_cache
             .get_or_load(device, queue, resources, filename)
     }
-
 }
 
 #[cfg(test)]
@@ -137,7 +136,8 @@ mod tests {
         DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
 
-    const LEVEL_MANAGER_DARK_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
+    const LEVEL_MANAGER_DARK_OVERRIDE: &str =
+        "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
 
     fn dark_level() -> LevelData {
         LevelData {

@@ -185,7 +185,9 @@ pub struct OpaqueAtlas {
 /// Load and upload the Props_Generic_Sheet_01 atlas as a raw wgpu texture.
 pub fn load_props_atlas(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<OpaqueAtlas> {
     let data = crate::data::assets::read_pathname("Assets/Texture2D/Props_Generic_Sheet_01.png")
-        .or_else(|| crate::data::assets::read_pathname("Assets/Texture2D/Props_Generic_Sheet_01.png"))?;
+        .or_else(|| {
+            crate::data::assets::read_pathname("Assets/Texture2D/Props_Generic_Sheet_01.png")
+        })?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let width = img.width();
     let height = img.height();
@@ -394,7 +396,10 @@ pub fn build_opaque_sprites(
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(&format!("unlit__transparent_cutout__sprite_bind_group_{}", i)),
+            label: Some(&format!(
+                "unlit__transparent_cutout__sprite_bind_group_{}",
+                i
+            )),
             layout: &resources.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {

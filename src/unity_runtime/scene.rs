@@ -172,7 +172,10 @@ impl Scene {
     }
 
     /// First component on `owner` that downcasts to `T`.
-    pub fn get_component_of<T: UnityComponent>(&self, owner: GameObjectId) -> Option<(ComponentId, &T)> {
+    pub fn get_component_of<T: UnityComponent>(
+        &self,
+        owner: GameObjectId,
+    ) -> Option<(ComponentId, &T)> {
         for &cid in &self.game_object(owner).components {
             if let Some(t) = self.component_as::<T>(cid) {
                 return Some((cid, t));
@@ -223,7 +226,11 @@ impl Scene {
         let mut scene = Scene::new();
         scene.permissive = true;
         let root = scene.create_game_object(root_name, None);
-        crate::domain::object_deserializer::read_prefab_overrides(&mut scene, root, text_for_reader);
+        crate::domain::object_deserializer::read_prefab_overrides(
+            &mut scene,
+            root,
+            text_for_reader,
+        );
         scene.permissive = false;
         Some((scene, root))
     }

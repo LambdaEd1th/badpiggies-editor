@@ -10,8 +10,8 @@ mod draw;
 #[cfg(test)]
 mod tests;
 
-pub use cache::{BgGpuState, BgLayerCache, build_bg_layer_cache};
 pub use cache::build_bg_layer_cache_with_root_offset;
+pub use cache::{BgGpuState, BgLayerCache, build_bg_layer_cache};
 pub(in crate::renderer) use draw::hermite;
 pub use draw::{draw_background, draw_bg_layers};
 
@@ -91,7 +91,9 @@ impl LevelRenderer {
             .iter()
             .enumerate()
             .filter_map(|(terrain_index, terrain)| {
-                terrain.decorative.then_some((terrain.world_z, terrain_index))
+                terrain
+                    .decorative
+                    .then_some((terrain.world_z, terrain_index))
             })
             .collect();
 
@@ -104,12 +106,13 @@ impl LevelRenderer {
                         .iter()
                         .filter_map(|&sprite_index| {
                             let world_z = sprites[sprite_index].world_z;
-                            (0.0..5.0).contains(&world_z).then_some((world_z, sprite_index))
+                            (0.0..5.0)
+                                .contains(&world_z)
+                                .then_some((world_z, sprite_index))
                         })
                         .collect();
-                    queue.sort_by(|a, b| {
-                        b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
-                    });
+                    queue
+                        .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
                     queue
                 } else {
                     Vec::new()
@@ -228,23 +231,19 @@ impl LevelRenderer {
             }));
         }
 
-        backdrop_queue.extend(
-            self.cloud_instances
-                .iter()
-                .enumerate()
-                .map(|(cloud_index, cloud)| {
-                    (
-                        CLOUD_BACKDROP_ORDER_BUCKET,
-                        cloud.z,
-                        BackdropItem::Cloud(cloud_index),
-                    )
-                }),
-        );
+        backdrop_queue.extend(self.cloud_instances.iter().enumerate().map(
+            |(cloud_index, cloud)| {
+                (
+                    CLOUD_BACKDROP_ORDER_BUCKET,
+                    cloud.z,
+                    BackdropItem::Cloud(cloud_index),
+                )
+            },
+        ));
 
         backdrop_queue.sort_by(|a, b| {
-            a.0.cmp(&b.0).then_with(|| {
-                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-            })
+            a.0.cmp(&b.0)
+                .then_with(|| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
         });
 
         for (_, _, item) in backdrop_queue {

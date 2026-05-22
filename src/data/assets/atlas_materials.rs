@@ -59,7 +59,10 @@ fn build_atlas_by_material_guid() -> HashMap<String, String> {
             continue;
         };
         for (index, guid) in guids.iter().take(ATLAS_FILES.len()).enumerate() {
-            atlas_by_guid.insert(guid_prefix(guid).to_string(), ATLAS_FILES[index].to_string());
+            atlas_by_guid.insert(
+                guid_prefix(guid).to_string(),
+                ATLAS_FILES[index].to_string(),
+            );
         }
     }
 

@@ -8,11 +8,7 @@ pub(super) fn quat_to_z_angle(qx: f32, qy: f32, qz: f32, qw: f32) -> f32 {
     (2.0 * (qw * qz + qx * qy)).atan2(1.0 - 2.0 * (qy * qy + qz * qz))
 }
 
-pub(super) fn make_local_trs(
-    position: [f32; 2],
-    scale: [f32; 2],
-    rotation: [f32; 4],
-) -> Mat2x3 {
+pub(super) fn make_local_trs(position: [f32; 2], scale: [f32; 2], rotation: [f32; 4]) -> Mat2x3 {
     let angle = quat_to_z_angle(rotation[0], rotation[1], rotation[2], rotation[3]);
     let cos_a = angle.cos();
     let sin_a = angle.sin();

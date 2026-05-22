@@ -230,17 +230,19 @@ impl UnityAnimationClipYaml {
                     .chain(curve.keys.z.iter())
                     .chain(curve.keys.w.iter())
             })
-            .chain(position_curves
-                .iter()
-            .chain(scale_curves.iter())
-            .flat_map(|curve| {
-                curve
-                    .keys
-                    .x
+            .chain(
+                position_curves
                     .iter()
-                    .chain(curve.keys.y.iter())
-                    .chain(curve.keys.z.iter())
-            }))
+                    .chain(scale_curves.iter())
+                    .flat_map(|curve| {
+                        curve
+                            .keys
+                            .x
+                            .iter()
+                            .chain(curve.keys.y.iter())
+                            .chain(curve.keys.z.iter())
+                    }),
+            )
             .chain(float_curves.iter().flat_map(|curve| curve.keys.iter()))
             .fold(0.0_f32, |max_time, key| max_time.max(key.0));
 
@@ -429,8 +431,11 @@ mod tests {
 
     #[test]
     fn parses_bird_sleep2_root_curves() {
-        let clip = parse_clip(&asset_text(BIRD_SLEEP2_ASSET)).expect("BirdSleep2.anim should parse");
-        let position = clip.root_position().expect("root position curve should exist");
+        let clip =
+            parse_clip(&asset_text(BIRD_SLEEP2_ASSET)).expect("BirdSleep2.anim should parse");
+        let position = clip
+            .root_position()
+            .expect("root position curve should exist");
         let scale = clip.root_scale().expect("root scale curve should exist");
 
         assert!(clip.loops);
@@ -465,7 +470,9 @@ mod tests {
         );
 
         let clip = ocean_animation_clip().expect("ocean animation clip should load from assets");
-        let position = clip.root_position().expect("ocean animation root position curve should exist");
+        let position = clip
+            .root_position()
+            .expect("ocean animation root position curve should exist");
 
         assert_close(clip.duration, 6.0);
         assert!(clip.loops);
@@ -483,7 +490,9 @@ mod tests {
 
         let clip =
             ocean_foam_animation_clip().expect("ocean foam animation clip should load from assets");
-        let position = clip.root_position().expect("ocean foam root position curve should exist");
+        let position = clip
+            .root_position()
+            .expect("ocean foam root position curve should exist");
 
         assert_close(clip.duration, 6.0);
         assert!(clip.loops);
@@ -496,7 +505,9 @@ mod tests {
     fn parses_achievement_popup_enter_position_curve() {
         let clip = parse_clip(&asset_text(ACHIEVEMENT_POPUP_ENTER_ASSET))
             .expect("AchievementPopupEnter.anim should parse");
-        let position = clip.root_position().expect("root position curve should exist");
+        let position = clip
+            .root_position()
+            .expect("root position curve should exist");
 
         assert!(!clip.loops);
         assert_eq!(position.y.len(), 4);
@@ -507,9 +518,11 @@ mod tests {
 
     #[test]
     fn parses_goal_vanishing_position_scale_and_alpha_curves() {
-        let clip = parse_clip(&asset_text(GOAL_VANISHING_ASSET))
-            .expect("GoalVanishing.anim should parse");
-        let position = clip.root_position().expect("root position curve should exist");
+        let clip =
+            parse_clip(&asset_text(GOAL_VANISHING_ASSET)).expect("GoalVanishing.anim should parse");
+        let position = clip
+            .root_position()
+            .expect("root position curve should exist");
         let scale = clip.root_scale().expect("root scale curve should exist");
         let alpha = clip
             .root_float_curve("_Color.a")
@@ -528,9 +541,11 @@ mod tests {
 
     #[test]
     fn parses_rotating_glow_rotation_and_float_curves() {
-        let clip = parse_clip(&asset_text(ROTATING_GLOW_ASSET))
-            .expect("RotatingGlow.anim should parse");
-        let rotation = clip.root_rotation().expect("root rotation curve should exist");
+        let clip =
+            parse_clip(&asset_text(ROTATING_GLOW_ASSET)).expect("RotatingGlow.anim should parse");
+        let rotation = clip
+            .root_rotation()
+            .expect("root rotation curve should exist");
         let euler_z = clip
             .root_float_curve("m_LocalEulerAnglesHint.z")
             .expect("root float z curve should exist");

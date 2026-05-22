@@ -13,10 +13,8 @@ use crate::domain::types::{Vec2, Vec3};
 use crate::unity_runtime::components::{BoxCollider, ParticleSystem, Transform, WindArea};
 use crate::unity_runtime::scene::Scene;
 
-use super::{
-    LevelRenderer, particle_sheet_uv_rect, pseudo_random, rotate_vec2,
-};
 use super::super::DrawCtx;
+use super::{LevelRenderer, particle_sheet_uv_rect, pseudo_random, rotate_vec2};
 
 /// Wind area zone definition.
 #[derive(Clone, Debug)]
@@ -454,9 +452,7 @@ fn prewarm_wind_system(
             && local_particles.len() < wind_area_particle_max_count(area, system_index)
         {
             spawn_accum = (spawn_accum - 1.0).max(0.0);
-            let seed = area_index as u32 * 1009
-                + system_index as u32 * 313
-                + spawn_serial * 17;
+            let seed = area_index as u32 * 1009 + system_index as u32 * 313 + spawn_serial * 17;
             spawn_wind_particle(area, system_index, &mut local_particles, seed);
             spawn_serial = spawn_serial.wrapping_add(1);
         }
@@ -491,17 +487,15 @@ fn spawn_wind_particle(
     let dir_y = area.dir_y / dir_len;
     let side_x = -dir_y;
     let side_y = dir_x;
-    let (emitter_offset_dir, emitter_offset_side) = wind_particle_emitter_offsets(area, system_index);
+    let (emitter_offset_dir, emitter_offset_side) =
+        wind_particle_emitter_offsets(area, system_index);
     let (_, shape_half_side) = wind_particle_shape_half_extents(area, system_index);
-    let emitter_center_x = area.center_x
-        + dir_x * emitter_offset_dir
-        + side_x * emitter_offset_side;
-    let emitter_center_y = area.center_y
-        + dir_y * emitter_offset_dir
-        + side_y * emitter_offset_side;
-    let side_offset = (pseudo_random(seed.wrapping_mul(7).wrapping_add(1)) - 0.5)
-        * shape_half_side
-        * 2.0;
+    let emitter_center_x =
+        area.center_x + dir_x * emitter_offset_dir + side_x * emitter_offset_side;
+    let emitter_center_y =
+        area.center_y + dir_y * emitter_offset_dir + side_y * emitter_offset_side;
+    let side_offset =
+        (pseudo_random(seed.wrapping_mul(7).wrapping_add(1)) - 0.5) * shape_half_side * 2.0;
     let x = emitter_center_x + side_x * side_offset;
     let y = emitter_center_y + side_y * side_offset;
     let size_random = pseudo_random(seed.wrapping_mul(11).wrapping_add(5));
@@ -609,8 +603,11 @@ pub(crate) fn draw_wind_particles(
     tex_id: Option<egui::TextureId>,
 ) {
     let Some(leaf_tex) = tex_id else { return };
-    let selected_area = source_sprite_index
-        .and_then(|sprite_index| wind_areas.iter().find(|area| area.sprite_index == sprite_index));
+    let selected_area = source_sprite_index.and_then(|sprite_index| {
+        wind_areas
+            .iter()
+            .find(|area| area.sprite_index == sprite_index)
+    });
     for p in particles {
         let area = if let Some(area) = selected_area {
             if p.source_sprite_index != area.sprite_index {
@@ -640,8 +637,7 @@ pub(crate) fn draw_wind_particles(
             continue;
         }
 
-        let (tiles_x, tiles_y, row_index) =
-            wind_particle_uv_layout(area, p.source_system_index);
+        let (tiles_x, tiles_y, row_index) = wind_particle_uv_layout(area, p.source_system_index);
         let (u0, u1, v0, v1) = particle_sheet_uv_rect(tiles_x, tiles_y, row_index, p.leaf_col);
 
         let hw = sz * 0.5;
@@ -711,12 +707,7 @@ mod tests {
     #[test]
     fn wind_area_particles_follow_area_direction() {
         let mut particles = Vec::new();
-        spawn_wind_particle(
-            &test_wind_area(0.0, 8.0),
-            0,
-            &mut particles,
-            0,
-        );
+        spawn_wind_particle(&test_wind_area(0.0, 8.0), 0, &mut particles, 0);
 
         let particle = &particles[0];
         assert!(particle.vy > 0.0);
@@ -896,9 +887,15 @@ mod tests {
         }
 
         let min_x = particles.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
-        let max_x = particles.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
+        let max_x = particles
+            .iter()
+            .map(|p| p.x)
+            .fold(f32::NEG_INFINITY, f32::max);
         let min_y = particles.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
-        let max_y = particles.iter().map(|p| p.y).fold(f32::NEG_INFINITY, f32::max);
+        let max_y = particles
+            .iter()
+            .map(|p| p.y)
+            .fold(f32::NEG_INFINITY, f32::max);
 
         let x_span = max_x - min_x;
         let y_span = max_y - min_y;

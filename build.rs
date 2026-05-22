@@ -17,7 +17,8 @@ const PACKAGE_SHA256_ENV: &str = "BP_EDITOR_UNITYPACKAGE_SHA256";
 const CACHE_DIR_ENV: &str = "BP_EDITOR_UNITY_ASSET_CACHE_DIR";
 
 const DEFAULT_PACKAGE_URL: &str = "https://github.com/BP-Innovation/Bad-Piggies-Original/releases/download/v2.3.6/Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
-const DEFAULT_PACKAGE_SHA256: &str = "2dcdf27a5df5f77ffbed744663c1eeca74f8d101f93652ed976df31241c34f57";
+const DEFAULT_PACKAGE_SHA256: &str =
+    "2dcdf27a5df5f77ffbed744663c1eeca74f8d101f93652ed976df31241c34f57";
 const PACKAGE_FILENAME: &str = "Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -69,7 +70,8 @@ fn prepare_fetched_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Err
     let package_path = if let Some(path) = env::var_os(PACKAGE_PATH_ENV) {
         resolve_env_path(manifest_dir, path)
     } else {
-        let package_url = env::var(PACKAGE_URL_ENV).unwrap_or_else(|_| DEFAULT_PACKAGE_URL.to_owned());
+        let package_url =
+            env::var(PACKAGE_URL_ENV).unwrap_or_else(|_| DEFAULT_PACKAGE_URL.to_owned());
         let cached_package = cache_root.join(PACKAGE_FILENAME);
         ensure_downloaded_package(&package_url, &sha256, &cached_package)?;
         cached_package
@@ -99,7 +101,11 @@ fn default_cache_root(manifest_dir: &Path) -> PathBuf {
     }
 }
 
-fn ensure_downloaded_package(url: &str, sha256: &str, package_path: &Path) -> Result<(), Box<dyn Error>> {
+fn ensure_downloaded_package(
+    url: &str,
+    sha256: &str,
+    package_path: &Path,
+) -> Result<(), Box<dyn Error>> {
     if package_path.exists() && verify_sha256(package_path, sha256).is_ok() {
         return Ok(());
     }
@@ -254,7 +260,10 @@ fn ensure_asset_dir(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
 }
 
 fn env_flag(name: &str) -> bool {
-    matches!(env::var(name).ok().as_deref(), Some("1" | "true" | "TRUE" | "yes" | "YES"))
+    matches!(
+        env::var(name).ok().as_deref(),
+        Some("1" | "true" | "TRUE" | "yes" | "YES")
+    )
 }
 
 fn resolve_env_path(manifest_dir: &Path, value: impl Into<PathBuf>) -> PathBuf {

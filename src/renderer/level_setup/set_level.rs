@@ -6,6 +6,7 @@ use crate::data::assets;
 use crate::domain::types::{LevelData, LevelObject, Vec2, Vec3};
 
 use super::super::LevelRenderer;
+use super::super::PreviewPlaybackState;
 use super::super::background;
 use super::super::clouds::{CloudInstance, cloud_config};
 use super::super::compounds;
@@ -15,12 +16,11 @@ use super::super::fill_shader;
 use super::super::grid;
 use super::super::opaque_shader;
 use super::super::particles::{
-    AttachedEffectEmitter, FanEmitter, FanState, build_wind_area_def,
-    attached_effect_kind_for_sprite_name, wind_area_particle_system_count,
+    AttachedEffectEmitter, FanEmitter, FanState, attached_effect_kind_for_sprite_name,
+    build_wind_area_def, wind_area_particle_system_count,
 };
 use super::super::sprites;
 use super::super::terrain;
-use super::super::PreviewPlaybackState;
 use super::{
     compute_world_position, find_bg_override_text, find_bg_root_position, load_raw_rgba,
     parse_authored_camera, parse_camera_limits,
@@ -74,8 +74,7 @@ impl LevelRenderer {
             .collect();
         // Find BackgroundObject override text for BG position adjustments
         self.bg_override_text = find_bg_override_text(&level.objects);
-        let bg_root_offset =
-            find_bg_root_position(&level.objects).map(|pos| [pos.x, pos.y, pos.z]);
+        let bg_root_offset = find_bg_root_position(&level.objects).map(|pos| [pos.x, pos.y, pos.z]);
 
         self.bg_theme =
             assets::detect_bg_theme(&self.level_key, &names, self.bg_override_text.as_deref());
@@ -406,7 +405,8 @@ impl LevelRenderer {
                 });
             }
         }
-        self.wind_spawn_accum = vec![0.0; self.wind_areas.len() * wind_area_particle_system_count()];
+        self.wind_spawn_accum =
+            vec![0.0; self.wind_areas.len() * wind_area_particle_system_count()];
         self.preview_playback_state = PreviewPlaybackState::Play;
         self.start_runtime_preview();
 

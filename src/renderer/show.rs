@@ -5,8 +5,8 @@ use eframe::egui;
 use crate::domain::types::*;
 
 use super::{
-    BoundsHandle, CanvasContextAction, CursorMode, DragMode, LevelRenderer,
-    NodeEditAction, PreviewPlaybackState,
+    BoundsHandle, CanvasContextAction, CursorMode, DragMode, LevelRenderer, NodeEditAction,
+    PreviewPlaybackState,
 };
 
 /// Known atlas filenames and their embedded asset keys.

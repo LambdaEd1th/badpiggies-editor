@@ -3,13 +3,13 @@
 use eframe::egui;
 
 use crate::data::assets;
+use crate::data::goal_animation::{GoalAnimationState, parse_goal_animation_state};
 use crate::data::prefab_sprites;
 use crate::data::sprite_db;
 use crate::domain::types::*;
-use crate::data::goal_animation::{GoalAnimationState, parse_goal_animation_state};
+use crate::renderer::PreviewPlaybackState;
 use crate::renderer::goal_flag;
 use crate::renderer::particles::WindAreaDef;
-use crate::renderer::PreviewPlaybackState;
 
 use super::{bird_sleep_duration, dessert_y_offset};
 

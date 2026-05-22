@@ -119,7 +119,9 @@ pub fn build_terrain(
     // missing, fall back to the terrain prefab's authored curve texture.
     let edge_splat1 = if td.curve_textures.len() > 1 {
         crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[1].texture_index)
-            .filter(|name| crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", name)).is_some())
+            .filter(|name| {
+                crate::data::assets::read_pathname(&format!("Assets/Texture2D/{}", name)).is_some()
+            })
             .map(|s| s.to_string())
             .or_else(|| fallback_edge_splat1.clone())
     } else {
@@ -232,9 +234,7 @@ fn decode_control_png(data: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
 }
 
 fn control_selects_splat1(ctrl_pixels: Option<&[u8]>, node_idx: usize) -> bool {
-    ctrl_pixels
-        .and_then(|px| px.get(node_idx * 4 + 1).copied())
-        == Some(255)
+    ctrl_pixels.and_then(|px| px.get(node_idx * 4 + 1).copied()) == Some(255)
 }
 
 /// Build shader-ready edge vertex and index arrays from curve mesh.
@@ -295,10 +295,7 @@ mod tests {
     #[test]
     fn control_selector_matches_unity_green_channel_rule() {
         let pixels = [
-            255, 0, 0, 255,
-            0, 255, 0, 255,
-            0, 128, 0, 255,
-            0, 0, 255, 255,
+            255, 0, 0, 255, 0, 255, 0, 255, 0, 128, 0, 255, 0, 0, 255, 255,
         ];
 
         assert!(!control_selects_splat1(Some(&pixels), 0));
@@ -329,46 +326,49 @@ impl LevelRenderer {
         let cam_cy = self.camera.center.y - tdy;
 
         // Fill
-        if let Some(ref fill_data) = td.fill_mesh {
-            if let (Some(resources), Some(device), Some(queue)) =
+        if let Some(ref fill_data) = td.fill_mesh
+            && let (Some(resources), Some(device), Some(queue)) =
                 (&self.fill_resources, &self.wgpu_device, &self.wgpu_queue)
-                && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(terrain_index)
-                && let Some(tex_name) = &td.fill_texture
-                && let Some(tex_gpu) = self
-                    .fill_texture_cache
-                    .get_or_load(device, queue, resources, tex_name)
-                && self.fill_slot_counter < fill_shader::max_draw_slots()
-            {
-                let slot = self.fill_slot_counter;
-                self.fill_slot_counter += 1;
-                let fc = &fill_data.vertices[0].color;
-                let [r, g, b, a] = [
-                    fc.r() as f32 / 255.0,
-                    fc.g() as f32 / 255.0,
-                    fc.b() as f32 / 255.0,
-                    fc.a() as f32 / 255.0,
-                ];
-                let uniforms = fill_shader::FillUniforms {
-                    screen_size: [rect.width(), rect.height()],
-                    camera_center: [cam_cx, cam_cy],
-                    zoom: self.camera.zoom,
-                    _pad0: 0.0,
-                    _pad1: [0.0; 2],
-                    tint_color: [r, g, b, a],
-                };
-                painter.add(fill_shader::make_fill_callback(
-                    rect,
-                    resources.clone(),
-                    tex_gpu,
-                    gpu_mesh.clone(),
-                    slot,
-                    uniforms,
-                ));
-            }
+            && let Some(Some(gpu_mesh)) = self.fill_gpu_meshes.get(terrain_index)
+            && let Some(tex_name) = &td.fill_texture
+            && let Some(tex_gpu) = self
+                .fill_texture_cache
+                .get_or_load(device, queue, resources, tex_name)
+            && self.fill_slot_counter < fill_shader::max_draw_slots()
+        {
+            let slot = self.fill_slot_counter;
+            self.fill_slot_counter += 1;
+            let fc = &fill_data.vertices[0].color;
+            let [r, g, b, a] = [
+                fc.r() as f32 / 255.0,
+                fc.g() as f32 / 255.0,
+                fc.b() as f32 / 255.0,
+                fc.a() as f32 / 255.0,
+            ];
+            let uniforms = fill_shader::FillUniforms {
+                screen_size: [rect.width(), rect.height()],
+                camera_center: [cam_cx, cam_cy],
+                zoom: self.camera.zoom,
+                _pad0: 0.0,
+                _pad1: [0.0; 2],
+                tint_color: [r, g, b, a],
+            };
+            painter.add(fill_shader::make_fill_callback(
+                rect,
+                resources.clone(),
+                tex_gpu,
+                gpu_mesh.clone(),
+                slot,
+                uniforms,
+            ));
         }
 
         // Edge (right after fill)
-        if let Some(gpu_idx) = self.edge_gpu_mesh_index.get(terrain_index).copied().flatten()
+        if let Some(gpu_idx) = self
+            .edge_gpu_mesh_index
+            .get(terrain_index)
+            .copied()
+            .flatten()
             && let Some(ref resources) = self.edge_resources
         {
             painter.add(edge_shader::make_single_edge_paint_callback(

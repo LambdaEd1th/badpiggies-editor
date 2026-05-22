@@ -89,7 +89,10 @@ fn load_base_level_entries() -> Vec<LevelEntry> {
         }
 
         let Some(text) = assets::read_pathname_text(&asset_key) else {
-            log::warn!("Missing embedded level prefab for contraption lookup: {}", asset_key);
+            log::warn!(
+                "Missing embedded level prefab for contraption lookup: {}",
+                asset_key
+            );
             continue;
         };
 
@@ -163,7 +166,10 @@ fn parse_level_entries(fields: &Mapping) -> Vec<LevelEntry> {
         return Vec::new();
     };
 
-    let category = match map_get(fields, "m_label").and_then(value_as_string).as_deref() {
+    let category = match map_get(fields, "m_label")
+        .and_then(value_as_string)
+        .as_deref()
+    {
         Some("S") => LevelCategory::Sandbox,
         Some("R") => LevelCategory::Race,
         _ => return Vec::new(),
@@ -190,9 +196,7 @@ fn parse_loader_backed_level(value: &Value, category: LevelCategory) -> Option<L
 
 fn scene_name_from_loader_path(path: &str) -> Option<String> {
     let filename = path.rsplit('/').next()?;
-    filename
-        .strip_suffix("_loader.prefab")
-        .map(str::to_string)
+    filename.strip_suffix("_loader.prefab").map(str::to_string)
 }
 
 fn parse_doc_header(header: &str) -> Option<(u32, String)> {

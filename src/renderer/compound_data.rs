@@ -91,8 +91,9 @@ pub(super) static BRIDGE_STEP: LazyLock<SubSprite> =
 
 // ─── FloatingStarBox / FloatingPartBox ──────────────────────────────────
 
-pub(super) static FLOATING_BOX: LazyLock<SubSprite> =
-    LazyLock::new(|| derive::derive_root(&derive::load_prefab("FloatingStarBox"), "FloatingStarBox"));
+pub(super) static FLOATING_BOX: LazyLock<SubSprite> = LazyLock::new(|| {
+    derive::derive_root(&derive::load_prefab("FloatingStarBox"), "FloatingStarBox")
+});
 
 pub(super) static FLOATING_BALLOON: LazyLock<SubSprite> = LazyLock::new(|| {
     derive::derive_with_cumulative_scale(

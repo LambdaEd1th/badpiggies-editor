@@ -18,9 +18,7 @@ pub(in crate::renderer) fn overlay_key(camera: &Camera, rect: egui::Rect) -> Dar
 }
 
 pub(in crate::renderer) fn can_transform_overlay(from: DarkOverlayKey, to: DarkOverlayKey) -> bool {
-    (from.5 - to.5).abs() < 0.5
-        && (from.6 - to.6).abs() < 0.5
-        && from.2.abs() > f32::EPSILON
+    (from.5 - to.5).abs() < 0.5 && (from.6 - to.6).abs() < 0.5 && from.2.abs() > f32::EPSILON
 }
 
 fn transform_overlay_pos(pos: egui::Pos2, from: DarkOverlayKey, to: DarkOverlayKey) -> egui::Pos2 {

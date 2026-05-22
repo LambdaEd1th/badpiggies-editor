@@ -146,16 +146,16 @@ pub(super) fn load_generic_particle_prefab(asset_key: &str) -> Option<GenericPar
         else {
             continue;
         };
-        let transform = if parsed.root_game_object_id.as_deref() == Some(doc.game_object_id.as_str())
-        {
-            TransformInfo {
-                game_object_id: transform.game_object_id.clone(),
-                local_position: Vec3::default(),
-                local_rotation: [0.0, 0.0, 0.0, 1.0],
-            }
-        } else {
-            transform.clone()
-        };
+        let transform =
+            if parsed.root_game_object_id.as_deref() == Some(doc.game_object_id.as_str()) {
+                TransformInfo {
+                    game_object_id: transform.game_object_id.clone(),
+                    local_position: Vec3::default(),
+                    local_rotation: [0.0, 0.0, 0.0, 1.0],
+                }
+            } else {
+                transform.clone()
+            };
         systems.push(build_particle_system(
             doc,
             game_object,
@@ -175,7 +175,11 @@ pub(super) fn load_rocket_fire_prefab(
     rocket_part_asset_key: &str,
 ) -> Option<GenericParticlePrefab> {
     let mut prefab = load_generic_particle_prefab(effect_asset_key)?;
-    if prefab.systems.iter().all(|system| system.material_guid.is_some()) {
+    if prefab
+        .systems
+        .iter()
+        .all(|system| system.material_guid.is_some())
+    {
         return Some(prefab);
     }
 
@@ -330,7 +334,8 @@ fn parse_prefab(text: &str) -> ParsedParticlePrefab {
                 }
             }
             (199, "ParticleSystemRenderer") => {
-                if let Some((game_object_id, material_guid)) = parse_particle_system_renderer(fields)
+                if let Some((game_object_id, material_guid)) =
+                    parse_particle_system_renderer(fields)
                 {
                     parsed
                         .particle_renderer_materials

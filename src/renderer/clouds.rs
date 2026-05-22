@@ -58,7 +58,9 @@ struct ParsedCloudSpritePrefab {
 pub(super) fn cloud_config(name: &str) -> Option<&'static CloudConfig> {
     static PREFAB_CLOUD_CONFIGS: OnceLock<HashMap<String, CloudConfig>> = OnceLock::new();
 
-    PREFAB_CLOUD_CONFIGS.get_or_init(load_cloud_configs_from_prefabs).get(name)
+    PREFAB_CLOUD_CONFIGS
+        .get_or_init(load_cloud_configs_from_prefabs)
+        .get(name)
 }
 
 fn load_cloud_configs_from_prefabs() -> HashMap<String, CloudConfig> {
@@ -96,13 +98,11 @@ fn load_cloud_sprite_prefabs() -> HashMap<String, ParsedCloudSpritePrefab> {
             continue;
         }
 
-        let Some(prefab_text) = assets::read_pathname_text(&prefab_path)
-        else {
+        let Some(prefab_text) = assets::read_pathname_text(&prefab_path) else {
             continue;
         };
 
-        if let Some((root_transform_id, prefab)) =
-            parse_cloud_sprite_prefab(filename, &prefab_text)
+        if let Some((root_transform_id, prefab)) = parse_cloud_sprite_prefab(filename, &prefab_text)
         {
             prefabs.insert(root_transform_id, prefab);
         }
@@ -299,7 +299,9 @@ fn parse_vec_component(value: &str, axis: &str) -> Option<f32> {
         .split(',')
         .find_map(|part| {
             let (key, raw) = part.trim().split_once(':')?;
-            (key.trim() == axis).then(|| raw.trim().parse::<f32>().ok()).flatten()
+            (key.trim() == axis)
+                .then(|| raw.trim().parse::<f32>().ok())
+                .flatten()
         })
 }
 
@@ -405,4 +407,3 @@ mod tests {
         assert_eq!(config.sprites[1].atlas, "Background_Maya_Sheet_02.png");
     }
 }
-

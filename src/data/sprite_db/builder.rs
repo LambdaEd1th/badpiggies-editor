@@ -22,8 +22,7 @@ pub(super) fn find_runtime_sprite_info(
     }
 
     for component in &parsed.runtime_sprites {
-        if let Some(info) = runtime_sprite_info_from_component(parsed, runtime_sprites, component)
-        {
+        if let Some(info) = runtime_sprite_info_from_component(parsed, runtime_sprites, component) {
             return Some(info);
         }
     }
@@ -31,18 +30,13 @@ pub(super) fn find_runtime_sprite_info(
     None
 }
 
-fn preferred_runtime_sprite_component(
-    parsed: &ParsedPrefab,
-) -> Option<&RuntimeSpriteComponent> {
-    parsed
-        .runtime_sprites
-        .iter()
-        .find(|component| {
-            parsed
-                .game_objects
-                .get(&component.game_object_id)
-                .is_some_and(|game_object| is_representative_runtime_sprite_name(&game_object.name))
-        })
+fn preferred_runtime_sprite_component(parsed: &ParsedPrefab) -> Option<&RuntimeSpriteComponent> {
+    parsed.runtime_sprites.iter().find(|component| {
+        parsed
+            .game_objects
+            .get(&component.game_object_id)
+            .is_some_and(|game_object| is_representative_runtime_sprite_name(&game_object.name))
+    })
 }
 
 fn runtime_sprite_info_from_component(
@@ -72,7 +66,8 @@ fn preferred_renderer_runtime_atlas(
     component: &RuntimeSpriteComponent,
 ) -> Option<&'static str> {
     let renderer = parsed.renderers.get(&component.game_object_id)?;
-    let texture = crate::data::assets::effect_texture_name_for_material_guid(&renderer.material_guid)?;
+    let texture =
+        crate::data::assets::effect_texture_name_for_material_guid(&renderer.material_guid)?;
 
     is_runtime_atlas_filename(texture).then_some(texture)
 }
@@ -175,7 +170,10 @@ mod tests {
                 .is_some_and(|game_object| game_object.name == child_name)
         })?;
         let info = runtime_sprite_info_from_component(&parsed, &runtime_sprites, component)?;
-        let material_id = runtime_sprites.get(&component.sprite_id)?.material_id.clone();
+        let material_id = runtime_sprites
+            .get(&component.sprite_id)?
+            .material_id
+            .clone();
         Some((material_id, info.atlas))
     }
 
@@ -245,11 +243,9 @@ mod tests {
 
     #[test]
     fn renderer_backed_atlas_resolution_handles_conflicting_runtime_material_ids() {
-        let (material_id, atlas) = runtime_child_material_and_atlas(
-            "DailyChallengeDialog",
-            "ToggleCheats",
-        )
-        .expect("missing DailyChallengeDialog ToggleCheats runtime sprite info");
+        let (material_id, atlas) =
+            runtime_child_material_and_atlas("DailyChallengeDialog", "ToggleCheats")
+                .expect("missing DailyChallengeDialog ToggleCheats runtime sprite info");
         assert_eq!(material_id, "f300c561f75e74380a11f80d4d2647f3");
         assert_eq!(atlas, "MenuAtlas.png");
 

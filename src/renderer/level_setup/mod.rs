@@ -396,10 +396,7 @@ pub(super) fn parse_authored_camera(level: &LevelData) -> Option<(Vec2, f32)> {
                 center.y += local.y;
             }
 
-            return Some((
-                center,
-                600.0 / (camera.orthographic_size * 2.0),
-            ));
+            return Some((center, 600.0 / (camera.orthographic_size * 2.0)));
         }
     }
     None
@@ -442,8 +439,8 @@ fn background_override_has_transform_or_serializer(raw_text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        find_bg_override_text, find_bg_root_position, parse_authored_camera,
-        parse_camera_limits, LevelRenderer,
+        LevelRenderer, find_bg_override_text, find_bg_root_position, parse_authored_camera,
+        parse_camera_limits,
     };
     use crate::domain::parser::parse_level;
     use crate::domain::types::{
@@ -461,7 +458,10 @@ mod tests {
     #[test]
     fn parses_camera_limits_from_level_manager_override_ast() {
         let level = LevelData {
-            objects: vec![LevelObject::Prefab(prefab("LevelManager", LEVEL_MANAGER_OVERRIDE))],
+            objects: vec![LevelObject::Prefab(prefab(
+                "LevelManager",
+                LEVEL_MANAGER_OVERRIDE,
+            ))],
             roots: vec![0],
         };
 
@@ -525,7 +525,10 @@ mod tests {
         let Some((_, zoom)) = parse_authored_camera(&level) else {
             panic!("expected Level_27 CameraSystem to provide an authored camera view");
         };
-        assert!(zoom > 20.0, "expected authored Level_27 zoom to be much tighter than bounds-fit, got {zoom}");
+        assert!(
+            zoom > 20.0,
+            "expected authored Level_27 zoom to be much tighter than bounds-fit, got {zoom}"
+        );
     }
 
     #[test]
@@ -540,8 +543,16 @@ mod tests {
         let Some((center, zoom)) = parse_authored_camera(&level) else {
             panic!("expected Level_Sandbox_01 CameraSystem to provide an authored camera view");
         };
-        assert!((center.x - -59.92106).abs() < 0.01, "expected sandbox camera center x to include nested GameCamera transform, got {}", center.x);
-        assert!((center.y - 49.52229).abs() < 0.01, "expected sandbox camera center y to include nested GameCamera transform, got {}", center.y);
+        assert!(
+            (center.x - -59.92106).abs() < 0.01,
+            "expected sandbox camera center x to include nested GameCamera transform, got {}",
+            center.x
+        );
+        assert!(
+            (center.y - 49.52229).abs() < 0.01,
+            "expected sandbox camera center y to include nested GameCamera transform, got {}",
+            center.y
+        );
         assert!((zoom - (600.0 / (9.430499 * 2.0))).abs() < 0.001);
     }
 
@@ -560,7 +571,10 @@ mod tests {
             roots: vec![0, 1],
         };
 
-        assert_eq!(find_bg_override_text(&level.objects), Some(BG_OVERRIDE.to_string()));
+        assert_eq!(
+            find_bg_override_text(&level.objects),
+            Some(BG_OVERRIDE.to_string())
+        );
     }
 
     #[test]
@@ -587,8 +601,22 @@ mod tests {
     fn fit_to_level_prefers_camera_limits_over_object_bounds() {
         let mut renderer = LevelRenderer::new(None);
         renderer.world_positions = vec![
-            (0, Vec3 { x: -500.0, y: -200.0, z: 0.0 }),
-            (1, Vec3 { x: 400.0, y: 300.0, z: 0.0 }),
+            (
+                0,
+                Vec3 {
+                    x: -500.0,
+                    y: -200.0,
+                    z: 0.0,
+                },
+            ),
+            (
+                1,
+                Vec3 {
+                    x: 400.0,
+                    y: 300.0,
+                    z: 0.0,
+                },
+            ),
         ];
         renderer.camera_limits = Some([-20.0, 30.0, 80.0, 40.0]);
 

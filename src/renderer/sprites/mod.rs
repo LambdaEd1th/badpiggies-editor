@@ -342,15 +342,18 @@ impl LevelRenderer {
         }
         effect_queue.extend(attached_render_map.into_iter().map(
             |((emitter_index, system_index), render_z)| {
-                (render_z, WorldEffectDraw::Attached(emitter_index, system_index))
+                (
+                    render_z,
+                    WorldEffectDraw::Attached(emitter_index, system_index),
+                )
             },
         ));
         effect_queue.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
         let mut effect_cursor = 0usize;
         let zzz_particle_tex = self.tex_cache.get(super::GLOW_ATLAS);
         let fan_particle_tex = self.tex_cache.get(super::GLOW_ATLAS);
-        let wind_particle_tex =
-            super::particles::wind_particle_texture_name().and_then(|name| self.tex_cache.get(name));
+        let wind_particle_tex = super::particles::wind_particle_texture_name()
+            .and_then(|name| self.tex_cache.get(name));
         let attached_effect_tex = self.tex_cache.load_texture(
             painter.ctx(),
             "Assets/Texture2D/Particles_Sheet_01.png",
@@ -415,8 +418,7 @@ impl LevelRenderer {
 
             // Early world-space frustum cull
             if !is_sel {
-                let margin = half_size.0.max(half_size.1)
-                    + if is_goal_area { 16.0 } else { 2.0 };
+                let margin = half_size.0.max(half_size.1) + if is_goal_area { 16.0 } else { 2.0 };
                 let sx = world_pos.x;
                 let sy = world_pos.y;
                 if sx + margin < visible_min_x
@@ -797,16 +799,13 @@ impl LevelRenderer {
             let Some(glow_texture_name) = glow_texture_name(sprite) else {
                 continue;
             };
-            let glow_id = self
-                .tex_cache
-                .get(glow_texture_name)
-                .or_else(|| {
-                    self.tex_cache.load_texture(
-                        painter.ctx(),
-                        &format!("Assets/Texture2D/{}", glow_texture_name),
-                        glow_texture_name,
-                    )
-                });
+            let glow_id = self.tex_cache.get(glow_texture_name).or_else(|| {
+                self.tex_cache.load_texture(
+                    painter.ctx(),
+                    &format!("Assets/Texture2D/{}", glow_texture_name),
+                    glow_texture_name,
+                )
+            });
             let Some(glow_id) = glow_id else {
                 continue;
             };
@@ -867,11 +866,15 @@ mod tests {
     #[test]
     fn sprite_shader_tint_uses_sprite_color_channels() {
         assert_close(
-            sprite_shader_tint(eframe::egui::Color32::from_rgba_unmultiplied(190, 190, 255, 255)),
+            sprite_shader_tint(eframe::egui::Color32::from_rgba_unmultiplied(
+                190, 190, 255, 255,
+            )),
             [190.0 / 255.0, 190.0 / 255.0, 1.0, 1.0],
         );
         assert_close(
-            sprite_shader_tint(eframe::egui::Color32::from_rgba_unmultiplied(112, 135, 148, 255)),
+            sprite_shader_tint(eframe::egui::Color32::from_rgba_unmultiplied(
+                112, 135, 148, 255,
+            )),
             [112.0 / 255.0, 135.0 / 255.0, 148.0 / 255.0, 1.0],
         );
     }

@@ -91,17 +91,17 @@ pub(super) fn is_representative_runtime_sprite_name(game_object_name: &str) -> b
     matches!(
         normalize_runtime_sprite_name(game_object_name).as_str(),
         "closebutton"
-        | "backbutton"
-        | "loading"
-        | "buybutton"
-        | "claimbutton"
-        | "watchad"
-        | "openpopupbutton"
-        | "trackicon"
-        | "levelicon"
-        | "softcurrencyicon"
-        | "okbutton"
-        | "infobutton"
+            | "backbutton"
+            | "loading"
+            | "buybutton"
+            | "claimbutton"
+            | "watchad"
+            | "openpopupbutton"
+            | "trackicon"
+            | "levelicon"
+            | "softcurrencyicon"
+            | "okbutton"
+            | "infobutton"
     )
 }
 

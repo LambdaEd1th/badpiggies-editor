@@ -76,9 +76,7 @@ impl UnityComponent for UnmanagedSprite {
             ("m_UVy", SceneValue::Integer(v)) => self.uv_y = v,
             ("m_width", SceneValue::Integer(v)) => self.width = v,
             ("m_height", SceneValue::Integer(v)) => self.height = v,
-            ("m_atlasGridSubdivisions", SceneValue::Integer(v)) => {
-                self.atlas_grid_subdivisions = v
-            }
+            ("m_atlasGridSubdivisions", SceneValue::Integer(v)) => self.atlas_grid_subdivisions = v,
             ("m_border", SceneValue::Integer(v)) => self.border = v,
             ("m_updateCollider", SceneValue::Boolean(v)) => self.update_collider = v,
             _ => return false,

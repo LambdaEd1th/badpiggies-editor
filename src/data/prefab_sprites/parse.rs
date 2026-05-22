@@ -6,8 +6,8 @@ use crate::data::assets;
 use crate::data::sprite_db::UvRect;
 
 use super::types::{
-    GameObjectInfo, ParsedPrefab, RendererInfo, RuntimeSpriteMeta, SpriteComponent,
-    TransformInfo, UnmanagedSpriteComponent,
+    GameObjectInfo, ParsedPrefab, RendererInfo, RuntimeSpriteMeta, SpriteComponent, TransformInfo,
+    UnmanagedSpriteComponent,
 };
 
 const SPRITE_SCRIPT_GUID: &str = "eaa85264a31f76994888187c4d3a9fb9";

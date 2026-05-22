@@ -302,7 +302,10 @@ pub(super) fn render_contraption_canvas(
             }
         } else {
             let atlas_path = format!("Assets/Texture2D/{}", sprite.atlas);
-            let cache_key = format!("{}_grid_preview_premult_pad_{}", sprite.atlas, GRID_PREVIEW_SPRITE_PAD_PX);
+            let cache_key = format!(
+                "{}_grid_preview_premult_pad_{}",
+                sprite.atlas, GRID_PREVIEW_SPRITE_PAD_PX
+            );
             let tex = tex_cache.load_sprite_crop_padded_premultiplied(
                 ui.ctx(),
                 &cache_key,

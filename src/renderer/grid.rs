@@ -92,14 +92,11 @@ impl LevelRenderer {
             return;
         };
 
-        if let (Some(resources), Some(device), Some(queue)) = (
-            &self.sprite_resources,
-            &self.wgpu_device,
-            &self.wgpu_queue,
-        )
-            && let Some(atlas) = self
-                .sprite_atlas_cache
-                .get_or_load(device, queue, resources, &sprite.atlas)
+        if let (Some(resources), Some(device), Some(queue)) =
+            (&self.sprite_resources, &self.wgpu_device, &self.wgpu_queue)
+            && let Some(atlas) =
+                self.sprite_atlas_cache
+                    .get_or_load(device, queue, resources, &sprite.atlas)
         {
             let (uv_min, uv_max) = sprite_shader::compute_uvs(
                 &sprite.uv,
@@ -138,7 +135,10 @@ impl LevelRenderer {
                     );
                     let cell_rect = egui::Rect::from_center_size(
                         center,
-                        egui::vec2(half_w * self.camera.zoom * 2.0, half_h * self.camera.zoom * 2.0),
+                        egui::vec2(
+                            half_w * self.camera.zoom * 2.0,
+                            half_h * self.camera.zoom * 2.0,
+                        ),
                     );
                     if !cell_rect.intersects(canvas_rect) {
                         continue;
@@ -172,7 +172,6 @@ impl LevelRenderer {
                     resources.clone(),
                     gpu_draws,
                 ));
-                return;
             }
         }
     }
@@ -267,7 +266,11 @@ mod tests {
     fn parses_construction_grid_rows_and_light_cell_style_from_ast() {
         let level = LevelData {
             objects: vec![
-                LevelObject::Prefab(prefab("LevelManager", Vec3::default(), LEVEL_MANAGER_OVERRIDE)),
+                LevelObject::Prefab(prefab(
+                    "LevelManager",
+                    Vec3::default(),
+                    LEVEL_MANAGER_OVERRIDE,
+                )),
                 LevelObject::Prefab(prefab(
                     "LevelStart",
                     Vec3 {

@@ -1045,7 +1045,10 @@ fn cave_far_fill_keeps_authored_height_and_sorts_behind_hills() {
         })
         .map(|(index, _)| index)
         .collect();
-    assert!(!companion_indices.is_empty(), "expected Cave far hill companions");
+    assert!(
+        !companion_indices.is_empty(),
+        "expected Cave far hill companions"
+    );
 
     let companion_max_z = companion_indices
         .iter()
@@ -1072,7 +1075,12 @@ fn cave_far_fill_keeps_authored_height_and_sorts_behind_hills() {
         .expect("fill position");
     let first_companion_pos = companion_indices
         .iter()
-        .filter_map(|index| cache.sorted_indices.iter().position(|candidate| candidate == index))
+        .filter_map(|index| {
+            cache
+                .sorted_indices
+                .iter()
+                .position(|candidate| candidate == index)
+        })
         .min()
         .expect("companion positions");
     assert!(
@@ -1101,7 +1109,11 @@ fn cave_preserves_both_fill_bands_and_tiles_top_bottom_rows_separately() {
         })
         .map(|(index, _)| index)
         .collect();
-    assert_eq!(near_fill_indices.len(), 2, "expected upper and lower Cave near fills");
+    assert_eq!(
+        near_fill_indices.len(),
+        2,
+        "expected upper and lower Cave near fills"
+    );
 
     let far_fill_indices: Vec<usize> = sprites
         .iter()
@@ -1113,7 +1125,11 @@ fn cave_preserves_both_fill_bands_and_tiles_top_bottom_rows_separately() {
         })
         .map(|(index, _)| index)
         .collect();
-    assert_eq!(far_fill_indices.len(), 2, "expected upper and lower Cave far fills");
+    assert_eq!(
+        far_fill_indices.len(),
+        2,
+        "expected upper and lower Cave far fills"
+    );
 
     for parent_group in ["BGLayerNear", "BGLayerFar"] {
         for row_sign in [1.0_f32, -1.0_f32] {
@@ -1198,7 +1214,11 @@ fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
         .map(|sprite| sprite.world_y)
         .collect();
     near_fill_world_y.sort_by(|a, b| a.total_cmp(b));
-    assert_eq!(near_fill_world_y.len(), 2, "expected two Cave near fills after Level_27 overrides");
+    assert_eq!(
+        near_fill_world_y.len(),
+        2,
+        "expected two Cave near fills after Level_27 overrides"
+    );
     assert!(
         near_fill_world_y[1] - near_fill_world_y[0] > 20.0,
         "expected Level_27 near fill overrides to keep upper and lower bands distinct, got {:?}",
@@ -1215,7 +1235,11 @@ fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
         .map(|sprite| sprite.world_y)
         .collect();
     far_fill_world_y.sort_by(|a, b| a.total_cmp(b));
-    assert_eq!(far_fill_world_y.len(), 2, "expected two Cave far fills after Level_27 overrides");
+    assert_eq!(
+        far_fill_world_y.len(),
+        2,
+        "expected two Cave far fills after Level_27 overrides"
+    );
     assert!(
         far_fill_world_y[1] - far_fill_world_y[0] > 3.0,
         "expected Level_27 far fill overrides to keep upper and lower bands distinct, got {:?}",
@@ -1236,12 +1260,8 @@ fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
             panic!("missing strip sprite in {parent_group}");
         };
 
-        let override_x_values = collect_override_sprite_axis_values(
-            &bg_override_text,
-            parent_group,
-            &strip_name,
-            "x",
-        );
+        let override_x_values =
+            collect_override_sprite_axis_values(&bg_override_text, parent_group, &strip_name, "x");
         let mut distinct_override_x = override_x_values.clone();
         distinct_override_x.sort_by(|a, b| a.total_cmp(b));
         distinct_override_x.dedup_by(|a, b| (*a - *b).abs() < 0.001);
@@ -1266,8 +1286,9 @@ fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
 
 #[test]
 fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
-    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
+    );
     let bytes = std::fs::read(&level_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
     let level = parse_level(bytes)
@@ -1311,7 +1332,11 @@ fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
         .map(|sprite| sprite.world_y)
         .collect();
     near_fill_world_y.sort_by(|a, b| a.total_cmp(b));
-    assert_eq!(near_fill_world_y.len(), 2, "expected two sandbox Cave near fills after overrides");
+    assert_eq!(
+        near_fill_world_y.len(),
+        2,
+        "expected two sandbox Cave near fills after overrides"
+    );
     assert!(
         near_fill_world_y[1] - near_fill_world_y[0] > 20.0,
         "expected sandbox near fill overrides to keep upper and lower bands distinct, got {:?}",
@@ -1328,7 +1353,11 @@ fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
         .map(|sprite| sprite.world_y)
         .collect();
     far_fill_world_y.sort_by(|a, b| a.total_cmp(b));
-    assert_eq!(far_fill_world_y.len(), 2, "expected two sandbox Cave far fills after overrides");
+    assert_eq!(
+        far_fill_world_y.len(),
+        2,
+        "expected two sandbox Cave far fills after overrides"
+    );
     assert!(
         far_fill_world_y[1] - far_fill_world_y[0] > 3.0,
         "expected sandbox far fill overrides to keep upper and lower bands distinct, got {:?}",
@@ -1368,8 +1397,9 @@ fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
 
 #[test]
 fn sandbox_cave_foreground_fill_extends_and_pillars_tile() {
-    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
+    );
     let bytes = std::fs::read(&level_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
     let level = parse_level(bytes)
@@ -1407,12 +1437,15 @@ fn sandbox_cave_foreground_fill_extends_and_pillars_tile() {
         .iter()
         .enumerate()
         .filter(|(_, sprite)| {
-            sprite.parent_group == "FGLayer"
-                && (sprite.name == "Fill1" || sprite.name == "Fill1_2")
+            sprite.parent_group == "FGLayer" && (sprite.name == "Fill1" || sprite.name == "Fill1_2")
         })
         .map(|(index, _)| index)
         .collect();
-    assert_eq!(fill_indices.len(), 2, "expected both sandbox cave foreground fill sprites");
+    assert_eq!(
+        fill_indices.len(),
+        2,
+        "expected both sandbox cave foreground fill sprites"
+    );
     for index in fill_indices {
         assert!(
             should_extend_fill_like(&sprites[index], &cache.name_lower[index], &cache, index),
@@ -1434,7 +1467,11 @@ fn sandbox_cave_foreground_fill_extends_and_pillars_tile() {
         })
         .map(|(index, _)| index)
         .collect();
-    assert_eq!(pillar_indices.len(), 36, "expected both sandbox cave foreground stalactite rows and their duplicated continuations");
+    assert_eq!(
+        pillar_indices.len(),
+        36,
+        "expected both sandbox cave foreground stalactite rows and their duplicated continuations"
+    );
     for index in pillar_indices {
         assert!(
             cache.tile_info.contains_key(&index),
@@ -1618,15 +1655,17 @@ fn maya_high_atlas_fill_uses_stretched_extended_uvs() {
     };
 
     let sprite = &sprites[fill_index];
-    assert!(sprite.atlas.is_some(), "expected MayaHigh near fill to stay atlas-backed");
-
-    let extend_fill_like = should_extend_fill_like(
-        sprite,
-        &cache.name_lower[fill_index],
-        &cache,
-        fill_index,
+    assert!(
+        sprite.atlas.is_some(),
+        "expected MayaHigh near fill to stay atlas-backed"
     );
-    assert!(extend_fill_like, "expected MayaHigh near fill to use the viewport extension path");
+
+    let extend_fill_like =
+        should_extend_fill_like(sprite, &cache.name_lower[fill_index], &cache, fill_index);
+    assert!(
+        extend_fill_like,
+        "expected MayaHigh near fill to use the viewport extension path"
+    );
 
     let orig_display_w = sprite_display_width(sprite);
     let extended_display_w = orig_display_w * 3.0;

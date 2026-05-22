@@ -6,8 +6,8 @@ use crate::data::unity_particles;
 use crate::domain::types::Vec2;
 
 use super::{
-    Camera, LevelRenderer, fan_spinup_profile_weight, particle_sheet_uv_rect,
-    pseudo_random, rotate_vec2,
+    Camera, LevelRenderer, fan_spinup_profile_weight, particle_sheet_uv_rect, pseudo_random,
+    rotate_vec2,
 };
 
 /// Fan state machine (mirrors Fan.cs Update).

@@ -19,8 +19,7 @@ fn all_compound_constants_initialize_without_panic() {
         &*FLOATING_BALLOON,
     );
     // Scalar LazyLocks.
-    let _ = FLOATING_BALLOON.world_w
-        + FLOATING_BALLOON.world_h;
+    let _ = FLOATING_BALLOON.world_w + FLOATING_BALLOON.world_h;
     let _ = *FLOATING_STAR_BALLOON_DISTANCE + *FLOATING_PART_BALLOON_DISTANCE;
     let _ = FLOATING_STAR_ROPE_BALLOON_ANCHOR_LOCAL.0
         + FLOATING_STAR_ROPE_BALLOON_ANCHOR_LOCAL.1
@@ -32,7 +31,11 @@ fn all_compound_constants_initialize_without_panic() {
         + FLOATING_PART_ROPE_BOX_ANCHOR_LOCAL.1;
     // Slice LazyLocks — assert expected variant counts.
     assert_eq!(BIRD_FACES.len(), 4);
-    assert!(BIRD_FACES.iter().all(|face| face.atlas == "IngameAtlas.png"));
+    assert!(
+        BIRD_FACES
+            .iter()
+            .all(|face| face.atlas == "IngameAtlas.png")
+    );
     assert_eq!(FLOATING_BALLOON.atlas, "IngameAtlas.png");
 }
 

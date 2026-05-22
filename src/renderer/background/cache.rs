@@ -480,8 +480,7 @@ pub fn build_bg_layer_cache_with_root_offset(
     let mut parent_group_z_y_extents: HashMap<(String, i32, i32), (f32, f32)> = HashMap::new();
     let mut parent_group_z_name_y_extents: HashMap<(String, i32, i32, String), (f32, f32)> =
         HashMap::new();
-    let mut parent_group_z_scale_y_signs: HashMap<(String, i32, i32), HashSet<i8>> =
-        HashMap::new();
+    let mut parent_group_z_scale_y_signs: HashMap<(String, i32, i32), HashSet<i8>> = HashMap::new();
     let mut name_lower: Vec<String> = Vec::with_capacity(sprites.len());
     for (i, sprite) in sprites.iter().enumerate() {
         let nl = sprite.name.to_ascii_lowercase();
@@ -522,7 +521,11 @@ pub fn build_bg_layer_cache_with_root_offset(
             name_y_extents.0 = name_y_extents.0.min(sprite.world_y);
             name_y_extents.1 = name_y_extents.1.max(sprite.world_y);
             parent_group_z_scale_y_signs
-                .entry((sprite.parent_group.clone(), layer_key, parent_group_z_key(sprite)))
+                .entry((
+                    sprite.parent_group.clone(),
+                    layer_key,
+                    parent_group_z_key(sprite),
+                ))
                 .or_default()
                 .insert(if sprite.scale_y < 0.0 { -1 } else { 1 });
         }
@@ -552,26 +555,27 @@ pub fn build_bg_layer_cache_with_root_offset(
             groups.entry(group_key).or_default().push(i);
             continue;
         }
-        let (distinct_name_count, split_by_name, split_by_scale_y_sign) = if sprite.parent_group.is_empty() {
-            (0, false, false)
-        } else {
-            let layer_key = sprite.layer.order();
-            let z_key = parent_group_z_key(sprite);
-            let distinct_name_count = parent_group_names
-                .get(&(sprite.parent_group.clone(), layer_key))
-                .map(HashSet::len)
-                .unwrap_or(0);
-            let split_by_name = parent_group_z_name_counts
-                .get(&(sprite.parent_group.clone(), layer_key, z_key))
-                .map(|counts| counts.len() > 1 && counts.values().any(|count| *count > 1))
-                .unwrap_or(false);
-            let split_by_scale_y_sign = distinct_name_count <= 1
-                && parent_group_z_scale_y_signs
+        let (distinct_name_count, split_by_name, split_by_scale_y_sign) =
+            if sprite.parent_group.is_empty() {
+                (0, false, false)
+            } else {
+                let layer_key = sprite.layer.order();
+                let z_key = parent_group_z_key(sprite);
+                let distinct_name_count = parent_group_names
+                    .get(&(sprite.parent_group.clone(), layer_key))
+                    .map(HashSet::len)
+                    .unwrap_or(0);
+                let split_by_name = parent_group_z_name_counts
                     .get(&(sprite.parent_group.clone(), layer_key, z_key))
-                    .map(|signs| signs.len() > 1)
+                    .map(|counts| counts.len() > 1 && counts.values().any(|count| *count > 1))
                     .unwrap_or(false);
-            (distinct_name_count, split_by_name, split_by_scale_y_sign)
-        };
+                let split_by_scale_y_sign = distinct_name_count <= 1
+                    && parent_group_z_scale_y_signs
+                        .get(&(sprite.parent_group.clone(), layer_key, z_key))
+                        .map(|signs| signs.len() > 1)
+                        .unwrap_or(false);
+                (distinct_name_count, split_by_name, split_by_scale_y_sign)
+            };
         let mut use_multi_name_row_fallback = false;
         if distinct_name_count > 1 {
             let layer_key = sprite.layer.order();
@@ -712,12 +716,18 @@ mod tests {
             .collect();
         sorted.sort_by(|a, b| sprites[*a].world_x.total_cmp(&sprites[*b].world_x));
 
-        let group_key = format!("forced:g:BGLayerFurther:{}:core77", BgLayer::Further.order());
+        let group_key = format!(
+            "forced:g:BGLayerFurther:{}:core77",
+            BgLayer::Further.order()
+        );
         let generic = tile_block_width(&sorted, sprites).expect("missing generic block width");
         let forced = forced_tile_block_width("MayaHigh", &group_key, &sorted, sprites)
             .expect("missing forced block width");
 
-        assert!((generic - forced).abs() > 1.0, "generic={generic}, forced={forced}");
+        assert!(
+            (generic - forced).abs() > 1.0,
+            "generic={generic}, forced={forced}"
+        );
         assert_eq!(
             forced_tile_phase_offset("MayaHigh", &group_key, &sorted, sprites, forced),
             None

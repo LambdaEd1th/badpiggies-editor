@@ -58,7 +58,11 @@ pub fn set_goal_animation_state(raw_text: &mut String, state: GoalAnimationState
     *raw_text = serialize_override_tree(&nodes);
 }
 
-pub fn goal_visual_state(state: GoalAnimationState, time: f64, preview_seed: usize) -> GoalVisualState {
+pub fn goal_visual_state(
+    state: GoalAnimationState,
+    time: f64,
+    preview_seed: usize,
+) -> GoalVisualState {
     match state {
         GoalAnimationState::Idle => GoalVisualState {
             y_offset: (time * 3.0).sin() as f32 * 0.25,
@@ -154,9 +158,21 @@ fn goal_vanishing_visual_state(time: f64, preview_seed: usize) -> GoalVisualStat
     let scale_y_curve = goal_vanishing_scale_y_curve();
     let alpha_curve = goal_vanishing_alpha_curve();
     let start_y = pos_y_curve.first().map(|key| key.1).unwrap_or(0.0);
-    let start_scale_x = scale_x_curve.first().map(|key| key.1).unwrap_or(1.0).max(0.001);
-    let start_scale_y = scale_y_curve.first().map(|key| key.1).unwrap_or(1.0).max(0.001);
-    let start_alpha = alpha_curve.first().map(|key| key.1).unwrap_or(1.0).max(0.001);
+    let start_scale_x = scale_x_curve
+        .first()
+        .map(|key| key.1)
+        .unwrap_or(1.0)
+        .max(0.001);
+    let start_scale_y = scale_y_curve
+        .first()
+        .map(|key| key.1)
+        .unwrap_or(1.0)
+        .max(0.001);
+    let start_alpha = alpha_curve
+        .first()
+        .map(|key| key.1)
+        .unwrap_or(1.0)
+        .max(0.001);
 
     GoalVisualState {
         y_offset: sample_hermite(pos_y_curve, sample_time) - start_y,
@@ -290,13 +306,15 @@ mod tests {
         );
 
         set_goal_animation_state(&mut raw, GoalAnimationState::Idle);
-        assert_eq!(parse_goal_animation_state(Some(&raw)), GoalAnimationState::Idle);
+        assert_eq!(
+            parse_goal_animation_state(Some(&raw)),
+            GoalAnimationState::Idle
+        );
     }
 
     #[test]
     fn goal_animation_ast_parser_reads_and_removes_nested_override() {
-        let mut raw =
-            "Component GoalArea\n\tString bp_goalAnimation = \"Vanishing\"\n".to_string();
+        let mut raw = "Component GoalArea\n\tString bp_goalAnimation = \"Vanishing\"\n".to_string();
 
         assert_eq!(
             parse_goal_animation_state(Some(&raw)),
@@ -306,6 +324,9 @@ mod tests {
         set_goal_animation_state(&mut raw, GoalAnimationState::Idle);
 
         assert_eq!(raw, "Component GoalArea\n");
-        assert_eq!(parse_goal_animation_state(Some(&raw)), GoalAnimationState::Idle);
+        assert_eq!(
+            parse_goal_animation_state(Some(&raw)),
+            GoalAnimationState::Idle
+        );
     }
 }

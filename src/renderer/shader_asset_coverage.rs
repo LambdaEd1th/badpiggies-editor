@@ -4,13 +4,28 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     const UNITY_SHADER_PORTS: &[(&str, &str)] = &[
-        ("Depth MaskMaskOverlay.shader", "depth_mask__maskoverlay.wgsl"),
-        ("Depth MaskMaskOverlayNV.shader", "depth_mask__maskoverlaynv.wgsl"),
-        ("Depth MaskUnlit Transparent (CG).shader", "depth_mask__unlit_transparent_cg.wgsl"),
-        ("Depth MaskUnlit Transparent ZAlways.shader", "depth_mask__unlit_transparent_zalways.wgsl"),
+        (
+            "Depth MaskMaskOverlay.shader",
+            "depth_mask__maskoverlay.wgsl",
+        ),
+        (
+            "Depth MaskMaskOverlayNV.shader",
+            "depth_mask__maskoverlaynv.wgsl",
+        ),
+        (
+            "Depth MaskUnlit Transparent (CG).shader",
+            "depth_mask__unlit_transparent_cg.wgsl",
+        ),
+        (
+            "Depth MaskUnlit Transparent ZAlways.shader",
+            "depth_mask__unlit_transparent_zalways.wgsl",
+        ),
         ("Photoshot Effect.shader", "photoshot_effect.wgsl"),
         ("SpineSkeleton.shader", "spine__skeleton.wgsl"),
-        ("_CustomDailyChallengeMask.shader", "_custom__dailychallengemask.wgsl"),
+        (
+            "_CustomDailyChallengeMask.shader",
+            "_custom__dailychallengemask.wgsl",
+        ),
         (
             "_CustomPreAlpha_Unlit_ColorTransparent_Geometry.shader",
             "_custom__prealpha_unlit_colortransparent_geometry.wgsl",
@@ -27,16 +42,34 @@ mod tests {
             "_CustomPreAlpha_Unlit_ColorTransparent_Geometry_Shiny.shader",
             "_custom__prealpha_unlit_colortransparent_geometry_shiny.wgsl",
         ),
-        ("_CustomSilhouetteShader.shader", "_custom__silhouetteshader.wgsl"),
-        ("_CustomText Shader With Z Test.shader", "_custom__text_shader_with_z_test.wgsl"),
-        ("_CustomUnlit_Alpha8Bit_Color.shader", "_custom__unlit_alpha8bit_color.wgsl"),
+        (
+            "_CustomSilhouetteShader.shader",
+            "_custom__silhouetteshader.wgsl",
+        ),
+        (
+            "_CustomText Shader With Z Test.shader",
+            "_custom__text_shader_with_z_test.wgsl",
+        ),
+        (
+            "_CustomUnlit_Alpha8Bit_Color.shader",
+            "_custom__unlit_alpha8bit_color.wgsl",
+        ),
         (
             "_CustomUnlit_ColorTransparent_Geometry.shader",
             "_custom__unlit_colortransparent_geometry.wgsl",
         ),
-        ("_CustomUnlit_Color_Geometry.shader", "_custom__unlit_color_geometry.wgsl"),
-        ("_CustomUnlit_Monochrome.shader", "_custom__unlit_monochrome.wgsl"),
-        ("_CustomUtility_ZWrite.shader", "_custom__utility_zwrite.wgsl"),
+        (
+            "_CustomUnlit_Color_Geometry.shader",
+            "_custom__unlit_color_geometry.wgsl",
+        ),
+        (
+            "_CustomUnlit_Monochrome.shader",
+            "_custom__unlit_monochrome.wgsl",
+        ),
+        (
+            "_CustomUtility_ZWrite.shader",
+            "_custom__utility_zwrite.wgsl",
+        ),
     ];
 
     const RUNTIME_SHADER_ASSETS: &[&str] = &[
@@ -69,15 +102,32 @@ mod tests {
 
         for (shader_name, wgsl_name) in UNITY_SHADER_PORTS {
             let shader_path = shader_source_dir().join(shader_name);
-            assert!(shader_path.exists(), "missing Unity shader source {}", shader_name);
+            assert!(
+                shader_path.exists(),
+                "missing Unity shader source {}",
+                shader_name
+            );
 
             let wgsl_path = wgsl_dir().join(wgsl_name);
-            assert!(wgsl_path.exists(), "missing WGSL port {} for {}", wgsl_name, shader_name);
+            assert!(
+                wgsl_path.exists(),
+                "missing WGSL port {} for {}",
+                wgsl_name,
+                shader_name
+            );
 
             let source = fs::read_to_string(&wgsl_path)
                 .unwrap_or_else(|_| panic!("failed to read WGSL port {}", wgsl_name));
-            assert!(source.contains("@vertex"), "{} is missing a vertex entry point", wgsl_name);
-            assert!(source.contains("@fragment"), "{} is missing a fragment entry point", wgsl_name);
+            assert!(
+                source.contains("@vertex"),
+                "{} is missing a vertex entry point",
+                wgsl_name
+            );
+            assert!(
+                source.contains("@fragment"),
+                "{} is missing a fragment entry point",
+                wgsl_name
+            );
         }
     }
 
@@ -85,12 +135,24 @@ mod tests {
     fn runtime_shader_sources_live_in_editor_assets_shader() {
         for wgsl_name in RUNTIME_SHADER_ASSETS {
             let wgsl_path = wgsl_dir().join(wgsl_name);
-            assert!(wgsl_path.exists(), "missing runtime WGSL asset {}", wgsl_name);
+            assert!(
+                wgsl_path.exists(),
+                "missing runtime WGSL asset {}",
+                wgsl_name
+            );
 
             let source = fs::read_to_string(&wgsl_path)
                 .unwrap_or_else(|_| panic!("failed to read runtime WGSL asset {}", wgsl_name));
-            assert!(source.contains("@vertex"), "{} is missing a vertex entry point", wgsl_name);
-            assert!(source.contains("@fragment"), "{} is missing a fragment entry point", wgsl_name);
+            assert!(
+                source.contains("@vertex"),
+                "{} is missing a vertex entry point",
+                wgsl_name
+            );
+            assert!(
+                source.contains("@fragment"),
+                "{} is missing a fragment entry point",
+                wgsl_name
+            );
         }
     }
 }

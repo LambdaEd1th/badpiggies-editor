@@ -61,11 +61,14 @@ fn background_theme_aliases() -> &'static HashMap<String, &'static str> {
 fn build_background_theme_aliases() -> HashMap<String, &'static str> {
     let mut aliases = HashMap::new();
 
-    for prefab_path in super::list_pathnames("Assets/Resources/environment/background/", ".prefab") {
+    for prefab_path in super::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let filename = prefab_path
             .strip_prefix("Assets/Resources/environment/background/")
             .unwrap_or(prefab_path.as_str());
-        let Some(prefab_name) = Path::new(filename).file_stem().and_then(|stem| stem.to_str())
+        let Some(prefab_name) = Path::new(filename)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
         else {
             continue;
         };
@@ -84,7 +87,9 @@ fn build_background_theme_aliases() -> HashMap<String, &'static str> {
         let filename = prefab_path
             .strip_prefix("Assets/Prefab/")
             .unwrap_or(prefab_path.as_str());
-        let Some(prefab_name) = Path::new(filename).file_stem().and_then(|stem| stem.to_str())
+        let Some(prefab_name) = Path::new(filename)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
         else {
             continue;
         };
@@ -229,8 +234,7 @@ mod tests {
         background_override_root_name, background_prefab_name, background_prefab_ref_index,
         detect_bg_theme, get_object_color, ground_color, ground_color_candidate_rgb,
         is_ground_color_candidate_sprite, props_tint_color_for_prefab, should_skip_render,
-        sky_top_color,
-        theme_name_for_background_prefab,
+        sky_top_color, theme_name_for_background_prefab,
     };
     use crate::domain::level::refs::{get_prefab_override, level_key_from_filename};
     use crate::domain::parser::parse_level;
@@ -264,9 +268,10 @@ mod tests {
         let level = parse_test_level(relative_path);
 
         level.objects.iter().find_map(|object| match object {
-            LevelObject::Prefab(prefab) if prefab.name.contains("Background") => {
-                prefab.override_data.as_ref().map(|data| data.raw_text.clone())
-            }
+            LevelObject::Prefab(prefab) if prefab.name.contains("Background") => prefab
+                .override_data
+                .as_ref()
+                .map(|data| data.raw_text.clone()),
             _ => None,
         })
     }
@@ -285,9 +290,9 @@ mod tests {
             if path.extension().and_then(|ext| ext.to_str()) != Some("bytes") {
                 continue;
             }
-            let Ok(relative) = path.strip_prefix(
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_levels"),
-            ) else {
+            let Ok(relative) =
+                path.strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_levels"))
+            else {
                 continue;
             };
             out.push(relative.to_string_lossy().replace('\\', "/"));
@@ -306,7 +311,7 @@ mod tests {
     fn prefab_asset_lookups_follow_sprite_name_normalization() {
         assert_color_close(
             props_tint_color_for_prefab("Twig_1 (2)"),
-            [112.0 / 255.0, 135.0 / 255.0, 148.0 / 255.0, 1.0]
+            [112.0 / 255.0, 135.0 / 255.0, 148.0 / 255.0, 1.0],
         );
         assert_eq!(
             get_object_color("Twig_1 (2)", 0, true),
@@ -363,7 +368,8 @@ mod tests {
 
     #[test]
     fn episode6_sandbox_background_override_refs_drive_theme_detection() {
-        let ice_path = "assetbundles/episode_sandbox_levels.unity3d/Episode_6_Ice Sandbox_data.bytes";
+        let ice_path =
+            "assetbundles/episode_sandbox_levels.unity3d/Episode_6_Ice Sandbox_data.bytes";
         let ice_names = parsed_object_names(ice_path);
         assert_eq!(
             detect_bg_theme(
@@ -401,9 +407,18 @@ mod tests {
             theme_name_for_background_prefab("background_forest_01_set 1"),
             Some("Morning")
         );
-        assert_eq!(theme_name_for_background_prefab("MayaHigh"), Some("MayaHigh"));
-        assert_eq!(theme_name_for_background_prefab("CloudJungleSet"), Some("Jungle"));
-        assert_eq!(theme_name_for_background_prefab("CloudLPASet"), Some("Maya"));
+        assert_eq!(
+            theme_name_for_background_prefab("MayaHigh"),
+            Some("MayaHigh")
+        );
+        assert_eq!(
+            theme_name_for_background_prefab("CloudJungleSet"),
+            Some("Jungle")
+        );
+        assert_eq!(
+            theme_name_for_background_prefab("CloudLPASet"),
+            Some("Maya")
+        );
         assert_eq!(theme_name_for_background_prefab("backgroundobject"), None);
     }
 
@@ -436,7 +451,10 @@ mod tests {
 
     #[test]
     fn object_name_fallback_ignores_generic_cave_names() {
-        let names = vec!["CaveGrid".to_string(), "Background_Jungle_01_SET".to_string()];
+        let names = vec![
+            "CaveGrid".to_string(),
+            "Background_Jungle_01_SET".to_string(),
+        ];
 
         assert_eq!(detect_bg_theme("level_key", &names, None), Some("Jungle"));
     }
@@ -455,15 +473,21 @@ mod tests {
     fn props_tint_colors_can_come_from_prefab_materials() {
         assert_color_close(
             props_tint_color_for_prefab("Mushroom_06"),
-            [190.0 / 255.0, 190.0 / 255.0, 1.0, 1.0]
+            [190.0 / 255.0, 190.0 / 255.0, 1.0, 1.0],
         );
         assert_color_close(
             props_tint_color_for_prefab("Twig_1"),
-            [112.0 / 255.0, 135.0 / 255.0, 148.0 / 255.0, 1.0]
+            [112.0 / 255.0, 135.0 / 255.0, 148.0 / 255.0, 1.0],
         );
         assert_color_close(props_tint_color_for_prefab("Rock_01"), [1.0, 1.0, 1.0, 1.0]);
-        assert_color_close(props_tint_color_for_prefab("Shell_01"), [1.0, 1.0, 1.0, 1.0]);
-        assert_color_close(props_tint_color_for_prefab("Bottle_01"), [1.0, 1.0, 1.0, 1.0]);
+        assert_color_close(
+            props_tint_color_for_prefab("Shell_01"),
+            [1.0, 1.0, 1.0, 1.0],
+        );
+        assert_color_close(
+            props_tint_color_for_prefab("Bottle_01"),
+            [1.0, 1.0, 1.0, 1.0],
+        );
         assert!(!super::props_tint_is_alpha_blend("Shell_01"));
         assert!(!super::props_tint_is_alpha_blend("Bottle_01"));
     }
@@ -499,7 +523,10 @@ mod tests {
     fn textured_object_colors_default_to_white_without_material_tint() {
         assert_eq!(get_object_color("Rock_01", 7, true), egui::Color32::WHITE);
         assert_eq!(get_object_color("StarBox", 7, true), egui::Color32::WHITE);
-        assert_eq!(get_object_color("DynamicStarBox", 7, true), egui::Color32::WHITE);
+        assert_eq!(
+            get_object_color("DynamicStarBox", 7, true),
+            egui::Color32::WHITE
+        );
         assert_eq!(get_object_color("TNT_Box", 7, true), egui::Color32::WHITE);
     }
 
@@ -571,9 +598,9 @@ mod tests {
                 let LevelObject::Prefab(prefab) = object else {
                     continue;
                 };
-                let name = get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
-                if ["Props", "Prop", "Challenges", "DessertPlaces", "reference"]
-                    .contains(&name)
+                let name =
+                    get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
+                if ["Props", "Prop", "Challenges", "DessertPlaces", "reference"].contains(&name)
                     || name.contains("Decoration ")
                 {
                     hits.push(format!("{relative_path}: {name}"));
@@ -581,7 +608,10 @@ mod tests {
             }
         }
 
-        assert!(hits.is_empty(), "unexpected legacy skip_render hits: {hits:?}");
+        assert!(
+            hits.is_empty(),
+            "unexpected legacy skip_render hits: {hits:?}"
+        );
     }
 
     #[test]
@@ -600,13 +630,13 @@ mod tests {
                 let LevelObject::Prefab(prefab) = object else {
                     continue;
                 };
-                let name = get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
+                let name =
+                    get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
                 if name.contains("Challenge") {
                     hits.push(format!("{relative_path}: {name}"));
-                    let hidden_by_missing_visuals = super::prefab_asset_lookup(
-                        super::prefab_basic_visuals_by_name(),
-                        name,
-                    ) == Some(&false);
+                    let hidden_by_missing_visuals =
+                        super::prefab_asset_lookup(super::prefab_basic_visuals_by_name(), name)
+                            == Some(&false);
                     let hidden_by_root_script = super::prefab_asset_lookup(
                         super::prefab_skip_render_by_root_scripts(),
                         name,
@@ -624,7 +654,10 @@ mod tests {
             }
         }
 
-        assert!(!hits.is_empty(), "expected at least one Challenge hit in test_levels");
+        assert!(
+            !hits.is_empty(),
+            "expected at least one Challenge hit in test_levels"
+        );
     }
 
     #[test]
@@ -673,7 +706,8 @@ mod tests {
                 let LevelObject::Prefab(prefab) = object else {
                     continue;
                 };
-                let name = get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
+                let name =
+                    get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
                 if name.starts_with("Star_") || name.starts_with("Crystal_") {
                     println!("{relative_path}: {}", name);
                 }
@@ -694,11 +728,10 @@ mod tests {
         ] {
             let asset_path = format!("Assets/Prefab/{name}.prefab");
             let prefab_text = super::super::read_pathname_text(&asset_path);
-            let material_guid_prefix = prefab_text.as_deref().and_then(super::prefab_material_guid).map(|guid| {
-                guid.get(..8)
-                    .unwrap_or(guid.as_str())
-                    .to_string()
-            });
+            let material_guid_prefix = prefab_text
+                .as_deref()
+                .and_then(super::prefab_material_guid)
+                .map(|guid| guid.get(..8).unwrap_or(guid.as_str()).to_string());
             let (root_components, root_scripts) = prefab_text
                 .as_deref()
                 .and_then(crate::domain::prefab_asset::PrefabAssetDocument::parse)
@@ -711,8 +744,11 @@ mod tests {
                 super::skip_props_tint(name),
                 super::sprite_asset_lookup(super::props_alpha_skip_names(), name).is_some(),
                 super::props_sprite_alpha_stats(name),
-                super::prefab_asset_lookup(super::prefab_skip_props_tint_by_root_components(), name)
-                    .is_some(),
+                super::prefab_asset_lookup(
+                    super::prefab_skip_props_tint_by_root_components(),
+                    name
+                )
+                .is_some(),
                 super::props_tint_color_for_prefab(name),
                 prefab_text.is_some(),
                 material_guid_prefix,
@@ -741,7 +777,8 @@ mod tests {
                 let LevelObject::Prefab(prefab) = object else {
                     continue;
                 };
-                let name = get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
+                let name =
+                    get_prefab_override(&level_key, prefab.prefab_index).unwrap_or(&prefab.name);
                 let bucket = if name.starts_with("Star_") {
                     &mut star_printed
                 } else if name.starts_with("Crystal_") {
@@ -755,7 +792,11 @@ mod tests {
                     continue;
                 }
 
-                let Some(raw_text) = prefab.override_data.as_ref().map(|data| data.raw_text.as_str()) else {
+                let Some(raw_text) = prefab
+                    .override_data
+                    .as_ref()
+                    .map(|data| data.raw_text.as_str())
+                else {
                     println!(
                         "{}: {} override=false object_refs=[] components=[]",
                         relative_path, name
@@ -800,7 +841,10 @@ mod tests {
 
     #[test]
     fn sky_top_colors_can_come_from_sky_assets() {
-        assert_eq!(sky_top_color("Maya"), egui::Color32::from_rgb(0x7d, 0xbf, 0xe9));
+        assert_eq!(
+            sky_top_color("Maya"),
+            egui::Color32::from_rgb(0x7d, 0xbf, 0xe9)
+        );
         assert_eq!(
             sky_top_color("MayaTemple"),
             egui::Color32::from_rgb(0xfd, 0xf8, 0x7a)
@@ -826,13 +870,34 @@ mod tests {
 
     #[test]
     fn ground_colors_can_come_from_ground_assets() {
-        assert_eq!(ground_color("Jungle"), egui::Color32::from_rgb(0x33, 0x88, 0x44));
-        assert_eq!(ground_color("Plateau"), egui::Color32::from_rgb(0x33, 0x77, 0x66));
-        assert_eq!(ground_color("Night"), egui::Color32::from_rgb(0x21, 0x2e, 0x43));
-        assert_eq!(ground_color("Halloween"), egui::Color32::from_rgb(0x2b, 0x26, 0x50));
-        assert_eq!(ground_color("Morning"), egui::Color32::from_rgb(0x0d, 0x14, 0x1e));
-        assert_eq!(ground_color("Cave"), egui::Color32::from_rgb(0x11, 0x21, 0x11));
-        assert_eq!(ground_color("Maya"), egui::Color32::from_rgb(0xa3, 0xa7, 0x49));
+        assert_eq!(
+            ground_color("Jungle"),
+            egui::Color32::from_rgb(0x33, 0x88, 0x44)
+        );
+        assert_eq!(
+            ground_color("Plateau"),
+            egui::Color32::from_rgb(0x33, 0x77, 0x66)
+        );
+        assert_eq!(
+            ground_color("Night"),
+            egui::Color32::from_rgb(0x21, 0x2e, 0x43)
+        );
+        assert_eq!(
+            ground_color("Halloween"),
+            egui::Color32::from_rgb(0x2b, 0x26, 0x50)
+        );
+        assert_eq!(
+            ground_color("Morning"),
+            egui::Color32::from_rgb(0x0d, 0x14, 0x1e)
+        );
+        assert_eq!(
+            ground_color("Cave"),
+            egui::Color32::from_rgb(0x11, 0x21, 0x11)
+        );
+        assert_eq!(
+            ground_color("Maya"),
+            egui::Color32::from_rgb(0xa3, 0xa7, 0x49)
+        );
         assert_eq!(
             ground_color("MayaCaveDark"),
             egui::Color32::from_rgb(0x11, 0x21, 0x11)
@@ -1073,16 +1138,8 @@ fn resolve_ground_color(theme_name: &str) -> Option<egui::Color32> {
     match theme_name {
         "Plateau" => resolve_theme_sprite_ground_color(theme, is_grass_fill_ground_sprite),
         "Maya" => resolve_theme_sprite_ground_color(theme, is_beach_ground_sprite),
-        "Night"
-        | "Morning"
-        | "Jungle"
-        | "Halloween"
-        | "Cave"
-        | "MayaCave"
-        | "MayaCaveDark"
-        | "MayaCave2Dark"
-        | "MayaHigh"
-        | "MayaTemple" => {
+        "Night" | "Morning" | "Jungle" | "Halloween" | "Cave" | "MayaCave" | "MayaCaveDark"
+        | "MayaCave2Dark" | "MayaHigh" | "MayaTemple" => {
             resolve_theme_sprite_ground_color(theme, is_near_fill_ground_sprite)
         }
         _ => None,
@@ -1151,15 +1208,15 @@ fn sky_top_colors() -> &'static HashMap<String, egui::Color32> {
 fn build_sky_top_colors() -> HashMap<String, egui::Color32> {
     let mut colors = HashMap::new();
 
-    for prefab_path in super::list_pathnames("Assets/Resources/environment/background/", ".prefab") {
+    for prefab_path in super::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let Some(theme_name) = theme_name_for_background_prefab(&prefab_path) else {
             continue;
         };
-        colors
-            .entry(theme_name.to_string())
-            .or_insert_with(|| resolve_sky_top_color(theme_name).unwrap_or_else(|| {
-                egui::Color32::from_rgb(0x26, 0xaa, 0xc2)
-            }));
+        colors.entry(theme_name.to_string()).or_insert_with(|| {
+            resolve_sky_top_color(theme_name)
+                .unwrap_or_else(|| egui::Color32::from_rgb(0x26, 0xaa, 0xc2))
+        });
     }
 
     colors
@@ -1267,7 +1324,7 @@ fn sample_bg_atlas_sprite_rgb(sprite: &crate::data::bg_data::BgSprite) -> Option
         .or_else(|| super::read_pathname(&format!("Assets/Texture2D/{atlas_name}")))?;
     let image = image::load_from_memory(data.as_ref()).ok()?.to_rgba8();
     let (x0, x1, y0, y1) = bg_sprite_image_bounds(sprite, image.width(), image.height())?;
-    
+
     average_sprite_region_rgb(&image, x0, x1, y0, y1, true)
         .or_else(|| average_sprite_region_rgb(&image, x0, x1, y0, y1, false))
 }
@@ -1297,7 +1354,9 @@ fn sample_bg_atlas_sprite_visible_edge_row_rgb(
     if top_row {
         for y in y0..y1 {
             let avg = average_sprite_region_rgb(&image, x0, x1, y, y.saturating_add(1), true)
-                .or_else(|| average_sprite_region_rgb(&image, x0, x1, y, y.saturating_add(1), false));
+                .or_else(|| {
+                    average_sprite_region_rgb(&image, x0, x1, y, y.saturating_add(1), false)
+                });
             if avg.is_some() {
                 return avg;
             }
@@ -1305,7 +1364,9 @@ fn sample_bg_atlas_sprite_visible_edge_row_rgb(
     } else {
         for y in (y0..y1).rev() {
             let avg = average_sprite_region_rgb(&image, x0, x1, y, y.saturating_add(1), true)
-                .or_else(|| average_sprite_region_rgb(&image, x0, x1, y, y.saturating_add(1), false));
+                .or_else(|| {
+                    average_sprite_region_rgb(&image, x0, x1, y, y.saturating_add(1), false)
+                });
             if avg.is_some() {
                 return avg;
             }
@@ -1392,8 +1453,8 @@ fn bg_sprite_image_bounds(
     let height = image_height as f32;
     let x0 = ((sprite.uv_x / sprite.subdiv) * width).round() as u32;
     let x1 = (((sprite.uv_x + sprite.grid_w) / sprite.subdiv) * width).round() as u32;
-    let y0 = (((sprite.subdiv - sprite.uv_y - sprite.grid_h) / sprite.subdiv) * height).round()
-        as u32;
+    let y0 =
+        (((sprite.subdiv - sprite.uv_y - sprite.grid_h) / sprite.subdiv) * height).round() as u32;
     let y1 = (((sprite.subdiv - sprite.uv_y) / sprite.subdiv) * height).round() as u32;
     let x0 = x0.min(image_width);
     let x1 = x1.min(image_width);
@@ -1515,7 +1576,6 @@ fn build_props_alpha_skip_names() -> HashMap<String, bool> {
     names
 }
 
-
 /// Returns the `_Color` tint that Unity applies to Props sprites via
 /// `GenericProps*.mat` materials serialized on individual prefabs.
 pub fn props_tint_color_for_prefab(prefab_name: &str) -> [f32; 4] {
@@ -1561,9 +1621,8 @@ fn build_prefab_material_colors_by_prefab() -> HashMap<String, [u8; 4]> {
             continue;
         };
         let material_guid_prefix = material_guid.get(..8).unwrap_or(&material_guid);
-        let Some(rgba) = crate::domain::level::refs::material_color_rgba_for_guid_prefix(
-            material_guid_prefix,
-        )
+        let Some(rgba) =
+            crate::domain::level::refs::material_color_rgba_for_guid_prefix(material_guid_prefix)
         else {
             continue;
         };
@@ -1666,7 +1725,8 @@ fn background_prefab_names() -> &'static HashSet<String> {
 fn build_background_prefab_names() -> HashSet<String> {
     let mut names = HashSet::new();
 
-    for prefab_path in super::list_pathnames("Assets/Resources/environment/background/", ".prefab") {
+    for prefab_path in super::list_pathnames("Assets/Resources/environment/background/", ".prefab")
+    {
         let filename = prefab_path
             .strip_prefix("Assets/Resources/environment/background/")
             .unwrap_or(prefab_path.as_str());
@@ -1739,7 +1799,10 @@ fn build_prefab_skip_props_tint_by_root_components() -> HashMap<String, bool> {
             continue;
         };
         let suffixes = prefab.root_component_suffixes();
-        if !suffixes.iter().any(|suffix| suffix == "PointLightSource" || suffix == "PartSecret") {
+        if !suffixes
+            .iter()
+            .any(|suffix| suffix == "PointLightSource" || suffix == "PartSecret")
+        {
             continue;
         }
 
@@ -1762,9 +1825,7 @@ fn extract_guid(line: &str) -> Option<&str> {
 }
 
 #[cfg(test)]
-fn collect_object_reference_values(
-    node: &OverrideNode,
-) -> Vec<i32> {
+fn collect_object_reference_values(node: &OverrideNode) -> Vec<i32> {
     let mut values = Vec::new();
     if let Some(value) = node.value_as_i32()
         && node.node_type == "ObjectReference"

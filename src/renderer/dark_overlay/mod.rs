@@ -254,7 +254,8 @@ impl LevelRenderer {
         if let (Some(resources), Some(device)) =
             (self.dark_mask_resources.clone(), self.wgpu_device.as_ref())
             && self.dark_mask_slot_counter < dark_mask_shader::max_draw_slots()
-            && let Some(gpu_mesh) = dark_mask_shader::build_dark_mask_gpu_mesh(device, &overlay_mesh)
+            && let Some(gpu_mesh) =
+                dark_mask_shader::build_dark_mask_gpu_mesh(device, &overlay_mesh)
         {
             let slot = self.dark_mask_slot_counter;
             self.dark_mask_slot_counter += 1;

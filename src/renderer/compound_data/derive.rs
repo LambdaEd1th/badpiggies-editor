@@ -19,8 +19,7 @@ pub(super) fn load_prefab(name: &str) -> PrefabAssetDocument {
     let path = format!("Assets/Prefab/{name}.prefab");
     let text =
         read_pathname_text(&path).unwrap_or_else(|| panic!("missing embedded prefab {path}"));
-    PrefabAssetDocument::parse(&text)
-        .unwrap_or_else(|| panic!("failed to parse prefab {name}"))
+    PrefabAssetDocument::parse(&text).unwrap_or_else(|| panic!("failed to parse prefab {name}"))
 }
 
 struct SpriteBits {

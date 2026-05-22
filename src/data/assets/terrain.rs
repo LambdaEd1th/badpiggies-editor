@@ -82,8 +82,10 @@ fn build_terrain_aliases() -> HashMap<String, String> {
 
 fn parse_terrain_texture_set(raw: &str) -> Option<TerrainTextureSet> {
     let doc = raw.split("--- ").skip(1).find(|doc| {
-        doc.lines()
-            .any(|line| line.trim() == format!("m_Script: {{fileID: 11500000, guid: {TERRAIN_SCRIPT_GUID}, type: 3}}"))
+        doc.lines().any(|line| {
+            line.trim()
+                == format!("m_Script: {{fileID: 11500000, guid: {TERRAIN_SCRIPT_GUID}, type: 3}}")
+        })
     })?;
 
     let fill = doc

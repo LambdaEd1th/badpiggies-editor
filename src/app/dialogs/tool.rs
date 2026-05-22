@@ -6,9 +6,7 @@ use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
 
 use super::super::EditorApp;
-use super::{
-    preview_playback_icon, terrain_preset_icon, terrain_preset_label_key, tool_mode_icon,
-};
+use super::{preview_playback_icon, terrain_preset_icon, terrain_preset_label_key, tool_mode_icon};
 
 fn preview_tool_target_name(app: &EditorApp) -> Option<String> {
     let tab = app.tabs.get(app.active_tab)?;
@@ -223,8 +221,7 @@ impl EditorApp {
                                             .image_tint_follows_text_color(true),
                                     );
                                     let response = response.on_hover_text(t.get(key));
-                                    if response.clicked()
-                                    {
+                                    if response.clicked() {
                                         queued_preview_state = Some(next_state);
                                     }
                                 }

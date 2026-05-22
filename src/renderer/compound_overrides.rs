@@ -154,7 +154,10 @@ fn build_bridge_runtime_projection(
     };
 
     let (runtime_end_point_x, runtime_end_point_y) = if raw_distance > f32::EPSILON {
-        (runtime_distance * angle.cos(), runtime_distance * angle.sin())
+        (
+            runtime_distance * angle.cos(),
+            runtime_distance * angle.sin(),
+        )
     } else {
         (raw_end_point_x, raw_end_point_y)
     };

@@ -93,6 +93,25 @@ impl Tab {
         self.save_view.is_some()
     }
 
+    pub(super) fn status_bar_file_label(&self) -> Option<String> {
+        let file_name = self.file_name.as_ref()?;
+
+        if let Some(level_name) = self
+            .save_view
+            .as_ref()
+            .and_then(|save_view| save_view.level_name.as_deref())
+        {
+            return Some(format!("{file_name} -> {level_name}"));
+        }
+
+        if let Some(level_name) = crate::data::level_db::level_display_name_for_filename(file_name)
+        {
+            return Some(format!("{file_name} -> {level_name}"));
+        }
+
+        Some(file_name.clone())
+    }
+
     pub(super) fn load_level(
         &mut self,
         name: String,

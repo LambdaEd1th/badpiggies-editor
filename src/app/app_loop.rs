@@ -246,7 +246,7 @@ impl eframe::App for EditorApp {
                     ui.label(format!("X: {:.2}  Y: {:.2}", mw.x, mw.y));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some(ref name) = self.tabs[self.active_tab].file_name {
+                    if let Some(name) = self.tabs[self.active_tab].status_bar_file_label() {
                         ui.label(name);
                     }
                 });

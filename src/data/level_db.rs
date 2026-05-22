@@ -77,6 +77,13 @@ fn build_lookup() -> HashMap<String, (String, String)> {
     map
 }
 
+fn build_scene_lookup() -> HashMap<String, (String, String)> {
+    load_base_level_entries()
+        .into_iter()
+        .map(|entry| (entry.scene.clone(), (entry.label, entry.scene)))
+        .collect()
+}
+
 fn load_base_level_entries() -> Vec<LevelEntry> {
     let mut entries = Vec::new();
 
@@ -231,6 +238,54 @@ fn value_as_string(value: &Value) -> Option<String> {
         .or_else(|| value_as_i64(value).map(|value| value.to_string()))
 }
 
+fn strip_known_level_extension(filename: &str) -> &str {
+    for suffix in [".bytes", ".yaml", ".yml", ".toml"] {
+        if filename.len() > suffix.len()
+            && filename[filename.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+        {
+            return &filename[..filename.len() - suffix.len()];
+        }
+    }
+
+    filename
+}
+
+fn level_scene_key_from_filename(filename: &str) -> &str {
+    let basename = filename
+        .rsplit(|ch| ch == '/' || ch == '\\')
+        .next()
+        .unwrap_or(filename);
+    let stem = strip_known_level_extension(basename);
+    stem.strip_suffix("_data").unwrap_or(stem)
+}
+
+fn format_level_display_name(label: &str, scene: &str) -> String {
+    if label.is_empty() {
+        scene.to_string()
+    } else {
+        format!("{scene} ({label})")
+    }
+}
+
+fn scene_lookup() -> &'static HashMap<String, (String, String)> {
+    static LOOKUP: OnceLock<HashMap<String, (String, String)>> = OnceLock::new();
+    LOOKUP.get_or_init(build_scene_lookup)
+}
+
+/// Look up a base level scene and numbered label from a scene key.
+pub fn scene_level_name(scene_key: &str) -> Option<(&'static str, &'static str)> {
+    scene_lookup()
+        .get(scene_key)
+        .map(|(label, scene)| (label.as_str(), scene.as_str()))
+}
+
+/// Resolve a level file name like `Level_21_data.bytes` to `Level_21 (1-1)`.
+pub fn level_display_name_for_filename(filename: &str) -> Option<String> {
+    let scene_key = level_scene_key_from_filename(filename);
+    let (label, scene) = scene_level_name(scene_key)?;
+    Some(format_level_display_name(label, scene))
+}
+
 /// Look up the level name for a `.contraption` filename.
 ///
 /// `filename_stem` is the filename without the `.contraption` extension (20 hex chars).
@@ -251,6 +306,23 @@ mod tests {
     fn lookup_for_level_key(level_key: &str) -> Option<(String, String)> {
         let stem = contraption_hash(level_key);
         contraption_level_name(&stem).map(|(label, scene)| (label.to_string(), scene.to_string()))
+    }
+
+    #[test]
+    fn filename_lookup_resolves_known_level_files() {
+        assert_eq!(
+            level_display_name_for_filename("Level_21_data.bytes"),
+            Some("Level_21 (1-1)".to_string())
+        );
+        assert_eq!(
+            level_display_name_for_filename("scenario_69_data.toml"),
+            Some("scenario_69 (2-1)".to_string())
+        );
+        assert_eq!(
+            level_display_name_for_filename("C:\\tmp\\episode_6_level_VI_data.yaml"),
+            Some("episode_6_level_VI (6-30)".to_string())
+        );
+        assert_eq!(level_display_name_for_filename("unknown_level.bytes"), None);
     }
 
     #[test]

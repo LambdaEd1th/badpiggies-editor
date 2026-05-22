@@ -251,10 +251,7 @@ fn strip_known_level_extension(filename: &str) -> &str {
 }
 
 fn level_scene_key_from_filename(filename: &str) -> &str {
-    let basename = filename
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(filename);
+    let basename = filename.rsplit(['/', '\\']).next().unwrap_or(filename);
     let stem = strip_known_level_extension(basename);
     stem.strip_suffix("_data").unwrap_or(stem)
 }

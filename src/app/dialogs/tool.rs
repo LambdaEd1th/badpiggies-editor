@@ -204,43 +204,41 @@ impl EditorApp {
             .show_inside(ui, |ui| {
                 ui.add_space(4.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.group(|ui| {
-                        ui.vertical(|ui| {
-                            ui.heading(&state.title);
-                            ui.separator();
-                            ui.horizontal(|ui| {
-                                for (next_state, key) in [
-                                    (PreviewPlaybackState::Build, "tool_preview_build"),
-                                    (PreviewPlaybackState::Play, "tool_preview_play"),
-                                    (PreviewPlaybackState::Pause, "tool_preview_pause"),
-                                ] {
-                                    let response = ui.add(
-                                        egui::Button::image(preview_playback_icon(next_state))
-                                            .selected(state.preview_state == next_state)
-                                            .frame(true)
-                                            .min_size(button_size)
-                                            .image_tint_follows_text_color(true),
-                                    );
-                                    let response = response.on_hover_text(t.get(key));
-                                    if response.clicked() {
-                                        queued_preview_state = Some(next_state);
-                                    }
-                                }
-                            });
-
-                            if state.show_dark_preview_controls {
-                                let mut night_vision_enabled = state.night_vision_enabled;
-                                if ui
-                                    .checkbox(
-                                        &mut night_vision_enabled,
-                                        t.get("tool_preview_night_vision"),
-                                    )
-                                    .clicked()
-                                {
-                                    queued_night_vision_enabled = Some(night_vision_enabled);
+                    ui.vertical(|ui| {
+                        ui.heading(&state.title);
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            for (next_state, key) in [
+                                (PreviewPlaybackState::Build, "tool_preview_build"),
+                                (PreviewPlaybackState::Play, "tool_preview_play"),
+                                (PreviewPlaybackState::Pause, "tool_preview_pause"),
+                            ] {
+                                let response = ui.add(
+                                    egui::Button::image(preview_playback_icon(next_state))
+                                        .selected(state.preview_state == next_state)
+                                        .frame(true)
+                                        .min_size(button_size)
+                                        .image_tint_follows_text_color(true),
+                                );
+                                let response = response.on_hover_text(t.get(key));
+                                if response.clicked() {
+                                    queued_preview_state = Some(next_state);
                                 }
                             }
                         });
+
+                        if state.show_dark_preview_controls {
+                            let mut night_vision_enabled = state.night_vision_enabled;
+                            if ui
+                                .checkbox(
+                                    &mut night_vision_enabled,
+                                    t.get("tool_preview_night_vision"),
+                                )
+                                .clicked()
+                            {
+                                queued_night_vision_enabled = Some(night_vision_enabled);
+                            }
+                        }
                     });
                 });
                 ui.add_space(4.0);

@@ -1,19 +1,16 @@
-//! WGSL background shader — unified port of Unity's background rendering shaders.
+//! WGSL background shaders — split one-to-one with the Unity background shaders.
 //!
-//! Three original Unity shaders, unified with `cutoff` + `tint_color` uniforms:
+//! Background materials currently resolve to six Unity shader kinds, so runtime
+//! keeps six WGSL shader source files with matching pipeline selection:
+//! - `_Custom/Unlit_Monochrome`
+//! - `_Custom/Unlit_Color_Geometry`
+//! - `_Custom/Unlit_ColorTransparent_Geometry`
+//! - `_Custom/Unlit_Alpha8Bit_Color`
+//! - `Unlit/Transparent`
+//! - `Unlit/Transparent Cutout`
 //!
-//! | Shader | Fragment | Blend | Usage |
-//! |--------|----------|-------|-------|
-//! | `_Custom/Unlit_Color_Geometry` | `tex * _Color` | Off (opaque) | Solid fill layers (Sky, Ground) |
-//! | `_Custom/Unlit_ColorTransparent_Geometry` | `tex * _Color` | SrcAlpha 1-SrcAlpha | Far hills, clouds |
-//! | `Unlit/Transparent Cutout` (fileID 10750) | `tex` (no _Color!) | Alpha test | Cave shapes, plateaus, fills |
-//!
-//! **Note**: `Unlit/Transparent Cutout` does NOT use `_Color`. The `_Color` values on
-//! materials using this shader (e.g. cave fill layers) are dead data, ignored at runtime.
-//!
-//! Unified as a single WGSL shader with `cutoff` uniform controlling alpha test.
-//! Uses a shared large uniform buffer with dynamic offsets for efficient multi-sprite
-//! rendering without per-sprite bind group allocation.
+//! The renderer chooses the WGSL file directly from `MaterialShaderKind` rather
+//! than multiplexing all modes through one shader branch.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,106 +18,132 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
+use crate::domain::level::refs::MaterialShaderKind;
+
 /// Maximum number of sprite draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 1024;
 
-// ── WGSL source — unified port of three Unity background shaders ──
+pub const WHITE_TEXTURE_KEY: &str = "__bg_white__";
 
-const WGSL_SOURCE: &str = r#"
-// Unified port of Unity background shaders:
-//   _Custom/Unlit_Color_Geometry         — opaque fills
-//   _Custom/Unlit_ColorTransparent_Geometry — alpha blend (far hills, clouds)
-//   Unlit/Transparent Cutout             — alpha test (near hills, beach)
-//
-// Common original fragment: return tex2D(_MainTex, i.texcoord) * _Color;
-// Blend Off / SrcAlpha OneMinusSrcAlpha / alpha-test are handled by `cutoff` uniform.
+const CUSTOM_UNLIT_MONOCHROME_WGSL: &str =
+    include_str!("../../editor_assets/shader/_custom__unlit_monochrome.wgsl");
+const CUSTOM_UNLIT_COLOR_GEOMETRY_WGSL: &str =
+    include_str!("../../editor_assets/shader/_custom__unlit_color_geometry.wgsl");
+const CUSTOM_UNLIT_COLOR_TRANSPARENT_GEOMETRY_WGSL: &str =
+    include_str!("../../editor_assets/shader/_custom__unlit_colortransparent_geometry.wgsl");
+const CUSTOM_UNLIT_ALPHA8BIT_COLOR_WGSL: &str =
+    include_str!("../../editor_assets/shader/_custom__unlit_alpha8bit_color.wgsl");
+const BUILTIN_UNLIT_TRANSPARENT_WGSL: &str =
+    include_str!("../../editor_assets/shader/unlit__transparent.wgsl");
+const BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL: &str =
+    include_str!("../../editor_assets/shader/unlit__transparent_cutout.wgsl");
 
-struct Uniforms {
-    screen_size: vec2<f32>,
-    camera_center: vec2<f32>,
-    zoom: f32,
-    cutoff: f32,
-    world_center: vec2<f32>,
-    world_size: vec2<f32>,
-    uv_min: vec2<f32>,
-    uv_max: vec2<f32>,
-    content_ratio_x: f32,  // original_w / extended_w (1.0 = no extension)
-    alpha8bit: f32,         // 1.0 = _Custom/Unlit_Alpha8Bit_Color mode
-    tint_color: vec4<f32>,
-};
+const BACKGROUND_SHADER_KINDS: [MaterialShaderKind; 6] = [
+    MaterialShaderKind::CustomUnlitMonochrome,
+    MaterialShaderKind::CustomUnlitColorGeometry,
+    MaterialShaderKind::CustomUnlitColorTransparentGeometry,
+    MaterialShaderKind::CustomUnlitAlpha8BitColor,
+    MaterialShaderKind::BuiltinUnlitTransparent,
+    MaterialShaderKind::BuiltinUnlitTransparentCutout,
+];
 
-@group(0) @binding(0) var<uniform> u: Uniforms;
-@group(0) @binding(1) var main_tex: texture_2d<f32>;
-@group(0) @binding(2) var main_sampler: sampler;
-
-struct VIn {
-    @location(0) position: vec2<f32>,  // unit quad [-0.5, 0.5]
-    @location(1) uv: vec2<f32>,        // [0, 1]
-};
-struct VOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(in: VIn) -> VOut {
-    var out: VOut;
-    // Unit quad → world position (center + offset * size)
-    let world = u.world_center + in.position * u.world_size;
-    // World → NDC (same camera transform as edge_shader / opaque_shader)
-    let ndc = (world - u.camera_center) * u.zoom / (u.screen_size * 0.5);
-    out.position = vec4<f32>(ndc, 0.0, 1.0);
-    // UV interpolation: map [0,1] → [uv_min, uv_max]
-    // When sprite is extended (content_ratio_x < 1), compress UV towards
-    // center so extended portions sample near-center texels — no hard seam.
-    let mapped_x = (in.uv.x - 0.5) * u.content_ratio_x + 0.5;
-    out.uv = mix(u.uv_min, u.uv_max, vec2(mapped_x, in.uv.y));
-    return out;
+fn background_shader_kinds() -> &'static [MaterialShaderKind; 6] {
+    &BACKGROUND_SHADER_KINDS
 }
 
-@fragment
-fn fs_main(in: VOut) -> @location(0) vec4<f32> {
-    // _Custom/Unlit_Alpha8Bit_Color exact fragment:
-    //   var.xyz = _Color.xyz;
-    //   var.w = _Color.w * tex2D(_MainTex).w;
-    //   return var;   (with Blend SrcAlpha OneMinusSrcAlpha)
-    // Texture RGB is ignored. Result is unpremultiplied; egui's compositor is
-    // premultiplied, so we multiply rgb by final alpha — algebraically equivalent
-    // to Unity's SrcAlpha blend (final = src.rgb * a + dst * (1-a)).
-    if (u.alpha8bit > 0.5) {
-        let a = u.tint_color.a * textureSample(main_tex, main_sampler, in.uv).a;
-        return vec4<f32>(u.tint_color.rgb * a, a);
+fn background_shader_label(kind: MaterialShaderKind) -> &'static str {
+    match kind {
+        MaterialShaderKind::CustomUnlitMonochrome => {
+            "_custom__unlit_monochrome__background_shader"
+        }
+        MaterialShaderKind::CustomUnlitColorGeometry => {
+            "_custom__unlit_color_geometry__background_shader"
+        }
+        MaterialShaderKind::CustomUnlitColorTransparentGeometry => {
+            "_custom__unlit_colortransparent_geometry__background_shader"
+        }
+        MaterialShaderKind::CustomUnlitAlpha8BitColor => {
+            "_custom__unlit_alpha8bit_color__background_shader"
+        }
+        MaterialShaderKind::BuiltinUnlitTransparent => {
+            "unlit__transparent__background_shader"
+        }
+        MaterialShaderKind::BuiltinUnlitTransparentCutout => {
+            "unlit__transparent_cutout__background_shader"
+        }
     }
-
-    // Exact Unity shader: return tex2D(_MainTex, i.texcoord) * _Color;
-    let c = textureSample(main_tex, main_sampler, in.uv) * u.tint_color;
-
-    // Texture is already premultiplied at load time (matching Unity's
-    // "Alpha Is Transparency" import).  Shader modes (1:1 with Unity):
-    //   cutoff < 0       → _Custom/Unlit_Color_Geometry (Blend Off → α=1)
-    //   0 ≤ cutoff < 0.5 → _Custom/Unlit_ColorTransparent_Geometry
-    //                      (Blend SrcAlpha 1-SrcAlpha → pass α through)
-    //   cutoff ≥ 0.5     → Unlit/Transparent Cutout
-    //                      (alpha test, then Blend Off → α=1)
-    if (u.cutoff < 0.0) {
-        return vec4<f32>(c.rgb, 1.0);
-    }
-    if (c.a < u.cutoff) { discard; }
-    if (u.cutoff >= 0.5) {
-        // Unlit/Transparent Cutout uses Blend Off — kept pixels are opaque.
-        return vec4<f32>(c.rgb, 1.0);
-    }
-
-    // Already premultiplied (texture loader bakes _Color.a=1 fully premult)
-    // — pass through unchanged for egui's premultiplied compositor.
-    return vec4<f32>(c.rgb, c.a);
 }
-"#;
 
-// ── GPU uniform buffer layout (80 bytes, 16-byte aligned) ──
+fn background_pipeline_label(kind: MaterialShaderKind) -> &'static str {
+    match kind {
+        MaterialShaderKind::CustomUnlitMonochrome => {
+            "_custom__unlit_monochrome__background_pipeline"
+        }
+        MaterialShaderKind::CustomUnlitColorGeometry => {
+            "_custom__unlit_color_geometry__background_pipeline"
+        }
+        MaterialShaderKind::CustomUnlitColorTransparentGeometry => {
+            "_custom__unlit_colortransparent_geometry__background_pipeline"
+        }
+        MaterialShaderKind::CustomUnlitAlpha8BitColor => {
+            "_custom__unlit_alpha8bit_color__background_pipeline"
+        }
+        MaterialShaderKind::BuiltinUnlitTransparent => {
+            "unlit__transparent__background_pipeline"
+        }
+        MaterialShaderKind::BuiltinUnlitTransparentCutout => {
+            "unlit__transparent_cutout__background_pipeline"
+        }
+    }
+}
+
+fn background_shader_source(kind: MaterialShaderKind) -> &'static str {
+    match kind {
+        MaterialShaderKind::CustomUnlitMonochrome => CUSTOM_UNLIT_MONOCHROME_WGSL,
+        MaterialShaderKind::CustomUnlitColorGeometry => CUSTOM_UNLIT_COLOR_GEOMETRY_WGSL,
+        MaterialShaderKind::CustomUnlitColorTransparentGeometry => {
+            CUSTOM_UNLIT_COLOR_TRANSPARENT_GEOMETRY_WGSL
+        }
+        MaterialShaderKind::CustomUnlitAlpha8BitColor => CUSTOM_UNLIT_ALPHA8BIT_COLOR_WGSL,
+        MaterialShaderKind::BuiltinUnlitTransparent => BUILTIN_UNLIT_TRANSPARENT_WGSL,
+        MaterialShaderKind::BuiltinUnlitTransparentCutout => {
+            BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL
+        }
+    }
+}
+
+fn is_transparent_shader(kind: MaterialShaderKind) -> bool {
+    matches!(
+        kind,
+        MaterialShaderKind::CustomUnlitColorTransparentGeometry
+            | MaterialShaderKind::CustomUnlitAlpha8BitColor
+            | MaterialShaderKind::BuiltinUnlitTransparent
+    )
+}
+
+fn unity_alpha_blend_state() -> wgpu::BlendState {
+    wgpu::BlendState {
+        color: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::SrcAlpha,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        },
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::SrcAlpha,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        },
+    }
+}
+
+fn background_shader_blend(kind: MaterialShaderKind) -> Option<wgpu::BlendState> {
+    is_transparent_shader(kind).then(unity_alpha_blend_state)
+}
+
+// ── GPU uniform buffer layout (96 bytes, 16-byte aligned) ──
 //
-// WGSL auto-pads between content_ratio_x (ending at 60) and tint_color
-// (align 16 → offset 64).  Rust repr(C) needs explicit padding to match.
+// WGSL aligns `main_tex_st` to 16 bytes, so Rust keeps one explicit 4-byte pad
+// after `content_ratio_x` to land `main_tex_st` at offset 64.
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -134,7 +157,8 @@ pub struct BgUniforms {
     pub uv_min: [f32; 2],
     pub uv_max: [f32; 2],
     pub content_ratio_x: f32, // original_w / extended_w (1.0 = no extension)
-    pub alpha8bit: f32,       // 1.0 = _Custom/Unlit_Alpha8Bit_Color mode; aligns tint_color to offset 64
+    pub _pad0: f32,
+    pub main_tex_st: [f32; 4],
     pub tint_color: [f32; 4], // vec4 needs 16-byte alignment
 }
 
@@ -170,7 +194,7 @@ const UNIT_QUAD: [BgVertex; 4] = [
 // ── Shared pipeline resources ──
 
 pub struct BgResources {
-    pipeline: wgpu::RenderPipeline,
+    pipelines: HashMap<MaterialShaderKind, wgpu::RenderPipeline>,
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     quad_vbo: wgpu::Buffer,
@@ -180,17 +204,20 @@ pub struct BgResources {
     slot_stride: u64,
 }
 
+impl BgResources {
+    fn pipeline_for(&self, kind: MaterialShaderKind) -> &wgpu::RenderPipeline {
+        self.pipelines
+            .get(&kind)
+            .unwrap_or_else(|| panic!("missing background pipeline for {:?}", kind))
+    }
+}
+
 /// Initialize the wgpu render pipeline and shared resources.
 pub fn init_bg_resources(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> BgResources {
     use wgpu::util::DeviceExt;
 
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("bg_shader"),
-        source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
-    });
-
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("bg_bgl"),
+        label: Some("background_bind_group_layout"),
         entries: &[
             // @binding(0) uniform buffer (dynamic offset)
             wgpu::BindGroupLayoutEntry {
@@ -227,58 +254,70 @@ pub fn init_bg_resources(device: &wgpu::Device, target_format: wgpu::TextureForm
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("bg_pl"),
+        label: Some("background_pipeline_layout"),
         bind_group_layouts: &[Some(&bind_group_layout)],
         immediate_size: 0,
     });
 
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("bg_pipeline"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<BgVertex>() as u64,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &[
-                    wgpu::VertexAttribute {
-                        format: wgpu::VertexFormat::Float32x2,
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                    wgpu::VertexAttribute {
-                        format: wgpu::VertexFormat::Float32x2,
-                        offset: 8,
-                        shader_location: 1,
-                    },
-                ],
-            }],
-            compilation_options: Default::default(),
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: target_format,
-                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-            compilation_options: Default::default(),
-        }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            cull_mode: None, // Cull Off (all three Unity shaders)
-            ..Default::default()
-        },
-        depth_stencil: None, // ZWrite Off (all three Unity shaders)
-        multisample: wgpu::MultisampleState::default(),
-        multiview_mask: None,
-        cache: None,
-    });
+    let create_pipeline = |kind: MaterialShaderKind| {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(background_shader_label(kind)),
+            source: wgpu::ShaderSource::Wgsl(background_shader_source(kind).into()),
+        });
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(background_pipeline_label(kind)),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<BgVertex>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &[
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32x2,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32x2,
+                            offset: 8,
+                            shader_location: 1,
+                        },
+                    ],
+                }],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    blend: background_shader_blend(kind),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        })
+    };
+
+    let pipelines = background_shader_kinds()
+        .iter()
+        .copied()
+        .map(|kind| (kind, create_pipeline(kind)))
+        .collect();
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("bg_sampler"),
+        label: Some("background_sampler"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
@@ -287,13 +326,13 @@ pub fn init_bg_resources(device: &wgpu::Device, target_format: wgpu::TextureForm
     });
 
     let quad_vbo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("bg_quad_vbo"),
+        label: Some("background_quad_vertex_buffer"),
         contents: bytemuck::cast_slice(&UNIT_QUAD),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
     let quad_ibo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("bg_quad_ibo"),
+        label: Some("background_quad_index_buffer"),
         contents: bytemuck::cast_slice(&[0u16, 1, 2, 0, 2, 3]),
         usage: wgpu::BufferUsages::INDEX,
     });
@@ -305,14 +344,14 @@ pub fn init_bg_resources(device: &wgpu::Device, target_format: wgpu::TextureForm
     let buffer_size = slot_stride * MAX_DRAW_SLOTS as u64;
 
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("bg_uniform_buf"),
+        label: Some("background_uniform_buffer"),
         size: buffer_size,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
 
     BgResources {
-        pipeline,
+        pipelines,
         bind_group_layout,
         sampler,
         quad_vbo,
@@ -346,7 +385,7 @@ pub fn upload_bg_atlas(
         depth_or_array_layers: 1,
     };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("bg_atlas_tex"),
+        label: Some("background_atlas_texture"),
         size,
         mip_level_count: 1,
         sample_count: 1,
@@ -373,7 +412,7 @@ pub fn upload_bg_atlas(
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("bg_atlas_bg"),
+        label: Some("background_atlas_bind_group"),
         layout: &resources.bind_group_layout,
         entries: &[
             wgpu::BindGroupEntry {
@@ -398,29 +437,25 @@ pub fn upload_bg_atlas(
     BgAtlasGpu { bind_group }
 }
 
-/// Load a background texture from embedded assets using the given path prefix
-/// (e.g. `"bg"` or `"sky"`).
+fn background_texture_asset_path(filename: &str) -> String {
+    format!("Assets/Texture2D/{filename}")
+}
+
+/// Load a background texture from embedded Unity assets.
 pub fn load_bg_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     resources: &BgResources,
-    prefix: &str,
     filename: &str,
 ) -> Option<BgAtlasGpu> {
-    let path = format!("{}/{}", prefix, filename);
-    let data = crate::data::assets::read_pathname(&path)?;
+    if filename == WHITE_TEXTURE_KEY {
+        return Some(upload_bg_atlas(device, queue, resources, &[255, 255, 255, 255], 1, 1));
+    }
+
+    let data = crate::data::assets::read_pathname(&background_texture_asset_path(filename))?;
     let img = image::load_from_memory(&data).ok()?.to_rgba8();
     let (w, h) = (img.width(), img.height());
-    // Premultiply alpha into RGB — matches Unity's "Alpha Is Transparency"
-    // import setting.  This ensures bilinear filtering between alpha=0 and
-    // alpha=255 texels produces the same (dark) colour as Unity.
-    let mut pixels = img.into_raw();
-    for chunk in pixels.chunks_exact_mut(4) {
-        let a = chunk[3] as u16;
-        chunk[0] = ((chunk[0] as u16 * a) / 255) as u8;
-        chunk[1] = ((chunk[1] as u16 * a) / 255) as u8;
-        chunk[2] = ((chunk[2] as u16 * a) / 255) as u8;
-    }
+    let pixels = img.into_raw();
     Some(upload_bg_atlas(device, queue, resources, &pixels, w, h))
 }
 
@@ -449,16 +484,47 @@ impl BgAtlasCache {
         if let Some(arc) = self.atlases.get(filename) {
             return Some(arc.clone());
         }
-        // Determine prefix from filename
-        let prefix = if filename.contains("Sky_Texture") || filename.contains("_sky.") {
-            "sky"
-        } else {
-            "bg"
-        };
-        let atlas = load_bg_texture(device, queue, resources, prefix, filename)?;
+        let atlas = load_bg_texture(device, queue, resources, filename)?;
         let arc = Arc::new(atlas);
         self.atlases.insert(filename.to_string(), arc.clone());
         Some(arc)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{background_shader_kinds, background_shader_source, background_texture_asset_path};
+
+    #[test]
+    fn background_textures_load_from_unity_texture2d_namespace() {
+        let atlas_name = crate::data::bg_data::bg_atlas_files()
+            .first()
+            .expect("expected embedded background atlas asset");
+        let sky_name = crate::data::bg_data::sky_texture_files()
+            .first()
+            .expect("expected embedded background sky asset");
+
+        assert!(
+            crate::data::assets::read_pathname(&background_texture_asset_path(atlas_name))
+                .is_some(),
+            "expected background atlas {} to exist under Assets/Texture2D",
+            atlas_name
+        );
+        assert!(
+            crate::data::assets::read_pathname(&background_texture_asset_path(sky_name)).is_some(),
+            "expected background sky {} to exist under Assets/Texture2D",
+            sky_name
+        );
+    }
+
+    #[test]
+    fn background_wgsl_shader_file_count_matches_unity_material_modes() {
+        assert_eq!(background_shader_kinds().len(), 6);
+        for kind in background_shader_kinds() {
+            let source = background_shader_source(*kind);
+            assert!(source.contains("@vertex"));
+            assert!(source.contains("@fragment"));
+        }
     }
 }
 
@@ -469,6 +535,7 @@ struct BgPaintCallback {
     atlas: Arc<BgAtlasGpu>,
     slot: u32,
     uniforms: BgUniforms,
+    shader_kind: MaterialShaderKind,
 }
 
 impl egui_wgpu::CallbackTrait for BgPaintCallback {
@@ -496,7 +563,8 @@ impl egui_wgpu::CallbackTrait for BgPaintCallback {
         _callback_resources: &egui_wgpu::CallbackResources,
     ) {
         let offset = self.slot as u64 * self.resources.slot_stride;
-        render_pass.set_pipeline(&self.resources.pipeline);
+        let pipeline = self.resources.pipeline_for(self.shader_kind);
+        render_pass.set_pipeline(pipeline);
         render_pass.set_bind_group(0, &self.atlas.bind_group, &[offset as u32]);
         render_pass.set_vertex_buffer(0, self.resources.quad_vbo.slice(..));
         render_pass.set_index_buffer(self.resources.quad_ibo.slice(..), wgpu::IndexFormat::Uint16);
@@ -513,12 +581,14 @@ pub fn make_bg_callback(
     atlas: Arc<BgAtlasGpu>,
     slot: u32,
     uniforms: BgUniforms,
+    shader_kind: MaterialShaderKind,
 ) -> egui::Shape {
     let cb = BgPaintCallback {
         resources,
         atlas,
         slot,
         uniforms,
+        shader_kind,
     };
     egui::Shape::Callback(egui_wgpu::Callback::new_paint_callback(clip_rect, cb))
 }

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::domain::level::refs::MaterialShaderKind;
+
 /// Parallax layer with a speed factor.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BgLayer {
@@ -64,13 +66,14 @@ pub struct BgSprite {
     pub local_y: f32,
     pub parent_group: String,
     pub tint: [f32; 4],
+    pub shader_kind: MaterialShaderKind,
+    pub main_tex_st: [f32; 4],
     pub custom_render_queue: Option<i32>,
+    #[allow(dead_code)]
     pub alpha_blend: bool,
-    pub alpha8bit: bool,
     /// Alpha-test cutoff threshold from the material's `_Cutoff` YAML field.
-    /// Only consulted by the renderer when `alpha_blend` is false (cutout path).
-    /// Unity built-in `Unlit/Transparent Cutout` default is 0.5; some materials
-    /// override to 0.1.
+    /// The explicit renderer path now keys off `shader_kind`; `alpha_blend`
+    /// stays on the data model for focused background tests and audits.
     pub cutoff: f32,
 }
 

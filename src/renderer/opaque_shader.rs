@@ -14,63 +14,8 @@ use eframe::wgpu;
 
 use crate::data::sprite_db::UvRect;
 
-// ── WGSL shader source — exact port of Unity _Custom/Unlit_Color_Geometry ──
-
-const WGSL_SOURCE: &str = r#"
-// Unity Unlit/Transparent Cutout — Properties { _MainTex, _Color (unused), _Cutoff = 0.5 }
-// Fragment: clip(tex.a - _Cutoff); return tex * _Color;
-// Blend Off, ZWrite On, Cull Back (we use Cull Off — editor 2D).
-
-struct Uniforms {
-    screen_size: vec2<f32>,
-    camera_center: vec2<f32>,
-    zoom: f32,
-    y_offset: f32,          // per-sprite animation offset (world units)
-    tint_color: vec4<f32>,
-};
-
-@group(0) @binding(0) var<uniform> u: Uniforms;
-@group(0) @binding(1) var main_tex: texture_2d<f32>;
-@group(0) @binding(2) var main_sampler: sampler;
-
-struct VertexInput {
-    @location(0) position: vec2<f32>,
-    @location(1) uv: vec2<f32>,
-};
-
-struct VertexOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-    // World → NDC: same transform as edge_shader (camera center + zoom + screen size)
-    let sx = (in.position.x - u.camera_center.x) * u.zoom;
-    let sy = (in.position.y + u.y_offset - u.camera_center.y) * u.zoom;
-    out.position = vec4<f32>(
-        sx / (u.screen_size.x * 0.5),
-        sy / (u.screen_size.y * 0.5),
-        0.0, 1.0
-    );
-    out.uv = in.uv;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Exact Unity Unlit/Transparent Cutout fragment:
-    //   clip(tex.a * _Color.a - _Cutoff)   with _Cutoff = 0.5
-    //   return tex * _Color
-    // Blend Off → kept pixels are fully opaque in the framebuffer.
-    let c = textureSample(main_tex, main_sampler, in.uv) * u.tint_color;
-    if (c.a < 0.5) { discard; }
-    // Force alpha = 1 to match Unity's Blend Off (opaque) behavior in egui's
-    // premultiplied compositor; kept pixels have already passed the 0.5 alpha test.
-    return vec4<f32>(c.rgb, 1.0);
-}
-"#;
+const WGSL_SOURCE: &str =
+    include_str!("../../editor_assets/shader/unlit__transparent_cutout__sprite.wgsl");
 
 // ── GPU uniform buffer layout ──
 
@@ -113,12 +58,12 @@ pub fn init_opaque_resources(
     use wgpu::util::DeviceExt;
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("opaque_shader"),
+        label: Some("unlit__transparent_cutout__sprite_shader"),
         source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
     });
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("opaque_bgl"),
+        label: Some("unlit__transparent_cutout__sprite_bind_group_layout"),
         entries: &[
             // @binding(0) uniform buffer
             wgpu::BindGroupLayoutEntry {
@@ -153,13 +98,13 @@ pub fn init_opaque_resources(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("opaque_pl"),
+        label: Some("unlit__transparent_cutout__sprite_pipeline_layout"),
         bind_group_layouts: &[Some(&bind_group_layout)],
         immediate_size: 0,
     });
 
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("opaque_pipeline"),
+        label: Some("unlit__transparent_cutout__sprite_pipeline"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -206,7 +151,7 @@ pub fn init_opaque_resources(
     });
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("opaque_sampler"),
+        label: Some("unlit__transparent_cutout__sprite_sampler"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
@@ -215,7 +160,7 @@ pub fn init_opaque_resources(
     });
 
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("opaque_quad_ibo"),
+        label: Some("unlit__transparent_cutout__sprite_quad_index_buffer"),
         contents: bytemuck::cast_slice(&[0u16, 1, 2, 0, 2, 3]),
         usage: wgpu::BufferUsages::INDEX,
     });
@@ -252,7 +197,7 @@ pub fn load_props_atlas(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<Op
         depth_or_array_layers: 1,
     };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("opaque_atlas_tex"),
+        label: Some("unlit__transparent_cutout__sprite_atlas_texture"),
         size,
         mip_level_count: 1,
         sample_count: 1,
@@ -426,7 +371,7 @@ pub fn build_opaque_sprites(
     use wgpu::util::DeviceExt;
     let sprite_count = vertices.len() / 4;
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("opaque_sprites_vbo"),
+        label: Some("unlit__transparent_cutout__sprite_vertex_buffer"),
         contents: bytemuck::cast_slice(vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
@@ -444,12 +389,12 @@ pub fn build_opaque_sprites(
     let mut sprites = Vec::with_capacity(sprite_count);
     for i in 0..sprite_count {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(&format!("opaque_u_{}", i)),
+            label: Some(&format!("unlit__transparent_cutout__sprite_uniform_{}", i)),
             contents: bytemuck::bytes_of(&default_uniforms),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(&format!("opaque_bg_{}", i)),
+            label: Some(&format!("unlit__transparent_cutout__sprite_bind_group_{}", i)),
             layout: &resources.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {

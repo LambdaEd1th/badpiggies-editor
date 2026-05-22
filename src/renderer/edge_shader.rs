@@ -8,69 +8,7 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
-// ── WGSL shader source — Unity e2d/Curve-aligned port ──
-
-const WGSL_SOURCE: &str = r#"
-// Uniform buffer: camera + per-terrain parameters
-struct Uniforms {
-    screen_size: vec2<f32>,
-    camera_center: vec2<f32>,
-    zoom: f32,
-    inv_control_size: f32,
-    inv_control_size_half: f32,
-    splat_params_x: f32,
-};
-
-@group(0) @binding(0) var<uniform> u: Uniforms;
-@group(0) @binding(1) var control_tex: texture_2d<f32>;
-@group(0) @binding(2) var clamp_sampler: sampler;
-@group(0) @binding(3) var splat0_tex: texture_2d<f32>;
-@group(0) @binding(4) var repeat_sampler: sampler;
-@group(0) @binding(5) var splat1_tex: texture_2d<f32>;
-
-struct VertexInput {
-    @location(0) position: vec2<f32>,
-    @location(1) uv: vec2<f32>,       // x = accumulated distance, y = node index
-    @location(2) color: f32,           // 1.0 = outer (surface), 0.0 = inner
-};
-
-struct VertexOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) control_uv: vec2<f32>,
-    @location(1) splat_uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-
-    // Transform world → NDC
-    // NDC: X -1(left)..+1(right), Y -1(bottom)..+1(top)
-    // World Y-up matches NDC Y-up, so no negation needed.
-    let sx = (in.position.x - u.camera_center.x) * u.zoom;
-    let sy = (in.position.y - u.camera_center.y) * u.zoom;
-    let ndc_x = sx / (u.screen_size.x * 0.5);
-    let ndc_y = sy / (u.screen_size.y * 0.5);
-    out.position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
-
-    // Match Unity: texcoord0 = float2(v.texcoord.y * _InvControlSize + _InvControlSizeHalf, 0.0)
-    out.control_uv = vec2<f32>(in.uv.y * u.inv_control_size + u.inv_control_size_half, 0.0);
-
-    // Splat texture UV: x = horizontal tiling, y = gradient position (outer=1, inner=0)
-    out.splat_uv = vec2<f32>(in.uv.x * u.splat_params_x, in.color);
-
-    return out;
-}
-
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let splat1 = textureSample(splat1_tex, repeat_sampler, in.splat_uv);
-    let selector = floor(textureSample(control_tex, clamp_sampler, in.control_uv).y);
-    var result = textureSample(splat0_tex, repeat_sampler, in.splat_uv);
-    result = vec4<f32>(result.xyz + (splat1.xyz - result.xyz) * selector, result.w);
-    return result;
-}
-"#;
+const WGSL_SOURCE: &str = include_str!("../../editor_assets/shader/e2d__curve.wgsl");
 
 // ── GPU uniform buffer layout (matches WGSL struct Uniforms) ──
 
@@ -101,12 +39,12 @@ pub fn init_edge_resources(
     target_format: wgpu::TextureFormat,
 ) -> EdgeResources {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("edge_shader"),
+        label: Some("e2d__curve_shader"),
         source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
     });
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("edge_bind_group_layout"),
+        label: Some("e2d__curve_bind_group_layout"),
         entries: &[
             // @binding(0) uniform buffer
             wgpu::BindGroupLayoutEntry {
@@ -170,13 +108,13 @@ pub fn init_edge_resources(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("edge_pipeline_layout"),
+        label: Some("e2d__curve_pipeline_layout"),
         bind_group_layouts: &[Some(&bind_group_layout)],
         immediate_size: 0,
     });
 
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("edge_pipeline"),
+        label: Some("e2d__curve_pipeline"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -231,7 +169,7 @@ pub fn init_edge_resources(
     });
 
     let clamp_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("edge_clamp_sampler"),
+        label: Some("e2d__curve_clamp_sampler"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
@@ -240,7 +178,7 @@ pub fn init_edge_resources(
     });
 
     let repeat_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("edge_repeat_sampler"),
+        label: Some("e2d__curve_repeat_sampler"),
         address_mode_u: wgpu::AddressMode::Repeat,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
@@ -336,21 +274,21 @@ pub fn upload_edge_mesh(
 
     // Vertex buffer
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("edge_vbo"),
+        label: Some("e2d__curve_vertex_buffer"),
         contents: bytemuck::cast_slice(vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
     // Index buffer
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("edge_ebo"),
+        label: Some("e2d__curve_index_buffer"),
         contents: bytemuck::cast_slice(indices),
         usage: wgpu::BufferUsages::INDEX,
     });
 
     // Uniform buffer (updated each frame with camera params)
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("edge_uniforms"),
+        label: Some("e2d__curve_uniform_buffer"),
         contents: bytemuck::bytes_of(&Uniforms {
             screen_size: [1.0, 1.0],
             camera_center: [0.0, 0.0],
@@ -370,7 +308,7 @@ pub fn upload_edge_mesh(
         control_pixels,
         control_w,
         control_h,
-        "edge_control",
+        "e2d__curve_control_texture",
     );
 
     // Splat textures (1×1 white fallback if missing)
@@ -378,22 +316,50 @@ pub fn upload_edge_mesh(
     let has_splat1 = splat1_pixels.is_some();
 
     let splat0_view = if let Some(px) = splat0_pixels {
-        create_rgba_texture(device, queue, px, splat0_w, splat0_h, "edge_splat0")
+        create_rgba_texture(
+            device,
+            queue,
+            px,
+            splat0_w,
+            splat0_h,
+            "e2d__curve_splat0_texture",
+        )
     } else {
-        create_rgba_texture(device, queue, &[255, 255, 255, 255], 1, 1, "edge_splat0_fb")
+        create_rgba_texture(
+            device,
+            queue,
+            &[255, 255, 255, 255],
+            1,
+            1,
+            "e2d__curve_splat0_fallback_texture",
+        )
     };
 
     let splat1_view = if let Some(px) = splat1_pixels {
-        create_rgba_texture(device, queue, px, splat1_w, splat1_h, "edge_splat1")
+        create_rgba_texture(
+            device,
+            queue,
+            px,
+            splat1_w,
+            splat1_h,
+            "e2d__curve_splat1_texture",
+        )
     } else {
-        create_rgba_texture(device, queue, &[255, 255, 255, 255], 1, 1, "edge_splat1_fb")
+        create_rgba_texture(
+            device,
+            queue,
+            &[255, 255, 255, 255],
+            1,
+            1,
+            "e2d__curve_splat1_fallback_texture",
+        )
     };
 
     let inv = 1.0 / control_w as f32;
 
     // Bind group
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("edge_bind_group"),
+        label: Some("e2d__curve_bind_group"),
         layout: &resources.bind_group_layout,
         entries: &[
             wgpu::BindGroupEntry {

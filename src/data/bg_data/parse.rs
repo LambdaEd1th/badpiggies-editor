@@ -205,7 +205,7 @@ pub(super) fn parse_prefab(raw: &str) -> Option<ParsedPrefab> {
                 }) else {
                     continue;
                 };
-                renderers.insert(game_object_id, guid_prefix(&material_guid).to_string());
+                renderers.insert(game_object_id, material_guid);
             }
             114 => {
                 if !is_enabled(doc) {
@@ -307,7 +307,7 @@ pub(super) fn load_textureloader_materials() -> HashMap<String, String> {
     for line in raw.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("- material:") {
-            current_guid = extract_guid(trimmed).map(|guid| guid_prefix(&guid).to_string());
+            current_guid = extract_guid(trimmed);
             continue;
         }
         if let Some(asset_name) = trimmed.strip_prefix("assetName: ")

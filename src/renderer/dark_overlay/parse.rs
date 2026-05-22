@@ -4,12 +4,13 @@ use crate::data::assets;
 use crate::domain::prefab_asset::PrefabAssetDocument;
 use crate::domain::types::*;
 use crate::unity_runtime::components::{BezierCurve, BezierMesh, LevelManager, PointLightSource};
-use crate::unity_runtime::scene::Scene;
+use crate::unity_runtime::scene::{Scene, SceneValue};
 
 use super::super::grid::ConstructionGrid;
 use super::{LIT_AREA_BORDER_ALPHA, LitAreaPolygon, POINT_LIGHT_BORDER_ALPHA};
 
 const CONSTRUCTION_GRID_START_LIGHT_BORDER_WIDTH: f32 = 0.5;
+const SERIALIZED_LIT_AREA_BORDER_WIDTH: f32 = 0.5;
 
 /// Parse `m_darkLevel` from LevelManager and LitArea bezier curves from the level.
 pub(in crate::renderer) fn parse_dark_level_data(
@@ -52,6 +53,7 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     let od = prefab.override_data.as_ref()?;
     let (scene, root) = Scene::from_override_text(&od.raw_text)?;
     let (_, bezier) = scene.get_component_of::<BezierCurve>(root)?;
+    let bezier_mesh = scene.get_component_of::<BezierMesh>(root).map(|(_, mesh)| mesh);
     let nodes = bezier.nodes.as_ref()?;
     let node_count = nodes.len();
     if node_count < 2 {
@@ -94,9 +96,7 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     let count = nodes.len();
     // Use the full bezierPointCount from level data (120-391) for smooth curves
     let render_points = bpc.max(count * 10);
-    let mut polygon = Vec::with_capacity(render_points);
-    let world_x = prefab.position.x;
-    let world_y = prefab.position.y;
+    let mut local_polygon = Vec::with_capacity(render_points);
 
     for i in 1..=render_points {
         let ct = i as f32 / render_points as f32;
@@ -139,27 +139,32 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
         let x = omt3 * p0x + 3.0 * omt2 * t * c0x + 3.0 * omt * t2 * c1x + t3 * p1x;
         let y = omt3 * p0y + 3.0 * omt2 * t * c0y + 3.0 * omt * t2 * c1y + t3 * p1y;
 
-        polygon.push((world_x + x, world_y + y));
+        local_polygon.push((x, y));
     }
 
-    if polygon.len() < 3 {
+    if local_polygon.len() < 3 {
         return None;
     }
 
     // Unity's BezierMesh border strip is centered on the original curve, but
     // the main lit polygon writes depth in front of it. The visible penumbra
     // therefore starts at the lit boundary and extends outward by borderWidth.
-    let border_width = parse_border_width(prefab).unwrap_or_else(lit_area_prefab_border_width);
-    let (border_inner_vertices, border_vertices) = if border_width > 0.0 {
-        (polygon.clone(), offset_polygon(&polygon, border_width))
+    let border_width = resolved_lit_area_border_width(bezier_mesh);
+    let (local_border_inner, local_border_outer) = if border_width > 0.0 {
+        (local_polygon.clone(), offset_polygon(&local_polygon, border_width))
     } else {
         (Vec::new(), Vec::new())
     };
+    let polygon = transform_lit_area_polygon(prefab, &local_polygon);
+    let border_inner_vertices = transform_lit_area_polygon(prefab, &local_border_inner);
+    let border_vertices = transform_lit_area_polygon(prefab, &local_border_outer);
 
     log::info!(
-        "LitArea at ({:.1}, {:.1}): {} bezier nodes → {} polygon vertices, borderWidth={:.2}",
-        world_x,
-        world_y,
+        "LitArea at ({:.1}, {:.1}) scale=({:.2}, {:.2}): {} bezier nodes → {} polygon vertices, borderWidth={:.2}",
+        prefab.position.x,
+        prefab.position.y,
+        prefab.scale.x,
+        prefab.scale.y,
         count,
         polygon.len(),
         border_width
@@ -173,12 +178,16 @@ fn parse_lit_area_bezier(prefab: &PrefabInstance) -> Option<LitAreaPolygon> {
     })
 }
 
-/// Parse borderWidth from a LitArea prefab's override data.
-fn parse_border_width(prefab: &PrefabInstance) -> Option<f32> {
-    let od = prefab.override_data.as_ref()?;
-    let (scene, root) = Scene::from_override_text(&od.raw_text)?;
-    let (_, mesh) = scene.get_component_of::<BezierMesh>(root)?;
-    mesh.border_width
+fn resolved_lit_area_border_width(mesh: Option<&BezierMesh>) -> f32 {
+    if let Some(mesh) = mesh {
+        if let Some(border_width) = mesh.border_width {
+            return border_width;
+        }
+        if bezier_mesh_has_serialized_border_polygon(mesh) {
+            return SERIALIZED_LIT_AREA_BORDER_WIDTH;
+        }
+    }
+    lit_area_prefab_border_width()
 }
 
 fn lit_area_prefab_bezier_point_count() -> Option<i32> {
@@ -192,6 +201,35 @@ fn lit_area_prefab_border_width() -> f32 {
         .and_then(|prefab| prefab.root_component("BezierMesh").cloned())
         .and_then(|component| component.field_f32("borderWidth"))
         .unwrap_or(0.0)
+}
+
+fn bezier_mesh_has_serialized_border_polygon(mesh: &BezierMesh) -> bool {
+    mesh.extra.iter().any(|(field, value)| {
+        field == "borderPolygon" && scene_value_contains_object_reference(value)
+    })
+}
+
+fn scene_value_contains_object_reference(value: &SceneValue) -> bool {
+    match value {
+        SceneValue::ObjectReference(_) => true,
+        SceneValue::Generic(entries) => entries.iter().any(|(field, entry)| {
+            field == "_unresolvedObjectReference"
+                && matches!(entry, SceneValue::Integer(index) if *index != 0)
+        }),
+        _ => false,
+    }
+}
+
+fn transform_lit_area_polygon(prefab: &PrefabInstance, points: &[(f32, f32)]) -> Vec<(f32, f32)> {
+    points
+        .iter()
+        .map(|&(x, y)| {
+            (
+                prefab.position.x + x * prefab.scale.x,
+                prefab.position.y + y * prefab.scale.y,
+            )
+        })
+        .collect()
 }
 
 fn prefab_asset_document(prefab_name: &str) -> Option<PrefabAssetDocument> {
@@ -470,6 +508,33 @@ mod tests {
     }
 
     #[test]
+    fn dark_sandbox_lit_area_gets_border_from_serialized_border_polygon() {
+        let level_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+        );
+        let bytes = std::fs::read(&level_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+        let level = parse_level(bytes)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
+
+        let lit_area = level
+            .objects
+            .iter()
+            .find_map(|object| match object {
+                LevelObject::Prefab(prefab) if prefab.name == "LitArea" => Some(prefab),
+                _ => None,
+            })
+            .expect("expected Dark Sandbox to contain a LitArea prefab");
+
+        let polygon =
+            parse_lit_area_bezier(lit_area).expect("expected Dark Sandbox LitArea polygon");
+
+        assert!(!polygon.border_vertices.is_empty());
+        assert_eq!(polygon.vertices.len(), polygon.border_vertices.len());
+        assert_eq!(polygon.vertices.len(), polygon.border_inner_vertices.len());
+    }
+
+    #[test]
     fn parses_point_light_size_and_border_from_ast() {
         let polygon = parse_point_light(&prefab(
             "LitCrystal_01",
@@ -547,6 +612,75 @@ mod tests {
     }
 
     #[test]
+    fn uses_serialized_lit_area_border_default_when_border_polygon_exists() {
+        const LIT_AREA_OVERRIDE_WITH_BORDER_POLYGON_ONLY: &str = "GameObject LitArea
+	Component MentalTools.BezierCurve
+		Integer bezierPointCount = 4
+		Generic bezierCurve
+			Array nodes
+				ArraySize size = 4
+				Element 0
+					Generic data
+						Vector3 position
+							Float x = 0
+							Float y = 0
+						Vector3 tangent0
+							Float x = 0
+							Float y = 0
+						Vector3 tangent1
+							Float x = 0
+							Float y = 0
+				Element 1
+					Generic data
+						Vector3 position
+							Float x = 2
+							Float y = 0
+						Vector3 tangent0
+							Float x = 0
+							Float y = 0
+						Vector3 tangent1
+							Float x = 0
+							Float y = 0
+				Element 2
+					Generic data
+						Vector3 position
+							Float x = 2
+							Float y = 2
+						Vector3 tangent0
+							Float x = 0
+							Float y = 0
+						Vector3 tangent1
+							Float x = 0
+							Float y = 0
+				Element 3
+					Generic data
+						Vector3 position
+							Float x = 0
+							Float y = 2
+						Vector3 tangent0
+							Float x = 0
+							Float y = 0
+						Vector3 tangent1
+							Float x = 0
+							Float y = 0
+	Component MentalTools.BezierMesh
+		ObjectReference polygon = 197
+		ObjectReference borderPolygon = 198
+";
+
+        let polygon = parse_lit_area_bezier(&prefab(
+            "LitArea",
+            Vec3::default(),
+            LIT_AREA_OVERRIDE_WITH_BORDER_POLYGON_ONLY,
+        ))
+        .expect("expected lit area polygon");
+
+        assert_eq!(polygon.vertices.len(), polygon.border_vertices.len());
+        assert!(!polygon.border_vertices.is_empty());
+        assert!(!polygon.border_inner_vertices.is_empty());
+    }
+
+    #[test]
     fn uses_lit_area_prefab_default_when_bezier_point_count_is_missing() {
         let polygon = parse_lit_area_bezier(&prefab(
             "LitArea",
@@ -558,6 +692,45 @@ mod tests {
         assert_eq!(polygon.vertices.len(), 20);
         assert!(polygon.border_vertices.is_empty());
         assert!(polygon.border_inner_vertices.is_empty());
+    }
+
+    #[test]
+    fn scaled_lit_area_scales_curve_and_border_geometry() {
+        const SCALED_LIT_AREA_OVERRIDE: &str = "GameObject LitArea\n\tComponent MentalTools.BezierCurve\n\t\tInteger bezierPointCount = 4\n\t\tGeneric bezierCurve\n\t\t\tArray nodes\n\t\t\t\tArraySize size = 4\n\t\t\t\tElement 0\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 1\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 2\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 2\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 2\n\t\t\t\t\t\t\tFloat y = 2\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\tElement 3\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector3 position\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 2\n\t\t\t\t\t\tVector3 tangent0\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\t\t\t\t\t\tVector3 tangent1\n\t\t\t\t\t\t\tFloat x = 0\n\t\t\t\t\t\t\tFloat y = 0\n\tComponent MentalTools.BezierMesh\n\t\tFloat borderWidth = 0.5\n";
+
+        let unscaled = parse_lit_area_bezier(&prefab_with_scale(
+            "LitArea",
+            Vec3::default(),
+            Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            SCALED_LIT_AREA_OVERRIDE,
+        ))
+        .expect("expected lit area polygon");
+        let scaled = parse_lit_area_bezier(&prefab_with_scale(
+            "LitArea",
+            Vec3::default(),
+            Vec3 {
+                x: 2.0,
+                y: 2.0,
+                z: 1.0,
+            },
+            SCALED_LIT_AREA_OVERRIDE,
+        ))
+        .expect("expected scaled lit area polygon");
+
+        let max_x = |points: &[(f32, f32)]| points.iter().map(|(x, _)| *x).fold(f32::MIN, f32::max);
+        let min_x = |points: &[(f32, f32)]| points.iter().map(|(x, _)| *x).fold(f32::MAX, f32::min);
+
+        let unscaled_width = max_x(&unscaled.vertices) - min_x(&unscaled.vertices);
+        let scaled_width = max_x(&scaled.vertices) - min_x(&scaled.vertices);
+        let unscaled_ring_width = max_x(&unscaled.border_vertices) - max_x(&unscaled.border_inner_vertices);
+        let scaled_ring_width = max_x(&scaled.border_vertices) - max_x(&scaled.border_inner_vertices);
+
+        assert!((scaled_width - unscaled_width * 2.0).abs() < 0.05);
+        assert!((scaled_ring_width - unscaled_ring_width * 2.0).abs() < 0.05);
     }
 
     #[test]
@@ -579,16 +752,25 @@ mod tests {
     }
 
     fn prefab(name: &str, position: Vec3, raw_text: &str) -> PrefabInstance {
+        prefab_with_scale(
+            name,
+            position,
+            Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            raw_text,
+        )
+    }
+
+    fn prefab_with_scale(name: &str, position: Vec3, scale: Vec3, raw_text: &str) -> PrefabInstance {
         PrefabInstance {
             name: name.to_string(),
             position,
             prefab_index: 0,
             rotation: Vec3::default(),
-            scale: Vec3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
+            scale,
             data_type: DataType::None,
             terrain_data: None,
             override_data: Some(PrefabOverrideData {

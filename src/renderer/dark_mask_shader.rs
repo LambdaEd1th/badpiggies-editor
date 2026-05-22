@@ -30,62 +30,12 @@ pub enum DarkMaskPipelineKind {
     NightVisionOverlay,
 }
 
-const WGSL_SOURCE: &str = r#"
-// WGSL port of the material-side dark overlay shader logic used by the editor.
-//
-// The fragment path is the plain-color material output used by
-// `DepthMaskTransparent` / `MaskOverlay`.
-//
-struct Uniforms {
-    viewport_min: vec2<f32>,
-    viewport_size: vec2<f32>,
-    color: vec4<f32>,
-    params: vec4<f32>,
-};
-
-@group(0) @binding(0) var<uniform> u: Uniforms;
-
-struct VIn {
-    @location(0) position: vec2<f32>,
-};
-
-struct VOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) screen_uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(in: VIn) -> VOut {
-    var out: VOut;
-    let local = in.position - u.viewport_min;
-    let ndc = vec2<f32>(
-        local.x / (u.viewport_size.x * 0.5) - 1.0,
-        1.0 - local.y / (u.viewport_size.y * 0.5),
-    );
-    out.position = vec4<f32>(ndc, 0.0, 1.0);
-    out.screen_uv = vec2<f32>(
-        local.x / u.viewport_size.x,
-        local.y / u.viewport_size.y,
-    );
-    return out;
-}
-
-@fragment
-fn fs_color(in: VOut) -> @location(0) vec4<f32> {
-    return u.color;
-}
-
-@fragment
-fn fs_night_vision_overlay(in: VOut) -> @location(0) vec4<f32> {
-    let centered = in.screen_uv - vec2<f32>(0.5, 0.5);
-    let radius = u.params.x;
-    let softness = max(u.params.y, 0.0001);
-    let factor = clamp((length(centered) - radius) / (-softness), 0.0, 1.0);
-    let vignette = factor * factor * (3.0 - 2.0 * factor);
-    let rgb = mix(u.color.rgb, u.color.rgb * vignette, vec3<f32>(0.5, 0.5, 0.5));
-    return vec4<f32>(rgb, u.color.a);
-}
-"#;
+const UNLIT_TRANSPARENT_CG_RUNTIME_WGSL: &str =
+    include_str!("../../editor_assets/shader/depth_mask__unlit_transparent_cg__runtime.wgsl");
+const MASK_OVERLAY_RUNTIME_WGSL: &str =
+    include_str!("../../editor_assets/shader/depth_mask__maskoverlay__runtime.wgsl");
+const MASK_OVERLAY_NV_RUNTIME_WGSL: &str =
+    include_str!("../../editor_assets/shader/depth_mask__maskoverlaynv__runtime.wgsl");
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -134,9 +84,17 @@ pub fn init_dark_mask_resources(
     device: &wgpu::Device,
     target_format: wgpu::TextureFormat,
 ) -> DarkMaskResources {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("dark_mask_shader"),
-        source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
+    let unlit_transparent_cg_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("depth_mask__unlit_transparent_cg_runtime_shader"),
+        source: wgpu::ShaderSource::Wgsl(UNLIT_TRANSPARENT_CG_RUNTIME_WGSL.into()),
+    });
+    let mask_overlay_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("depth_mask__maskoverlay_runtime_shader"),
+        source: wgpu::ShaderSource::Wgsl(MASK_OVERLAY_RUNTIME_WGSL.into()),
+    });
+    let mask_overlay_nv_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("depth_mask__maskoverlaynv_runtime_shader"),
+        source: wgpu::ShaderSource::Wgsl(MASK_OVERLAY_NV_RUNTIME_WGSL.into()),
     });
 
     let min_align = device.limits().min_uniform_buffer_offset_alignment as u64;
@@ -144,7 +102,7 @@ pub fn init_dark_mask_resources(
     let slot_stride = uniform_size.div_ceil(min_align) * min_align;
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("dark_mask_bgl"),
+        label: Some("depth_mask__runtime_bind_group_layout"),
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
@@ -158,13 +116,13 @@ pub fn init_dark_mask_resources(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("dark_mask_pl"),
+        label: Some("depth_mask__runtime_pipeline_layout"),
         bind_group_layouts: &[Some(&bind_group_layout)],
         immediate_size: 0,
     });
 
     let vertex = wgpu::VertexState {
-        module: &shader,
+        module: &unlit_transparent_cg_shader,
         entry_point: Some("vs_main"),
         buffers: &[wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<DarkMaskVertex>() as u64,
@@ -185,11 +143,11 @@ pub fn init_dark_mask_resources(
     };
 
     let multiply_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("dark_mask_multiply_pipeline"),
+        label: Some("depth_mask__unlit_transparent_cg__multiply_pipeline"),
         layout: Some(&pipeline_layout),
         vertex: vertex.clone(),
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &unlit_transparent_cg_shader,
             entry_point: Some("fs_color"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: target_format,
@@ -217,11 +175,11 @@ pub fn init_dark_mask_resources(
     });
 
     let alpha_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("dark_mask_alpha_pipeline"),
+        label: Some("depth_mask__maskoverlay__alpha_pipeline"),
         layout: Some(&pipeline_layout),
         vertex: vertex.clone(),
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &mask_overlay_shader,
             entry_point: Some("fs_color"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: target_format,
@@ -249,11 +207,11 @@ pub fn init_dark_mask_resources(
     });
 
     let night_vision_overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("dark_mask_night_vision_overlay_pipeline"),
+        label: Some("depth_mask__maskoverlaynv__night_vision_overlay_pipeline"),
         layout: Some(&pipeline_layout),
         vertex,
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: &mask_overlay_nv_shader,
             entry_point: Some("fs_night_vision_overlay"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: target_format,
@@ -281,14 +239,14 @@ pub fn init_dark_mask_resources(
     });
 
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("dark_mask_uniform_buf"),
+        label: Some("depth_mask__runtime_uniform_buffer"),
         size: slot_stride * MAX_DRAW_SLOTS as u64,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
 
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("dark_mask_bg"),
+        label: Some("depth_mask__runtime_bind_group"),
         layout: &bind_group_layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
@@ -335,12 +293,12 @@ pub fn build_dark_mask_gpu_mesh(
         .collect();
 
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("dark_mask_vbo"),
+        label: Some("depth_mask__runtime_vertex_buffer"),
         contents: bytemuck::cast_slice(&vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("dark_mask_ibo"),
+        label: Some("depth_mask__runtime_index_buffer"),
         contents: bytemuck::cast_slice(&mesh.indices),
         usage: wgpu::BufferUsages::INDEX,
     });

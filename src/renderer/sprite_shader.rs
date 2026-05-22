@@ -23,113 +23,9 @@ use crate::data::sprite_db::UvRect;
 /// Maximum number of sprite draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 2048;
 
-// ── WGSL source — port of Unity _Custom/Unlit_ColorTransparent_Geometry ──
-
-const WGSL_SOURCE: &str = r#"
-// Port of Unity _Custom/Unlit_ColorTransparent_Geometry + Gray + Shiny variants
-// mode 0 (normal):       return tex2D(_MainTex, uv) * _Color
-// mode 1 (gray):         lum = dot(tex.rgb, vec3(0.2989, 0.587, 0.114));
-//                        return vec4(lum,lum,lum,tex.a) * _Color
-// mode 2 (shiny):        shine = 1 - abs((screen_x - _Center) * _Scale);
-//                        return tex + clamp(shine,0,1) * _Color * tex.a
-// mode 3 (prealpha):     same as normal, but sampled RGB is already premultiplied
-//                        in the source atlas, so the fragment must not multiply
-//                        RGB by alpha a second time before blending.
-//
-// Blend SrcAlpha OneMinusSrcAlpha, ZWrite Off, Cull Off
-
-struct Uniforms {
-    screen_size: vec2<f32>,       // 0..8
-    camera_center: vec2<f32>,     // 8..16
-    zoom: f32,                    // 16..20
-    rotation: f32,                // 20..24    radians (world-space)
-    world_center: vec2<f32>,      // 24..32
-    half_size: vec2<f32>,         // 32..40    half-extents in world units
-    uv_min: vec2<f32>,            // 40..48
-    uv_max: vec2<f32>,            // 48..56
-    mode: f32,                    // 56..60    0=normal, 1=gray, 2=shiny, 3=prealpha normal
-    shine_center: f32,            // 60..64    screen-space X for shiny sweep
-    tint_color: vec4<f32>,        // 64..80
-};
-
-@group(0) @binding(0) var<uniform> u: Uniforms;
-@group(0) @binding(1) var main_tex: texture_2d<f32>;
-@group(0) @binding(2) var main_sampler: sampler;
-
-struct VIn {
-    @location(0) position: vec2<f32>,  // unit quad [-0.5, 0.5]
-    @location(1) uv: vec2<f32>,        // [0, 1]
-};
-struct VOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-    @location(1) screen_x: f32,        // NDC x → [0,1] for shiny sweep
-};
-
-@vertex
-fn vs_main(in: VIn) -> VOut {
-    var out: VOut;
-    // Unit quad → local offset scaled by half_size (* 2 because quad is [-0.5, 0.5])
-    let local = in.position * u.half_size * 2.0;
-
-    // Apply rotation
-    let cos_r = cos(u.rotation);
-    let sin_r = sin(u.rotation);
-    let rotated = vec2<f32>(
-        local.x * cos_r - local.y * sin_r,
-        local.x * sin_r + local.y * cos_r,
-    );
-
-    // Local → world
-    let world = u.world_center + rotated;
-
-    // World → NDC
-    let ndc = (world - u.camera_center) * u.zoom / (u.screen_size * 0.5);
-    out.position = vec4<f32>(ndc, 0.0, 1.0);
-
-    // UV interpolation: [0,1] → [uv_min, uv_max]
-    out.uv = mix(u.uv_min, u.uv_max, in.uv);
-
-    // Screen-space X for shiny effect: NDC [-1,1] → [0,1]
-    out.screen_x = ndc.x * 0.5 + 0.5;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VOut) -> @location(0) vec4<f32> {
-    let tex = textureSample(main_tex, main_sampler, in.uv);
-    var c: vec4<f32>;
-    let prealpha = u.mode > 2.5;
-    var render_mode = u.mode;
-    if (prealpha) {
-        render_mode = u.mode - 3.0;
-    }
-
-    if (render_mode > 1.5) {
-        // Shiny: tex + clamp(shine, 0, 1) * tint_color * tex.a
-        // Unity: _Scale default = 10.0
-        let shine = 1.0 - abs((in.screen_x - u.shine_center) * 10.0);
-        c = tex + clamp(shine, 0.0, 1.0) * u.tint_color * tex.a;
-    } else if (render_mode > 0.5) {
-        // Gray: luminance desaturation then tint
-        let lum = 0.2989 * tex.r + 0.587 * tex.g + 0.114 * tex.b;
-        c = vec4<f32>(lum, lum, lum, tex.a) * u.tint_color;
-    } else {
-        // Normal: tex * tint_color
-        c = tex * u.tint_color;
-    }
-
-    // Strict 1:1 with Unity: no discard. Unity uses
-    //   Blend SrcAlpha OneMinusSrcAlpha → pixels with alpha=0 contribute nothing.
-    // egui compositor is premultiplied, so straight-alpha inputs must multiply
-    // RGB by alpha here. PreAlpha atlases already store premultiplied RGB and
-    // must pass through unchanged to avoid dimming twice.
-    if (prealpha) {
-        return vec4<f32>(c.rgb, c.a);
-    }
-    return vec4<f32>(c.rgb * c.a, c.a);
-}
-"#;
+const WGSL_SOURCE: &str = include_str!(
+    "../../editor_assets/shader/_custom__unlit_colortransparent_geometry__sprite.wgsl"
+);
 
 // ── GPU uniform buffer layout (80 bytes, 16-byte aligned) ──
 
@@ -178,7 +74,7 @@ pub fn init_sprite_resources(
     use wgpu::util::DeviceExt;
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("sprite_shader"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_shader"),
         source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
     });
 
@@ -188,7 +84,7 @@ pub fn init_sprite_resources(
     let slot_stride = uniform_size.div_ceil(min_align) * min_align;
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("sprite_bgl"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_bind_group_layout"),
         entries: &[
             // @binding(0) uniform buffer (dynamic offset)
             wgpu::BindGroupLayoutEntry {
@@ -223,13 +119,13 @@ pub fn init_sprite_resources(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("sprite_pl"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_pipeline_layout"),
         bind_group_layouts: &[Some(&bind_group_layout)],
         immediate_size: 0,
     });
 
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("sprite_pipeline"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_pipeline"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -274,7 +170,7 @@ pub fn init_sprite_resources(
     });
 
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("sprite_sampler"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_sampler"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
@@ -292,20 +188,20 @@ pub fn init_sprite_resources(
         -0.5, -0.5,   0.0, 1.0,  // BL
     ];
     let quad_vbo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("sprite_quad_vbo"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_quad_vertex_buffer"),
         contents: bytemuck::cast_slice(&quad_vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
     let quad_ibo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("sprite_quad_ibo"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_quad_index_buffer"),
         contents: bytemuck::cast_slice(&[0u16, 1, 2, 0, 2, 3]),
         usage: wgpu::BufferUsages::INDEX,
     });
 
     // Dynamic uniform buffer large enough for all draw slots
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("sprite_uniform_buf"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_uniform_buffer"),
         size: slot_stride * MAX_DRAW_SLOTS as u64,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
@@ -347,7 +243,7 @@ pub fn upload_sprite_atlas(
         depth_or_array_layers: 1,
     };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("sprite_atlas_tex"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_atlas_texture"),
         size,
         mip_level_count: 1,
         sample_count: 1,
@@ -374,7 +270,7 @@ pub fn upload_sprite_atlas(
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("sprite_atlas_bg"),
+        label: Some("_custom__unlit_colortransparent_geometry__sprite_atlas_bind_group"),
         layout: &resources.bind_group_layout,
         entries: &[
             wgpu::BindGroupEntry {

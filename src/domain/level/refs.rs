@@ -314,6 +314,16 @@ fn extract_loader_field<'a>(line: &'a str, field: &str) -> Option<&'a str> {
     Some(rest[..end].trim())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MaterialShaderKind {
+    CustomUnlitMonochrome,
+    CustomUnlitColorGeometry,
+    CustomUnlitColorTransparentGeometry,
+    CustomUnlitAlpha8BitColor,
+    BuiltinUnlitTransparent,
+    BuiltinUnlitTransparentCutout,
+}
+
 fn runtime_texture_name_for_guid(guid: &str) -> Option<&'static str> {
     let pathname = assets::pathname_for_guid(guid)?;
     texture_name_from_asset_pathname(pathname)
@@ -366,6 +376,18 @@ fn runtime_material_alpha_blend_for_guid_prefix(guid: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn runtime_material_alpha_blend_for_guid(guid: &str) -> bool {
+    let Some(pathname) = assets::pathname_for_guid(guid) else {
+        return false;
+    };
+    if !is_material_pathname(pathname) {
+        return false;
+    }
+
+    assets::read_guid_text(guid)
+        .is_some_and(|text| material_uses_alpha_blend_shader(&text, runtime_shader_names_by_guid()))
+}
+
 fn runtime_material_alpha8bit_for_guid_prefix(guid: &str) -> bool {
     static MAP: OnceLock<HashMap<String, bool>> = OnceLock::new();
 
@@ -373,6 +395,18 @@ fn runtime_material_alpha8bit_for_guid_prefix(guid: &str) -> bool {
         .get(guid_prefix(guid))
         .copied()
         .unwrap_or(false)
+}
+
+fn runtime_material_alpha8bit_for_guid(guid: &str) -> bool {
+    let Some(pathname) = assets::pathname_for_guid(guid) else {
+        return false;
+    };
+    if !is_material_pathname(pathname) {
+        return false;
+    }
+
+    assets::read_guid_text(guid)
+        .is_some_and(|text| material_uses_alpha8bit_shader(&text, runtime_shader_names_by_guid()))
 }
 
 fn runtime_material_cutoff_for_guid_prefix(guid: &str) -> Option<f32> {
@@ -383,10 +417,66 @@ fn runtime_material_cutoff_for_guid_prefix(guid: &str) -> Option<f32> {
         .copied()
 }
 
+fn runtime_material_cutoff_for_guid(guid: &str) -> Option<f32> {
+    let pathname = assets::pathname_for_guid(guid)?;
+    if !is_material_pathname(pathname) {
+        return None;
+    }
+
+    let text = assets::read_guid_text(guid)?;
+    cutoff_from_material(&text)
+}
+
 fn runtime_material_custom_render_queue_for_guid_prefix(guid: &str) -> Option<i32> {
     static MAP: OnceLock<HashMap<String, i32>> = OnceLock::new();
 
     MAP.get_or_init(build_runtime_material_custom_render_queue_prefixes)
+        .get(guid_prefix(guid))
+        .copied()
+}
+
+fn runtime_material_custom_render_queue_for_guid(guid: &str) -> Option<i32> {
+    let pathname = assets::pathname_for_guid(guid)?;
+    if !is_material_pathname(pathname) {
+        return None;
+    }
+
+    let text = assets::read_guid_text(guid)?;
+    custom_render_queue_from_material(&text)
+}
+
+fn runtime_material_shader_kind_for_guid(guid: &str) -> Option<MaterialShaderKind> {
+    let pathname = assets::pathname_for_guid(guid)?;
+    if !is_material_pathname(pathname) {
+        return None;
+    }
+
+    let text = assets::read_guid_text(guid)?;
+    material_shader_kind(&text, runtime_shader_names_by_guid())
+}
+
+fn runtime_material_shader_kind_for_guid_prefix(guid: &str) -> Option<MaterialShaderKind> {
+    static MAP: OnceLock<HashMap<String, MaterialShaderKind>> = OnceLock::new();
+
+    MAP.get_or_init(build_runtime_material_shader_kind_prefixes)
+        .get(guid_prefix(guid))
+        .copied()
+}
+
+fn runtime_material_main_tex_st_for_guid(guid: &str) -> Option<[f32; 4]> {
+    let pathname = assets::pathname_for_guid(guid)?;
+    if !is_material_pathname(pathname) {
+        return None;
+    }
+
+    let text = assets::read_guid_text(guid)?;
+    main_texture_st_from_material(&text)
+}
+
+fn runtime_material_main_tex_st_for_guid_prefix(guid: &str) -> Option<[f32; 4]> {
+    static MAP: OnceLock<HashMap<String, [f32; 4]>> = OnceLock::new();
+
+    MAP.get_or_init(build_runtime_material_main_tex_st_prefixes)
         .get(guid_prefix(guid))
         .copied()
 }
@@ -510,6 +600,45 @@ fn build_runtime_material_custom_render_queue_prefixes() -> HashMap<String, i32>
     build_unique_i32_prefix_map(&queues_by_guid)
 }
 
+fn build_runtime_material_shader_kind_prefixes() -> HashMap<String, MaterialShaderKind> {
+    let shader_names = runtime_shader_names_by_guid();
+    let mut shader_kinds_by_guid = HashMap::new();
+
+    for pathname in assets::list_pathnames("Assets/", ".mat") {
+        let Some(guid) = assets::guid_for_pathname(&pathname) else {
+            continue;
+        };
+        let Some(text) = assets::read_pathname_text(&pathname) else {
+            continue;
+        };
+        let Some(shader_kind) = material_shader_kind(&text, shader_names) else {
+            continue;
+        };
+        shader_kinds_by_guid.insert(guid.to_string(), shader_kind);
+    }
+
+    build_unique_prefix_map(&shader_kinds_by_guid)
+}
+
+fn build_runtime_material_main_tex_st_prefixes() -> HashMap<String, [f32; 4]> {
+    let mut main_tex_st_by_guid = HashMap::new();
+
+    for pathname in assets::list_pathnames("Assets/", ".mat") {
+        let Some(guid) = assets::guid_for_pathname(&pathname) else {
+            continue;
+        };
+        let Some(text) = assets::read_pathname_text(&pathname) else {
+            continue;
+        };
+        let Some(main_tex_st) = main_texture_st_from_material(&text) else {
+            continue;
+        };
+        main_tex_st_by_guid.insert(guid.to_string(), main_tex_st);
+    }
+
+    build_unique_vec4_prefix_map(&main_tex_st_by_guid)
+}
+
 fn runtime_shader_names_by_guid() -> &'static HashMap<String, String> {
     static MAP: OnceLock<HashMap<String, String>> = OnceLock::new();
 
@@ -601,6 +730,31 @@ fn build_unique_i32_prefix_map(entries: &HashMap<String, i32>) -> HashMap<String
         .collect()
 }
 
+fn build_unique_vec4_prefix_map(entries: &HashMap<String, [f32; 4]>) -> HashMap<String, [f32; 4]> {
+    let mut by_prefix: HashMap<String, Option<[f32; 4]>> = HashMap::new();
+
+    for (guid, value) in entries {
+        match by_prefix.get(guid_prefix(guid)) {
+            None => {
+                by_prefix.insert(guid_prefix(guid).to_string(), Some(*value));
+            }
+            Some(Some(existing))
+                if existing
+                    .iter()
+                    .zip(value.iter())
+                    .all(|(lhs, rhs)| lhs.to_bits() == rhs.to_bits()) => {}
+            Some(_) => {
+                by_prefix.insert(guid_prefix(guid).to_string(), None);
+            }
+        }
+    }
+
+    by_prefix
+        .into_iter()
+        .filter_map(|(prefix, value)| value.map(|value| (prefix, value)))
+        .collect()
+}
+
 fn texture_name_from_asset_pathname(pathname: &str) -> Option<&str> {
     if !is_texture_pathname(pathname) {
         return None;
@@ -664,6 +818,39 @@ fn cutoff_from_material(text: &str) -> Option<f32> {
     })
 }
 
+fn main_texture_st_from_material(text: &str) -> Option<[f32; 4]> {
+    let mut in_main_tex = false;
+    let mut scale = None;
+    let mut offset = None;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed == "- _MainTex:" {
+            in_main_tex = true;
+            continue;
+        }
+        if !in_main_tex {
+            continue;
+        }
+        if trimmed.starts_with("- ") {
+            break;
+        }
+        if trimmed.starts_with("m_Scale:") {
+            scale = parse_vec2_like(trimmed);
+            continue;
+        }
+        if trimmed.starts_with("m_Offset:") {
+            offset = parse_vec2_like(trimmed);
+            continue;
+        }
+    }
+
+    match (scale, offset) {
+        (Some(scale), Some(offset)) => Some([scale[0], scale[1], offset[0], offset[1]]),
+        _ => None,
+    }
+}
+
 fn custom_render_queue_from_material(text: &str) -> Option<i32> {
     text.lines()
         .find_map(|line| {
@@ -691,6 +878,24 @@ fn material_uses_alpha8bit_shader(
         .is_some_and(|name| shader_name_uses_alpha8bit(&name))
 }
 
+fn material_shader_kind(
+    text: &str,
+    shader_names: &HashMap<String, String>,
+) -> Option<MaterialShaderKind> {
+    let shader_name = material_shader_name(text, shader_names)?;
+    match shader_name.as_str() {
+        "_Custom/Unlit_Monochrome" => Some(MaterialShaderKind::CustomUnlitMonochrome),
+        "_Custom/Unlit_Color_Geometry" => Some(MaterialShaderKind::CustomUnlitColorGeometry),
+        "_Custom/Unlit_ColorTransparent_Geometry" => {
+            Some(MaterialShaderKind::CustomUnlitColorTransparentGeometry)
+        }
+        "_Custom/Unlit_Alpha8Bit_Color" => Some(MaterialShaderKind::CustomUnlitAlpha8BitColor),
+        "Unlit/Transparent" => Some(MaterialShaderKind::BuiltinUnlitTransparent),
+        "Unlit/Transparent Cutout" => Some(MaterialShaderKind::BuiltinUnlitTransparentCutout),
+        _ => None,
+    }
+}
+
 fn material_shader_name(
     text: &str,
     shader_names: &HashMap<String, String>,
@@ -699,13 +904,31 @@ fn material_shader_name(
     let trimmed = line.trim();
 
     if let Some(guid) = extract_guid(trimmed)
-        && let Some(shader_name) = shader_names.get(guid)
     {
-        return Some(shader_name.clone());
+        if let Some(shader_name) = shader_names.get(guid) {
+            return Some(shader_name.clone());
+        }
+        if let Some(shader_name) = fallback_shader_name_for_guid(guid) {
+            return Some(shader_name.to_string());
+        }
     }
 
     let file_id = extract_file_id(trimmed)?;
     builtin_shader_name(file_id).map(str::to_string)
+}
+
+fn fallback_shader_name_for_guid(guid: &str) -> Option<&'static str> {
+    match guid {
+        // Some embedded project snapshots keep material shader GUIDs but omit
+        // the matching shader assets from the indexed asset set. Background
+        // fill / far-bg materials still need these names to recover exact
+        // shader modes from material YAML.
+        "3ee1baa860fa20a74fa3b12a3f0bc258" => Some("_Custom/Unlit_Monochrome"),
+        "f2bf0be753c6f2a3466cb9069962a880" => {
+            Some("_Custom/Unlit_ColorTransparent_Geometry")
+        }
+        _ => None,
+    }
 }
 
 fn extract_guid(line: &str) -> Option<&str> {
@@ -754,6 +977,26 @@ fn parse_rgba_color(line: &str) -> Option<[u8; 4]> {
 fn parse_scalar_value(line: &str) -> Option<f32> {
     let (_, value) = line.split_once(':')?;
     value.trim().parse::<f32>().ok()
+}
+
+fn parse_vec2_like(line: &str) -> Option<[f32; 2]> {
+    let start = line.find('{')? + 1;
+    let end = line.rfind('}')?;
+    let mut values = [0.0f32; 2];
+    let mut seen = [false; 2];
+
+    for part in line[start..end].split(',') {
+        let (axis, value) = part.trim().split_once(':')?;
+        let index = match axis.trim() {
+            "x" => 0,
+            "y" => 1,
+            _ => continue,
+        };
+        values[index] = value.trim().parse::<f32>().ok()?;
+        seen[index] = true;
+    }
+
+    seen.iter().all(|seen| *seen).then_some(values)
 }
 
 fn shader_name_from_shader_asset(text: &str) -> Option<&str> {
@@ -813,20 +1056,56 @@ pub(crate) fn material_color_rgba_for_guid_prefix(guid: &str) -> Option<[u8; 4]>
     runtime_material_color_rgba_for_guid_prefix(guid)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn material_alpha_blend_for_guid(guid: &str) -> bool {
+    runtime_material_alpha_blend_for_guid(guid)
+}
+
 pub(crate) fn material_alpha_blend_for_guid_prefix(guid: &str) -> bool {
     runtime_material_alpha_blend_for_guid_prefix(guid)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn material_alpha8bit_for_guid(guid: &str) -> bool {
+    runtime_material_alpha8bit_for_guid(guid)
 }
 
 pub(crate) fn material_alpha8bit_for_guid_prefix(guid: &str) -> bool {
     runtime_material_alpha8bit_for_guid_prefix(guid)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn material_cutoff_for_guid(guid: &str) -> Option<f32> {
+    runtime_material_cutoff_for_guid(guid)
+}
+
 pub(crate) fn material_cutoff_for_guid_prefix(guid: &str) -> Option<f32> {
     runtime_material_cutoff_for_guid_prefix(guid)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn material_custom_render_queue_for_guid(guid: &str) -> Option<i32> {
+    runtime_material_custom_render_queue_for_guid(guid)
+}
+
 pub(crate) fn material_custom_render_queue_for_guid_prefix(guid: &str) -> Option<i32> {
     runtime_material_custom_render_queue_for_guid_prefix(guid)
+}
+
+pub(crate) fn material_shader_kind_for_guid_prefix(guid: &str) -> Option<MaterialShaderKind> {
+    runtime_material_shader_kind_for_guid_prefix(guid)
+}
+
+pub(crate) fn material_shader_kind_for_guid(guid: &str) -> Option<MaterialShaderKind> {
+    runtime_material_shader_kind_for_guid(guid)
+}
+
+pub(crate) fn material_main_tex_st_for_guid_prefix(guid: &str) -> Option<[f32; 4]> {
+    runtime_material_main_tex_st_for_guid_prefix(guid)
+}
+
+pub(crate) fn material_main_tex_st_for_guid(guid: &str) -> Option<[f32; 4]> {
+    runtime_material_main_tex_st_for_guid(guid)
 }
 
 /// Derive the level-refs key from a filename (strip `.bytes` extension).
@@ -873,6 +1152,9 @@ mod tests {
         material_texture_name_for_guid_prefix, material_color_for_guid_prefix,
         material_alpha_blend_for_guid_prefix, material_alpha8bit_for_guid_prefix,
         material_cutoff_for_guid_prefix, material_custom_render_queue_for_guid_prefix,
+        material_main_tex_st_for_guid, material_main_tex_st_for_guid_prefix,
+        material_shader_kind_for_guid, material_shader_kind_for_guid_prefix,
+        MaterialShaderKind,
         level_key_from_filename,
     };
     use crate::data::assets;
@@ -1024,6 +1306,48 @@ mod tests {
 
         assert!(!material_alpha_blend_for_guid_prefix("ddb33f64"));
         assert!(material_alpha8bit_for_guid_prefix("ddb33f64"));
+    }
+
+    #[test]
+    fn background_material_shader_kinds_and_main_tex_st_can_come_from_embedded_assets() {
+        let jungle_fill_guid = assets::guid_for_pathname("Assets/Material/Jungle_Near_Fill.mat")
+            .expect("expected Jungle_Near_Fill material guid");
+        let jungle_far_guid = assets::guid_for_pathname("Assets/Material/Jungle_Environment_Far_BG.mat")
+            .expect("expected Jungle_Environment_Far_BG material guid");
+        let jungle_sky_guid = assets::guid_for_pathname("Assets/Material/Jungle_Environment_Sky.mat")
+            .expect("expected Jungle_Environment_Sky material guid");
+        let jungle_cutout_guid = assets::guid_for_pathname("Assets/Material/Jungle_Environment.mat")
+            .expect("expected Jungle_Environment material guid");
+
+        assert_eq!(
+            material_shader_kind_for_guid(jungle_fill_guid),
+            Some(MaterialShaderKind::CustomUnlitMonochrome)
+        );
+        assert_eq!(
+            material_shader_kind_for_guid(jungle_far_guid),
+            Some(MaterialShaderKind::CustomUnlitAlpha8BitColor)
+        );
+        assert_eq!(
+            material_shader_kind_for_guid(jungle_sky_guid),
+            Some(MaterialShaderKind::BuiltinUnlitTransparent)
+        );
+        assert_eq!(
+            material_shader_kind_for_guid(jungle_cutout_guid),
+            Some(MaterialShaderKind::BuiltinUnlitTransparentCutout)
+        );
+
+        assert_eq!(
+            material_main_tex_st_for_guid(jungle_far_guid),
+            Some([1.0, 1.0, 0.0, 0.0])
+        );
+        assert_eq!(
+            material_main_tex_st_for_guid(jungle_sky_guid),
+            Some([1.0, 1.0, 0.0, 0.0])
+        );
+        assert_eq!(material_main_tex_st_for_guid(jungle_fill_guid), None);
+
+        assert!(material_shader_kind_for_guid_prefix(jungle_far_guid).is_some());
+        assert!(material_main_tex_st_for_guid_prefix(jungle_far_guid).is_some());
     }
 
     #[test]

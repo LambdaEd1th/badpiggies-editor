@@ -327,10 +327,7 @@ fn draw_bg_sprite_offset(
         canvas_center,
     );
 
-    // Fill color sprites (solid rectangles) — no shader needed.
-    // Unity keeps these attached to a BackgroundScaler, so they widen with the
-    // viewport while preserving their authored height.
-    if let Some(rgb) = sprite.fill_color {
+    let (draw_world_y, draw_display_h, center, hh_screen) = if sprite.fill_color.is_some() {
         let bottom_world_y = world_y - display_h * 0.5;
         let top_world_y = fill_top_world_y
             .unwrap_or(world_y + display_h * 0.5)
@@ -342,28 +339,23 @@ fn draw_bg_sprite_offset(
             },
             canvas_center,
         );
-        let hw_screen = display_w * 0.5 * camera.zoom;
         let hh_screen = (top_world_y - bottom_world_y) * 0.5 * camera.zoom;
-        if fill_center.x + hw_screen < rect.left() - 50.0
-            || fill_center.x - hw_screen > rect.right() + 50.0
-            || fill_center.y + hh_screen < rect.top() - 50.0
-            || fill_center.y - hh_screen > rect.bottom() + 50.0
-        {
-            return;
-        }
-
-        let screen_rect = egui::Rect::from_center_size(
+        (
+            (bottom_world_y + top_world_y) * 0.5,
+            top_world_y - bottom_world_y,
             fill_center,
-            egui::vec2(hw_screen * 2.0, hh_screen * 2.0),
-        );
-        let color = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-        painter.rect_filled(screen_rect, 0.0, color);
-        return;
-    }
+            hh_screen,
+        )
+    } else {
+        (
+            world_y,
+            display_h,
+            center,
+            display_h * 0.5 * camera.zoom,
+        )
+    };
 
-    // Quick frustum cull
     let hw_screen = display_w * 0.5 * camera.zoom;
-    let hh_screen = display_h * 0.5 * camera.zoom;
     if center.x + hw_screen < rect.left() - 50.0
         || center.x - hw_screen > rect.right() + 50.0
         || center.y + hh_screen < rect.top() - 50.0
@@ -372,54 +364,22 @@ fn draw_bg_sprite_offset(
         return;
     }
 
-    // Cutoff: controls shader blend mode (matches Unity 1:1).
-    //   -1.0 → opaque (Unity _Custom/Unlit_Color_Geometry — solid fill layers)
-    //    >=0.5 → alpha cutout (Unity Unlit/Transparent Cutout, _Cutoff from .mat)
-    //    0.0   → alpha blend (Unity _Custom/Unlit_ColorTransparent_Geometry, no clip)
-    // Solid fills (fillColor) already returned above; atlas-based sprites use cutout.
-    let cutoff = if sprite.alpha_blend { 0.0 } else { sprite.cutoff };
-
     // ── GPU path: use WGSL background shader ──
     if let Some(g) = gpu
         && *g.slot_counter < bg_shader::max_draw_slots()
     {
-        // Sky texture
-        if let Some(ref sky_name) = sprite.sky_texture
+        if let Some(atlas_key) = sprite
+            .fill_color
+            .map(|_| bg_shader::WHITE_TEXTURE_KEY)
+            .or(sprite.sky_texture.as_deref())
+            .or(sprite.atlas.as_deref())
             && let Some(atlas) =
                 g.atlas_cache
-                    .get_or_load(g.device, g.queue, &g.resources, sky_name)
+                    .get_or_load(g.device, g.queue, &g.resources, atlas_key)
         {
-            let uniforms = bg_shader::BgUniforms {
-                screen_size: [rect.width(), rect.height()],
-                camera_center: [camera.center.x, camera.center.y],
-                zoom: camera.zoom,
-                cutoff: 0.0, // sky uses ColorTransparent_Geometry — no clip
-                world_center: [world_x, world_y],
-                world_size: [display_w, display_h],
-                uv_min: [0.0, 0.0],
-                uv_max: [1.0, 1.0],
-                content_ratio_x,
-                alpha8bit: 0.0, // sky texture never uses Alpha8Bit shader
-                tint_color: sprite.tint,
-            };
-            let slot = *g.slot_counter;
-            *g.slot_counter += 1;
-            painter.add(bg_shader::make_bg_callback(
-                rect,
-                g.resources.clone(),
-                atlas,
-                slot,
-                uniforms,
-            ));
-            return;
-        }
-
-        // Atlas sprite
-        if let Some(ref atlas_name) = sprite.atlas
-            && let Some(atlas) =
-                g.atlas_cache
-                    .get_or_load(g.device, g.queue, &g.resources, atlas_name)
-        {
+            let (uv_min, uv_max) = if sprite.fill_color.is_some() || sprite.sky_texture.is_some() {
+                ([0.0, 0.0], [1.0, 1.0])
+            } else {
             let cell = 1.0 / sprite.subdiv;
             // When border > 0, border_off alone maps to the exact content
             // boundary; the border pixels duplicate edge content for safe
@@ -448,17 +408,21 @@ fn draw_bg_sprite_offset(
                 (v0, v1)
             };
 
+                ([u0, v0], [u1, v1])
+            };
+
             let uniforms = bg_shader::BgUniforms {
                 screen_size: [rect.width(), rect.height()],
                 camera_center: [camera.center.x, camera.center.y],
                 zoom: camera.zoom,
-                cutoff,
-                world_center: [world_x, world_y],
-                world_size: [display_w, display_h],
-                uv_min: [u0, v0],
-                uv_max: [u1, v1],
+                cutoff: sprite.cutoff,
+                world_center: [world_x, draw_world_y],
+                world_size: [display_w, draw_display_h],
+                uv_min,
+                uv_max,
                 content_ratio_x,
-                alpha8bit: sprite.alpha8bit as u8 as f32,
+                _pad0: 0.0,
+                main_tex_st: sprite.main_tex_st,
                 tint_color: sprite.tint,
             };
             let slot = *g.slot_counter;
@@ -469,6 +433,7 @@ fn draw_bg_sprite_offset(
                 atlas,
                 slot,
                 uniforms,
+                sprite.shader_kind,
             ));
             return;
         }

@@ -20,6 +20,8 @@ mod particles;
 pub mod sprite_shader;
 pub mod sprites;
 pub mod terrain;
+#[cfg(test)]
+mod shader_asset_coverage;
 
 use std::sync::Arc;
 

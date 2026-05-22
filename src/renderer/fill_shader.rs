@@ -17,57 +17,9 @@ use eframe::wgpu;
 /// Maximum number of fill mesh draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 256;
 
-// ── WGSL source — port of Unity _Custom/Unlit_Color_Geometry (terrain fill) ──
-
-const WGSL_SOURCE: &str = r#"
-// Port of Unity _Custom/Unlit_Color_Geometry (used for terrain fill)
-// Original: return tex2D(_MainTex, i.texcoord) * _Color;
-// Blend Off, ZWrite Off, Cull Off
-//
-// UVs tile at 5×5 world units with wrap=Repeat.
-
-struct Uniforms {
-    screen_size: vec2<f32>,
-    camera_center: vec2<f32>,
-    zoom: f32,
-    _pad0: f32,
-    tint_color: vec4<f32>,
-};
-
-@group(0) @binding(0) var<uniform> u: Uniforms;
-@group(0) @binding(1) var main_tex: texture_2d<f32>;
-@group(0) @binding(2) var main_sampler: sampler;
-
-struct VIn {
-    @location(0) position: vec2<f32>,  // world-space position
-    @location(1) uv: vec2<f32>,        // tiled UV = (world - offset) / 5.0
-};
-struct VOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(in: VIn) -> VOut {
-    var out: VOut;
-    // World → NDC
-    let ndc = (in.position - u.camera_center) * u.zoom / (u.screen_size * 0.5);
-    out.position = vec4<f32>(ndc, 0.0, 1.0);
-    out.uv = in.uv;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VOut) -> @location(0) vec4<f32> {
-    // Exact Unity shader: return tex2D(_MainTex, i.texcoord) * _Color;
-    let c = textureSample(main_tex, main_sampler, in.uv) * u.tint_color;
-
-    // Opaque fill — discard fully transparent pixels, premultiply for egui compositor.
-    if (c.a < 0.004) { discard; }
-    let a = select(c.a, 1.0, c.a >= 0.784);
-    return vec4<f32>(c.rgb * a, a);
-}
-"#;
+const WGSL_SOURCE: &str = include_str!(
+    "../../editor_assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl"
+);
 
 // ── GPU uniform buffer layout (32 bytes) ──
 
@@ -108,7 +60,7 @@ pub fn init_fill_resources(
     target_format: wgpu::TextureFormat,
 ) -> FillResources {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("fill_shader"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_shader"),
         source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
     });
 
@@ -117,7 +69,7 @@ pub fn init_fill_resources(
     let slot_stride = uniform_size.div_ceil(min_align) * min_align;
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("fill_bgl"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_bind_group_layout"),
         entries: &[
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -149,13 +101,13 @@ pub fn init_fill_resources(
     });
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("fill_pl"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_pipeline_layout"),
         bind_group_layouts: &[Some(&bind_group_layout)],
         immediate_size: 0,
     });
 
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("fill_pipeline"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_pipeline"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -201,7 +153,7 @@ pub fn init_fill_resources(
 
     // Repeat-wrap sampler for terrain texture tiling
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("fill_sampler"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_sampler"),
         address_mode_u: wgpu::AddressMode::Repeat,
         address_mode_v: wgpu::AddressMode::Repeat,
         mag_filter: wgpu::FilterMode::Linear,
@@ -210,7 +162,7 @@ pub fn init_fill_resources(
     });
 
     let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("fill_uniform_buf"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_uniform_buffer"),
         size: slot_stride * MAX_DRAW_SLOTS as u64,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
@@ -245,7 +197,7 @@ fn upload_fill_texture(
         depth_or_array_layers: 1,
     };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("fill_tex"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_texture"),
         size,
         mip_level_count: 1,
         sample_count: 1,
@@ -271,7 +223,7 @@ fn upload_fill_texture(
     );
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("fill_tex_bg"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_texture_bind_group"),
         layout: &resources.bind_group_layout,
         entries: &[
             wgpu::BindGroupEntry {
@@ -346,12 +298,12 @@ pub fn build_fill_gpu_mesh(
 ) -> FillGpuMesh {
     use wgpu::util::DeviceExt;
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("fill_vbo"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_vertex_buffer"),
         contents: bytemuck::cast_slice(vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
     let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("fill_ibo"),
+        label: Some("_custom__unlit_color_geometry__terrain_fill_index_buffer"),
         contents: bytemuck::cast_slice(indices),
         usage: wgpu::BufferUsages::INDEX,
     });

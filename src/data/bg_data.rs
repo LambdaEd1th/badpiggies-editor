@@ -28,8 +28,10 @@ pub fn atlas_for_material_guid(material_guid: &str) -> Option<&'static str> {
 	});
 
 	atlas_by_guid
-		.get(prefix)
+		.get(material_guid)
+		.or_else(|| atlas_by_guid.get(prefix))
 		.map(String::as_str)
+		.or_else(|| crate::domain::level::refs::material_texture_name_for_guid(material_guid))
 		.or_else(|| crate::domain::level::refs::material_texture_name_for_guid_prefix(prefix))
 }
 

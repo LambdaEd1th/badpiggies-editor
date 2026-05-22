@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::OnceLock;
 
+use crate::domain::level::refs::MaterialShaderKind;
+
 use super::parse::{
     GameObjectInfo, ParsedPrefab, SpriteComponent, asset_filename, is_sky_texture_asset,
     load_textureloader_materials, parse_prefab, read_embedded_text,
@@ -28,6 +30,31 @@ struct BgSpriteBuildInput<'a> {
     textureloader_materials: &'a HashMap<String, String>,
 }
 
+fn default_main_tex_st() -> [f32; 4] {
+    [1.0, 1.0, 0.0, 0.0]
+}
+
+fn fallback_bg_shader_kind(
+    fill_color: Option<[u8; 3]>,
+    sky_texture: bool,
+    alpha_blend: bool,
+    alpha8bit: bool,
+) -> MaterialShaderKind {
+    if alpha8bit {
+        MaterialShaderKind::CustomUnlitAlpha8BitColor
+    } else if alpha_blend {
+        if sky_texture {
+            MaterialShaderKind::BuiltinUnlitTransparent
+        } else {
+            MaterialShaderKind::CustomUnlitColorTransparentGeometry
+        }
+    } else if fill_color.is_some() {
+        MaterialShaderKind::CustomUnlitMonochrome
+    } else {
+        MaterialShaderKind::BuiltinUnlitTransparentCutout
+    }
+}
+
 fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
     let BgSpriteBuildInput {
         theme_name,
@@ -39,8 +66,10 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
         material_guid,
         textureloader_materials,
     } = input;
-    let material_fill_color = crate::domain::level::refs::material_color_for_guid_prefix(material_guid);
-    let material_tint = crate::domain::level::refs::material_color_rgba_for_guid_prefix(material_guid)
+    let material_fill_color = crate::domain::level::refs::material_color_for_guid(material_guid)
+        .or_else(|| crate::domain::level::refs::material_color_for_guid_prefix(material_guid));
+    let material_tint = crate::domain::level::refs::material_color_rgba_for_guid(material_guid)
+        .or_else(|| crate::domain::level::refs::material_color_rgba_for_guid_prefix(material_guid))
         .map(|[red, green, blue, alpha]| {
             [
                 red as f32 / 255.0,
@@ -50,14 +79,15 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
             ]
         })
         .unwrap_or([1.0, 1.0, 1.0, 1.0]);
-    let material_alpha_blend =
-        crate::domain::level::refs::material_alpha_blend_for_guid_prefix(material_guid);
-    let material_alpha8bit =
-        crate::domain::level::refs::material_alpha8bit_for_guid_prefix(material_guid);
-    let material_cutoff = crate::domain::level::refs::material_cutoff_for_guid_prefix(material_guid)
+    let legacy_alpha_blend = crate::domain::level::refs::material_alpha_blend_for_guid(material_guid)
+        || crate::domain::level::refs::material_alpha_blend_for_guid_prefix(material_guid);
+    let legacy_alpha8bit = crate::domain::level::refs::material_alpha8bit_for_guid(material_guid)
+        || crate::domain::level::refs::material_alpha8bit_for_guid_prefix(material_guid);
+    let material_cutoff = crate::domain::level::refs::material_cutoff_for_guid(material_guid)
+        .or_else(|| crate::domain::level::refs::material_cutoff_for_guid_prefix(material_guid))
         .unwrap_or(0.5);
-    let custom_render_queue =
-        crate::domain::level::refs::material_custom_render_queue_for_guid_prefix(material_guid);
+    let custom_render_queue = crate::domain::level::refs::material_custom_render_queue_for_guid(material_guid)
+        .or_else(|| crate::domain::level::refs::material_custom_render_queue_for_guid_prefix(material_guid));
     let (atlas, sky_texture, fill_color) = if let Some(asset_name) = textureloader_materials.get(material_guid) {
         if is_sky_texture_asset(asset_name) {
             (None, Some(asset_filename(asset_name)), None)
@@ -77,9 +107,23 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
         );
         return None;
     };
+    let shader_kind = crate::domain::level::refs::material_shader_kind_for_guid(material_guid)
+        .or_else(|| crate::domain::level::refs::material_shader_kind_for_guid_prefix(material_guid))
+        .unwrap_or_else(|| {
+            fallback_bg_shader_kind(fill_color, sky_texture.is_some(), legacy_alpha_blend, legacy_alpha8bit)
+        });
+    let main_tex_st = crate::domain::level::refs::material_main_tex_st_for_guid(material_guid)
+        .or_else(|| crate::domain::level::refs::material_main_tex_st_for_guid_prefix(material_guid))
+        .unwrap_or_else(default_main_tex_st);
     let atlas_soft_alpha_blend = atlas
         .as_deref()
         .is_some_and(|atlas_name| sprite_requires_soft_alpha_blend(atlas_name, sprite_component));
+    let material_alpha_blend = matches!(
+        shader_kind,
+        MaterialShaderKind::CustomUnlitColorTransparentGeometry
+            | MaterialShaderKind::CustomUnlitAlpha8BitColor
+            | MaterialShaderKind::BuiltinUnlitTransparent
+    );
 
     let is_group_root = game_object.name == group.name;
     Some(BgSprite {
@@ -113,12 +157,12 @@ fn build_bg_sprite(input: BgSpriteBuildInput<'_>) -> Option<BgSprite> {
         },
         parent_group: group.name.clone(),
         tint: material_tint,
+        shader_kind,
+        main_tex_st,
         custom_render_queue,
         alpha_blend: material_alpha_blend
-            || material_alpha8bit
             || group.layer == BgLayer::Camera
             || atlas_soft_alpha_blend,
-        alpha8bit: material_alpha8bit,
         cutoff: material_cutoff,
     })
 }

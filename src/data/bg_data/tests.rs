@@ -4,6 +4,7 @@ use super::{
     BgLayer, atlas_for_material_guid, bg_atlas_files, get_theme, parse_bg_overrides,
     parse_position_serializer_overrides, parse_runtime_bg_overrides, sky_texture_files,
 };
+use crate::domain::level::refs::MaterialShaderKind;
 use crate::domain::parser::parse_level;
 use crate::domain::types::LevelObject;
 
@@ -200,6 +201,38 @@ fn foreground_fill_materials_match_runtime_resolution() {
         .expect("missing Plateau foreground fill");
     assert_eq!(plateau_fill.fill_color, Some([0x21, 0x44, 0x44]));
     assert!(plateau_fill.atlas.is_none());
+}
+
+#[test]
+fn jungle_theme_preserves_runtime_material_shader_modes() {
+    let jungle = get_theme("Jungle").expect("missing Jungle theme");
+
+    let near_fill = jungle
+        .sprites
+        .iter()
+        .find(|sprite| sprite.parent_group == "BGLayerNear" && sprite.name == "Background_Near_fill")
+        .expect("missing Jungle near fill");
+    assert_eq!(near_fill.shader_kind, MaterialShaderKind::CustomUnlitMonochrome);
+    assert_eq!(near_fill.main_tex_st, [1.0, 1.0, 0.0, 0.0]);
+
+    let far_bg = jungle
+        .sprites
+        .iter()
+        .find(|sprite| {
+            sprite.atlas.is_some()
+                && sprite.shader_kind == MaterialShaderKind::CustomUnlitAlpha8BitColor
+        })
+        .expect("missing Jungle alpha8bit atlas sprite");
+    assert_eq!(far_bg.shader_kind, MaterialShaderKind::CustomUnlitAlpha8BitColor);
+    assert_eq!(far_bg.main_tex_st, [1.0, 1.0, 0.0, 0.0]);
+
+    let sky = jungle
+        .sprites
+        .iter()
+        .find(|sprite| sprite.sky_texture.is_some())
+        .expect("missing Jungle sky sprite");
+    assert_eq!(sky.shader_kind, MaterialShaderKind::BuiltinUnlitTransparent);
+    assert_eq!(sky.main_tex_st, [1.0, 1.0, 0.0, 0.0]);
 }
 
 #[test]

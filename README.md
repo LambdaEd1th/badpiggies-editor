@@ -54,14 +54,14 @@ Then open `http://localhost:8080` in your browser.
 
 The editor uses two different asset sources:
 
-- `assets/` contains bundled editor resources such as icons, fonts, locales, WGSL shader files, and the pinned Unity package used for extraction
+- `assets/` contains bundled editor resources such as icons, fonts, locales, WGSL shader files, and the bundled local Unity package used for extraction
 - an optional extracted Unity asset tree, keyed by Unity GUID, can be provided through `BP_EDITOR_UNITY_ASSETS_DIR`
 
 Bundled editor resources under `assets/` are compiled into the crate directly with `include_bytes!` and `include_str!`, so native and WASM builds do not require an external `assets/` directory at runtime.
 
 During builds, the crate uses the bundled package at `assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage` by default and:
 
-1. Computes the package SHA-256 and uses it as the extraction cache key
+1. Computes the package SHA-256 and uses it as the extraction cache key, without comparing it against a pinned expected hash
 2. Extracts only the runtime-needed files into `target/unity_asset_cache/`
 3. Reuses a cache bucket keyed by the current package contents
 4. Embeds those extracted files into the build
@@ -84,7 +84,7 @@ Use `python3 ../_extract_unitypackage_to_guid_layout.py --help` for alternate pa
 
 | Variable | Purpose |
 |---|---|
-| `BP_EDITOR_UNITY_ASSETS_DIR` | Use a pre-extracted asset tree outside `editor/unity_assets/` |
+| `BP_EDITOR_UNITY_ASSETS_DIR` | Use a pre-extracted asset tree outside `unity_assets/` |
 | `BP_EDITOR_UNITYPACKAGE_PATH` | Use a custom local `.unitypackage` file instead of the bundled package |
 | `BP_EDITOR_UNITY_ASSET_CACHE_DIR` | Override the base cache directory used by `build.rs` |
 
@@ -187,7 +187,7 @@ For the remaining asset-migration blockers that are intentionally still document
 
 ```text
 editor/
-├── assets/              # Bundled editor-only resources, including the pinned Unity package under assets/data/
+├── assets/              # Bundled editor-only resources, including the replaceable Unity package under assets/data/
 ├── src/
 │   ├── app/             # egui application shell, menus, dialogs, panels, save viewer
 │   ├── data/            # Embedded databases and asset lookup data
@@ -198,7 +198,7 @@ editor/
 │   ├── renderer/        # wgpu-backed scene rendering
 │   ├── unity_runtime/   # Unity runtime data adapters
 │   └── main.rs          # Native entry point, WASM entry point, CLI wiring
-├── build.rs             # Unity asset resolution, fetch, extraction, embed generation
+├── build.rs             # Unity asset resolution, local package extraction, embed generation
 ├── index.html           # Trunk host page for the WASM build
 └── Cargo.toml
 ```

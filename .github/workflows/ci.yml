@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  BP_EDITOR_FETCH_UNITY_ASSETS: "1"
 
 jobs:
   check:
@@ -53,7 +52,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: target/unity_asset_cache
-          key: ${{ runner.os }}-unity-assets-${{ hashFiles('build.rs') }}
+          key: ${{ runner.os }}-unity-assets-${{ hashFiles('build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: ${{ runner.os }}-unity-assets-
 
       - name: cargo check
@@ -87,7 +86,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: target/unity_asset_cache
-          key: wasm-unity-assets-${{ hashFiles('build.rs') }}
+          key: wasm-unity-assets-${{ hashFiles('build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: wasm-unity-assets-
 
       - name: cargo check (wasm32)

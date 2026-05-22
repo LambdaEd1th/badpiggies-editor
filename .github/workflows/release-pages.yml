@@ -14,9 +14,6 @@ concurrency:
   group: release-pages-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  BP_EDITOR_FETCH_UNITY_ASSETS: "1"
-
 jobs:
   # ── Native binaries ──────────────────────────────────────────────────────────
   build_native:
@@ -67,7 +64,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: native-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: native-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: native-release-${{ runner.os }}-cargo-
 
       - name: Build release binary
@@ -113,7 +110,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: wasm-release-${{ runner.os }}-cargo-
 
       - name: Install Trunk

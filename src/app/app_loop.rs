@@ -230,6 +230,7 @@ impl eframe::App for EditorApp {
 
         self.handle_file_input(ui, &ctx);
         self.render_delete_confirm(&ctx, t);
+        self.render_level_warning_confirm(&ctx, t);
         self.render_menu_bar(ui, &ctx, t);
         self.render_shortcuts_window(&ctx);
         self.render_about_window(&ctx);

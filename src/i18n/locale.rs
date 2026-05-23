@@ -75,6 +75,15 @@ impl I18n {
         self.format_with(key, &args)
     }
 
+    /// Format a message with `$name` and `$count` arguments.
+    pub fn fmt_name_count(&self, key: &str, name: &str, count: usize) -> String {
+        use fluent_bundle::FluentArgs;
+        let mut args = FluentArgs::new();
+        args.set("name", name.to_owned());
+        args.set("count", count as i64);
+        self.format_with(key, &args)
+    }
+
     /// Format a message with a single `$idx` argument.
     pub fn fmt_idx(&self, key: &str, idx: usize) -> String {
         use fluent_bundle::FluentArgs;

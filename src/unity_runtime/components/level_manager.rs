@@ -15,6 +15,7 @@ pub type CameraLimits = [f32; 4];
 #[derive(Debug, Clone, Default)]
 pub struct LevelManager {
     pub dark_level: Option<bool>,
+    pub sandbox: Option<bool>,
     /// Raw object-reference index for `m_gridCellPrefab` (typically resolves to
     /// the `GridCellLight` prefab when present). `Some(_)` means "override
     /// sets it"; the editor doesn't have the prefab table to resolve it.
@@ -35,6 +36,10 @@ impl UnityComponent for LevelManager {
         match (name, &value) {
             ("m_darkLevel", SceneValue::Boolean(b)) => {
                 self.dark_level = Some(*b);
+                true
+            }
+            ("m_sandbox", SceneValue::Boolean(b)) => {
+                self.sandbox = Some(*b);
                 true
             }
             ("m_cameraLimits", SceneValue::Generic(entries)) => {
@@ -133,6 +138,7 @@ mod tests {
         "GameObject LevelManager\n",
         "\tComponent LevelManager\n",
         "\t\tBoolean m_darkLevel = True\n",
+        "\t\tBoolean m_sandbox = True\n",
         "\t\tArray m_constructionGridRows\n",
         "\t\t\tArraySize size = 4\n",
         "\t\t\tElement 0\n",
@@ -160,6 +166,7 @@ mod tests {
             .get_component_of::<LevelManager>(root)
             .expect("LevelManager attached");
         assert_eq!(lm.dark_level, Some(true));
+        assert_eq!(lm.sandbox, Some(true));
         assert_eq!(lm.grid_cell_prefab, Some(6));
         assert_eq!(
             lm.construction_grid_rows.as_deref(),

@@ -3,10 +3,11 @@
 use std::collections::BTreeSet;
 
 use crate::diagnostics::error::AppError;
+use crate::domain::level_warning::LevelWarning;
 use crate::domain::parser;
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
-use crate::renderer::LevelRenderer;
+use crate::renderer::{LevelRenderer, PreviewPlaybackState};
 
 use super::save_viewer;
 use super::text_codec::{
@@ -26,6 +27,19 @@ pub(super) struct Snapshot {
 pub(super) struct UndoStack {
     pub(super) undo: Vec<Snapshot>,
     pub(super) redo: Vec<Snapshot>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PendingLevelWarningAction {
+    AcknowledgeOnly,
+    PreviewPlaybackState(PreviewPlaybackState),
+    ExportLevel,
+}
+
+#[derive(Clone)]
+pub(super) struct PendingLevelWarning {
+    pub(super) warnings: Vec<LevelWarning>,
+    pub(super) action: PendingLevelWarningAction,
 }
 
 /// Clipboard contents for copy/cut/paste.
@@ -51,6 +65,8 @@ pub(super) struct Tab {
     pub(super) status: String,
     /// Pending delete confirmation: (object_indices, display_label).
     pub(super) pending_delete: Option<(Vec<ObjectIndex>, String)>,
+    /// Pending level-risk warning confirmation before preview/export.
+    pub(super) pending_level_warning: Option<PendingLevelWarning>,
     /// Undo/redo history.
     pub(super) history: UndoStack,
     /// Whether properties were changed in the previous frame (for undo coalescing).
@@ -71,6 +87,7 @@ impl Tab {
             renderer,
             status: welcome_status,
             pending_delete: None,
+            pending_level_warning: None,
             history: UndoStack {
                 undo: Vec::new(),
                 redo: Vec::new(),

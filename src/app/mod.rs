@@ -6,6 +6,7 @@ mod app_loop;
 mod canvas;
 mod dialogs;
 mod fonts;
+mod level_warnings;
 mod menu;
 mod properties;
 mod save_tables;

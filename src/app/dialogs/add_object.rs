@@ -256,6 +256,7 @@ impl EditorApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     if ui.button(t.get("btn_ok")).clicked() {
+                        let previous_warnings = self.current_level_warnings();
                         self.push_undo();
                         let add_name = if self.add_obj_name.trim().is_empty() {
                             if self.add_obj_is_parent {
@@ -272,6 +273,7 @@ impl EditorApp {
                         let position = self.add_obj_position;
                         let rotation = self.add_obj_rotation;
                         let scale = self.add_obj_scale;
+                        let mut added = false;
                         let tab = &mut self.tabs[self.active_tab];
                         if let Some(ref mut level) = tab.level {
                             let new_idx = level.objects.len();
@@ -305,6 +307,10 @@ impl EditorApp {
                             tab.renderer.set_level(level);
                             tab.renderer.camera = cam;
                             tab.status = t.fmt1("status_added", &add_name);
+                            added = true;
+                        }
+                        if added {
+                            self.maybe_warn_about_new_level_risks(&previous_warnings);
                         }
                         self.show_add_dialog = false;
                     }

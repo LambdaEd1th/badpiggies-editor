@@ -328,47 +328,7 @@ impl EditorApp {
             if has_level {
                 if ui.button(t.get("menu_export_level")).clicked() {
                     ui.close();
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let default_name = self.tabs[self.active_tab]
-                            .file_name
-                            .as_deref()
-                            .unwrap_or("level.bytes");
-                        if let Some(data) = self.tabs[self.active_tab].export_level()
-                            && let Some(path) = rfd::FileDialog::new()
-                                .add_filter("Level files", &["bytes"])
-                                .set_file_name(default_name)
-                                .save_file()
-                        {
-                            match std::fs::write(&path, data) {
-                                Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_exported");
-                                }
-                                Err(e) => {
-                                    self.tabs[self.active_tab].status =
-                                        status_export_error_message(t, e);
-                                }
-                            }
-                        }
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        if let Some(data) = self.tabs[self.active_tab].export_level() {
-                            let file_name = self.tabs[self.active_tab]
-                                .file_name
-                                .clone()
-                                .unwrap_or_else(|| "level.bytes".to_string());
-                            match export_bytes_wasm(&file_name, data) {
-                                Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_exported");
-                                }
-                                Err(e) => {
-                                    self.tabs[self.active_tab].status =
-                                        status_export_error_message(t, e);
-                                }
-                            }
-                        }
-                    }
+                    self.request_export_level_bytes(t);
                 }
                 if ui.button(t.get("menu_export_yaml")).clicked() {
                     ui.close();
@@ -498,6 +458,50 @@ impl EditorApp {
                 }
             } // level exports
         });
+    }
+}
+
+impl EditorApp {
+    pub(in crate::app) fn export_level_bytes_now(&mut self, t: &'static I18n) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let default_name = self.tabs[self.active_tab]
+                .file_name
+                .as_deref()
+                .unwrap_or("level.bytes");
+            if let Some(data) = self.tabs[self.active_tab].export_level()
+                && let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Level files", &["bytes"])
+                    .set_file_name(default_name)
+                    .save_file()
+            {
+                match std::fs::write(&path, data) {
+                    Ok(()) => {
+                        self.tabs[self.active_tab].status = t.get("status_exported");
+                    }
+                    Err(e) => {
+                        self.tabs[self.active_tab].status = status_export_error_message(t, e);
+                    }
+                }
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(data) = self.tabs[self.active_tab].export_level() {
+                let file_name = self.tabs[self.active_tab]
+                    .file_name
+                    .clone()
+                    .unwrap_or_else(|| "level.bytes".to_string());
+                match export_bytes_wasm(&file_name, data) {
+                    Ok(()) => {
+                        self.tabs[self.active_tab].status = t.get("status_exported");
+                    }
+                    Err(e) => {
+                        self.tabs[self.active_tab].status = status_export_error_message(t, e);
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 //! Must not depend on `egui`, `wgpu`, or any I/O.
 
 pub mod level;
+pub mod level_warning;
 pub mod object_deserializer;
 pub mod parser;
 pub mod prefab_asset;

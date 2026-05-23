@@ -245,9 +245,7 @@ impl EditorApp {
             });
 
         if let Some(next_state) = queued_preview_state {
-            self.tabs[self.active_tab]
-                .renderer
-                .set_preview_playback_state(next_state);
+            self.request_preview_playback_state(next_state, t);
         }
 
         if let Some(enabled) = queued_night_vision_enabled {

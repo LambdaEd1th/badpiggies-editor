@@ -88,6 +88,7 @@ impl EditorApp {
     }
 
     pub(super) fn duplicate_objects(&mut self, indices: &[ObjectIndex]) {
+        let previous_warnings = self.current_level_warnings();
         let tab = &mut self.tabs[self.active_tab];
         let Some(level_ref) = tab.level.as_ref() else {
             return;
@@ -121,25 +122,29 @@ impl EditorApp {
         }
         tab.history.redo.clear();
 
-        let Some(level) = tab.level.as_mut() else {
-            return;
-        };
-        tab.selected.clear();
-        for (subtree, target) in &items {
-            let new_root = level.paste_subtree(subtree, PastePosition::AppendTo(*target));
-            match &mut level.objects[new_root] {
-                LevelObject::Prefab(prefab) => {
-                    prefab.position.x += 1.0;
-                    prefab.position.y -= 1.0;
+        {
+            let Some(level) = tab.level.as_mut() else {
+                return;
+            };
+            tab.selected.clear();
+            for (subtree, target) in &items {
+                let new_root = level.paste_subtree(subtree, PastePosition::AppendTo(*target));
+                match &mut level.objects[new_root] {
+                    LevelObject::Prefab(prefab) => {
+                        prefab.position.x += 1.0;
+                        prefab.position.y -= 1.0;
+                    }
+                    LevelObject::Parent(parent) => {
+                        parent.position.x += 1.0;
+                        parent.position.y -= 1.0;
+                    }
                 }
-                LevelObject::Parent(parent) => {
-                    parent.position.x += 1.0;
-                    parent.position.y -= 1.0;
-                }
+                tab.selected.insert(new_root);
             }
-            tab.selected.insert(new_root);
+            tab.renderer.reload_level_preserving_preview_state(level);
         }
-        tab.renderer.reload_level_preserving_preview_state(level);
+
+        self.maybe_warn_about_new_level_risks(&previous_warnings);
     }
 
     pub(super) fn rotate_objects_z(&mut self, indices: &[ObjectIndex], delta_z_degrees: f32) {
@@ -291,6 +296,7 @@ impl EditorApp {
         world_pos: Option<Vec2>,
         paste_position: Option<PastePosition>,
     ) {
+        let previous_warnings = self.current_level_warnings();
         let clip = match self.clipboard.clone() {
             Some(c) => c,
             None => return,
@@ -327,35 +333,39 @@ impl EditorApp {
             }
             tab.history.redo.clear();
         }
-        let Some(level) = tab.level.as_mut() else {
-            return;
-        };
-        tab.selected.clear();
-        for subtree in &clip.subtrees {
-            let new_root = level.paste_subtree(subtree, paste_position);
-            match &mut level.objects[new_root] {
-                LevelObject::Prefab(p) => {
-                    if let Some(delta) = world_delta {
-                        p.position.x += delta.x;
-                        p.position.y += delta.y;
-                    } else {
-                        p.position.x += 1.0;
-                        p.position.y -= 1.0;
+        {
+            let Some(level) = tab.level.as_mut() else {
+                return;
+            };
+            tab.selected.clear();
+            for subtree in &clip.subtrees {
+                let new_root = level.paste_subtree(subtree, paste_position);
+                match &mut level.objects[new_root] {
+                    LevelObject::Prefab(p) => {
+                        if let Some(delta) = world_delta {
+                            p.position.x += delta.x;
+                            p.position.y += delta.y;
+                        } else {
+                            p.position.x += 1.0;
+                            p.position.y -= 1.0;
+                        }
+                    }
+                    LevelObject::Parent(p) => {
+                        if let Some(delta) = world_delta {
+                            p.position.x += delta.x;
+                            p.position.y += delta.y;
+                        } else {
+                            p.position.x += 1.0;
+                            p.position.y -= 1.0;
+                        }
                     }
                 }
-                LevelObject::Parent(p) => {
-                    if let Some(delta) = world_delta {
-                        p.position.x += delta.x;
-                        p.position.y += delta.y;
-                    } else {
-                        p.position.x += 1.0;
-                        p.position.y -= 1.0;
-                    }
-                }
+                tab.selected.insert(new_root);
             }
-            tab.selected.insert(new_root);
+            tab.renderer.reload_level_preserving_preview_state(level);
         }
-        tab.renderer.reload_level_preserving_preview_state(level);
+
+        self.maybe_warn_about_new_level_risks(&previous_warnings);
     }
 
     /// Duplicate all selected objects in-place.

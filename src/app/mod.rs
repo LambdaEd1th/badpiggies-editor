@@ -76,6 +76,8 @@ pub struct EditorApp {
     achievement_popup: Option<AchievementPopupPreview>,
     /// Texture cache for achievement popup icon previews.
     achievement_popup_tex_cache: TextureCache,
+    /// Asset bundle browser dialog.
+    bundle_browser: Option<dialogs::bundle_browser::BundleBrowserDialog>,
 }
 
 impl EditorApp {
@@ -135,6 +137,7 @@ impl EditorApp {
             show_preview_controls_panel: true,
             achievement_popup: None,
             achievement_popup_tex_cache: TextureCache::new(),
+            bundle_browser: None,
         }
     }
 
@@ -210,17 +213,7 @@ impl EditorApp {
                 self.load_xml_into_tab(name, data);
             }
             if let Some((name, data)) = self.pending_file.take() {
-                if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
-                    if let Ok(text) = String::from_utf8(data) {
-                        self.load_level_text_into_tab(name, &text, None);
-                    } else {
-                        self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
-                    }
-                } else if crate::io::crypto::SaveFileType::detect(&name).is_some() {
-                    self.load_save_into_tab(name, data);
-                } else {
-                    self.load_level_into_tab(name, data, None);
-                }
+                self.open_file(name, data, None);
             }
         }
 
@@ -251,17 +244,7 @@ impl EditorApp {
                     };
 
                 if let Some((name, data, source_path)) = file_data {
-                    if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml")
-                    {
-                        match String::from_utf8(data) {
-                            Ok(text) => self.load_level_text_into_tab(name, &text, source_path),
-                            Err(_) => {
-                                self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string()
-                            }
-                        }
-                    } else {
-                        self.load_level_into_tab(name, data, source_path);
-                    }
+                    self.open_file(name, data, source_path);
                 }
             }
         });

@@ -25,7 +25,7 @@ impl EditorApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Level files", &["bytes"])
+                        .add_filter("Level / Bundle", &["bytes", "unity3d"])
                         .pick_file()
                     {
                         match std::fs::read(&path) {
@@ -34,7 +34,7 @@ impl EditorApp {
                                     .file_name()
                                     .map(|n| n.to_string_lossy().into_owned())
                                     .unwrap_or_default();
-                                self.load_level_into_tab(
+                                self.open_file(
                                     name,
                                     data,
                                     Some(path.to_string_lossy().into_owned()),
@@ -52,7 +52,7 @@ impl EditorApp {
                     let repaint_ctx = _ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
-                            .add_filter("Level files", &["bytes"])
+                            .add_filter("Level / Bundle", &["bytes", "unity3d"])
                             .pick_file()
                             .await
                         {

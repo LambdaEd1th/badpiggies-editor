@@ -42,6 +42,8 @@ pbkdf2 = { version = "0.13", features = ["hmac"] }
 sha1 = "0.11"
 quick-xml = "0.39"
 regex = "1"
+lz4_flex = "0.11"
+lzma-rs = "0.3"
 
 # Native dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -141,6 +141,14 @@ mod cli {
             #[arg(short = 't', long = "type")]
             save_type: Option<SaveType>,
         },
+        /// Extract all .bytes files from a Unity AssetBundle (.unity3d)
+        Extract {
+            /// Input Unity AssetBundle file
+            input: PathBuf,
+            /// Output directory (defaults to a directory named after the bundle)
+            #[arg(short, long)]
+            output: Option<PathBuf>,
+        },
     }
 
     /// Resolve a SaveFileType from an explicit flag or by detecting from a filename.
@@ -174,6 +182,7 @@ mod cli {
                 output,
                 save_type,
             } => run_encrypt(input, output, save_type),
+            Command::Extract { input, output } => run_extract(input, output),
         }
     }
 
@@ -358,6 +367,103 @@ mod cli {
             "{}",
             t.fmt_cli_encrypt_ok(&display_in, &display_out, &file_type_label, encrypted.len())
         );
+        Ok(())
+    }
+
+    fn run_extract(input: PathBuf, output: Option<PathBuf>) -> AppResult<()> {
+        let t = Language::from_system().i18n();
+        let display_in = input.display().to_string();
+
+        let data = std::fs::read(&input).map_err(|error| {
+            AppError::invalid_data(t.fmt_path_error(
+                "cli_read_error",
+                &display_in,
+                &error.to_string(),
+            ))
+        })?;
+
+        let bundle = crate::io::unity_bundle::UnityBundleReader::new(data).map_err(|error| {
+            AppError::invalid_data(t.fmt_path_error(
+                "cli_parse_error",
+                &display_in,
+                &error.to_string(),
+            ))
+        })?;
+
+        let output_dir = if let Some(out) = output {
+            out
+        } else {
+            let mut dir = input.clone();
+            dir.set_extension("extracted");
+            dir
+        };
+
+        if !output_dir.exists() {
+            std::fs::create_dir_all(&output_dir).map_err(|error| {
+                AppError::invalid_data(t.fmt_path_error(
+                    "cli_write_error",
+                    &output_dir.display().to_string(),
+                    &error.to_string(),
+                ))
+            })?;
+        }
+
+        let mut count = 0;
+        let nodes = bundle.list_files();
+        eprintln!("Total files in bundle: {}", nodes.len());
+        for node in nodes {
+            eprintln!("Found file: {}", node.path);
+            let file_data = bundle.read_file(&node.path).map_err(|error| {
+                AppError::invalid_data(t.fmt_path_error(
+                    "cli_read_error",
+                    &node.path,
+                    &error.to_string(),
+                ))
+            })?;
+
+            let out_path = output_dir.join(&node.path);
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_write_error",
+                        &parent.display().to_string(),
+                        &error.to_string(),
+                    ))
+                })?;
+            }
+
+            std::fs::write(&out_path, &file_data).map_err(|error| {
+                AppError::invalid_data(t.fmt_path_error(
+                    "cli_write_error",
+                    &out_path.display().to_string(),
+                    &error.to_string(),
+                ))
+            })?;
+            count += 1;
+
+            // Also scan for embedded TextAssets (levels)
+            let sf = crate::io::unity_assets::SerializedFile::new(file_data);
+            for (asset_name, asset_data) in sf.extract_text_assets() {
+                let asset_path = output_dir.join(&asset_name);
+                std::fs::write(&asset_path, &asset_data).map_err(|error| {
+                    AppError::invalid_data(t.fmt_path_error(
+                        "cli_write_error",
+                        &asset_path.display().to_string(),
+                        &error.to_string(),
+                    ))
+                })?;
+                eprintln!("  Extracted embedded asset: {}", asset_name);
+                count += 1;
+            }
+        }
+
+        eprintln!(
+            "Successfully extracted {} files from {} to {}",
+            count,
+            display_in,
+            output_dir.display()
+        );
+
         Ok(())
     }
 }

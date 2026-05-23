@@ -633,6 +633,28 @@ impl EditorApp {
             self.active_tab -= 1;
         }
     }
+
+    /// Primary entry point for opening any file (bundle, level, or save).
+    pub(super) fn open_file(&mut self, name: String, data: Vec<u8>, source_path: Option<String>) {
+        if name.ends_with(".unity3d") {
+            if let Ok(bundle) = crate::io::unity_bundle::UnityBundleReader::new(data) {
+                self.bundle_browser = Some(super::dialogs::bundle_browser::BundleBrowserDialog::new(bundle));
+            } else {
+                self.tabs[self.active_tab].status = format!("解析 Bundle 失败: {}", name);
+            }
+        } else if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
+            match String::from_utf8(data) {
+                Ok(text) => self.load_level_text_into_tab(name, &text, source_path),
+                Err(_) => {
+                    self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
+                }
+            }
+        } else if crate::io::crypto::SaveFileType::detect(&name).is_some() {
+            self.load_save_into_tab(name, data);
+        } else {
+            self.load_level_into_tab(name, data, source_path);
+        }
+    }
 }
 
 #[cfg(test)]

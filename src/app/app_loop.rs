@@ -229,6 +229,7 @@ impl eframe::App for EditorApp {
         }
 
         self.handle_file_input(ui, &ctx);
+        self.render_bundle_browser(&ctx);
         self.render_delete_confirm(&ctx, t);
         self.render_level_warning_confirm(&ctx, t);
         self.render_menu_bar(ui, &ctx, t);

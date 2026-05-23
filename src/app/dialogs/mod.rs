@@ -2,6 +2,7 @@
 
 mod about;
 mod add_object;
+pub mod bundle_browser;
 mod shortcuts;
 mod tool;
 
@@ -534,6 +535,27 @@ impl EditorApp {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// Asset bundle browser dialog.
+    pub(super) fn render_bundle_browser(&mut self, ctx: &egui::Context) {
+        use bundle_browser::BundleBrowserResult;
+
+        let mut action = BundleBrowserResult::Pending;
+        if let Some(ref mut browser) = self.bundle_browser {
+            action = browser.show(ctx);
+        }
+
+        match action {
+            BundleBrowserResult::Loaded(data) => {
+                self.load_level_into_tab("bundle_level.bytes".to_string(), data, None);
+                self.bundle_browser = None;
+            }
+            BundleBrowserResult::Cancelled => {
+                self.bundle_browser = None;
+            }
+            BundleBrowserResult::Pending => {}
         }
     }
 }

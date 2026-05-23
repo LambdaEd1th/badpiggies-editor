@@ -7,6 +7,17 @@ description = "Editor for Bad Piggies"
 license = "AGPL-3.0-or-later"
 build = "build.rs"
 
+[package.metadata.bundle]
+name = "Bad Piggies Editor"
+identifier = "io.github.lambdaed1th.badpiggies_editor"
+icon = ["assets/ui/app-icon.png"]
+category = "public.app-category.developer-tools"
+short_description = "Editor for Bad Piggies"
+long_description = """
+A cross-platform editor for Bad Piggies levels and save data,
+built with egui and wgpu.
+"""
+
 [dependencies]
 eframe = { version = "0.34", default-features = false, features = [
     "default_fonts",

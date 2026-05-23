@@ -15,9 +15,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Native binaries ──────────────────────────────────────────────────────────
+  # ── Native binaries and desktop packages ────────────────────────────────────
   build_native:
-    name: Build Native (${{ matrix.os }})
+    name: Build Native (${{ matrix.artifact }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,12 +26,11 @@ jobs:
           - os: ubuntu-latest
             artifact: badpiggies-editor-linux-x86_64
             binary: badpiggies-editor
-          - os: ubuntu-latest
-            artifact: badpiggies-editor-linux-aarch64
-            binary: badpiggies-editor
+            package_deb: true
           - os: macos-latest
             artifact: badpiggies-editor-macos-aarch64
             binary: badpiggies-editor
+            package_app: true
           - os: windows-latest
             artifact: badpiggies-editor-windows-x86_64
             binary: badpiggies-editor.exe
@@ -48,6 +47,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
+            dpkg-dev \
             pkg-config \
             libgtk-3-dev \
             libxdo-dev \
@@ -70,6 +70,34 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
+      - name: Install cargo-bundle
+        if: matrix.package_app == true || matrix.package_deb == true
+        run: cargo install cargo-bundle --locked --version 0.10.0
+
+      - name: Build macOS app bundle
+        if: matrix.package_app == true
+        run: cargo bundle --release --format osx
+
+      - name: Package macOS app bundle
+        if: matrix.package_app == true
+        run: |
+          APP_PATH=$(find target/release/bundle/osx -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "${{ matrix.artifact }}-app-${{ github.ref_name }}.zip"
+
+      - name: Build Debian package
+        if: matrix.package_deb == true
+        run: cargo bundle --release --format deb
+
+      - name: Package Debian bundle artifact
+        if: matrix.package_deb == true
+        run: |
+          DEB_PATH=$(find target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)
+          test -n "$DEB_PATH"
+          DEB_FILE="${{ matrix.artifact }}-${{ github.ref_name }}.deb"
+          cp "$DEB_PATH" "$DEB_FILE"
+          zip "${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip" "$DEB_FILE"
+
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -88,6 +116,20 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}-${{ github.ref_name }}.zip
+
+      - name: Upload macOS app artifact
+        if: matrix.package_app == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}-app
+          path: ${{ matrix.artifact }}-app-${{ github.ref_name }}.zip
+
+      - name: Upload Debian artifact
+        if: matrix.package_deb == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}-deb
+          path: ${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip
 
   # ── WASM + Pages artifact ────────────────────────────────────────────────────
   build_wasm:

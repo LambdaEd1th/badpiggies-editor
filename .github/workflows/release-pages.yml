@@ -35,12 +35,14 @@ jobs:
             artifact: badpiggies-editor-macos-aarch64
             binary: badpiggies-editor
             package_app: true
-          - os: windows-2025
+          - os: windows-2025-vs2026
             artifact: badpiggies-editor-windows-x86_64
             binary: badpiggies-editor.exe
+            package_zip: true
           - os: windows-11-arm
             artifact: badpiggies-editor-windows-aarch64
             binary: badpiggies-editor.exe
+            package_zip: true
 
     steps:
       - name: Checkout
@@ -106,19 +108,20 @@ jobs:
           zip "${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip" "$DEB_FILE"
 
       - name: Package binary (Unix)
-        if: runner.os != 'Windows'
+        if: matrix.package_zip == true && runner.os != 'Windows'
         run: |
           cp target/release/${{ matrix.binary }} ${{ matrix.binary }}
           zip ${{ matrix.artifact }}-${{ github.ref_name }}.zip ${{ matrix.binary }}
 
       - name: Package binary (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.package_zip == true && runner.os == 'Windows'
         shell: pwsh
         run: |
           Copy-Item target/release/${{ matrix.binary }} ${{ matrix.binary }}
           Compress-Archive -Path ${{ matrix.binary }} -DestinationPath "${{ matrix.artifact }}-${{ github.ref_name }}.zip"
 
-      - name: Upload artifact
+      - name: Upload binary artifact
+        if: matrix.package_zip == true
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
@@ -141,7 +144,7 @@ jobs:
   # ── WASM + Pages artifact ────────────────────────────────────────────────────
   build_wasm:
     name: Build WASM
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -197,7 +200,7 @@ jobs:
   # ── GitHub Release ───────────────────────────────────────────────────────────
   publish_release:
     name: Publish GitHub Release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [build_native, build_wasm]
 
     steps:
@@ -216,7 +219,7 @@ jobs:
   # ── Deploy to GitHub Pages ───────────────────────────────────────────────────
   deploy_pages:
     name: Deploy To GitHub Pages
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: build_wasm
     environment:
       name: github-pages

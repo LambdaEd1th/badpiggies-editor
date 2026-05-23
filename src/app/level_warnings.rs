@@ -133,7 +133,7 @@ impl EditorApp {
                 ui.label(t.get("level_warning_continue"));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.button(t.get("btn_i_know_what_im_doing")).clicked() {
+                    if ui.button(t.get("btn_i_understand_the_risks")).clicked() {
                         action = 1;
                     }
                     if pending.action != PendingLevelWarningAction::AcknowledgeOnly

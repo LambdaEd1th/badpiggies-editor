@@ -41,6 +41,14 @@ impl EditorApp {
             ui.separator();
             let has_sel = !self.tabs[self.active_tab].selected.is_empty()
                 && self.tabs[self.active_tab].level.is_some();
+            let has_flippable_sel = if let Some(level) = self.tabs[self.active_tab].level.as_ref() {
+                self.tabs[self.active_tab]
+                    .selected
+                    .iter()
+                    .any(|&idx| matches!(level.objects.get(idx), Some(LevelObject::Prefab(_))))
+            } else {
+                false
+            };
             let has_clip = self.clipboard.is_some() && self.tabs[self.active_tab].level.is_some();
             let copy_shortcut = if is_mac { "Cmd+C" } else { "Ctrl+C" };
             let cut_shortcut = if is_mac { "Cmd+X" } else { "Ctrl+X" };
@@ -85,6 +93,37 @@ impl EditorApp {
             {
                 ui.close();
                 self.duplicate_selected();
+            }
+            ui.separator();
+            if ui
+                .add_enabled(
+                    has_flippable_sel,
+                    egui::Button::new(t.get("menu_flip_horizontal")),
+                )
+                .clicked()
+            {
+                ui.close();
+                let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+                    .selected
+                    .iter()
+                    .copied()
+                    .collect();
+                self.flip_objects_horizontal(&indices);
+            }
+            if ui
+                .add_enabled(
+                    has_flippable_sel,
+                    egui::Button::new(t.get("menu_flip_vertical")),
+                )
+                .clicked()
+            {
+                ui.close();
+                let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
+                    .selected
+                    .iter()
+                    .copied()
+                    .collect();
+                self.flip_objects_vertical(&indices);
             }
             ui.separator();
             if ui

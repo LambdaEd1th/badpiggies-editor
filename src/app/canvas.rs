@@ -397,6 +397,12 @@ impl EditorApp {
                     crate::renderer::CanvasContextAction::Duplicate(indices) => {
                         self.duplicate_objects(&indices);
                     }
+                    crate::renderer::CanvasContextAction::FlipHorizontal(indices) => {
+                        self.flip_objects_horizontal(&indices);
+                    }
+                    crate::renderer::CanvasContextAction::FlipVertical(indices) => {
+                        self.flip_objects_vertical(&indices);
+                    }
                     crate::renderer::CanvasContextAction::Delete(indices) => {
                         self.request_delete_objects(&indices);
                     }

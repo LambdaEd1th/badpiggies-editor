@@ -176,5 +176,7 @@ pub enum CanvasContextAction {
         world_pos: Option<Vec2>,
     },
     Duplicate(Vec<ObjectIndex>),
+    FlipHorizontal(Vec<ObjectIndex>),
+    FlipVertical(Vec<ObjectIndex>),
     Delete(Vec<ObjectIndex>),
 }

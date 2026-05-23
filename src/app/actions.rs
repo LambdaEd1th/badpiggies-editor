@@ -34,6 +34,127 @@ impl EditorApp {
         valid
     }
 
+    fn flipped_scale_component(scale: f32) -> f32 {
+        if scale == 0.0 { 0.0 } else { -scale }
+    }
+
+    fn mirror_value_around(value: f32, center: f32) -> f32 {
+        center * 2.0 - value
+    }
+
+    fn infer_fill_boundary_from_mesh(vertices: &[Vec2]) -> [f32; 4] {
+        let mut min_x = f32::MAX;
+        let mut min_y = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut max_y = f32::MIN;
+
+        for vertex in vertices {
+            min_x = min_x.min(vertex.x);
+            min_y = min_y.min(vertex.y);
+            max_x = max_x.max(vertex.x);
+            max_y = max_y.max(vertex.y);
+        }
+
+        if min_x > max_x {
+            [0.0, 0.0, 1.0, 1.0]
+        } else {
+            [min_x, min_y, max_x, max_y]
+        }
+    }
+
+    fn terrain_nodes_axis_center(
+        nodes: &[crate::domain::terrain_gen::CurveNode],
+        horizontal: bool,
+    ) -> f32 {
+        let mut min_axis = f32::MAX;
+        let mut max_axis = f32::MIN;
+
+        for node in nodes {
+            let axis = if horizontal {
+                node.position.x
+            } else {
+                node.position.y
+            };
+            min_axis = min_axis.min(axis);
+            max_axis = max_axis.max(axis);
+        }
+
+        if min_axis > max_axis {
+            0.0
+        } else {
+            (min_axis + max_axis) * 0.5
+        }
+    }
+
+    fn mirrored_fill_boundary(boundary: [f32; 4], center: f32, horizontal: bool) -> [f32; 4] {
+        let [min_x, min_y, max_x, max_y] = boundary;
+        if horizontal {
+            [
+                Self::mirror_value_around(max_x, center),
+                min_y,
+                Self::mirror_value_around(min_x, center),
+                max_y,
+            ]
+        } else {
+            [
+                min_x,
+                Self::mirror_value_around(max_y, center),
+                max_x,
+                Self::mirror_value_around(min_y, center),
+            ]
+        }
+    }
+
+    fn flip_terrain_data_along_axis(td: &mut TerrainData, horizontal: bool) {
+        let mut nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
+        if nodes.is_empty() {
+            return;
+        }
+
+        let axis_center = Self::terrain_nodes_axis_center(&nodes, horizontal);
+
+        for node in &mut nodes {
+            if horizontal {
+                node.position.x = Self::mirror_value_around(node.position.x, axis_center);
+            } else {
+                node.position.y = Self::mirror_value_around(node.position.y, axis_center);
+            }
+        }
+
+        let boundary = td
+            .fill_boundary
+            .unwrap_or_else(|| Self::infer_fill_boundary_from_mesh(&td.fill_mesh.vertices));
+        td.fill_boundary = Some(Self::mirrored_fill_boundary(
+            boundary,
+            axis_center,
+            horizontal,
+        ));
+
+        if horizontal {
+            td.fill_texture_tile_offset_x =
+                Self::mirror_value_around(td.fill_texture_tile_offset_x, axis_center);
+        } else {
+            td.fill_texture_tile_offset_y =
+                Self::mirror_value_around(td.fill_texture_tile_offset_y, axis_center);
+        }
+
+        crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
+    }
+
+    fn flip_prefab_along_axis(prefab: &mut PrefabInstance, horizontal: bool) {
+        if let Some(td) = prefab.terrain_data.as_mut() {
+            Self::flip_terrain_data_along_axis(td, horizontal);
+            return;
+        }
+
+        let scale = if horizontal {
+            &mut prefab.scale.x
+        } else {
+            &mut prefab.scale.y
+        };
+        *scale = Self::flipped_scale_component(*scale);
+    }
+
     pub(super) fn copy_objects(&mut self, indices: &[ObjectIndex]) {
         let tab = &self.tabs[self.active_tab];
         let Some(level) = &tab.level else {
@@ -175,6 +296,41 @@ impl EditorApp {
         tab.renderer.reload_level_preserving_preview_state(level);
     }
 
+    pub(super) fn flip_objects_horizontal(&mut self, indices: &[ObjectIndex]) {
+        self.flip_objects_along_axis(indices, true);
+    }
+
+    pub(super) fn flip_objects_vertical(&mut self, indices: &[ObjectIndex]) {
+        self.flip_objects_along_axis(indices, false);
+    }
+
+    fn flip_objects_along_axis(&mut self, indices: &[ObjectIndex], horizontal: bool) {
+        let Some(level_ref) = self.tabs[self.active_tab].level.as_ref() else {
+            return;
+        };
+        let flippable: Vec<ObjectIndex> = Self::valid_object_indices(level_ref, indices)
+            .into_iter()
+            .filter(|&idx| matches!(level_ref.objects[idx], LevelObject::Prefab(_)))
+            .collect();
+        if flippable.is_empty() {
+            return;
+        }
+
+        self.push_undo();
+
+        let tab = &mut self.tabs[self.active_tab];
+        let Some(level) = tab.level.as_mut() else {
+            return;
+        };
+        for idx in flippable {
+            if let LevelObject::Prefab(prefab) = &mut level.objects[idx] {
+                Self::flip_prefab_along_axis(prefab, horizontal);
+            }
+        }
+
+        tab.renderer.reload_level_preserving_preview_state(level);
+    }
+
     pub(super) fn set_object_scale_xy(&mut self, index: ObjectIndex, scale_xy: Vec2) {
         let Some(level_ref) = self.tabs[self.active_tab].level.as_ref() else {
             return;
@@ -264,7 +420,6 @@ impl EditorApp {
             tab.level = Some(snapshot.level);
         }
     }
-
     /// Copy all selected objects (and their subtrees) to the clipboard.
     pub(super) fn copy_selected(&mut self) {
         let indices: Vec<ObjectIndex> = self.tabs[self.active_tab]
@@ -477,5 +632,73 @@ impl EditorApp {
         } else if self.active_tab > idx {
             self.active_tab -= 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EditorApp;
+    use crate::domain::terrain_gen::{CurveNode, extract_curve_nodes, regenerate_terrain};
+    use crate::domain::types::{Color, CurveTexture, TerrainData, TerrainMesh, Vec2};
+
+    fn make_terrain_data(nodes: &[CurveNode]) -> TerrainData {
+        let mut td = TerrainData {
+            fill_texture_tile_offset_x: 0.0,
+            fill_texture_tile_offset_y: 3.0,
+            fill_mesh: TerrainMesh::default(),
+            fill_color: Color {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            },
+            fill_texture_index: 0,
+            curve_mesh: TerrainMesh::default(),
+            curve_textures: vec![CurveTexture {
+                texture_index: 0,
+                size: Vec2 { x: 1.0, y: 0.5 },
+                fixed_angle: false,
+                fade_threshold: 0.0,
+            }],
+            control_texture_count: 0,
+            control_texture_data: None,
+            has_collider: true,
+            fill_boundary: Some([0.0, -10.0, 10.0, 4.0]),
+        };
+        regenerate_terrain(&mut td, nodes);
+        td.fill_boundary = Some([0.0, -10.0, 10.0, 4.0]);
+        td
+    }
+
+    #[test]
+    fn vertical_flip_keeps_terrain_node_bounds_centered() {
+        let original_nodes = vec![
+            CurveNode {
+                position: Vec2 { x: -1.0, y: 2.0 },
+                texture: 0,
+            },
+            CurveNode {
+                position: Vec2 { x: 0.5, y: 4.0 },
+                texture: 0,
+            },
+            CurveNode {
+                position: Vec2 { x: 2.0, y: 8.0 },
+                texture: 0,
+            },
+        ];
+        let mut td = make_terrain_data(&original_nodes);
+
+        EditorApp::flip_terrain_data_along_axis(&mut td, false);
+
+        let flipped = extract_curve_nodes(&td);
+        let ys: Vec<f32> = flipped.iter().map(|node| node.position.y).collect();
+        assert!((ys[0] - 8.0).abs() < 0.0001);
+        assert!((ys[1] - 6.0).abs() < 0.0001);
+        assert!((ys[2] - 2.0).abs() < 0.0001);
+
+        let min_y = ys.iter().copied().fold(f32::MAX, f32::min);
+        let max_y = ys.iter().copied().fold(f32::MIN, f32::max);
+        assert!((((min_y + max_y) * 0.5) - 5.0).abs() < 0.0001);
+        assert!((td.fill_texture_tile_offset_y - 7.0).abs() < 0.0001);
     }
 }

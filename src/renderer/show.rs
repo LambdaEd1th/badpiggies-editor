@@ -226,6 +226,9 @@ impl LevelRenderer {
         let context_world = self.context_menu_world_pos;
         let context_indices = self.context_menu_indices.clone();
         let has_context_selection = !context_indices.is_empty();
+        let has_flippable_context_selection = context_indices
+            .iter()
+            .any(|&idx| self.sprite_data.iter().any(|sprite| sprite.index == idx));
         let is_mac = cfg!(target_os = "macos");
         let copy_shortcut = if is_mac { "Cmd+C" } else { "Ctrl+C" };
         let cut_shortcut = if is_mac { "Cmd+X" } else { "Ctrl+X" };
@@ -284,6 +287,30 @@ impl LevelRenderer {
                         Some(CanvasContextAction::Duplicate(context_indices.clone()));
                     ui.close();
                 }
+                ui.separator();
+                if ui
+                    .add_enabled(
+                        has_flippable_context_selection,
+                        egui::Button::new(tr.get("menu_flip_horizontal")),
+                    )
+                    .clicked()
+                {
+                    self.context_action =
+                        Some(CanvasContextAction::FlipHorizontal(context_indices.clone()));
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(
+                        has_flippable_context_selection,
+                        egui::Button::new(tr.get("menu_flip_vertical")),
+                    )
+                    .clicked()
+                {
+                    self.context_action =
+                        Some(CanvasContextAction::FlipVertical(context_indices.clone()));
+                    ui.close();
+                }
+                ui.separator();
                 if ui
                     .add_enabled(
                         has_context_selection,

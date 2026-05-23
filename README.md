@@ -5,7 +5,7 @@
 Built with [`egui`](https://github.com/emilk/egui), [`eframe`](https://github.com/emilk/egui/tree/master/crates/eframe), and [`wgpu`](https://github.com/gfx-rs/wgpu). Runs as a native desktop app on macOS, Windows, and Linux, and compiles to WASM for in-browser use.
 
 [![Rust](https://img.shields.io/badge/Rust-2024-orange)](https://www.rust-lang.org)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](../LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 
 ---
 
@@ -83,6 +83,8 @@ CLI output is localized the same way as the GUI.
 
 All bundled resources under `assets/` (icons, fonts, locales, shaders) are compiled in via `include_bytes!`/`include_str!`, so neither native nor WASM builds need an external `assets/` directory at runtime.
 
+To use a different Unity package, replace `assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage` with your own and rebuild.
+
 ### Environment variables
 
 | Variable | Effect |
@@ -96,14 +98,7 @@ All bundled resources under `assets/` (icons, fonts, locales, shaders) are compi
 BP_EDITOR_UNITY_ASSETS_DIR=/path/to/unity_assets cargo build
 
 # Use a custom package
-BP_EDITOR_UNITYPACKAGE_PATH=../Bad-Piggies-2.3.6-Unity-Windows.unitypackage cargo build
-```
-
-To re-extract assets from the bundled package to a local `unity_assets/` tree:
-
-```bash
-python3 ../_extract_unitypackage_to_guid_layout.py
-python3 ../_extract_unitypackage_to_guid_layout.py --help   # see options
+BP_EDITOR_UNITYPACKAGE_PATH=/path/to/Bad-Piggies-2.3.6-Unity-Windows.unitypackage cargo build
 ```
 
 ---
@@ -165,13 +160,10 @@ cargo check --all-targets --message-format=short
 cargo clippy --all-targets --message-format=short -- -D warnings
 cargo check --target wasm32-unknown-unknown --message-format=short
 
-# Optional: parser round-trip test (requires fixture file)
+# Optional: parser round-trip test (requires an external fixture file)
 cargo test test_level_roundtrip
-# fixture: ../test_levels/assetbundles/episode_1_levels.unity3d/Level_05_data.bytes
 # skipped automatically if the fixture is absent
 ```
-
-For known asset-migration blockers, see [`../ASSET_MIGRATION_BLOCKERS.md`](../ASSET_MIGRATION_BLOCKERS.md).
 
 ---
 
@@ -183,6 +175,6 @@ For known asset-migration blockers, see [`../ASSET_MIGRATION_BLOCKERS.md`](../AS
 
 ## License
 
-Licensed under the **GNU Affero General Public License v3.0**. See [`../LICENSE`](../LICENSE).
+Licensed under the **GNU Affero General Public License v3.0**. See [`LICENSE`](LICENSE).
 
 Game assets, textures, and level data are the property of **Rovio Entertainment** and are not covered by this license.

@@ -4,6 +4,7 @@ mod about;
 mod add_object;
 mod shortcuts;
 mod tool;
+mod unity3d;
 
 use eframe::egui;
 use std::collections::{BTreeMap, BTreeSet};
@@ -20,6 +21,7 @@ use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
 
 use super::EditorApp;
+pub(super) use unity3d::{Unity3dExportDialogState, Unity3dImportDialogState};
 
 #[derive(Clone)]
 pub(super) struct PrefabOption {

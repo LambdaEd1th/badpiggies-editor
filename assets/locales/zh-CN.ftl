@@ -2,7 +2,9 @@
 menu_file = 文件
 tab_untitled = (未命名)
 menu_open_level = 打开关卡文件…
+menu_export_from_unity3d = 从 unity3d 文件导出…
 menu_export_level = 导出关卡
+menu_import_to_unity3d = 导入到 unity3d 文件…
 menu_import_text = 导入 YAML/TOML…
 menu_export_yaml = 导出为 YAML
 menu_export_toml = 导出为 TOML
@@ -43,6 +45,8 @@ win_level_warning = 风险警告
 win_shortcuts = 快捷键说明
 win_about = 关于
 win_add_object = 添加对象
+win_export_from_unity3d = 从 unity3d 文件导出
+win_import_to_unity3d = 导入到 unity3d 文件
 
 # 按钮
 btn_ok = 确定
@@ -50,8 +54,17 @@ btn_cancel = 取消
 btn_confirm = 确认
 btn_i_understand_the_risks = 我已了解风险
 btn_add = + 添加
+btn_open_selected = 打开所选条目
+btn_import_current_level = 导入当前关卡
+btn_select_all = 全选
 btn_visual = 可视化
+btn_clear_all = 清空选择
 btn_text = 文本
+
+# unity3d 对话框
+label_unity3d_file = unity3d 文件:
+label_current_level = 当前关卡:
+label_unity3d_entries = 条目
 
 # 快捷键窗口
 shortcuts_key = 操作
@@ -147,6 +160,8 @@ add_terrain = 附加地形数据
 status_welcome = 打开一个 .bytes 关卡文件开始编辑
 status_loaded = 已加载: { $obj_count } 个对象, { $root_count } 个根节点
 status_exported = 导出成功
+status_unity3d_imported = 已将当前关卡导入到 unity3d 文件
+status_unity3d_no_text_assets = 该 unity3d 文件中没有可用的 TextAsset 条目
 status_added = 已添加: { $name }
 status_delete_confirm = 确认删除 "{ $name }"？
 status_read_error = 读取失败: { $name }

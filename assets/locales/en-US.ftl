@@ -2,7 +2,9 @@
 menu_file = File
 tab_untitled = (untitled)
 menu_open_level = Open Level File…
+menu_export_from_unity3d = Export from unity3d file…
 menu_export_level = Export Level
+menu_import_to_unity3d = Import to unity3d file…
 menu_import_text = Import YAML/TOML…
 menu_export_yaml = Export as YAML
 menu_export_toml = Export as TOML
@@ -43,6 +45,8 @@ win_level_warning = Known Risk Warning
 win_shortcuts = Keyboard Shortcuts
 win_about = About
 win_add_object = Add Object
+win_export_from_unity3d = Export from unity3d file
+win_import_to_unity3d = Import to unity3d file
 
 # Buttons
 btn_ok = OK
@@ -50,8 +54,17 @@ btn_cancel = Cancel
 btn_confirm = Confirm
 btn_i_understand_the_risks = I understand the risks
 btn_add = + Add
+btn_open_selected = Open Selected
+btn_import_current_level = Import Current Level
+btn_select_all = Select All
 btn_visual = Visual
+btn_clear_all = Clear Selection
 btn_text = Text
+
+# unity3d dialogs
+label_unity3d_file = unity3d file:
+label_current_level = Current level:
+label_unity3d_entries = Entries
 
 # Shortcuts window
 shortcuts_key = Shortcut
@@ -147,6 +160,8 @@ add_terrain = Attach Terrain Data
 status_welcome = Open a .bytes level file to start editing
 status_loaded = Loaded: { $obj_count } objects, { $root_count } roots
 status_exported = Exported successfully
+status_unity3d_imported = Imported the current level into the unity3d file
+status_unity3d_no_text_assets = No TextAsset entries were found in this unity3d file
 status_added = Added: { $name }
 status_delete_confirm = Delete "{ $name }"?
 status_read_error = Read error: { $name }

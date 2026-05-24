@@ -17,6 +17,7 @@ mod tab_bar;
 mod text_codec;
 mod tree;
 
+use dialogs::{Unity3dExportDialogState, Unity3dImportDialogState};
 use state::{Clipboard, Snapshot, Tab, UNDO_MAX};
 
 use eframe::egui;
@@ -31,6 +32,8 @@ use achievement_popup::AchievementPopupPreview;
 thread_local! {
     static WASM_OPEN_RESULT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
     static WASM_OPEN_XML_SAVE: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
+    static WASM_OPEN_UNITY3D_EXPORT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
+    static WASM_OPEN_UNITY3D_IMPORT: std::cell::RefCell<Option<(String, Vec<u8>)>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Main application state.
@@ -59,6 +62,8 @@ pub struct EditorApp {
     show_shortcuts: bool,
     /// Whether the about window is visible.
     show_about: bool,
+    unity3d_export_dialog: Option<Unity3dExportDialogState>,
+    unity3d_import_dialog: Option<Unity3dImportDialogState>,
     /// Object clipboard for copy/cut/paste (shared across tabs).
     clipboard: Option<Clipboard>,
     /// Graphics API backend name (e.g. "Metal", "Vulkan").
@@ -126,6 +131,8 @@ impl EditorApp {
             show_properties: true,
             show_shortcuts: false,
             show_about: false,
+            unity3d_export_dialog: None,
+            unity3d_import_dialog: None,
             clipboard: None,
             #[cfg(not(target_arch = "wasm32"))]
             gpu_backend,
@@ -209,6 +216,7 @@ impl EditorApp {
             if let Some((name, data)) = WASM_OPEN_XML_SAVE.with(|q| q.borrow_mut().take()) {
                 self.load_xml_into_tab(name, data);
             }
+            self.handle_pending_unity3d_file_dialogs(self.t());
             if let Some((name, data)) = self.pending_file.take() {
                 if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
                     if let Ok(text) = String::from_utf8(data) {

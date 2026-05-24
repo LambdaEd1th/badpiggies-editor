@@ -18,7 +18,7 @@ use super::super::{WASM_OPEN_RESULT, WASM_OPEN_XML_SAVE};
 use super::status_export_error_message;
 
 impl EditorApp {
-    pub(super) fn menu_file(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context, t: &'static I18n) {
+    pub(super) fn menu_file(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, t: &'static I18n) {
         ui.menu_button(t.get("menu_file"), |ui| {
             if ui.button(t.get("menu_open_level")).clicked() {
                 ui.close();
@@ -49,7 +49,7 @@ impl EditorApp {
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = _ctx.clone();
+                    let repaint_ctx = ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("Level files", &["bytes"])
@@ -95,7 +95,7 @@ impl EditorApp {
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = _ctx.clone();
+                    let repaint_ctx = ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("YAML / TOML", &["yaml", "yml", "toml"])
@@ -137,7 +137,7 @@ impl EditorApp {
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = _ctx.clone();
+                    let repaint_ctx = ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("Save files", &["dat", "contraption", "xml"])
@@ -179,7 +179,7 @@ impl EditorApp {
                 }
                 #[cfg(target_arch = "wasm32")]
                 {
-                    let repaint_ctx = _ctx.clone();
+                    let repaint_ctx = ctx.clone();
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(file) = rfd::AsyncFileDialog::new()
                             .add_filter("XML files", &["xml"])
@@ -198,6 +198,14 @@ impl EditorApp {
             }
             let is_save_tab = self.tabs[self.active_tab].is_save_tab();
             let has_level = self.tabs[self.active_tab].level.is_some();
+            if ui.button(t.get("menu_export_from_unity3d")).clicked() {
+                ui.close();
+                self.open_unity3d_export_dialog(ctx, t);
+            }
+            if has_level && ui.button(t.get("menu_import_to_unity3d")).clicked() {
+                ui.close();
+                self.open_unity3d_import_dialog(ctx, t);
+            }
             if is_save_tab || has_level {
                 ui.separator();
             }

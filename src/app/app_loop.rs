@@ -236,6 +236,8 @@ impl eframe::App for EditorApp {
         self.render_about_window(&ctx);
         self.render_tool_window(&ctx, t);
         self.render_add_obj_dialog(&ctx, t);
+        self.render_unity3d_export_dialog(&ctx, t);
+        self.render_unity3d_import_dialog(&ctx, t);
         self.render_tab_bar(ui, t, &ctx);
 
         // ── Status bar ──

@@ -42,6 +42,11 @@ pbkdf2 = { version = "0.13", features = ["hmac"] }
 sha1 = "0.11"
 quick-xml = "0.39"
 regex = "1"
+lz4_flex = "0.11"
+lzma-rs = { version = "0.3", features = ["raw_decoder"] }
+md5 = "0.8"
+unity-asset = "0.2.0"
+unity-asset-binary = "0.2.0"
 
 # Native dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

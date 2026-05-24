@@ -236,11 +236,7 @@ impl EditorApp {
         }
     }
 
-    fn finish_open_unity3d_export_dialog(
-        &mut self,
-        bundle: Unity3dBundleState,
-        t: &'static I18n,
-    ) {
+    fn finish_open_unity3d_export_dialog(&mut self, bundle: Unity3dBundleState, t: &'static I18n) {
         match list_text_assets_from_bytes(&bundle.bundle_label, &bundle.bundle_bytes) {
             Ok(entries) if entries.is_empty() => {
                 self.tabs[self.active_tab].status = t.get("status_unity3d_no_text_assets");
@@ -256,11 +252,7 @@ impl EditorApp {
         }
     }
 
-    fn finish_open_unity3d_import_dialog(
-        &mut self,
-        bundle: Unity3dBundleState,
-        t: &'static I18n,
-    ) {
+    fn finish_open_unity3d_import_dialog(&mut self, bundle: Unity3dBundleState, t: &'static I18n) {
         match list_text_assets_from_bytes(&bundle.bundle_label, &bundle.bundle_bytes) {
             Ok(entries) if entries.is_empty() => {
                 self.tabs[self.active_tab].status = t.get("status_unity3d_no_text_assets");
@@ -370,11 +362,18 @@ impl EditorApp {
                 .collect();
             let mut levels = Vec::with_capacity(selected_entries.len());
             for entry in &selected_entries {
-                match read_text_asset_from_bytes(&dialog.bundle.bundle_label, &dialog.bundle.bundle_bytes, entry) {
+                match read_text_asset_from_bytes(
+                    &dialog.bundle.bundle_label,
+                    &dialog.bundle.bundle_bytes,
+                    entry,
+                ) {
                     Ok(data) => levels.push((
                         entry.display_name.clone(),
                         data,
-                        Some(format!("{}::{}", dialog.bundle.bundle_label, entry.asset_path)),
+                        Some(format!(
+                            "{}::{}",
+                            dialog.bundle.bundle_label, entry.asset_path
+                        )),
                     )),
                     Err(error) => {
                         self.tabs[self.active_tab].status =
@@ -436,10 +435,7 @@ impl EditorApp {
                     .show(ui, |ui| {
                         for (index, entry) in dialog.entries.iter().enumerate() {
                             let selected = dialog.selected_index == Some(index);
-                            if ui
-                                .selectable_label(selected, &entry.display_name)
-                                .clicked()
-                            {
+                            if ui.selectable_label(selected, &entry.display_name).clicked() {
                                 dialog.selected_index = Some(index);
                             }
                             ui.small(&entry.asset_path);
@@ -489,7 +485,8 @@ impl EditorApp {
                         if let Some(path) = dialog.bundle.bundle_path.as_ref() {
                             match std::fs::write(path, &updated_bundle_bytes) {
                                 Ok(()) => {
-                                    self.tabs[self.active_tab].status = t.get("status_unity3d_imported");
+                                    self.tabs[self.active_tab].status =
+                                        t.get("status_unity3d_imported");
                                     keep_open = false;
                                 }
                                 Err(error) => {
@@ -505,7 +502,8 @@ impl EditorApp {
                     {
                         match export_bytes_wasm(&dialog.bundle.bundle_name, updated_bundle_bytes) {
                             Ok(()) => {
-                                self.tabs[self.active_tab].status = t.get("status_unity3d_imported");
+                                self.tabs[self.active_tab].status =
+                                    t.get("status_unity3d_imported");
                                 keep_open = false;
                             }
                             Err(error) => {
@@ -555,7 +553,9 @@ fn export_bytes_wasm(file_name: &str, bytes: Vec<u8>) -> AppResult<()> {
         .map_err(|_| AppError::browser_key("error_download_link_unavailable"))?;
 
     anchor.set_attribute("href", &url).map_err(js_error)?;
-    anchor.set_attribute("download", file_name).map_err(js_error)?;
+    anchor
+        .set_attribute("download", file_name)
+        .map_err(js_error)?;
     anchor
         .set_attribute("style", "display:none")
         .map_err(js_error)?;

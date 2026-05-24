@@ -142,7 +142,10 @@ impl UnityFsBundle {
 
     #[cfg(test)]
     pub fn entry_names(&self) -> Vec<String> {
-        self.entries.iter().map(|entry| entry.name.clone()).collect()
+        self.entries
+            .iter()
+            .map(|entry| entry.name.clone())
+            .collect()
     }
 
     pub fn read_entry(&self, name: &str) -> AppResult<Vec<u8>> {
@@ -155,9 +158,7 @@ impl UnityFsBundle {
 
     pub fn replace_entry(&mut self, name: &str, data: Vec<u8>) -> AppResult<()> {
         let Some(entry) = self.entries.iter_mut().find(|entry| entry.name == name) else {
-            return Err(invalid_data(format!(
-                "Bundle entry not found: {name}"
-            )));
+            return Err(invalid_data(format!("Bundle entry not found: {name}")));
         };
         entry.data = data;
         Ok(())
@@ -273,7 +274,9 @@ fn build_directory_entries(entries: &[UnityFsEntry]) -> Vec<UnityFsDirectoryEntr
     out
 }
 
-fn parse_blocks_info(bytes: &[u8]) -> AppResult<(Vec<UnityFsBlockInfo>, Vec<UnityFsDirectoryEntry>)> {
+fn parse_blocks_info(
+    bytes: &[u8],
+) -> AppResult<(Vec<UnityFsBlockInfo>, Vec<UnityFsDirectoryEntry>)> {
     let mut reader = Cursor::new(bytes);
     let mut hash = [0u8; 16];
     reader.read_exact(&mut hash)?;
@@ -337,12 +340,13 @@ fn decompress_bytes(kind: u32, input: &[u8], expected_size: usize) -> AppResult<
     let output = match kind {
         0 => input.to_vec(),
         1 => decompress_lzma_bytes(input, expected_size)?,
-        2 | 3 => lz4_flex::block::decompress(input, expected_size)
-            .map_err(|error| invalid_data(format!("Failed to decompress UnityFS LZ4 data: {error}")))?,
+        2 | 3 => lz4_flex::block::decompress(input, expected_size).map_err(|error| {
+            invalid_data(format!("Failed to decompress UnityFS LZ4 data: {error}"))
+        })?,
         other => {
             return Err(invalid_data(format!(
                 "Unsupported UnityFS compression type: {other}"
-            )))
+            )));
         }
     };
 
@@ -388,13 +392,20 @@ fn decompress_lzma_bytes(input: &[u8], expected_size: usize) -> AppResult<Vec<u8
         dict_size,
         Some(expected_size as u64),
     );
-    let mut decoder = lzma_rs::decompress::raw::LzmaDecoder::new(params, Some(usize::MAX)).map_err(
-        |error| invalid_data(format!("Failed to initialize raw UnityFS LZMA decoder: {error}")),
-    )?;
+    let mut decoder = lzma_rs::decompress::raw::LzmaDecoder::new(params, Some(usize::MAX))
+        .map_err(|error| {
+            invalid_data(format!(
+                "Failed to initialize raw UnityFS LZMA decoder: {error}"
+            ))
+        })?;
     let mut out = Vec::with_capacity(expected_size);
     decoder
         .decompress(&mut Cursor::new(&input[5..]), &mut out)
-        .map_err(|error| invalid_data(format!("Failed to decompress raw UnityFS LZMA data: {error}")))?;
+        .map_err(|error| {
+            invalid_data(format!(
+                "Failed to decompress raw UnityFS LZMA data: {error}"
+            ))
+        })?;
     Ok(out)
 }
 
@@ -408,7 +419,8 @@ fn read_cstring(reader: &mut Cursor<&[u8]>) -> AppResult<String> {
         }
         bytes.push(buf[0]);
     }
-    String::from_utf8(bytes).map_err(|error| invalid_data(format!("Invalid UTF-8 in UnityFS string: {error}")))
+    String::from_utf8(bytes)
+        .map_err(|error| invalid_data(format!("Invalid UTF-8 in UnityFS string: {error}")))
 }
 
 fn read_u16_be(reader: &mut Cursor<&[u8]>) -> AppResult<u16> {
@@ -490,7 +502,9 @@ mod tests {
         let actual: BTreeSet<String> = bundle.entry_names().into_iter().collect();
 
         assert_eq!(actual.len(), 3);
-        assert!(actual.iter().any(|name| name.starts_with("CAB-") && !name.ends_with(".resource") && !name.ends_with(".resS")));
+        assert!(actual.iter().any(|name| name.starts_with("CAB-")
+            && !name.ends_with(".resource")
+            && !name.ends_with(".resS")));
         assert!(actual.iter().any(|name| name.ends_with(".resource")));
         assert!(actual.iter().any(|name| name.ends_with(".resS")));
     }
@@ -514,7 +528,11 @@ mod tests {
                     .into_owned()
             })
             .collect();
-        assert!(actual.len() >= 40, "expected many container entries, got {}", actual.len());
+        assert!(
+            actual.len() >= 40,
+            "expected many container entries, got {}",
+            actual.len()
+        );
         assert!(actual.contains("level_05_data.bytes"));
         assert!(actual.contains("level_49_data.bytes"));
         assert!(actual.contains("comic_episode_intro_01.png"));
@@ -522,15 +540,16 @@ mod tests {
 
     #[test]
     fn can_replace_entry_and_reparse_written_bundle() {
-        let mut bundle = UnityFsBundle::from_path(sample_bundle_path()).expect("parse sample bundle");
+        let mut bundle =
+            UnityFsBundle::from_path(sample_bundle_path()).expect("parse sample bundle");
         let entry_name = bundle
             .entry_names()
             .into_iter()
-            .find(|name| name.starts_with("CAB-") && !name.ends_with(".resource") && !name.ends_with(".resS"))
+            .find(|name| {
+                name.starts_with("CAB-") && !name.ends_with(".resource") && !name.ends_with(".resS")
+            })
             .expect("top-level CAB entry");
-        let mut replacement = bundle
-            .read_entry(&entry_name)
-            .expect("read existing entry");
+        let mut replacement = bundle.read_entry(&entry_name).expect("read existing entry");
         replacement.extend_from_slice(b"bundle-test");
         bundle
             .replace_entry(&entry_name, replacement.clone())

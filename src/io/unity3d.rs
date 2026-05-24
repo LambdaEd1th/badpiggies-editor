@@ -5,7 +5,9 @@ use unity_asset::{UnityValue, load_bundle_from_memory};
 use unity_asset_binary::asset::class_ids;
 use unity_asset_binary::asset::header::SerializedFileHeader;
 use unity_asset_binary::asset::parse_serialized_file;
-use unity_asset_binary::asset::types::{FileIdentifier, LocalSerializedObjectIdentifier, SerializedType};
+use unity_asset_binary::asset::types::{
+    FileIdentifier, LocalSerializedObjectIdentifier, SerializedType,
+};
 use unity_asset_binary::bundle::AssetBundle;
 use unity_asset_binary::reader::{BinaryReader, ByteOrder};
 use unity_asset_binary::typetree::{TypeTree, serialize_object_with_typetree};
@@ -71,10 +73,14 @@ pub fn list_text_assets_from_bytes(
                 if path_id == 0 {
                     continue;
                 }
-                let Some(target_asset_index) = resolve_bundle_asset_index(&bundle, asset_index, file, file_id, path_id) else {
+                let Some(target_asset_index) =
+                    resolve_bundle_asset_index(&bundle, asset_index, file, file_id, path_id)
+                else {
                     continue;
                 };
-                let Some(target_object) = bundle.assets[target_asset_index].find_object_handle(path_id) else {
+                let Some(target_object) =
+                    bundle.assets[target_asset_index].find_object_handle(path_id)
+                else {
                     continue;
                 };
                 if target_object.class_id() != class_ids::TEXT_ASSET {
@@ -93,8 +99,7 @@ pub fn list_text_assets_from_bytes(
                     .ok_or_else(|| {
                         invalid_data(format!(
                             "Bundle asset index {} out of range for {}",
-                            target_asset_index,
-                            bundle_name
+                            target_asset_index, bundle_name
                         ))
                     })?;
 
@@ -134,8 +139,7 @@ pub fn read_text_asset_from_bytes(
     let file = bundle.assets.get(entry.asset_index).ok_or_else(|| {
         invalid_data(format!(
             "Bundle asset index {} out of range for {}",
-            entry.asset_index,
-            bundle_name
+            entry.asset_index, bundle_name
         ))
     })?;
     let object = file
@@ -143,8 +147,7 @@ pub fn read_text_asset_from_bytes(
         .ok_or_else(|| {
             invalid_data(format!(
                 "TextAsset {} was not found in {}",
-                entry.asset_path,
-                bundle_name
+                entry.asset_path, bundle_name
             ))
         })?
         .read()
@@ -190,13 +193,12 @@ fn resolve_bundle_asset_index(
     file_id: i32,
     path_id: i64,
 ) -> Option<usize> {
-    if file_id == 0 {
-        if bundle.assets[source_asset_index]
+    if file_id == 0
+        && bundle.assets[source_asset_index]
             .find_object_handle(path_id)
             .is_some()
-        {
-            return Some(source_asset_index);
-        }
+    {
+        return Some(source_asset_index);
     }
 
     if file_id > 0 {
@@ -205,11 +207,15 @@ fn resolve_bundle_asset_index(
             let external_name = display_name_from_asset_path(&external.path);
             for (asset_index, asset_name) in bundle.asset_names.iter().enumerate() {
                 if !asset_name.eq_ignore_ascii_case(&external.path)
-                    && !display_name_from_asset_path(asset_name).eq_ignore_ascii_case(&external_name)
+                    && !display_name_from_asset_path(asset_name)
+                        .eq_ignore_ascii_case(&external_name)
                 {
                     continue;
                 }
-                if bundle.assets[asset_index].find_object_handle(path_id).is_some() {
+                if bundle.assets[asset_index]
+                    .find_object_handle(path_id)
+                    .is_some()
+                {
                     return Some(asset_index);
                 }
             }
@@ -246,7 +252,9 @@ fn replace_text_asset_in_serialized_file(
     let file = parse_serialized_file(serialized_file_bytes.to_vec())
         .map_err(|err| invalid_data(format!("Failed to parse serialized asset file: {err}")))?;
     let object_info = file.find_object(path_id).ok_or_else(|| {
-        invalid_data(format!("Serialized asset file does not contain path_id {path_id}"))
+        invalid_data(format!(
+            "Serialized asset file does not contain path_id {path_id}"
+        ))
     })?;
     let mut object = file
         .find_object_handle(path_id)
@@ -262,13 +270,21 @@ fn replace_text_asset_in_serialized_file(
     }
 
     let new_object_bytes = if object.get("m_Script").is_some() {
-        object.set("m_Script".to_owned(), bytes_to_unity_array_value(replacement_bytes));
+        object.set(
+            "m_Script".to_owned(),
+            bytes_to_unity_array_value(replacement_bytes),
+        );
         let type_tree = type_tree_for_object(&file, object_info).ok_or_else(|| {
             invalid_data(format!("Missing TypeTree for TextAsset path_id {path_id}"))
         })?;
         if type_tree.is_empty() {
             let raw = parse_raw_text_asset_data(object.raw_data(), object.byte_order())?;
-            serialize_raw_text_asset_data(&raw.name, replacement_bytes, &raw.trailing_bytes, object.byte_order())
+            serialize_raw_text_asset_data(
+                &raw.name,
+                replacement_bytes,
+                &raw.trailing_bytes,
+                object.byte_order(),
+            )
         } else {
             let serialized_properties = object.as_unity_class().serialized_properties();
             serialize_object_with_typetree(type_tree, &serialized_properties).map_err(|err| {
@@ -277,7 +293,12 @@ fn replace_text_asset_in_serialized_file(
         }
     } else {
         let raw = parse_raw_text_asset_data(object.raw_data(), object.byte_order())?;
-        serialize_raw_text_asset_data(&raw.name, replacement_bytes, &raw.trailing_bytes, object.byte_order())
+        serialize_raw_text_asset_data(
+            &raw.name,
+            replacement_bytes,
+            &raw.trailing_bytes,
+            object.byte_order(),
+        )
     };
 
     rebuild_serialized_file_bytes(serialized_file_bytes, &file, path_id, &new_object_bytes)
@@ -327,7 +348,9 @@ fn rebuild_serialized_file_bytes(
             .map_err(|err| invalid_data(format!("Failed to read object bytes: {err}")))?;
         let original_object_end = original_object_start
             .checked_add(original_object_bytes.len())
-            .ok_or_else(|| invalid_data(format!("Object {} byte range overflow", object.path_id)))?;
+            .ok_or_else(|| {
+                invalid_data(format!("Object {} byte range overflow", object.path_id))
+            })?;
 
         if original_object_start < source_cursor {
             return Err(invalid_data(format!(
@@ -353,9 +376,8 @@ fn rebuild_serialized_file_bytes(
             original_object_bytes.to_vec()
         };
 
-        let byte_start = u64::try_from(rebuilt.len()).map_err(|_| {
-            invalid_data("Rebuilt serialized file exceeded supported size")
-        })?;
+        let byte_start = u64::try_from(rebuilt.len())
+            .map_err(|_| invalid_data("Rebuilt serialized file exceeded supported size"))?;
         let byte_size = u32::try_from(object_bytes.len()).map_err(|_| {
             invalid_data(format!(
                 "Object {} is too large to encode: {} bytes",
@@ -379,14 +401,14 @@ fn rebuild_serialized_file_bytes(
             .get(&object.path_id)
             .copied()
             .ok_or_else(|| invalid_data(format!("Missing rebuilt object {}", object.path_id)))?;
-        let relative_start = new_byte_start.checked_sub(file.header.data_offset).ok_or_else(|| {
-            invalid_data(format!(
-                "Object {} byte_start {} precedes data offset {}",
-                object.path_id,
-                new_byte_start,
-                file.header.data_offset
-            ))
-        })?;
+        let relative_start = new_byte_start
+            .checked_sub(file.header.data_offset)
+            .ok_or_else(|| {
+                invalid_data(format!(
+                    "Object {} byte_start {} precedes data offset {}",
+                    object.path_id, new_byte_start, file.header.data_offset
+                ))
+            })?;
         write_object_byte_start(
             &mut rebuilt,
             file.header.version,
@@ -438,7 +460,9 @@ fn locate_object_table_field_offsets(
         .read_i32()
         .map_err(|err| invalid_data(format!("Failed to read type count: {err}")))?;
     if type_count < 0 {
-        return Err(invalid_data(format!("Negative serialized type count: {type_count}")));
+        return Err(invalid_data(format!(
+            "Negative serialized type count: {type_count}"
+        )));
     }
     for _ in 0..type_count {
         SerializedType::from_reader(&mut reader, header.version, enable_type_tree, false)
@@ -458,7 +482,9 @@ fn locate_object_table_field_offsets(
         .read_i32()
         .map_err(|err| invalid_data(format!("Failed to read object count: {err}")))?;
     if object_count < 0 {
-        return Err(invalid_data(format!("Negative serialized object count: {object_count}")));
+        return Err(invalid_data(format!(
+            "Negative serialized object count: {object_count}"
+        )));
     }
 
     let mut offsets = Vec::with_capacity(object_count as usize);
@@ -483,13 +509,13 @@ fn locate_object_table_field_offsets(
         let byte_start_offset = usize::try_from(reader.position())
             .map_err(|_| invalid_data("Object byte_start offset overflow"))?;
         if header.version >= 22 {
-            reader.read_i64().map_err(|err| {
-                invalid_data(format!("Failed to read object byte_start: {err}"))
-            })?;
+            reader
+                .read_i64()
+                .map_err(|err| invalid_data(format!("Failed to read object byte_start: {err}")))?;
         } else {
-            reader.read_u32().map_err(|err| {
-                invalid_data(format!("Failed to read object byte_start: {err}"))
-            })?;
+            reader
+                .read_u32()
+                .map_err(|err| invalid_data(format!("Failed to read object byte_start: {err}")))?;
         }
         let byte_size_offset = usize::try_from(reader.position())
             .map_err(|_| invalid_data("Object byte_size offset overflow"))?;
@@ -532,7 +558,9 @@ fn locate_object_table_field_offsets(
             .read_i32()
             .map_err(|err| invalid_data(format!("Failed to read script count: {err}")))?;
         if script_count < 0 {
-            return Err(invalid_data(format!("Negative script type count: {script_count}")));
+            return Err(invalid_data(format!(
+                "Negative script type count: {script_count}"
+            )));
         }
         for _ in 0..script_count {
             LocalSerializedObjectIdentifier::from_reader(&mut reader, header.version)
@@ -544,7 +572,9 @@ fn locate_object_table_field_offsets(
         .read_i32()
         .map_err(|err| invalid_data(format!("Failed to read external count: {err}")))?;
     if external_count < 0 {
-        return Err(invalid_data(format!("Negative external reference count: {external_count}")));
+        return Err(invalid_data(format!(
+            "Negative external reference count: {external_count}"
+        )));
     }
     for _ in 0..external_count {
         FileIdentifier::from_reader(&mut reader, header.version)
@@ -556,7 +586,9 @@ fn locate_object_table_field_offsets(
             .read_i32()
             .map_err(|err| invalid_data(format!("Failed to read ref type count: {err}")))?;
         if ref_type_count < 0 {
-            return Err(invalid_data(format!("Negative ref type count: {ref_type_count}")));
+            return Err(invalid_data(format!(
+                "Negative ref type count: {ref_type_count}"
+            )));
         }
         for _ in 0..ref_type_count {
             SerializedType::from_reader(&mut reader, header.version, enable_type_tree, true)
@@ -579,7 +611,9 @@ fn write_serialized_file_header(
     file_size: u64,
 ) -> AppResult<()> {
     let file_size_u32 = u32::try_from(file_size).map_err(|_| {
-        invalid_data(format!("Serialized file exceeds 32-bit header field: {file_size}"))
+        invalid_data(format!(
+            "Serialized file exceeds 32-bit header field: {file_size}"
+        ))
     })?;
     write_u32(bytes, ByteOrder::Big, 4, file_size_u32)?;
     if header.version >= 22 {
@@ -604,18 +638,15 @@ fn write_object_byte_start(
         write_i64(bytes, byte_order, offset, relative_start_i64)
     } else {
         let relative_start_u32 = u32::try_from(relative_start).map_err(|_| {
-            invalid_data(format!("Object byte_start exceeds 32-bit range: {relative_start}"))
+            invalid_data(format!(
+                "Object byte_start exceeds 32-bit range: {relative_start}"
+            ))
         })?;
         write_u32(bytes, byte_order, offset, relative_start_u32)
     }
 }
 
-fn write_u32(
-    bytes: &mut [u8],
-    byte_order: ByteOrder,
-    offset: usize,
-    value: u32,
-) -> AppResult<()> {
+fn write_u32(bytes: &mut [u8], byte_order: ByteOrder, offset: usize, value: u32) -> AppResult<()> {
     let end = offset
         .checked_add(4)
         .ok_or_else(|| invalid_data("u32 write offset overflow"))?;
@@ -630,12 +661,7 @@ fn write_u32(
     Ok(())
 }
 
-fn write_i64(
-    bytes: &mut [u8],
-    byte_order: ByteOrder,
-    offset: usize,
-    value: i64,
-) -> AppResult<()> {
+fn write_i64(bytes: &mut [u8], byte_order: ByteOrder, offset: usize, value: i64) -> AppResult<()> {
     let end = offset
         .checked_add(8)
         .ok_or_else(|| invalid_data("i64 write offset overflow"))?;
@@ -669,7 +695,10 @@ fn read_text_asset_bytes(object: &unity_asset_binary::object::UnityObject) -> Ap
     Ok(raw.script)
 }
 
-fn parse_raw_text_asset_data(raw_bytes: &[u8], byte_order: ByteOrder) -> AppResult<RawTextAssetData> {
+fn parse_raw_text_asset_data(
+    raw_bytes: &[u8],
+    byte_order: ByteOrder,
+) -> AppResult<RawTextAssetData> {
     let mut reader = BinaryReader::new(raw_bytes, byte_order);
     let name = reader
         .read_aligned_string()
@@ -678,7 +707,9 @@ fn parse_raw_text_asset_data(raw_bytes: &[u8], byte_order: ByteOrder) -> AppResu
         .read_i32()
         .map_err(|err| invalid_data(format!("Failed to parse TextAsset byte length: {err}")))?;
     if script_len < 0 {
-        return Err(invalid_data(format!("Negative TextAsset byte length: {script_len}")));
+        return Err(invalid_data(format!(
+            "Negative TextAsset byte length: {script_len}"
+        )));
     }
     let script = reader
         .read_bytes(script_len as usize)
@@ -702,10 +733,18 @@ fn serialize_raw_text_asset_data(
     byte_order: ByteOrder,
 ) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(name.len() + script.len() + trailing_bytes.len() + 16);
-    push_i32(&mut bytes, byte_order, i32::try_from(name.len()).unwrap_or(i32::MAX));
+    push_i32(
+        &mut bytes,
+        byte_order,
+        i32::try_from(name.len()).unwrap_or(i32::MAX),
+    );
     bytes.extend_from_slice(name.as_bytes());
     align_vec(&mut bytes, 4);
-    push_i32(&mut bytes, byte_order, i32::try_from(script.len()).unwrap_or(i32::MAX));
+    push_i32(
+        &mut bytes,
+        byte_order,
+        i32::try_from(script.len()).unwrap_or(i32::MAX),
+    );
     bytes.extend_from_slice(script);
     align_vec(&mut bytes, 4);
     bytes.extend_from_slice(trailing_bytes);
@@ -723,10 +762,14 @@ fn unity_value_to_bytes(value: &UnityValue) -> AppResult<Vec<u8>> {
     let mut bytes = Vec::with_capacity(values.len());
     for value in values {
         let Some(number) = value.as_i64() else {
-            return Err(invalid_data("TextAsset byte array contained a non-integer value"));
+            return Err(invalid_data(
+                "TextAsset byte array contained a non-integer value",
+            ));
         };
         let byte = u8::try_from(number).map_err(|_| {
-            invalid_data(format!("TextAsset byte array contained out-of-range value {number}"))
+            invalid_data(format!(
+                "TextAsset byte array contained out-of-range value {number}"
+            ))
         })?;
         bytes.push(byte);
     }
@@ -812,7 +855,11 @@ mod tests {
     fn level_05_entry(entries: &[Unity3dTextAssetEntry]) -> Unity3dTextAssetEntry {
         entries
             .iter()
-            .find(|entry| entry.display_name.eq_ignore_ascii_case("Level_05_data.bytes"))
+            .find(|entry| {
+                entry
+                    .display_name
+                    .eq_ignore_ascii_case("Level_05_data.bytes")
+            })
             .cloned()
             .expect("Level_05_data.bytes entry")
     }
@@ -843,7 +890,8 @@ mod tests {
         let mut segments = Vec::new();
         let mut cursor = data_offset;
         for object in objects_by_byte_start {
-            let object_start = usize::try_from(object.byte_start).expect("object byte_start fits usize");
+            let object_start =
+                usize::try_from(object.byte_start).expect("object byte_start fits usize");
             let object_bytes = file.object_bytes(object).expect("read object bytes");
             let object_end = object_start + object_bytes.len();
 
@@ -870,9 +918,21 @@ mod tests {
     fn lists_episode_1_level_text_assets() {
         let entries = list_text_assets(sample_bundle_path()).expect("list text assets");
 
-        assert!(entries.len() >= 40, "expected many text assets, got {}", entries.len());
-        assert!(entries.iter().any(|entry| entry.display_name == "level_05_data.bytes"));
-        assert!(entries.iter().any(|entry| entry.display_name == "level_49_data.bytes"));
+        assert!(
+            entries.len() >= 40,
+            "expected many text assets, got {}",
+            entries.len()
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.display_name == "level_05_data.bytes")
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.display_name == "level_49_data.bytes")
+        );
     }
 
     #[test]
@@ -899,7 +959,8 @@ mod tests {
 
         let rewritten_entries = list_text_assets(&temp_path).expect("re-list text assets");
         let rewritten_entry = level_05_entry(&rewritten_entries);
-        let actual = read_text_asset(&temp_path, &rewritten_entry).expect("read replaced text asset");
+        let actual =
+            read_text_asset(&temp_path, &rewritten_entry).expect("read replaced text asset");
         assert_eq!(actual, replacement);
     }
 
@@ -909,15 +970,17 @@ mod tests {
         let entries = list_text_assets(sample_bundle_path()).expect("list text assets");
         let entry = level_05_entry(&entries);
 
-        let original_bundle = UnityFsBundle::from_bytes(&bundle_bytes).expect("parse original bundle");
+        let original_bundle =
+            UnityFsBundle::from_bytes(&bundle_bytes).expect("parse original bundle");
         let original_serialized_file = original_bundle
             .read_entry(&entry.bundle_asset_name)
             .expect("read original serialized file");
         let original_segments = serialized_file_non_object_segments(&original_serialized_file);
 
         let replacement = vec![0x5a; 137];
-        let rewritten_bundle_bytes = replace_text_asset_in_bundle_bytes(&bundle_bytes, &entry, &replacement)
-            .expect("replace text asset in bundle bytes");
+        let rewritten_bundle_bytes =
+            replace_text_asset_in_bundle_bytes(&bundle_bytes, &entry, &replacement)
+                .expect("replace text asset in bundle bytes");
         let rewritten_bundle =
             UnityFsBundle::from_bytes(&rewritten_bundle_bytes).expect("parse rewritten bundle");
         let rewritten_serialized_file = rewritten_bundle
@@ -935,7 +998,8 @@ mod tests {
             .expect("BADPIGGIES_UNITY3D_SMOKE_PATH must point to a .unity3d file");
         let bundle_path = PathBuf::from(bundle_path);
 
-        let entries = list_text_assets(&bundle_path).expect("list text assets from external bundle");
+        let entries =
+            list_text_assets(&bundle_path).expect("list text assets from external bundle");
         assert!(
             !entries.is_empty(),
             "expected text assets in external bundle: {}",
@@ -943,7 +1007,8 @@ mod tests {
         );
 
         let entry = level_05_entry(&entries);
-        let actual = read_text_asset(&bundle_path, &entry).expect("read text asset from external bundle");
+        let actual =
+            read_text_asset(&bundle_path, &entry).expect("read text asset from external bundle");
         assert!(
             !actual.is_empty(),
             "expected non-empty Level_05_data.bytes in {}",
@@ -963,8 +1028,9 @@ mod tests {
         let entry = level_05_entry(&entries);
         let replacement = b"copilot-external-unity3d-smoke".to_vec();
 
-        let rewritten_bundle_bytes = replace_text_asset_in_bundle_bytes(&bundle_bytes, &entry, &replacement)
-            .expect("replace text asset in external bundle bytes");
+        let rewritten_bundle_bytes =
+            replace_text_asset_in_bundle_bytes(&bundle_bytes, &entry, &replacement)
+                .expect("replace text asset in external bundle bytes");
         let actual = read_text_asset_from_bytes(&bundle_path, &rewritten_bundle_bytes, &entry)
             .expect("read replaced text asset from rewritten external bundle bytes");
 

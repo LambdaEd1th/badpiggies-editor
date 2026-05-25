@@ -827,7 +827,7 @@ fn invalid_data(message: impl Into<String>) -> AppError {
     AppError::invalid_data_key1("app_error_invalid_data", message.into())
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::{
         Unity3dTextAssetEntry, list_text_assets, list_text_assets_from_bytes, read_text_asset,

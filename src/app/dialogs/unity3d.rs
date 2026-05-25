@@ -252,6 +252,27 @@ impl EditorApp {
         }
     }
 
+    /// Open the unity3d export dialog directly from in-memory bytes (e.g. drag-and-drop).
+    pub(in crate::app) fn open_unity3d_export_with_bytes(
+        &mut self,
+        bundle_name: String,
+        bundle_label: String,
+        bundle_bytes: Vec<u8>,
+        #[cfg(not(target_arch = "wasm32"))] bundle_path: Option<std::path::PathBuf>,
+        t: &'static I18n,
+    ) {
+        self.finish_open_unity3d_export_dialog(
+            Unity3dBundleState {
+                bundle_name,
+                bundle_label,
+                bundle_bytes,
+                #[cfg(not(target_arch = "wasm32"))]
+                bundle_path,
+            },
+            t,
+        );
+    }
+
     fn finish_open_unity3d_import_dialog(&mut self, bundle: Unity3dBundleState, t: &'static I18n) {
         match list_text_assets_from_bytes(&bundle.bundle_label, &bundle.bundle_bytes) {
             Ok(entries) if entries.is_empty() => {

@@ -218,7 +218,12 @@ impl EditorApp {
             }
             self.handle_pending_unity3d_file_dialogs(self.t());
             if let Some((name, data)) = self.pending_file.take() {
-                if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml") {
+                if name.ends_with(".unity3d") {
+                    self.open_unity3d_export_with_bytes(name.clone(), name.clone(), data, self.t());
+                } else if name.ends_with(".yaml")
+                    || name.ends_with(".yml")
+                    || name.ends_with(".toml")
+                {
                     if let Ok(text) = String::from_utf8(data) {
                         self.load_level_text_into_tab(name, &text, None);
                     } else {
@@ -259,7 +264,19 @@ impl EditorApp {
                     };
 
                 if let Some((name, data, source_path)) = file_data {
-                    if name.ends_with(".yaml") || name.ends_with(".yml") || name.ends_with(".toml")
+                    if name.ends_with(".unity3d") {
+                        let t = self.t();
+                        self.open_unity3d_export_with_bytes(
+                            name.clone(),
+                            source_path.as_deref().unwrap_or(&name).to_string(),
+                            data,
+                            #[cfg(not(target_arch = "wasm32"))]
+                            source_path.map(std::path::PathBuf::from),
+                            t,
+                        );
+                    } else if name.ends_with(".yaml")
+                        || name.ends_with(".yml")
+                        || name.ends_with(".toml")
                     {
                         match String::from_utf8(data) {
                             Ok(text) => self.load_level_text_into_tab(name, &text, source_path),

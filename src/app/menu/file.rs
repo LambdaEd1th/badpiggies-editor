@@ -198,14 +198,6 @@ impl EditorApp {
             }
             let is_save_tab = self.tabs[self.active_tab].is_save_tab();
             let has_level = self.tabs[self.active_tab].level.is_some();
-            if ui.button(t.get("menu_export_from_unity3d")).clicked() {
-                ui.close();
-                self.open_unity3d_export_dialog(ctx, t);
-            }
-            if has_level && ui.button(t.get("menu_import_to_unity3d")).clicked() {
-                ui.close();
-                self.open_unity3d_import_dialog(ctx, t);
-            }
             if is_save_tab || has_level {
                 ui.separator();
             }
@@ -465,6 +457,14 @@ impl EditorApp {
                     }
                 }
             } // level exports
+            if ui.button(t.get("menu_export_from_unity3d")).clicked() {
+                ui.close();
+                self.open_unity3d_export_dialog(ctx, t);
+            }
+            if has_level && ui.button(t.get("menu_import_to_unity3d")).clicked() {
+                ui.close();
+                self.open_unity3d_import_dialog(ctx, t);
+            }
         });
     }
 }

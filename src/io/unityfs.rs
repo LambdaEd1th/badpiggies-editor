@@ -140,7 +140,7 @@ impl UnityFsBundle {
         })
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, not(target_arch = "wasm32")))]
     pub fn entry_names(&self) -> Vec<String> {
         self.entries
             .iter()
@@ -482,7 +482,7 @@ fn pad_to_alignment(out: &mut Vec<u8>, alignment: usize) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use std::collections::BTreeSet;
     use std::path::PathBuf;

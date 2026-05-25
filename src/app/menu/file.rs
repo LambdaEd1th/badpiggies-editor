@@ -112,6 +112,10 @@ impl EditorApp {
                     });
                 }
             }
+            if ui.button(t.get("menu_export_from_unity3d")).clicked() {
+                ui.close();
+                self.open_unity3d_export_dialog(ctx, t);
+            }
             if ui.button(t.get("menu_open_save")).clicked() {
                 ui.close();
                 #[cfg(not(target_arch = "wasm32"))]
@@ -457,10 +461,6 @@ impl EditorApp {
                     }
                 }
             } // level exports
-            if ui.button(t.get("menu_export_from_unity3d")).clicked() {
-                ui.close();
-                self.open_unity3d_export_dialog(ctx, t);
-            }
             if has_level && ui.button(t.get("menu_import_to_unity3d")).clicked() {
                 ui.close();
                 self.open_unity3d_import_dialog(ctx, t);

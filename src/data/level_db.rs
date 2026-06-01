@@ -160,8 +160,9 @@ fn parse_level_entries(fields: &Mapping) -> Vec<LevelEntry> {
             .filter_map(|(index, item)| {
                 let level = item.as_mapping()?;
                 let scene = map_get(level, "sceneName")?.as_str()?.to_string();
+                let level_code = episode_level_code(index);
                 Some(LevelEntry {
-                    label: format!("{prefix}-{}", index + 1),
+                    label: format!("{prefix}-{level_code}"),
                     scene,
                     category: LevelCategory::Episode,
                 })
@@ -186,6 +187,28 @@ fn parse_level_entries(fields: &Mapping) -> Vec<LevelEntry> {
         .iter()
         .filter_map(|item| parse_loader_backed_level(item, category))
         .collect()
+}
+
+fn episode_level_code(level_index: usize) -> String {
+    if (level_index + 1) % 5 != 0 {
+        let normal_number = level_index + 1 - level_index / 5;
+        return normal_number.to_string();
+    }
+
+    roman_numeral((level_index + 1) / 5)
+}
+
+fn roman_numeral(value: usize) -> String {
+    const ROMANS: [&str; 16] = [
+        "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII",
+        "XIII", "XIV", "XV", "XVI",
+    ];
+
+    if value > 0 && value <= ROMANS.len() {
+        return ROMANS[value - 1].to_string();
+    }
+
+    value.to_string()
 }
 
 fn parse_loader_backed_level(value: &Value, category: LevelCategory) -> Option<LevelEntry> {
@@ -316,8 +339,12 @@ mod tests {
             Some("scenario_69 (2-1)".to_string())
         );
         assert_eq!(
+            level_display_name_for_filename("course_02_data.bytes"),
+            Some("course_02 (2-9)".to_string())
+        );
+        assert_eq!(
             level_display_name_for_filename("C:\\tmp\\episode_6_level_VI_data.yaml"),
-            Some("episode_6_level_VI (6-30)".to_string())
+            Some("episode_6_level_VI (6-VI)".to_string())
         );
         assert_eq!(level_display_name_for_filename("unknown_level.bytes"), None);
     }
@@ -360,7 +387,7 @@ mod tests {
         );
         assert_eq!(
             lookup_for_level_key("episode_6_level_VI"),
-            Some(("6-30".to_string(), "episode_6_level_VI".to_string()))
+            Some(("6-VI".to_string(), "episode_6_level_VI".to_string()))
         );
         assert_eq!(
             lookup_for_level_key("Level_Sandbox_01"),

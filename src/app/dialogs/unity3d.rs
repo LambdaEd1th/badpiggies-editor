@@ -24,6 +24,87 @@ struct SelectableUnity3dEntry {
     selected: bool,
 }
 
+fn strip_known_level_extension(filename: &str) -> &str {
+    for suffix in [".bytes", ".yaml", ".yml", ".toml"] {
+        if filename.len() > suffix.len()
+            && filename[filename.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+        {
+            return &filename[..filename.len() - suffix.len()];
+        }
+    }
+
+    filename
+}
+
+fn unity3d_entry_scene_key(entry: &Unity3dTextAssetEntry) -> String {
+    let basename = entry
+        .display_name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(entry.display_name.as_str());
+    let stem = strip_known_level_extension(basename);
+    stem.strip_suffix("_data").unwrap_or(stem).to_string()
+}
+
+fn roman_value(code: &str) -> Option<usize> {
+    match code.to_ascii_uppercase().as_str() {
+        "I" => Some(1),
+        "II" => Some(2),
+        "III" => Some(3),
+        "IV" => Some(4),
+        "V" => Some(5),
+        "VI" => Some(6),
+        "VII" => Some(7),
+        "VIII" => Some(8),
+        "IX" => Some(9),
+        "X" => Some(10),
+        "XI" => Some(11),
+        "XII" => Some(12),
+        "XIII" => Some(13),
+        "XIV" => Some(14),
+        "XV" => Some(15),
+        "XVI" => Some(16),
+        _ => None,
+    }
+}
+
+fn episode_order_from_label(label: &str) -> Option<(i32, usize)> {
+    let (episode, code) = label.split_once('-')?;
+    let episode = episode.parse::<i32>().ok()?;
+
+    if let Ok(number) = code.parse::<usize>() {
+        if number == 0 {
+            return None;
+        }
+        let order = number + (number - 1) / 4;
+        return Some((episode, order));
+    }
+
+    let roman = roman_value(code)?;
+    Some((episode, roman * 5))
+}
+
+fn unity3d_entry_order_key(entry: &Unity3dTextAssetEntry) -> Option<(i32, usize)> {
+    let scene_key = unity3d_entry_scene_key(entry);
+    let (label, _scene) = crate::data::level_db::scene_level_name(&scene_key)?;
+    episode_order_from_label(label)
+}
+
+fn unity3d_entry_ui_name(entry: &Unity3dTextAssetEntry) -> String {
+    crate::data::level_db::level_display_name_for_filename(&entry.display_name)
+        .unwrap_or_else(|| entry.display_name.clone())
+}
+
+fn sort_unity3d_entries(entries: &mut [Unity3dTextAssetEntry]) {
+    entries.sort_by_cached_key(|entry| {
+        let alpha = entry.display_name.to_ascii_lowercase();
+        match unity3d_entry_order_key(entry) {
+            Some((episode, order)) => (0u8, episode, order, alpha),
+            None => (1u8, i32::MAX, usize::MAX, alpha),
+        }
+    });
+}
+
 #[derive(Clone)]
 struct Unity3dBundleState {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
@@ -241,7 +322,8 @@ impl EditorApp {
             Ok(entries) if entries.is_empty() => {
                 self.tabs[self.active_tab].status = t.get("status_unity3d_no_text_assets");
             }
-            Ok(entries) => {
+            Ok(mut entries) => {
+                sort_unity3d_entries(&mut entries);
                 self.unity3d_import_dialog = None;
                 self.unity3d_export_dialog = Some(Unity3dExportDialogState::new(bundle, entries));
             }
@@ -278,7 +360,8 @@ impl EditorApp {
             Ok(entries) if entries.is_empty() => {
                 self.tabs[self.active_tab].status = t.get("status_unity3d_no_text_assets");
             }
-            Ok(entries) => {
+            Ok(mut entries) => {
+                sort_unity3d_entries(&mut entries);
                 let current_level_name = self.tabs[self.active_tab].file_name.as_deref();
                 self.unity3d_export_dialog = None;
                 self.unity3d_import_dialog = Some(Unity3dImportDialogState::new(
@@ -346,7 +429,7 @@ impl EditorApp {
                             ui.horizontal(|ui| {
                                 ui.checkbox(&mut selectable.selected, "");
                                 ui.vertical(|ui| {
-                                    ui.label(&selectable.entry.display_name);
+                                    ui.label(unity3d_entry_ui_name(&selectable.entry));
                                     ui.small(&selectable.entry.asset_path);
                                 });
                             });
@@ -456,7 +539,10 @@ impl EditorApp {
                     .show(ui, |ui| {
                         for (index, entry) in dialog.entries.iter().enumerate() {
                             let selected = dialog.selected_index == Some(index);
-                            if ui.selectable_label(selected, &entry.display_name).clicked() {
+                            if ui
+                                .selectable_label(selected, unity3d_entry_ui_name(entry))
+                                .clicked()
+                            {
                                 dialog.selected_index = Some(index);
                             }
                             ui.small(&entry.asset_path);

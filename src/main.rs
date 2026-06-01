@@ -423,30 +423,42 @@ fn main() {
         use wasm_bindgen::closure::Closure;
 
         let promise = js_sys::Promise::new(&mut |resolve, _| {
-            let resolve_for_callback = resolve.clone();
-            let callback = Closure::<dyn FnMut()>::once(move || {
-                let _ = resolve_for_callback.call0(&JsValue::UNDEFINED);
-            });
-
             if let Some(window) = web_sys::window() {
-                let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                let resolve_for_callback = resolve.clone();
+                let callback = Closure::<dyn FnMut()>::once(move || {
+                    let _ = resolve_for_callback.call0(&JsValue::UNDEFINED);
+                });
+
+                let timeout_result = window.set_timeout_with_callback_and_timeout_and_arguments_0(
                     callback.as_ref().unchecked_ref(),
                     ms,
                 );
+                if timeout_result.is_ok() {
+                    callback.forget();
+                } else {
+                    let _ = resolve.call0(&JsValue::UNDEFINED);
+                }
             } else {
                 let _ = resolve.call0(&JsValue::UNDEFINED);
             }
-
-            callback.forget();
         });
 
         let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
     }
 
+    async fn wait_for_document_visible(document: &web_sys::Document) {
+        if is_document_hidden(document)
+            && let Some(loading) = document.get_element_by_id("loading_text")
+        {
+            loading.set_text_content(Some("Waiting for tab to become active..."));
+        }
+        while is_document_hidden(document) {
+            sleep_ms(100).await;
+        }
+    }
+
     console_error_panic_hook::set_once();
     diagnostics::log_buffer::init_wasm(log::LevelFilter::Debug);
-
-    let web_options = eframe::WebOptions::default();
 
     wasm_bindgen_futures::spawn_local(async {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else {
@@ -470,32 +482,23 @@ fn main() {
             return;
         };
 
-        while is_document_hidden(&document) {
-            if let Some(loading) = document.get_element_by_id("loading_text") {
-                loading.set_text_content(Some("Waiting for tab to become active..."));
-            }
-            sleep_ms(100).await;
-        }
+        wait_for_document_visible(&document).await;
 
         let mut start_result = eframe::WebRunner::new()
             .start(
                 canvas.clone(),
-                web_options,
+                eframe::WebOptions::default(),
                 Box::new(|cc| Ok(Box::new(EditorApp::new(cc)))),
             )
             .await;
 
         if start_result.is_err() && is_document_hidden(&document) {
-            while is_document_hidden(&document) {
-                if let Some(loading) = document.get_element_by_id("loading_text") {
-                    loading.set_text_content(Some("Waiting for tab to become active..."));
-                }
-                sleep_ms(100).await;
-            }
+            log::warn!("WASM startup failed while document was hidden; retrying once after tab is active");
+            wait_for_document_visible(&document).await;
 
             start_result = eframe::WebRunner::new()
                 .start(
-                    canvas,
+                    canvas.clone(),
                     eframe::WebOptions::default(),
                     Box::new(|cc| Ok(Box::new(EditorApp::new(cc)))),
                 )

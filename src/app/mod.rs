@@ -89,6 +89,7 @@ impl EditorApp {
             let name = path
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
+                // Some portals/backends can provide a path without a usable file name.
                 .filter(|name| !name.is_empty())
                 .unwrap_or_else(|| file.name.clone());
             (name, Some(path.to_string_lossy().into_owned()))

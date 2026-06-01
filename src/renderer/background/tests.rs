@@ -338,7 +338,6 @@ fn morning_cloud_wrap_gap_matches_internal_edge_gap() {
         panic!("cloud strip should tile");
     };
     let actual_wrap_gap = block_width - (max_right - min_left);
-
     assert!(
         (actual_wrap_gap - expected_wrap_gap).abs() < 0.001,
         "expected wrap gap {expected_wrap_gap}, got {actual_wrap_gap}"

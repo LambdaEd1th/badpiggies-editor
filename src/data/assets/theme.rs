@@ -842,6 +842,11 @@ mod tests {
     #[test]
     fn sky_top_colors_can_come_from_sky_assets() {
         assert_eq!(
+            sky_top_color("Morning"),
+            super::sample_sky_texture_top_color("Morning_Sky_Texture.png")
+                .expect("missing Morning sky sample")
+        );
+        assert_eq!(
             sky_top_color("Maya"),
             egui::Color32::from_rgb(0x7d, 0xbf, 0xe9)
         );
@@ -866,6 +871,19 @@ mod tests {
             sky_top_color("Cave"),
             egui::Color32::from_rgb(expected[0], expected[1], expected[2])
         );
+    }
+
+    #[test]
+    fn morning_cloud_sky_layer_does_not_count_as_backdrop() {
+        let theme = crate::data::bg_data::get_theme("Morning").expect("missing Morning theme");
+        let cloud_sprite = theme
+            .sprites
+            .iter()
+            .find(|sprite| sprite.parent_group == "BGLayerClouds")
+            .expect("missing Morning cloud sprite");
+
+        assert_eq!(cloud_sprite.layer, crate::data::bg_data::BgLayer::Sky);
+        assert!(!super::is_sky_backdrop_sprite(cloud_sprite));
     }
 
     #[test]
@@ -1229,7 +1247,15 @@ fn resolve_sky_top_color(theme_name: &str) -> Option<egui::Color32> {
         .sprites
         .iter()
         .filter(|sprite| is_sky_backdrop_sprite(sprite))
-        .find_map(|sprite| sprite.fill_color.map(color32_from_rgb))
+        .find_map(|sprite| sprite.sky_texture.as_deref())
+        .and_then(sample_sky_texture_top_color)
+        .or_else(|| {
+            theme
+                .sprites
+                .iter()
+                .filter(|sprite| is_sky_backdrop_sprite(sprite))
+                .find_map(|sprite| sprite.fill_color.map(color32_from_rgb))
+        })
         .or_else(|| {
             theme
                 .sprites
@@ -1238,20 +1264,10 @@ fn resolve_sky_top_color(theme_name: &str) -> Option<egui::Color32> {
                 .find_map(|sprite| sample_bg_atlas_sprite_visible_edge_row_rgb(sprite, true))
                 .map(color32_from_rgb)
         })
-        .or_else(|| {
-            theme
-                .sprites
-                .iter()
-                .filter(|sprite| is_sky_backdrop_sprite(sprite))
-                .find_map(|sprite| sprite.sky_texture.as_deref())
-                .and_then(sample_sky_texture_top_color)
-        })
 }
 
 fn is_sky_backdrop_sprite(sprite: &crate::data::bg_data::BgSprite) -> bool {
-    sprite.layer == crate::data::bg_data::BgLayer::Sky
-        || sprite.sky_texture.is_some()
-        || sprite.parent_group.contains("Background_Sky")
+    sprite.sky_texture.is_some() || sprite.parent_group.contains("Background_Sky")
 }
 
 fn color32_from_rgb(rgb: [u8; 3]) -> egui::Color32 {

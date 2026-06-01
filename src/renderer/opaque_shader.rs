@@ -39,6 +39,7 @@ pub struct OpaqueVertex {
     pub pos: [f32; 2],
     pub uv: [f32; 2],
 }
+const OPAQUE_SPRITE_VERTEX_BYTES: u64 = (std::mem::size_of::<OpaqueVertex>() * 4) as u64;
 
 // ── Shared pipeline resources ──
 
@@ -487,11 +488,10 @@ impl egui_wgpu::CallbackTrait for OpaqueBatchPaintCallback {
             self.resources.index_buffer.slice(..),
             wgpu::IndexFormat::Uint16,
         );
-        let sprite_vertex_bytes = (std::mem::size_of::<OpaqueVertex>() * 4) as u64;
         for draw in &self.draws {
             let sprite = &self.batch.sprites[draw.sprite_index as usize];
-            let sprite_start = draw.sprite_index as u64 * sprite_vertex_bytes;
-            let sprite_end = sprite_start + sprite_vertex_bytes;
+            let sprite_start = draw.sprite_index as u64 * OPAQUE_SPRITE_VERTEX_BYTES;
+            let sprite_end = sprite_start + OPAQUE_SPRITE_VERTEX_BYTES;
             render_pass
                 .set_vertex_buffer(0, self.batch.vertex_buffer.slice(sprite_start..sprite_end));
             render_pass.set_bind_group(0, &sprite.bind_group, &[]);

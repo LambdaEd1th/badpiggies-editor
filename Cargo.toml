@@ -5,7 +5,6 @@ edition = "2024"
 authors = ["LambdaEd1th"]
 description = "Editor for Bad Piggies"
 license = "AGPL-3.0-or-later"
-build = "build.rs"
 
 [package.metadata.bundle]
 name = "Bad Piggies Editor"
@@ -35,7 +34,6 @@ bytemuck = { version = "1", features = ["derive"] }
 fluent-bundle = "0.16"
 unic-langid = { version = "0.9", features = ["macros"] }
 sys-locale = { version = "0.3", features = ["js"] }
-rust-embed = { version = "8", features = ["debug-embed"] }
 aes = "0.9"
 cbc = { version = "0.2", features = ["alloc"] }
 pbkdf2 = { version = "0.13", features = ["hmac"] }
@@ -86,11 +84,6 @@ web-sys = { version = "0.3", features = [
 ] }
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
-
-[build-dependencies]
-flate2 = "1"
-sha2 = "0.10"
-tar = "0.4"
 
 # Optimize dependencies in dev builds for smoother editor experience
 [profile.dev.package."*"]

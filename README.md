@@ -17,7 +17,7 @@ Built with [`egui`](https://github.com/emilk/egui), [`eframe`](https://github.co
 | **Save editing** | Open `Progress.dat`, `*.contraption`, `Achievements.xml`; edit as raw XML or structured tables; re-export as encrypted saves |
 | **Rendering** | GPU-backed rendering of terrain fills, edges, sprites, opaque props, parallax backgrounds, and dark-mask overlays |
 | **CLI** | Convert formats, decrypt/encrypt save files from the command line |
-| **i18n** | English and Simplified Chinese UI, auto-detected from the system locale |
+| **i18n** | Fluent-based UI localization with runtime locale discovery (`assets/locales/*.ftl`) |
 | **Targets** | Native desktop (Vulkan / Metal / DX12 / OpenGL ES 3.1) + WASM/browser |
 
 ---
@@ -88,6 +88,15 @@ Runtime-only model (no embedded Unity assets):
 
 - `BP_EDITOR_EXTERNAL_UNITYPACKAGE_PATH=/path/to/Bad-Piggies-2.3.6-Unity-Windows.unitypackage`
 - `BP_EDITOR_RUNTIME_ASSETS_DIR=/path/to/editor/assets` for editor UI resources (icons, shaders, locales, fonts)
+
+### Custom Localization
+
+You can add custom UI languages by dropping new Fluent files into `editor/assets/locales/`:
+
+- File naming: `<lang-tag>.ftl` (examples: `ja-JP.ftl`, `fr-FR.ftl`, `de-DE.ftl`)
+- Native builds auto-discover all `locales/*.ftl` files at startup and show them in the language menu.
+- System locale matching prefers exact tag (`fr-FR`), then primary language (`fr`), then falls back to English.
+- WASM currently discovers languages from preloaded runtime assets; by default this includes bundled locales.
 
 ### Environment variables
 

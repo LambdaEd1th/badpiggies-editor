@@ -124,7 +124,7 @@ impl EditorApp {
                 ui.separator();
             }
             ui.menu_button(t.get("menu_language"), |ui| {
-                for &lang in crate::i18n::locale::Language::ALL {
+                for &lang in crate::i18n::locale::Language::all() {
                     if ui
                         .selectable_label(self.lang == lang, lang.display_name())
                         .clicked()

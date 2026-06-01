@@ -325,7 +325,7 @@ mod tests {
         assert!(
             matches!(error, AppError::InvalidData(_))
                 && error
-                    .localized(Language::En.i18n())
+                    .localized(Language::english().i18n())
                     .contains("XML parse error"),
             "expected InvalidData XML parse error, got {error}"
         );
@@ -341,7 +341,7 @@ mod tests {
         assert!(
             matches!(error, AppError::InvalidData(_))
                 && error
-                    .localized(Language::En.i18n())
+                    .localized(Language::english().i18n())
                     .contains("Invalid UTF-8"),
             "expected InvalidData UTF-8 error, got {error}"
         );

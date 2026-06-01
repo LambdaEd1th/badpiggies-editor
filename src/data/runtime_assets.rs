@@ -4,7 +4,7 @@ use std::env;
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
 #[cfg(not(target_arch = "wasm32"))]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 #[cfg(target_arch = "wasm32")]
@@ -268,6 +268,65 @@ pub fn read_runtime_asset_text(relative_path: &str) -> String {
             relative_path, error
         )
     })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn collect_runtime_asset_paths(
+    root: &Path,
+    current: &Path,
+    out: &mut Vec<String>,
+    prefix: &str,
+    suffix: &str,
+) {
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_dir() {
+            collect_runtime_asset_paths(root, &path, out, prefix, suffix);
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+
+        let Ok(relative) = path.strip_prefix(root) else {
+            continue;
+        };
+        let relative = relative.to_string_lossy().replace('\\', "/");
+        if relative.starts_with(prefix) && relative.ends_with(suffix) {
+            out.push(relative);
+        }
+    }
+}
+
+pub fn list_runtime_assets(prefix: &str, suffix: &str) -> Vec<String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let root = runtime_assets_root();
+        let mut out = Vec::new();
+        collect_runtime_asset_paths(root, root, &mut out, prefix, suffix);
+        out.sort();
+        return out;
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let cache = wasm_runtime_assets_cache();
+        let cache = cache.lock().expect("runtime asset cache lock poisoned");
+        let mut out: Vec<String> = cache
+            .keys()
+            .filter(|k| k.starts_with(prefix) && k.ends_with(suffix))
+            .cloned()
+            .collect();
+        out.sort();
+        return out;
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

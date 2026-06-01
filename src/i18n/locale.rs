@@ -2,12 +2,10 @@ use std::sync::LazyLock;
 
 use fluent_bundle::{FluentResource, concurrent::FluentBundle};
 
-/// Supported UI languages.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub enum Language {
-    Zh,
-    #[default]
-    En,
+/// UI language resolved from runtime locale registry.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Language {
+    tag: &'static str,
 }
 
 /// Runtime i18n bundle wrapping a Fluent resource.
@@ -194,46 +192,132 @@ impl I18n {
     }
 }
 
-static ZH_I18N: LazyLock<I18n> = LazyLock::new(|| {
-    I18n::new(
-        crate::data::runtime_assets::read_runtime_asset_text("locales/zh-CN.ftl"),
-        "zh-CN",
-    )
+struct LocaleEntry {
+    lang: Language,
+    display_name: &'static str,
+    i18n: I18n,
+}
+
+static LOCALES: LazyLock<Vec<LocaleEntry>> = LazyLock::new(|| {
+    let mut entries = Vec::new();
+    let paths = crate::data::runtime_assets::list_runtime_assets("locales/", ".ftl");
+
+    for path in paths {
+        let Some(file_name) = path.rsplit('/').next() else {
+            continue;
+        };
+        let Some(tag) = file_name.strip_suffix(".ftl") else {
+            continue;
+        };
+        if tag.is_empty() {
+            continue;
+        }
+
+        let leaked_tag: &'static str = Box::leak(tag.to_string().into_boxed_str());
+        let display = locale_display_name(leaked_tag);
+        let source = crate::data::runtime_assets::read_runtime_asset_text(&path);
+
+        entries.push(LocaleEntry {
+            lang: Language { tag: leaked_tag },
+            display_name: display,
+            i18n: I18n::new(source, leaked_tag),
+        });
+    }
+
+    if entries.is_empty() {
+        panic!("No locale files found under runtime assets locales/*.ftl");
+    }
+
+    entries.sort_by(|a, b| a.lang.tag.cmp(b.lang.tag));
+    entries
 });
 
-static EN_I18N: LazyLock<I18n> = LazyLock::new(|| {
-    I18n::new(
-        crate::data::runtime_assets::read_runtime_asset_text("locales/en-US.ftl"),
-        "en-US",
-    )
+static ALL_LANGUAGES: LazyLock<Vec<Language>> = LazyLock::new(|| {
+    LOCALES.iter().map(|entry| entry.lang).collect()
 });
+
+fn locale_display_name(tag: &'static str) -> &'static str {
+    let name = match tag {
+        "zh-CN" | "zh" => "中文".to_string(),
+        "en-US" | "en" => "English".to_string(),
+        _ => tag.to_string(),
+    };
+    Box::leak(name.into_boxed_str())
+}
+
+fn locale_entry(lang: Language) -> Option<&'static LocaleEntry> {
+    LOCALES.iter().find(|entry| entry.lang == lang)
+}
+
+fn english_language() -> Language {
+    LOCALES
+        .iter()
+        .find(|entry| entry.lang.tag.eq_ignore_ascii_case("en-US"))
+        .map(|entry| entry.lang)
+        .or_else(|| {
+            LOCALES
+                .iter()
+                .find(|entry| entry.lang.tag.eq_ignore_ascii_case("en"))
+                .map(|entry| entry.lang)
+        })
+        .unwrap_or_else(|| LOCALES[0].lang)
+}
 
 impl Language {
     pub fn i18n(self) -> &'static I18n {
-        match self {
-            Language::Zh => &ZH_I18N,
-            Language::En => &EN_I18N,
-        }
+        locale_entry(self)
+            .map(|entry| &entry.i18n)
+            .unwrap_or_else(|| &locale_entry(english_language()).expect("missing locale").i18n)
     }
 
     /// Native name shown in the language picker (always in its own language).
     pub fn display_name(self) -> &'static str {
-        match self {
-            Language::Zh => "中文",
-            Language::En => "English",
-        }
+        locale_entry(self)
+            .map(|entry| entry.display_name)
+            .unwrap_or(self.tag)
     }
 
     /// All available languages, in menu order.
-    pub const ALL: &'static [Language] = &[Language::Zh, Language::En];
+    pub fn all() -> &'static [Language] {
+        ALL_LANGUAGES.as_slice()
+    }
+
+    #[cfg(test)]
+    pub fn english() -> Self {
+        english_language()
+    }
 
     /// Detect language from the OS locale, falling back to English.
     pub fn from_system() -> Self {
         let tag = sys_locale::get_locale().unwrap_or_default();
-        if tag.starts_with("zh") {
-            Language::Zh
-        } else {
-            Language::En
+        if tag.is_empty() {
+            return english_language();
         }
+
+        if let Some(found) = LOCALES
+            .iter()
+            .find(|entry| entry.lang.tag.eq_ignore_ascii_case(&tag))
+            .map(|entry| entry.lang)
+        {
+            return found;
+        }
+
+        let primary = tag.split('-').next().unwrap_or_default();
+        if let Some(found) = LOCALES
+            .iter()
+            .find(|entry| {
+                entry.lang.tag.eq_ignore_ascii_case(primary)
+                    || entry
+                        .lang
+                        .tag
+                        .to_ascii_lowercase()
+                        .starts_with(&(primary.to_ascii_lowercase() + "-"))
+            })
+            .map(|entry| entry.lang)
+        {
+            return found;
+        }
+
+        english_language()
     }
 }

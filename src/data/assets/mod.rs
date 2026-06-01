@@ -2,22 +2,22 @@
 //! detection, and the egui texture cache.
 
 mod atlas_materials;
-mod unitypackage_loader;
 mod terrain;
 mod texture_cache;
 mod theme;
+mod unitypackage_loader;
 
 pub use atlas_materials::atlas_for_material_guid;
-pub use unitypackage_loader::{
-    guid_for_pathname, list_pathnames, pathname_for_guid, read_guid_text, read_pathname,
-    read_pathname_text,
-};
 pub use terrain::{get_terrain_fill_texture, get_terrain_splat0, get_terrain_splat1_for_level};
 pub use texture_cache::TextureCache;
 pub use theme::{
     detect_bg_theme, get_object_color, ground_color, props_tint_color_for_prefab,
     props_tint_is_alpha_blend, should_skip_render, skip_props_tint, sky_top_color,
     theme_name_for_background_prefab,
+};
+pub use unitypackage_loader::{
+    guid_for_pathname, list_pathnames, pathname_for_guid, read_guid_text, read_pathname,
+    read_pathname_text,
 };
 
 pub fn effect_texture_name_for_material_guid(material_guid: &str) -> Option<&'static str> {

@@ -83,7 +83,9 @@ impl EditorApp {
             None
         };
         let mut terrain_draw_has_collider = if show_terrain_presets {
-            self.tabs[self.active_tab].renderer.terrain_draw_has_collider()
+            self.tabs[self.active_tab]
+                .renderer
+                .terrain_draw_has_collider()
         } else {
             true
         };

@@ -190,7 +190,7 @@ fn parse_level_entries(fields: &Mapping) -> Vec<LevelEntry> {
 }
 
 fn episode_level_code(level_index: usize) -> String {
-    if (level_index + 1) % 5 != 0 {
+    if !(level_index + 1).is_multiple_of(5) {
         let normal_number = level_index + 1 - level_index / 5;
         return normal_number.to_string();
     }
@@ -200,8 +200,8 @@ fn episode_level_code(level_index: usize) -> String {
 
 fn roman_numeral(value: usize) -> String {
     const ROMANS: [&str; 16] = [
-        "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII",
-        "XIII", "XIV", "XV", "XVI",
+        "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV",
+        "XV", "XVI",
     ];
 
     if value > 0 && value <= ROMANS.len() {

@@ -29,7 +29,8 @@ use tar::Archive;
 #[cfg(not(target_arch = "wasm32"))]
 const EXTERNAL_UNITYPACKAGE_PATH_ENV: &str = "BP_EDITOR_EXTERNAL_UNITYPACKAGE_PATH";
 #[cfg(not(target_arch = "wasm32"))]
-const DEFAULT_UNITYPACKAGE_RELATIVE_PATH: &str = "assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
+const DEFAULT_UNITYPACKAGE_RELATIVE_PATH: &str =
+    "assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
 
 #[cfg(not(target_arch = "wasm32"))]
 struct ExternalAssetIndex {

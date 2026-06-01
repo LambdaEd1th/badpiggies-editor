@@ -1172,14 +1172,13 @@ mod tests {
     use super::{
         MaterialShaderKind, get_background_prefab_ref, get_level_ref, get_prefab_override,
         is_level_ref_null, level_key_from_filename, load_embedded_loaders,
-        load_prefab_names_by_file_id,
-        material_alpha_blend_for_guid_prefix, material_alpha8bit_for_guid_prefix,
-        material_color_for_guid, material_color_for_guid_prefix,
-        material_custom_render_queue_for_guid_prefix, material_cutoff_for_guid_prefix,
-        material_main_tex_st_for_guid, material_main_tex_st_for_guid_prefix,
-        material_shader_kind_for_guid, material_shader_kind_for_guid_prefix,
-        material_texture_name_for_guid, material_texture_name_for_guid_prefix,
-        texture_name_for_guid,
+        load_prefab_names_by_file_id, material_alpha_blend_for_guid_prefix,
+        material_alpha8bit_for_guid_prefix, material_color_for_guid,
+        material_color_for_guid_prefix, material_custom_render_queue_for_guid_prefix,
+        material_cutoff_for_guid_prefix, material_main_tex_st_for_guid,
+        material_main_tex_st_for_guid_prefix, material_shader_kind_for_guid,
+        material_shader_kind_for_guid_prefix, material_texture_name_for_guid,
+        material_texture_name_for_guid_prefix, texture_name_for_guid,
     };
     use crate::data::assets;
     use crate::domain::parser::parse_level;

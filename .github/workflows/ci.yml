@@ -11,7 +11,7 @@ env:
 
 jobs:
   check:
-    name: Check & Clippy (${{ matrix.os }})
+    name: Native Check & Clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -48,13 +48,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Cache Unity asset extraction
-        uses: actions/cache@v5
-        with:
-          path: target/unity_asset_cache
-          key: ${{ runner.os }}-unity-assets-${{ hashFiles('build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
-          restore-keys: ${{ runner.os }}-unity-assets-
-
       - name: cargo check
         run: cargo check --all-targets
 
@@ -62,7 +55,7 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
   wasm:
-    name: WASM check & clippy
+    name: WASM Check & Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -81,13 +74,6 @@ jobs:
             ~/.cargo/git
           key: wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: wasm-cargo-
-
-      - name: Cache Unity asset extraction
-        uses: actions/cache@v5
-        with:
-          path: target/unity_asset_cache
-          key: wasm-unity-assets-${{ hashFiles('build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
-          restore-keys: wasm-unity-assets-
 
       - name: cargo check (wasm32)
         run: cargo check --target wasm32-unknown-unknown

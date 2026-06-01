@@ -232,9 +232,8 @@ static LOCALES: LazyLock<Vec<LocaleEntry>> = LazyLock::new(|| {
     entries
 });
 
-static ALL_LANGUAGES: LazyLock<Vec<Language>> = LazyLock::new(|| {
-    LOCALES.iter().map(|entry| entry.lang).collect()
-});
+static ALL_LANGUAGES: LazyLock<Vec<Language>> =
+    LazyLock::new(|| LOCALES.iter().map(|entry| entry.lang).collect());
 
 fn locale_display_name(tag: &'static str) -> &'static str {
     let name = match tag {
@@ -267,7 +266,11 @@ impl Language {
     pub fn i18n(self) -> &'static I18n {
         locale_entry(self)
             .map(|entry| &entry.i18n)
-            .unwrap_or_else(|| &locale_entry(english_language()).expect("missing locale").i18n)
+            .unwrap_or_else(|| {
+                &locale_entry(english_language())
+                    .expect("missing locale")
+                    .i18n
+            })
     }
 
     /// Native name shown in the language picker (always in its own language).

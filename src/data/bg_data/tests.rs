@@ -330,7 +330,10 @@ fn morning_background_sky_keeps_runtime_sky_texture() {
         .find(|sprite| sprite.parent_group == "Background_Sky" && sprite.name == "Background_Sky")
         .expect("missing Morning sky sprite");
 
-    assert_eq!(morning_sky.sky_texture.as_deref(), Some("Morning_Sky_Texture.png"));
+    assert_eq!(
+        morning_sky.sky_texture.as_deref(),
+        Some("Morning_Sky_Texture.png")
+    );
     assert!(morning_sky.atlas.is_none());
     assert!(morning_sky.fill_color.is_none());
 }

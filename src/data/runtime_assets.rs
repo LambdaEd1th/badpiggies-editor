@@ -47,6 +47,65 @@ const REQUIRED_RUNTIME_ASSETS: &[&str] = &[
 ];
 
 #[cfg(not(target_arch = "wasm32"))]
+fn has_required_runtime_assets(root: &Path) -> bool {
+    REQUIRED_RUNTIME_ASSETS
+        .iter()
+        .all(|relative| root.join(relative).is_file())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn runtime_asset_candidates(cwd: &Path, exe_paths: &[PathBuf]) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    candidates.push(cwd.join("assets"));
+
+    for exe_path in exe_paths {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("assets"));
+
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(contents_dir) = exe_dir.parent() {
+                    candidates.push(contents_dir.join("Resources/assets"));
+                }
+            }
+        }
+    }
+
+    let mut deduped = Vec::new();
+    for candidate in candidates {
+        if !deduped.contains(&candidate) {
+            deduped.push(candidate);
+        }
+    }
+
+    deduped
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn executable_path_candidates(cwd: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Ok(path) = env::current_exe() {
+        paths.push(path);
+    }
+
+    if let Some(arg0) = env::args_os().next() {
+        let arg0_path = PathBuf::from(arg0);
+        let normalized = if arg0_path.is_absolute() {
+            arg0_path
+        } else {
+            cwd.join(arg0_path)
+        };
+        if !paths.contains(&normalized) {
+            paths.push(normalized);
+        }
+    }
+
+    paths
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn runtime_assets_root() -> &'static PathBuf {
     static ROOT: OnceLock<PathBuf> = OnceLock::new();
     ROOT.get_or_init(|| {
@@ -64,21 +123,29 @@ fn runtime_assets_root() -> &'static PathBuf {
         }
 
         let cwd = env::current_dir().expect("failed to read current working directory");
-        let default_path = cwd.join("assets");
-        if default_path.is_dir() {
-            assert_required_runtime_assets_present(&default_path);
-            return default_path;
+        let exe_paths = executable_path_candidates(&cwd);
+        let candidates = runtime_asset_candidates(&cwd, &exe_paths);
+        for candidate in &candidates {
+            if candidate.is_dir() && has_required_runtime_assets(candidate) {
+                return candidate.clone();
+            }
         }
 
+        let details = candidates
+            .iter()
+            .map(|path| format!("  - {}", path.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
         panic!(
-            "Runtime assets directory not found. Set {} to the editor/assets directory.",
-            RUNTIME_ASSETS_DIR_ENV
+            "Runtime assets directory not found. Tried:\n{}\nSet {} to a complete editor/assets directory.",
+            details,
+            RUNTIME_ASSETS_DIR_ENV,
         );
     })
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn assert_required_runtime_assets_present(root: &PathBuf) {
+fn assert_required_runtime_assets_present(root: &Path) {
     let mut missing = Vec::new();
     for relative in REQUIRED_RUNTIME_ASSETS {
         let path = root.join(relative);
@@ -110,11 +177,7 @@ fn assert_required_runtime_assets_present(root: &PathBuf) {
 fn read_runtime_asset_bytes_uncached(relative_path: &str) -> Vec<u8> {
     let path = runtime_assets_root().join(relative_path);
     fs::read(&path).unwrap_or_else(|error| {
-        panic!(
-            "Failed to read runtime asset {}: {}",
-            path.display(),
-            error
-        )
+        panic!("Failed to read runtime asset {}: {}", path.display(), error)
     })
 }
 
@@ -138,7 +201,7 @@ pub fn read_runtime_asset_bytes(relative_path: &str) -> Vec<u8> {
             .lock()
             .expect("runtime asset cache lock poisoned")
             .insert(relative_path.to_string(), bytes.clone());
-        return bytes;
+        bytes
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -232,7 +295,10 @@ pub async fn preload_required_runtime_assets_wasm() -> Result<(), String> {
         let array_buffer = match JsFuture::from(array_buffer_promise).await {
             Ok(buffer) => buffer,
             Err(error) => {
-                failures.push(format!("{}: failed to read response body ({:?})", relative, error));
+                failures.push(format!(
+                    "{}: failed to read response body ({:?})",
+                    relative, error
+                ));
                 continue;
             }
         };
@@ -312,7 +378,7 @@ pub fn list_runtime_assets(prefix: &str, suffix: &str) -> Vec<String> {
         let mut out = Vec::new();
         collect_runtime_asset_paths(root, root, &mut out, prefix, suffix);
         out.sort();
-        return out;
+        out
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -325,7 +391,7 @@ pub fn list_runtime_assets(prefix: &str, suffix: &str) -> Vec<String> {
             .cloned()
             .collect();
         out.sort();
-        return out;
+        out
     }
 }
 
@@ -339,4 +405,43 @@ pub fn missing_runtime_assets() -> Vec<String> {
         }
     }
     missing
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::runtime_asset_candidates;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn runtime_asset_candidates_include_cwd_and_exe_paths() {
+        let cwd = Path::new("/tmp/editor-workdir");
+        let exe_paths = vec![PathBuf::from("/tmp/editor-workdir/target/release/badpiggies-editor")];
+        let candidates = runtime_asset_candidates(cwd, &exe_paths);
+
+        assert!(
+            candidates.contains(&PathBuf::from("/tmp/editor-workdir/assets")),
+            "expected cwd/assets candidate"
+        );
+        assert!(
+            candidates.contains(&PathBuf::from("/tmp/editor-workdir/target/release/assets")),
+            "expected executable sibling assets candidate"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn runtime_asset_candidates_include_app_resources_on_macos() {
+        let cwd = Path::new("/tmp/editor-workdir");
+        let exe_paths = vec![PathBuf::from(
+            "/Applications/Bad Piggies Editor.app/Contents/MacOS/badpiggies-editor",
+        )];
+        let candidates = runtime_asset_candidates(cwd, &exe_paths);
+
+        assert!(
+            candidates.contains(&PathBuf::from(
+                "/Applications/Bad Piggies Editor.app/Contents/Resources/assets"
+            )),
+            "expected .app Resources/assets candidate"
+        );
+    }
 }

@@ -286,8 +286,7 @@ impl EditorApp {
                             has_collider: true,
                             fill_boundary: None,
                         };
-                        let wants_collider =
-                            tab.renderer.terrain_draw_has_collider();
+                        let wants_collider = tab.renderer.terrain_draw_has_collider();
                         // Inherit terrain texture defaults from existing level terrain so
                         // newly drawn terrain matches the current level theme/material setup.
                         // Prefer the dominant terrain name among objects that match the
@@ -319,7 +318,8 @@ impl EditorApp {
                                         return None;
                                     };
                                     let td = prefab.terrain_data.as_deref()?;
-                                    (td.has_collider == wants_collider && prefab.name == dominant_name)
+                                    (td.has_collider == wants_collider
+                                        && prefab.name == dominant_name)
                                         .then_some((prefab.name.as_str(), td))
                                 })
                             })

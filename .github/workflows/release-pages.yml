@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Native binaries and desktop packages ────────────────────────────────────
+  # ── Native binaries and desktop packages (runtime assets bundled) ──────────
   build_native:
     name: Build Native (${{ matrix.artifact }})
     runs-on: ${{ matrix.os }}
@@ -73,7 +73,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: native-release-${{ matrix.artifact }}-cargo-${{ hashFiles('**/Cargo.lock', 'build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
+          key: native-release-${{ matrix.artifact }}-cargo-${{ hashFiles('**/Cargo.lock', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: native-release-${{ matrix.artifact }}-cargo-
 
       - name: Build release binary
@@ -92,6 +92,7 @@ jobs:
         run: |
           APP_PATH=$(find target/release/bundle/osx -maxdepth 1 -name '*.app' -print -quit)
           test -n "$APP_PATH"
+          cp -R assets "$APP_PATH/Contents/Resources/assets"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "${{ matrix.artifact }}-app-${{ github.ref_name }}.zip"
 
       - name: Build Debian package
@@ -105,20 +106,20 @@ jobs:
           test -n "$DEB_PATH"
           DEB_FILE="${{ matrix.artifact }}-${{ github.ref_name }}.deb"
           cp "$DEB_PATH" "$DEB_FILE"
-          zip "${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip" "$DEB_FILE"
+          zip -r "${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip" "$DEB_FILE" assets
 
       - name: Package binary (Unix)
         if: matrix.package_zip == true && runner.os != 'Windows'
         run: |
           cp target/release/${{ matrix.binary }} ${{ matrix.binary }}
-          zip ${{ matrix.artifact }}-${{ github.ref_name }}.zip ${{ matrix.binary }}
+          zip -r ${{ matrix.artifact }}-${{ github.ref_name }}.zip ${{ matrix.binary }} assets
 
       - name: Package binary (Windows)
         if: matrix.package_zip == true && runner.os == 'Windows'
         shell: pwsh
         run: |
           Copy-Item target/release/${{ matrix.binary }} ${{ matrix.binary }}
-          Compress-Archive -Path ${{ matrix.binary }} -DestinationPath "${{ matrix.artifact }}-${{ github.ref_name }}.zip"
+          Compress-Archive -Path @("${{ matrix.binary }}", "assets") -DestinationPath "${{ matrix.artifact }}-${{ github.ref_name }}.zip"
 
       - name: Upload binary artifact
         if: matrix.package_zip == true
@@ -141,7 +142,7 @@ jobs:
           name: ${{ matrix.artifact }}-deb
           path: ${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip
 
-  # ── WASM + Pages artifact ────────────────────────────────────────────────────
+  # ── WASM + Pages artifact (runtime assets copied into dist/) ───────────────
   build_wasm:
     name: Build WASM
     runs-on: ubuntu-latest
@@ -162,7 +163,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'build.rs', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
+          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: wasm-release-${{ runner.os }}-cargo-
 
       - name: Install Trunk

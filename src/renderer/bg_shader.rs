@@ -28,9 +28,7 @@ pub const WHITE_TEXTURE_KEY: &str = "__bg_white__";
 fn background_shader_path(kind: MaterialShaderKind) -> &'static str {
     match kind {
         MaterialShaderKind::CustomUnlitMonochrome => "shader/_custom__unlit_monochrome.wgsl",
-        MaterialShaderKind::CustomUnlitColorGeometry => {
-            "shader/_custom__unlit_color_geometry.wgsl"
-        }
+        MaterialShaderKind::CustomUnlitColorGeometry => "shader/_custom__unlit_color_geometry.wgsl",
         MaterialShaderKind::CustomUnlitColorTransparentGeometry => {
             "shader/_custom__unlit_colortransparent_geometry.wgsl"
         }

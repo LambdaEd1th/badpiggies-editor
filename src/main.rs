@@ -473,9 +473,13 @@ fn main() {
             loading.set_text_content(Some("Loading runtime assets..."));
         }
 
-        if let Err(error) = crate::data::runtime_assets::preload_required_runtime_assets_wasm().await {
+        if let Err(error) =
+            crate::data::runtime_assets::preload_required_runtime_assets_wasm().await
+        {
             if let Some(body) = document.body() {
-                body.set_inner_html(&format!("<pre style='color:red;white-space:pre-wrap'>{error}</pre>"));
+                body.set_inner_html(&format!(
+                    "<pre style='color:red;white-space:pre-wrap'>{error}</pre>"
+                ));
             }
             log::error!("应用启动失败: {error}");
             return;

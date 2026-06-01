@@ -154,15 +154,15 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
     let mut by_pathname: HashMap<String, String> = HashMap::new();
     let mut by_guid: HashMap<String, String> = HashMap::new();
     let mut asset_bytes_by_pathname: HashMap<String, Vec<u8>> = HashMap::new();
-    let mut missing_entries = Vec::new();
 
     for (folder_guid, entry) in per_guid {
         let Some(pathname) = entry.pathname else {
-            missing_entries.push(format!("{folder_guid}: missing pathname"));
+            // Skip incomplete package nodes that cannot be addressed by Unity pathname.
             continue;
         };
         let Some(asset_bytes) = entry.asset_bytes else {
-            missing_entries.push(format!("{folder_guid}: missing asset for {pathname}"));
+            // Unity packages include directory records (folderAsset) that have
+            // pathname/meta but no asset payload; those should not be indexed.
             continue;
         };
 
@@ -175,19 +175,6 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
         by_guid.insert(guid.clone(), pathname.clone());
         by_pathname.insert(pathname.clone(), guid);
         asset_bytes_by_pathname.insert(pathname, asset_bytes);
-    }
-
-    if !missing_entries.is_empty() {
-        missing_entries.sort();
-        panic!(
-            "Unitypackage {} has incomplete entries:\n{}",
-            package_path.display(),
-            missing_entries
-                .into_iter()
-                .map(|item| format!("  - {item}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
     }
 
     ExternalAssetIndex {

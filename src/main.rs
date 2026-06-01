@@ -410,7 +410,38 @@ fn main() -> eframe::Result<()> {
 // ── WASM entry point ─────────────────────────────────
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    use wasm_bindgen::JsCast;
+    use wasm_bindgen::{JsCast, JsValue};
+
+    fn is_document_hidden(document: &web_sys::Document) -> bool {
+        js_sys::Reflect::get(document.as_ref(), &JsValue::from_str("hidden"))
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
+
+    async fn sleep_ms(ms: i32) {
+        use wasm_bindgen::closure::Closure;
+
+        let promise = js_sys::Promise::new(&mut |resolve, _| {
+            let resolve_for_callback = resolve.clone();
+            let callback = Closure::<dyn FnMut()>::once(move || {
+                let _ = resolve_for_callback.call0(&JsValue::UNDEFINED);
+            });
+
+            if let Some(window) = web_sys::window() {
+                let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                    callback.as_ref().unchecked_ref(),
+                    ms,
+                );
+            } else {
+                let _ = resolve.call0(&JsValue::UNDEFINED);
+            }
+
+            callback.forget();
+        });
+
+        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+    }
 
     console_error_panic_hook::set_once();
     diagnostics::log_buffer::init_wasm(log::LevelFilter::Debug);
@@ -439,23 +470,44 @@ fn main() {
             return;
         };
 
-        let start_result = eframe::WebRunner::new()
+        while is_document_hidden(&document) {
+            if let Some(loading) = document.get_element_by_id("loading_text") {
+                loading.set_text_content(Some("Waiting for tab to become active..."));
+            }
+            sleep_ms(100).await;
+        }
+
+        let mut start_result = eframe::WebRunner::new()
             .start(
-                canvas,
+                canvas.clone(),
                 web_options,
                 Box::new(|cc| Ok(Box::new(EditorApp::new(cc)))),
             )
             .await;
 
-        // Remove loading text and show error on failure
-        if let Some(loading) = document.get_element_by_id("loading_text") {
-            loading.remove();
+        if start_result.is_err() && is_document_hidden(&document) {
+            while is_document_hidden(&document) {
+                if let Some(loading) = document.get_element_by_id("loading_text") {
+                    loading.set_text_content(Some("Waiting for tab to become active..."));
+                }
+                sleep_ms(100).await;
+            }
+
+            start_result = eframe::WebRunner::new()
+                .start(
+                    canvas,
+                    eframe::WebOptions::default(),
+                    Box::new(|cc| Ok(Box::new(EditorApp::new(cc)))),
+                )
+                .await;
         }
 
         if let Err(e) = start_result
             && let Some(body) = document.body()
         {
             body.set_inner_html(&format!("<p style='color:red'>应用启动失败: {e:?}</p>"));
+        } else if let Some(loading) = document.get_element_by_id("loading_text") {
+            loading.remove();
         }
     });
 }

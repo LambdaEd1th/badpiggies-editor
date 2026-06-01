@@ -99,19 +99,20 @@ impl LevelRenderer {
 
             match obj {
                 LevelObject::Prefab(prefab) => {
+                    let resolved_name = crate::domain::level::refs::get_prefab_override(
+                        &self.level_key,
+                        prefab.prefab_index,
+                    );
                     if prefab.terrain_data.is_some() {
                         self.terrain_data.push(terrain::build_terrain(
                             prefab,
                             world_pos,
                             &self.level_key,
+                            resolved_name,
                             idx,
                         ));
                     }
                     // Resolve correct sprite name via level-refs override
-                    let resolved_name = crate::domain::level::refs::get_prefab_override(
-                        &self.level_key,
-                        prefab.prefab_index,
-                    );
                     self.sprite_data.push(sprites::build_sprite(
                         prefab,
                         world_pos,

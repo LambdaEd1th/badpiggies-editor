@@ -52,6 +52,7 @@ pub fn build_terrain(
     prefab: &PrefabInstance,
     world_offset: Vec3,
     level_key: &str,
+    resolved_name: Option<&str>,
     object_index: ObjectIndex,
 ) -> TerrainDrawData {
     let td = match &prefab.terrain_data {
@@ -79,6 +80,8 @@ pub fn build_terrain(
 
     let decorative = !td.has_collider;
 
+    let terrain_lookup_name = resolved_name.unwrap_or(&prefab.name);
+
     // Resolve fill texture: loader-derived level refs first, then name-based fallback.
     // Each terrain object's texture is determined by its per-level loader
     // m_references entry, NOT by the background
@@ -86,7 +89,11 @@ pub fn build_terrain(
     // Dark_MM_rock) map to different textures within the same level.
     let fill_texture = crate::domain::level::refs::get_level_ref(level_key, td.fill_texture_index)
         .map(|s| s.to_string())
-        .or_else(|| assets::get_terrain_fill_texture(&prefab.name).map(|s| s.to_string()));
+        .or_else(|| {
+            crate::domain::level::refs::is_level_ref_null(level_key, td.fill_texture_index)
+                .then(|| fill_shader::WHITE_FILL_TEXTURE_SENTINEL.to_string())
+        })
+        .or_else(|| assets::get_terrain_fill_texture(terrain_lookup_name).map(|s| s.to_string()));
 
     let fill_mesh = build_fill_mesh(td, world_offset);
 
@@ -109,12 +116,12 @@ pub fn build_terrain(
     let edge_splat0 = if !td.curve_textures.is_empty() {
         crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[0].texture_index)
             .map(|s| s.to_string())
-            .or_else(|| assets::get_terrain_splat0(&prefab.name).map(|s| s.to_string()))
+            .or_else(|| assets::get_terrain_splat0(terrain_lookup_name).map(|s| s.to_string()))
     } else {
-        assets::get_terrain_splat0(&prefab.name).map(|s| s.to_string())
+        assets::get_terrain_splat0(terrain_lookup_name).map(|s| s.to_string())
     };
     let fallback_edge_splat1 =
-        assets::get_terrain_splat1_for_level(level_key, &prefab.name).map(|s| s.to_string());
+        assets::get_terrain_splat1_for_level(level_key, terrain_lookup_name).map(|s| s.to_string());
     // Resolve splat1 from Unity loader refs first; if the level reference is
     // missing, fall back to the terrain prefab's authored curve texture.
     let edge_splat1 = if td.curve_textures.len() > 1 {

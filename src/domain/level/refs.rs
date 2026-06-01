@@ -4,7 +4,7 @@
 //! Prefab names are rebuilt at runtime from embedded loader prefabs and prefab
 //! YAMLs by resolving each loader `m_prefabs` entry's GameObject fileID.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -30,6 +30,8 @@ struct ParsedLoaderPrefab {
 
 /// Parsed lookup: level_key → (ref_index → texture_filename)
 type RefsMap = HashMap<String, HashMap<i32, String>>;
+/// Parsed lookup: level_key → set(ref_index) where loader m_references entry is explicit null (fileID 0).
+type NullRefsMap = HashMap<String, HashSet<i32>>;
 /// Parsed lookup: level_key → (prefab_index → corrected_name)
 type PrefabsMap = HashMap<String, HashMap<i16, String>>;
 /// Parsed lookup: level_key → (ref_index → background prefab asset stem)
@@ -37,6 +39,7 @@ type BackgroundPrefabsMap = HashMap<String, HashMap<i32, String>>;
 
 struct LevelRefsData {
     refs: RefsMap,
+    null_refs: NullRefsMap,
     prefabs: PrefabsMap,
     background_prefabs: BackgroundPrefabsMap,
 }
@@ -49,6 +52,7 @@ fn data() -> &'static LevelRefsData {
             log::error!("Failed to load level refs: {error}");
             LevelRefsData {
                 refs: HashMap::new(),
+                null_refs: HashMap::new(),
                 prefabs: HashMap::new(),
                 background_prefabs: HashMap::new(),
             }
@@ -61,15 +65,33 @@ fn try_load_level_refs() -> AppResult<LevelRefsData> {
     let prefab_names = load_prefab_names_by_file_id()?;
     let background_prefab_names = load_background_prefab_names_by_root_file_id();
     let refs = build_runtime_level_refs(&loaders);
+    let null_refs = build_runtime_null_level_refs(&loaders);
     let prefabs = build_runtime_prefab_names(&loaders, &prefab_names);
     let background_prefabs =
         build_runtime_background_prefab_refs(&loaders, &background_prefab_names);
 
     Ok(LevelRefsData {
         refs,
+        null_refs,
         prefabs,
         background_prefabs,
     })
+}
+
+fn build_runtime_null_level_refs(loaders: &[ParsedLoaderPrefab]) -> NullRefsMap {
+    let mut null_refs = HashMap::new();
+
+    for loader in loaders {
+        let mut level_null_refs = HashSet::new();
+        for (index, reference) in loader.references.iter().enumerate() {
+            if reference.guid.is_none() && reference.file_id.as_deref() == Some("0") {
+                level_null_refs.insert(index as i32);
+            }
+        }
+        null_refs.insert(loader.level_key.clone(), level_null_refs);
+    }
+
+    null_refs
 }
 
 fn load_embedded_loaders() -> AppResult<Vec<ParsedLoaderPrefab>> {
@@ -1118,6 +1140,15 @@ pub fn get_level_ref(level_key: &str, ref_index: i32) -> Option<&'static str> {
         .map(|s| s.as_str())
 }
 
+/// Returns true when loader m_references contains an explicit null entry ({fileID: 0})
+/// at this index.
+pub fn is_level_ref_null(level_key: &str, ref_index: i32) -> bool {
+    data()
+        .null_refs
+        .get(level_key)
+        .is_some_and(|set| set.contains(&ref_index))
+}
+
 /// Get the resolved prefab name for a loader prefab index.
 pub fn get_prefab_override(level_key: &str, prefab_index: i16) -> Option<&'static str> {
     data()
@@ -1140,7 +1171,8 @@ pub fn get_background_prefab_ref(level_key: &str, ref_index: i32) -> Option<&'st
 mod tests {
     use super::{
         MaterialShaderKind, get_background_prefab_ref, get_level_ref, get_prefab_override,
-        level_key_from_filename, load_embedded_loaders, load_prefab_names_by_file_id,
+        is_level_ref_null, level_key_from_filename, load_embedded_loaders,
+        load_prefab_names_by_file_id,
         material_alpha_blend_for_guid_prefix, material_alpha8bit_for_guid_prefix,
         material_color_for_guid, material_color_for_guid_prefix,
         material_custom_render_queue_for_guid_prefix, material_cutoff_for_guid_prefix,
@@ -1479,6 +1511,13 @@ mod tests {
             ),
             std::collections::BTreeSet::from([border_maya_cave])
         );
+    }
+
+    #[test]
+    fn course_02_loader_keeps_explicit_null_ref_zero() {
+        assert!(is_level_ref_null("course_02_data", 0));
+        assert!(!is_level_ref_null("course_02_data", 8));
+        assert!(get_level_ref("course_02_data", 8).is_some());
     }
 
     #[test]

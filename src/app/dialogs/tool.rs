@@ -82,6 +82,11 @@ impl EditorApp {
         } else {
             None
         };
+        let mut terrain_draw_has_collider = if show_terrain_presets {
+            self.tabs[self.active_tab].renderer.terrain_draw_has_collider()
+        } else {
+            true
+        };
         let mut terrain_round_segments = if show_terrain_presets {
             self.tabs[self.active_tab].renderer.terrain_round_segments()
         } else {
@@ -168,8 +173,17 @@ impl EditorApp {
                                 .speed(1),
                         );
                     });
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut terrain_draw_has_collider, t.get("prop_collider"));
+                    });
                 }
             });
+
+        if show_terrain_presets {
+            self.tabs[self.active_tab]
+                .renderer
+                .set_terrain_draw_has_collider(terrain_draw_has_collider);
+        }
 
         if show_terrain_presets && terrain_round_segments != initial_round_segments {
             self.tabs[self.active_tab]

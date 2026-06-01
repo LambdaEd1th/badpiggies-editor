@@ -17,6 +17,8 @@ use eframe::wgpu;
 /// Maximum number of fill mesh draw calls per frame.
 const MAX_DRAW_SLOTS: u32 = 256;
 
+pub const WHITE_FILL_TEXTURE_SENTINEL: &str = "__bp_fill_white__";
+
 const WGSL_SOURCE: &str =
     include_str!("../../assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl");
 
@@ -268,6 +270,12 @@ impl FillTextureCache {
     ) -> Option<Arc<FillTextureGpu>> {
         if let Some(arc) = self.textures.get(filename) {
             return Some(arc.clone());
+        }
+        if filename == WHITE_FILL_TEXTURE_SENTINEL {
+            let gpu = upload_fill_texture(device, queue, resources, &[255, 255, 255, 255], 1, 1);
+            let arc = Arc::new(gpu);
+            self.textures.insert(filename.to_string(), arc.clone());
+            return Some(arc);
         }
         let path = crate::data::assets::terrain_texture_asset_key(filename)?;
         let data = crate::data::assets::read_pathname(&path)?;

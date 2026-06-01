@@ -176,6 +176,8 @@ pub struct LevelRenderer {
     pub draw_terrain_result: Option<DrawTerrainResult>,
     /// Currently armed terrain preset shape, if any.
     terrain_preset_shape: Option<TerrainPresetShape>,
+    /// Whether newly drawn terrain should include a collider.
+    terrain_draw_has_collider: bool,
     /// World-space drag start for the armed terrain preset shape.
     terrain_preset_drag_start: Option<Vec2>,
     /// Node count used for ellipse and perfect-circle preset generation.

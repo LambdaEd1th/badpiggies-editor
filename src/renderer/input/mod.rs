@@ -159,6 +159,14 @@ impl LevelRenderer {
         self.terrain_round_segments
     }
 
+    pub fn terrain_draw_has_collider(&self) -> bool {
+        self.terrain_draw_has_collider
+    }
+
+    pub fn set_terrain_draw_has_collider(&mut self, has_collider: bool) {
+        self.terrain_draw_has_collider = has_collider;
+    }
+
     pub fn set_terrain_round_segments(&mut self, segments: usize) {
         self.terrain_round_segments = segments.clamp(3, 128);
     }

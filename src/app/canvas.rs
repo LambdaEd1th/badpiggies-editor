@@ -1,6 +1,7 @@
 //! Central canvas panel rendering.
 
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 
 use eframe::egui;
 
@@ -285,10 +286,78 @@ impl EditorApp {
                             has_collider: true,
                             fill_boundary: None,
                         };
+                        let wants_collider =
+                            tab.renderer.terrain_draw_has_collider();
+                        // Inherit terrain texture defaults from existing level terrain so
+                        // newly drawn terrain matches the current level theme/material setup.
+                        // Prefer the dominant terrain name among objects that match the
+                        // requested collider state.
+                        let mut terrain_name_counts: HashMap<&str, usize> = HashMap::new();
+                        for object in &level.objects {
+                            let LevelObject::Prefab(prefab) = object else {
+                                continue;
+                            };
+                            let Some(existing_td) = prefab.terrain_data.as_deref() else {
+                                continue;
+                            };
+                            if existing_td.has_collider == wants_collider {
+                                *terrain_name_counts.entry(prefab.name.as_str()).or_default() += 1;
+                            }
+                        }
+
+                        let dominant_terrain_name = terrain_name_counts
+                            .into_iter()
+                            .max_by(|(name_a, count_a), (name_b, count_b)| {
+                                count_a.cmp(count_b).then_with(|| name_b.cmp(name_a))
+                            })
+                            .map(|(name, _)| name);
+
+                        let terrain_template = dominant_terrain_name
+                            .and_then(|dominant_name| {
+                                level.objects.iter().find_map(|object| {
+                                    let LevelObject::Prefab(prefab) = object else {
+                                        return None;
+                                    };
+                                    let td = prefab.terrain_data.as_deref()?;
+                                    (td.has_collider == wants_collider && prefab.name == dominant_name)
+                                        .then_some((prefab.name.as_str(), td))
+                                })
+                            })
+                            .or_else(|| {
+                                level.objects.iter().find_map(|object| {
+                                    let LevelObject::Prefab(prefab) = object else {
+                                        return None;
+                                    };
+                                    let td = prefab.terrain_data.as_deref()?;
+                                    (td.has_collider == wants_collider)
+                                        .then_some((prefab.name.as_str(), td))
+                                })
+                            })
+                            .or_else(|| {
+                                level.objects.iter().find_map(|object| {
+                                    let LevelObject::Prefab(prefab) = object else {
+                                        return None;
+                                    };
+                                    let td = prefab.terrain_data.as_deref()?;
+                                    Some((prefab.name.as_str(), td))
+                                })
+                            });
+                        let mut terrain_name = "e2dTerrainBase".to_string();
+                        if let Some((name, template)) = terrain_template {
+                            terrain_name = name.to_string();
+                            td.fill_texture_tile_offset_x = template.fill_texture_tile_offset_x;
+                            td.fill_texture_tile_offset_y = template.fill_texture_tile_offset_y;
+                            td.fill_color = template.fill_color;
+                            td.fill_texture_index = template.fill_texture_index;
+                            if !template.curve_textures.is_empty() {
+                                td.curve_textures = template.curve_textures.clone();
+                            }
+                        }
+                        td.has_collider = wants_collider;
                         crate::domain::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
                         let prefab_index = Self::next_prefab_index_for_level(level);
                         let new_obj = LevelObject::Prefab(PrefabInstance {
-                            name: "e2dTerrainBase".to_string(),
+                            name: terrain_name,
                             prefab_index,
                             position: Vec3 {
                                 x: center.x,

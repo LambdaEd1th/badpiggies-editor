@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use eframe::egui;
 
-use super::embedded::read_pathname;
+use super::unitypackage_loader::read_pathname;
 
 /// Build an `egui::ColorImage` with gamma-space premultiplied alpha.
 fn color_image_premultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {

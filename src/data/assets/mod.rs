@@ -1,14 +1,14 @@
-//! Asset loading — embedded project assets, terrain texture maps, BG theme
+//! Asset loading — unitypackage-backed project assets, terrain texture maps, BG theme
 //! detection, and the egui texture cache.
 
 mod atlas_materials;
-mod embedded;
+mod unitypackage_loader;
 mod terrain;
 mod texture_cache;
 mod theme;
 
 pub use atlas_materials::atlas_for_material_guid;
-pub use embedded::{
+pub use unitypackage_loader::{
     guid_for_pathname, list_pathnames, pathname_for_guid, read_guid_text, read_pathname,
     read_pathname_text,
 };
@@ -43,7 +43,7 @@ mod tests {
     };
 
     #[test]
-    fn embedded_asset_listing_includes_goal_area_prefab() {
+    fn unitypackage_asset_listing_includes_goal_area_prefab() {
         assert!(
             list_pathnames("Assets/Prefab/", ".prefab")
                 .iter()
@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_asset_text_reads_animation_clip() {
+    fn unitypackage_asset_text_reads_animation_clip() {
         let text =
             read_pathname_text("Assets/AnimationClip/BirdSleep2.anim").expect("missing anim");
         assert!(text.contains("AnimationClip"));

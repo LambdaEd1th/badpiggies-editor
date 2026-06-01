@@ -493,7 +493,9 @@ fn main() {
             .await;
 
         if start_result.is_err() && is_document_hidden(&document) {
-            log::warn!("WASM startup failed while document was hidden; retrying once after tab is active");
+            log::warn!(
+                "WASM startup failed while document was hidden; retrying once after tab is active"
+            );
             wait_for_document_visible(&document).await;
 
             start_result = eframe::WebRunner::new()

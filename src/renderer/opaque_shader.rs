@@ -483,15 +483,19 @@ impl egui_wgpu::CallbackTrait for OpaqueBatchPaintCallback {
             return;
         }
         render_pass.set_pipeline(&self.resources.pipeline);
-        render_pass.set_vertex_buffer(0, self.batch.vertex_buffer.slice(..));
         render_pass.set_index_buffer(
             self.resources.index_buffer.slice(..),
             wgpu::IndexFormat::Uint16,
         );
+        let sprite_vertex_bytes = (std::mem::size_of::<OpaqueVertex>() * 4) as u64;
         for draw in &self.draws {
             let sprite = &self.batch.sprites[draw.sprite_index as usize];
+            let sprite_start = draw.sprite_index as u64 * sprite_vertex_bytes;
+            let sprite_end = sprite_start + sprite_vertex_bytes;
+            render_pass
+                .set_vertex_buffer(0, self.batch.vertex_buffer.slice(sprite_start..sprite_end));
             render_pass.set_bind_group(0, &sprite.bind_group, &[]);
-            render_pass.draw_indexed(0..6, (draw.sprite_index * 4) as i32, 0..1);
+            render_pass.draw_indexed(0..6, 0, 0..1);
         }
     }
 }

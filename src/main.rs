@@ -69,7 +69,8 @@ fn get_screen_size_80pct() -> (f32, f32) {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn native_app_icon() -> Option<eframe::egui::IconData> {
-    match eframe::icon_data::from_png_bytes(include_bytes!("../assets/ui/app-icon.png",)) {
+    let icon_data = crate::data::runtime_assets::read_runtime_asset_bytes("ui/app-icon.png");
+    match eframe::icon_data::from_png_bytes(&icon_data) {
         Ok(icon) => Some(icon),
         Err(error) => {
             log::error!("Failed to decode native app icon: {error}");
@@ -383,6 +384,8 @@ fn main() -> eframe::Result<()> {
         .build();
     diagnostics::log_buffer::init(Box::new(inner), log::LevelFilter::Debug);
 
+    let _ = crate::data::runtime_assets::missing_runtime_assets();
+
     // Query primary monitor size via macOS Core Graphics and use 80% for the initial window.
     // Falls back to 1600×1000 on other platforms or errors.
     let (w, h) = get_screen_size_80pct();
@@ -465,6 +468,18 @@ fn main() {
             log::error!("应用启动失败: 无法获取浏览器 document");
             return;
         };
+
+        if let Some(loading) = document.get_element_by_id("loading_text") {
+            loading.set_text_content(Some("Loading runtime assets..."));
+        }
+
+        if let Err(error) = crate::data::runtime_assets::preload_required_runtime_assets_wasm().await {
+            if let Some(body) = document.body() {
+                body.set_inner_html(&format!("<pre style='color:red;white-space:pre-wrap'>{error}</pre>"));
+            }
+            log::error!("应用启动失败: {error}");
+            return;
+        }
 
         let Some(canvas_element) = document.get_element_by_id("the_canvas_id") else {
             if let Some(body) = document.body() {

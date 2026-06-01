@@ -14,8 +14,11 @@ use eframe::wgpu;
 
 use crate::data::sprite_db::UvRect;
 
-const WGSL_SOURCE: &str =
-    include_str!("../../assets/shader/unlit__transparent_cutout__sprite.wgsl");
+fn wgsl_source() -> String {
+    crate::data::runtime_assets::read_runtime_asset_text(
+        "shader/unlit__transparent_cutout__sprite.wgsl",
+    )
+}
 
 // ── GPU uniform buffer layout ──
 
@@ -60,7 +63,7 @@ pub fn init_opaque_resources(
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("unlit__transparent_cutout__sprite_shader"),
-        source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
+        source: wgpu::ShaderSource::Wgsl(wgsl_source().into()),
     });
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

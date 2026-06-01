@@ -33,19 +33,19 @@ fn tool_mode_icon(mode: CursorMode) -> egui::Image<'static> {
     match mode {
         CursorMode::Select => egui::Image::from_bytes(
             "bytes://tool-select.svg",
-            include_bytes!("../../../assets/ui/tool-select.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-select.svg"),
         ),
         CursorMode::BoxSelect => egui::Image::from_bytes(
             "bytes://tool-box-select.svg",
-            include_bytes!("../../../assets/ui/tool-box-select.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-box-select.svg"),
         ),
         CursorMode::DrawTerrain => egui::Image::from_bytes(
             "bytes://tool-draw-terrain.svg",
-            include_bytes!("../../../assets/ui/tool-draw-terrain.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-draw-terrain.svg"),
         ),
         CursorMode::Pan => egui::Image::from_bytes(
             "bytes://tool-pan.svg",
-            include_bytes!("../../../assets/ui/tool-pan.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-pan.svg"),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))
@@ -55,23 +55,27 @@ fn terrain_preset_icon(shape: TerrainPresetShape) -> egui::Image<'static> {
     match shape {
         TerrainPresetShape::Circle => egui::Image::from_bytes(
             "bytes://tool-terrain-ellipse.svg",
-            include_bytes!("../../../assets/ui/tool-terrain-ellipse.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-terrain-ellipse.svg"),
         ),
         TerrainPresetShape::Rectangle => egui::Image::from_bytes(
             "bytes://tool-terrain-rectangle.svg",
-            include_bytes!("../../../assets/ui/tool-terrain-rectangle.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-terrain-rectangle.svg"),
         ),
         TerrainPresetShape::PerfectCircle => egui::Image::from_bytes(
             "bytes://tool-terrain-perfect-circle.svg",
-            include_bytes!("../../../assets/ui/tool-terrain-perfect-circle.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes(
+                "ui/tool-terrain-perfect-circle.svg",
+            ),
         ),
         TerrainPresetShape::Square => egui::Image::from_bytes(
             "bytes://tool-terrain-square.svg",
-            include_bytes!("../../../assets/ui/tool-terrain-square.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-terrain-square.svg"),
         ),
         TerrainPresetShape::EquilateralTriangle => egui::Image::from_bytes(
             "bytes://tool-terrain-equilateral-triangle.svg",
-            include_bytes!("../../../assets/ui/tool-terrain-equilateral-triangle.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes(
+                "ui/tool-terrain-equilateral-triangle.svg",
+            ),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))
@@ -81,15 +85,15 @@ fn preview_playback_icon(state: PreviewPlaybackState) -> egui::Image<'static> {
     match state {
         PreviewPlaybackState::Build => egui::Image::from_bytes(
             "bytes://tool-preview-build.svg",
-            include_bytes!("../../../assets/ui/tool-preview-build.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-preview-build.svg"),
         ),
         PreviewPlaybackState::Play => egui::Image::from_bytes(
             "bytes://tool-preview-play.svg",
-            include_bytes!("../../../assets/ui/tool-preview-play.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-preview-play.svg"),
         ),
         PreviewPlaybackState::Pause => egui::Image::from_bytes(
             "bytes://tool-preview-pause.svg",
-            include_bytes!("../../../assets/ui/tool-preview-pause.svg"),
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-preview-pause.svg"),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))

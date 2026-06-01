@@ -25,18 +25,28 @@ const MAX_DRAW_SLOTS: u32 = 1024;
 
 pub const WHITE_TEXTURE_KEY: &str = "__bg_white__";
 
-const CUSTOM_UNLIT_MONOCHROME_WGSL: &str =
-    include_str!("../../assets/shader/_custom__unlit_monochrome.wgsl");
-const CUSTOM_UNLIT_COLOR_GEOMETRY_WGSL: &str =
-    include_str!("../../assets/shader/_custom__unlit_color_geometry.wgsl");
-const CUSTOM_UNLIT_COLOR_TRANSPARENT_GEOMETRY_WGSL: &str =
-    include_str!("../../assets/shader/_custom__unlit_colortransparent_geometry.wgsl");
-const CUSTOM_UNLIT_ALPHA8BIT_COLOR_WGSL: &str =
-    include_str!("../../assets/shader/_custom__unlit_alpha8bit_color.wgsl");
-const BUILTIN_UNLIT_TRANSPARENT_WGSL: &str =
-    include_str!("../../assets/shader/unlit__transparent.wgsl");
-const BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL: &str =
-    include_str!("../../assets/shader/unlit__transparent_cutout.wgsl");
+fn background_shader_path(kind: MaterialShaderKind) -> &'static str {
+    match kind {
+        MaterialShaderKind::CustomUnlitMonochrome => "shader/_custom__unlit_monochrome.wgsl",
+        MaterialShaderKind::CustomUnlitColorGeometry => {
+            "shader/_custom__unlit_color_geometry.wgsl"
+        }
+        MaterialShaderKind::CustomUnlitColorTransparentGeometry => {
+            "shader/_custom__unlit_colortransparent_geometry.wgsl"
+        }
+        MaterialShaderKind::CustomUnlitAlpha8BitColor => {
+            "shader/_custom__unlit_alpha8bit_color.wgsl"
+        }
+        MaterialShaderKind::BuiltinUnlitTransparent => "shader/unlit__transparent.wgsl",
+        MaterialShaderKind::BuiltinUnlitTransparentCutout => {
+            "shader/unlit__transparent_cutout.wgsl"
+        }
+    }
+}
+
+fn background_shader_source(kind: MaterialShaderKind) -> String {
+    crate::data::runtime_assets::read_runtime_asset_text(background_shader_path(kind))
+}
 
 const BACKGROUND_SHADER_KINDS: [MaterialShaderKind; 6] = [
     MaterialShaderKind::CustomUnlitMonochrome,
@@ -88,19 +98,6 @@ fn background_pipeline_label(kind: MaterialShaderKind) -> &'static str {
         MaterialShaderKind::BuiltinUnlitTransparentCutout => {
             "unlit__transparent_cutout__background_pipeline"
         }
-    }
-}
-
-fn background_shader_source(kind: MaterialShaderKind) -> &'static str {
-    match kind {
-        MaterialShaderKind::CustomUnlitMonochrome => CUSTOM_UNLIT_MONOCHROME_WGSL,
-        MaterialShaderKind::CustomUnlitColorGeometry => CUSTOM_UNLIT_COLOR_GEOMETRY_WGSL,
-        MaterialShaderKind::CustomUnlitColorTransparentGeometry => {
-            CUSTOM_UNLIT_COLOR_TRANSPARENT_GEOMETRY_WGSL
-        }
-        MaterialShaderKind::CustomUnlitAlpha8BitColor => CUSTOM_UNLIT_ALPHA8BIT_COLOR_WGSL,
-        MaterialShaderKind::BuiltinUnlitTransparent => BUILTIN_UNLIT_TRANSPARENT_WGSL,
-        MaterialShaderKind::BuiltinUnlitTransparentCutout => BUILTIN_UNLIT_TRANSPARENT_CUTOUT_WGSL,
     }
 }
 

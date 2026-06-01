@@ -10,7 +10,7 @@ use tar::Archive;
 
 const ASSET_DIR_ENV: &str = "BP_EDITOR_UNITY_ASSETS_DIR";
 const PACKAGE_PATH_ENV: &str = "BP_EDITOR_UNITYPACKAGE_PATH";
-const CACHE_DIR_ENV: &str = "BP_EDITOR_UNITY_ASSET_CACHE_DIR";
+const SKIP_EMBED_ENV: &str = "BP_EDITOR_SKIP_ASSET_EMBED";
 
 const DEFAULT_PACKAGE_RELATIVE_PATH: &str =
     "assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
@@ -20,12 +20,35 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed={DEFAULT_PACKAGE_RELATIVE_PATH}");
     println!("cargo:rerun-if-env-changed={ASSET_DIR_ENV}");
     println!("cargo:rerun-if-env-changed={PACKAGE_PATH_ENV}");
-    println!("cargo:rerun-if-env-changed={CACHE_DIR_ENV}");
+    println!("cargo:rerun-if-env-changed={SKIP_EMBED_ENV}");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
+
+    if env_var_is_truthy(SKIP_EMBED_ENV) {
+        let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+        let empty_assets_dir = out_dir.join("empty_project_assets");
+        fs::create_dir_all(&empty_assets_dir)?;
+        println!(
+            "cargo:warning=BP_EDITOR_SKIP_ASSET_EMBED is enabled; Unity assets will not be embedded into the binary. Set BP_EDITOR_EXTERNAL_ASSETS_DIR at runtime."
+        );
+        write_embed_module(&empty_assets_dir)?;
+        return Ok(());
+    }
+
     let asset_dir = resolve_asset_dir(&manifest_dir)?;
     write_embed_module(&asset_dir)?;
     Ok(())
+}
+
+fn env_var_is_truthy(name: &str) -> bool {
+    env::var(name)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 fn resolve_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
@@ -35,16 +58,10 @@ fn resolve_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
         return asset_dir.canonicalize().map_err(Into::into);
     }
 
-    prepare_fetched_asset_dir(manifest_dir)
+    prepare_package_asset_dir(manifest_dir)
 }
 
-fn prepare_fetched_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
-    let cache_root = if let Some(path) = env::var_os(CACHE_DIR_ENV) {
-        resolve_env_path(manifest_dir, path)
-    } else {
-        default_cache_root(manifest_dir)
-    };
-
+fn prepare_package_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
     let package_path = if let Some(path) = env::var_os(PACKAGE_PATH_ENV) {
         resolve_env_path(manifest_dir, path)
     } else {
@@ -54,13 +71,14 @@ fn prepare_fetched_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Err
 
     ensure_unitypackage_exists(&package_path)?;
     let sha256 = package_sha256(&package_path)?;
-    let cache_root = cache_root.join(format!("unitypackage_{}", &sha256[..12]));
-    fs::create_dir_all(&cache_root)?;
-
-    let extracted_root = cache_root.join("unity_assets");
-    let stamp = cache_root.join("extract.ok");
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    let extracted_root = out_dir.join("unity_assets");
+    let stamp = out_dir.join("unity_assets.extract.ok");
     println!("cargo:rerun-if-changed={}", stamp.display());
-    if !stamp.exists() || !extracted_root.exists() {
+    let stamp_matches = fs::read_to_string(&stamp)
+        .map(|content| content.trim() == format!("sha256={sha256}"))
+        .unwrap_or(false);
+    if !stamp_matches || !extracted_root.exists() {
         if extracted_root.exists() {
             fs::remove_dir_all(&extracted_root)?;
         }
@@ -71,13 +89,6 @@ fn prepare_fetched_asset_dir(manifest_dir: &Path) -> Result<PathBuf, Box<dyn Err
 
     ensure_asset_dir(&extracted_root, DEFAULT_PACKAGE_RELATIVE_PATH)?;
     extracted_root.canonicalize().map_err(Into::into)
-}
-
-fn default_cache_root(manifest_dir: &Path) -> PathBuf {
-    match env::var_os("CARGO_TARGET_DIR") {
-        Some(path) => PathBuf::from(path).join("unity_asset_cache"),
-        None => manifest_dir.join("target/unity_asset_cache"),
-    }
 }
 
 fn default_package_path(manifest_dir: &Path) -> PathBuf {
@@ -144,7 +155,7 @@ fn extract_guid_layout(package_path: &Path, target_dir: &Path) -> Result<(), Box
 fn ensure_asset_dir(path: &Path, source: &str) -> Result<(), Box<dyn Error>> {
     if !path.is_dir() {
         return Err(format!(
-            "Unity asset directory not found at {} (source: {}). Set {} to an extracted directory, or let build.rs prepare a cached copy from the bundled Unity package.",
+            "Unity asset directory not found at {} (source: {}). Set {} to an extracted directory, or let build.rs extract from the Unity package.",
             path.display(),
             source,
             ASSET_DIR_ENV,

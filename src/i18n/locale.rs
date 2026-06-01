@@ -16,7 +16,7 @@ pub struct I18n {
 }
 
 impl I18n {
-    fn new(source: &'static str, lang_tag: &'static str) -> Self {
+    fn new(source: String, lang_tag: &'static str) -> Self {
         let res = match FluentResource::try_new(source.to_owned()) {
             Ok(resource) => resource,
             Err((resource, errors)) => {
@@ -194,11 +194,19 @@ impl I18n {
     }
 }
 
-static ZH_I18N: LazyLock<I18n> =
-    LazyLock::new(|| I18n::new(include_str!("../../assets/locales/zh-CN.ftl"), "zh-CN"));
+static ZH_I18N: LazyLock<I18n> = LazyLock::new(|| {
+    I18n::new(
+        crate::data::runtime_assets::read_runtime_asset_text("locales/zh-CN.ftl"),
+        "zh-CN",
+    )
+});
 
-static EN_I18N: LazyLock<I18n> =
-    LazyLock::new(|| I18n::new(include_str!("../../assets/locales/en-US.ftl"), "en-US"));
+static EN_I18N: LazyLock<I18n> = LazyLock::new(|| {
+    I18n::new(
+        crate::data::runtime_assets::read_runtime_asset_text("locales/en-US.ftl"),
+        "en-US",
+    )
+});
 
 impl Language {
     pub fn i18n(self) -> &'static I18n {

@@ -75,13 +75,28 @@ CLI output is localized the same way as the GUI.
 
 ### How assets are resolved
 
-`build.rs` drives Unity asset resolution at compile time:
+`build.rs` drives Unity asset resolution for bundled Unity game data at compile time:
 
 1. Uses the bundled package at `assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage` by default.
-2. Computes the package SHA-256 as a cache key and extracts runtime files to `target/unity_asset_cache/`.
-3. Embeds extracted files into the build binary.
+2. Computes the package SHA-256 and extracts runtime files into Cargo `OUT_DIR` for the current build.
+3. Embeds extracted files into the build binary (default), or can skip embedding and load from an external `Assets/` directory or `.unitypackage` archive at runtime.
 
-All bundled resources under `assets/` (icons, fonts, locales, shaders) are compiled in via `include_bytes!`/`include_str!`, so neither native nor WASM builds need an external `assets/` directory at runtime.
+Editor runtime resources under `editor/assets/` are loaded from disk at runtime on native builds. That includes icons, fonts, locales, and shaders.
+WASM builds also load these resources at runtime over HTTP (default base URL: `assets/`).
+
+Unity game assets can be fully externalized on native builds to reduce binary size:
+
+- Build with `BP_EDITOR_SKIP_ASSET_EMBED=1` to avoid embedding Unity assets.
+- Run with:
+	- `BP_EDITOR_EXTERNAL_ASSETS_DIR=/path/to/Assets` for Unity game assets
+	- `BP_EDITOR_EXTERNAL_UNITYPACKAGE_PATH=/path/to/Bad-Piggies-2.3.6-Unity-Windows.unitypackage` to read directly from the Unity package
+	- `BP_EDITOR_RUNTIME_ASSETS_DIR=/path/to/editor/assets` for editor UI resources (icons, shaders, locales, fonts)
+
+`BP_EDITOR_EXTERNAL_ASSETS_DIR` must point to a real Unity-style `Assets` directory (containing files and matching `.meta` files with GUIDs), not the extracted `unity_assets/<guid>/...` cache layout.
+
+`BP_EDITOR_EXTERNAL_UNITYPACKAGE_PATH` points at the `.unitypackage` archive itself. When set, the editor reads Unity assets directly from the package contents and does not require build-time extraction.
+
+When `BP_EDITOR_EXTERNAL_ASSETS_DIR` is set, the editor uses strict external loading for Unity assets and does **not** fall back to embedded binary resources.
 
 To use a different Unity package, replace `assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage` with your own and rebuild.
 
@@ -91,7 +106,10 @@ To use a different Unity package, replace `assets/data/Bad-Piggies-2.3.6-Unity-W
 |---|---|
 | `BP_EDITOR_UNITY_ASSETS_DIR` | Point to a pre-extracted asset tree instead of extracting at build time |
 | `BP_EDITOR_UNITYPACKAGE_PATH` | Use a custom `.unitypackage` file instead of the bundled one |
-| `BP_EDITOR_UNITY_ASSET_CACHE_DIR` | Override the cache directory used by `build.rs` |
+| `BP_EDITOR_SKIP_ASSET_EMBED` | When truthy (`1/true/yes/on`), skip embedding Unity assets into the binary |
+| `BP_EDITOR_EXTERNAL_ASSETS_DIR` | Runtime external Unity `Assets/` root used by the editor on native builds |
+| `BP_EDITOR_EXTERNAL_UNITYPACKAGE_PATH` | Runtime external `.unitypackage` used directly by the editor on native builds |
+| `BP_EDITOR_RUNTIME_ASSETS_DIR` | Runtime external `editor/assets` root for UI shaders/icons/locales/fonts |
 
 ```bash
 # Use an existing extracted tree
@@ -99,6 +117,14 @@ BP_EDITOR_UNITY_ASSETS_DIR=/path/to/unity_assets cargo build
 
 # Use a custom package
 BP_EDITOR_UNITYPACKAGE_PATH=/path/to/Bad-Piggies-2.3.6-Unity-Windows.unitypackage cargo build
+
+# Build a small binary (no embedded Unity assets) and run with external Assets/
+BP_EDITOR_SKIP_ASSET_EMBED=1 cargo build --release
+BP_EDITOR_SKIP_ASSET_EMBED=1 \
+BP_EDITOR_EXTERNAL_ASSETS_DIR=/path/to/Assets \
+BP_EDITOR_EXTERNAL_UNITYPACKAGE_PATH=/path/to/Bad-Piggies-2.3.6-Unity-Windows.unitypackage \
+BP_EDITOR_RUNTIME_ASSETS_DIR=/path/to/badpiggies/editor/assets \
+cargo run --release
 ```
 
 ---

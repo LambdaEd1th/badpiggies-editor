@@ -19,8 +19,11 @@ const MAX_DRAW_SLOTS: u32 = 256;
 
 pub const WHITE_FILL_TEXTURE_SENTINEL: &str = "__bp_fill_white__";
 
-const WGSL_SOURCE: &str =
-    include_str!("../../assets/shader/_custom__unlit_color_geometry__terrain_fill.wgsl");
+fn wgsl_source() -> String {
+    crate::data::runtime_assets::read_runtime_asset_text(
+        "shader/_custom__unlit_color_geometry__terrain_fill.wgsl",
+    )
+}
 
 // ── GPU uniform buffer layout (32 bytes) ──
 
@@ -62,7 +65,7 @@ pub fn init_fill_resources(
 ) -> FillResources {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("_custom__unlit_color_geometry__terrain_fill_shader"),
-        source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
+        source: wgpu::ShaderSource::Wgsl(wgsl_source().into()),
     });
 
     let min_align = device.limits().min_uniform_buffer_offset_alignment as u64;

@@ -53,6 +53,8 @@ unity-asset-binary = "0.2.0"
 env_logger = "0.11"
 rfd = "0.17"
 clap = { version = "4", features = ["derive"] }
+flate2 = "1"
+tar = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 winit = { version = "0.30.13", default-features = false, features = [
@@ -68,6 +70,7 @@ rfd = "0.17"
 web-sys = { version = "0.3", features = [
     "Document",
     "Element",
+    "Response",
     "HtmlElement",
     "Window",
     "HtmlCanvasElement",

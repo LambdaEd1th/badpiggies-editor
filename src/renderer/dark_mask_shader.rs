@@ -30,12 +30,23 @@ pub enum DarkMaskPipelineKind {
     NightVisionOverlay,
 }
 
-const UNLIT_TRANSPARENT_CG_RUNTIME_WGSL: &str =
-    include_str!("../../assets/shader/depth_mask__unlit_transparent_cg__runtime.wgsl");
-const MASK_OVERLAY_RUNTIME_WGSL: &str =
-    include_str!("../../assets/shader/depth_mask__maskoverlay__runtime.wgsl");
-const MASK_OVERLAY_NV_RUNTIME_WGSL: &str =
-    include_str!("../../assets/shader/depth_mask__maskoverlaynv__runtime.wgsl");
+fn unlit_transparent_cg_runtime_wgsl() -> String {
+    crate::data::runtime_assets::read_runtime_asset_text(
+        "shader/depth_mask__unlit_transparent_cg__runtime.wgsl",
+    )
+}
+
+fn mask_overlay_runtime_wgsl() -> String {
+    crate::data::runtime_assets::read_runtime_asset_text(
+        "shader/depth_mask__maskoverlay__runtime.wgsl",
+    )
+}
+
+fn mask_overlay_nv_runtime_wgsl() -> String {
+    crate::data::runtime_assets::read_runtime_asset_text(
+        "shader/depth_mask__maskoverlaynv__runtime.wgsl",
+    )
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -82,15 +93,15 @@ pub fn init_dark_mask_resources(
 ) -> DarkMaskResources {
     let unlit_transparent_cg_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("depth_mask__unlit_transparent_cg_runtime_shader"),
-        source: wgpu::ShaderSource::Wgsl(UNLIT_TRANSPARENT_CG_RUNTIME_WGSL.into()),
+        source: wgpu::ShaderSource::Wgsl(unlit_transparent_cg_runtime_wgsl().into()),
     });
     let mask_overlay_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("depth_mask__maskoverlay_runtime_shader"),
-        source: wgpu::ShaderSource::Wgsl(MASK_OVERLAY_RUNTIME_WGSL.into()),
+        source: wgpu::ShaderSource::Wgsl(mask_overlay_runtime_wgsl().into()),
     });
     let mask_overlay_nv_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("depth_mask__maskoverlaynv_runtime_shader"),
-        source: wgpu::ShaderSource::Wgsl(MASK_OVERLAY_NV_RUNTIME_WGSL.into()),
+        source: wgpu::ShaderSource::Wgsl(mask_overlay_nv_runtime_wgsl().into()),
     });
 
     let min_align = device.limits().min_uniform_buffer_offset_alignment as u64;

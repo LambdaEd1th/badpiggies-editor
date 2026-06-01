@@ -8,7 +8,9 @@ use std::sync::Arc;
 use eframe::egui;
 use eframe::wgpu;
 
-const WGSL_SOURCE: &str = include_str!("../../assets/shader/e2d__curve.wgsl");
+fn wgsl_source() -> String {
+    crate::data::runtime_assets::read_runtime_asset_text("shader/e2d__curve.wgsl")
+}
 
 // ── GPU uniform buffer layout (matches WGSL struct Uniforms) ──
 
@@ -40,7 +42,7 @@ pub fn init_edge_resources(
 ) -> EdgeResources {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("e2d__curve_shader"),
-        source: wgpu::ShaderSource::Wgsl(WGSL_SOURCE.into()),
+        source: wgpu::ShaderSource::Wgsl(wgsl_source().into()),
     });
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

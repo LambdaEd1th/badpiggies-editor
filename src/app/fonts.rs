@@ -42,10 +42,12 @@ fn load_system_cjk_font() -> Option<Vec<u8>> {
             return Some(data);
         }
     }
-    Some(include_bytes!("../../assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
+    Some(crate::data::runtime_assets::read_runtime_asset_bytes(
+        "fonts/NotoSansCJKsc-Regular.otf",
+    ))
 }
 
 #[cfg(target_arch = "wasm32")]
 fn load_system_cjk_font() -> Option<Vec<u8>> {
-    Some(include_bytes!("../../assets/fonts/NotoSansCJKsc-Regular.otf").to_vec())
+    None
 }

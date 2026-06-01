@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-/// Load a system CJK font and register it as a fallback for proportional + monospace.
+/// Load a CJK font and register it as a fallback for proportional + monospace.
 pub(super) fn configure_cjk_fonts(ctx: &egui::Context) {
     let Some(data) = load_system_cjk_font() else {
         log::warn!("No system CJK font found — Chinese text will render as squares");
@@ -49,5 +49,7 @@ fn load_system_cjk_font() -> Option<Vec<u8>> {
 
 #[cfg(target_arch = "wasm32")]
 fn load_system_cjk_font() -> Option<Vec<u8>> {
-    None
+    Some(crate::data::runtime_assets::read_runtime_asset_bytes(
+        "fonts/NotoSansCJKsc-Regular.otf",
+    ))
 }

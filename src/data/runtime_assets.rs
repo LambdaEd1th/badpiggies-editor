@@ -217,7 +217,7 @@ pub fn read_runtime_asset_bytes(relative_path: &str) -> Vec<u8> {
         }
 
         panic!(
-            "Runtime asset is not preloaded in wasm: {}. Call preload_required_runtime_assets_wasm() before app startup.",
+            "Runtime asset is not preloaded in wasm: {}. Call preload_required_runtime_assets_wasm_with_progress() before app startup.",
             relative_path
         );
     }
@@ -248,7 +248,12 @@ fn wasm_runtime_assets_base_url() -> String {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub async fn preload_required_runtime_assets_wasm() -> Result<(), String> {
+pub async fn preload_required_runtime_assets_wasm_with_progress<F>(
+    mut on_progress: F,
+) -> Result<(), String>
+where
+    F: FnMut(usize, usize, &str),
+{
     use wasm_bindgen_futures::JsFuture;
 
     let Some(window) = web_sys::window() else {
@@ -257,6 +262,10 @@ pub async fn preload_required_runtime_assets_wasm() -> Result<(), String> {
 
     let base = wasm_runtime_assets_base_url();
     let mut failures = Vec::new();
+    let total = REQUIRED_RUNTIME_ASSETS.len();
+    let mut loaded = 0usize;
+
+    on_progress(loaded, total, "");
 
     for relative in REQUIRED_RUNTIME_ASSETS {
         let url = format!("{}/{}", base.trim_end_matches('/'), relative);
@@ -308,6 +317,9 @@ pub async fn preload_required_runtime_assets_wasm() -> Result<(), String> {
             .lock()
             .expect("runtime asset cache lock poisoned")
             .insert((*relative).to_string(), bytes);
+
+        loaded += 1;
+        on_progress(loaded, total, relative);
     }
 
     if failures.is_empty() {
@@ -415,7 +427,9 @@ mod tests {
     #[test]
     fn runtime_asset_candidates_include_cwd_and_exe_paths() {
         let cwd = Path::new("/tmp/editor-workdir");
-        let exe_paths = vec![PathBuf::from("/tmp/editor-workdir/target/release/badpiggies-editor")];
+        let exe_paths = vec![PathBuf::from(
+            "/tmp/editor-workdir/target/release/badpiggies-editor",
+        )];
         let candidates = runtime_asset_candidates(cwd, &exe_paths);
 
         assert!(

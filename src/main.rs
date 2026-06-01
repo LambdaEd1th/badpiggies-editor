@@ -473,8 +473,22 @@ fn main() {
             loading.set_text_content(Some("Loading runtime assets..."));
         }
 
+        let loading_element = document.get_element_by_id("loading_text");
         if let Err(error) =
-            crate::data::runtime_assets::preload_required_runtime_assets_wasm().await
+            crate::data::runtime_assets::preload_required_runtime_assets_wasm_with_progress(
+                |loaded, total, _relative| {
+                    if total == 0 {
+                        return;
+                    }
+                    let pct = ((loaded as f32 / total as f32) * 100.0).round() as i32;
+                    if let Some(loading) = &loading_element {
+                        loading.set_text_content(Some(&format!(
+                            "Loading runtime assets... {loaded}/{total} ({pct}%)"
+                        )));
+                    }
+                },
+            )
+            .await
         {
             if let Some(body) = document.body() {
                 body.set_inner_html(&format!(

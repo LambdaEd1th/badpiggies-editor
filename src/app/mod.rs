@@ -84,6 +84,20 @@ pub struct EditorApp {
 }
 
 impl EditorApp {
+    fn dropped_file_name_and_source(file: &egui::DroppedFile) -> (String, Option<String>) {
+        if let Some(path) = file.path.as_ref() {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                // Some portals/backends can provide a path without a usable file name.
+                .filter(|name| !name.is_empty())
+                .unwrap_or_else(|| file.name.clone());
+            (name, Some(path.to_string_lossy().into_owned()))
+        } else {
+            (file.name.clone(), None)
+        }
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         fonts::configure_cjk_fonts(&cc.egui_ctx);
@@ -242,16 +256,14 @@ impl EditorApp {
             for file in &i.raw.dropped_files {
                 let file_data: Option<(String, Vec<u8>, Option<String>)> =
                     if let Some(ref bytes) = file.bytes {
-                        Some((file.name.clone(), bytes.to_vec(), None))
+                        let (name, source_path) = Self::dropped_file_name_and_source(file);
+                        Some((name, bytes.to_vec(), source_path))
                     } else if let Some(ref path) = file.path {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
                             std::fs::read(path).ok().map(|data| {
-                                let name = path
-                                    .file_name()
-                                    .map(|n| n.to_string_lossy().into_owned())
-                                    .unwrap_or_else(|| file.name.clone());
-                                (name, data, Some(path.to_string_lossy().into_owned()))
+                                let (name, source_path) = Self::dropped_file_name_and_source(file);
+                                (name, data, source_path)
                             })
                         }
                         #[cfg(target_arch = "wasm32")]
@@ -284,6 +296,8 @@ impl EditorApp {
                                 self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string()
                             }
                         }
+                    } else if crate::io::crypto::SaveFileType::detect(&name).is_some() {
+                        self.load_save_into_tab(name, data);
                     } else {
                         self.load_level_into_tab(name, data, source_path);
                     }
@@ -307,4 +321,32 @@ pub(super) fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EditorApp;
+
+    #[test]
+    fn dropped_file_name_prefers_native_path_filename() {
+        let file = egui::DroppedFile {
+            path: Some(std::path::PathBuf::from("/tmp/Level_01.bytes")),
+            name: String::new(),
+            ..Default::default()
+        };
+        let (name, source) = EditorApp::dropped_file_name_and_source(&file);
+        assert_eq!(name, "Level_01.bytes");
+        assert_eq!(source.as_deref(), Some("/tmp/Level_01.bytes"));
+    }
+
+    #[test]
+    fn dropped_file_name_uses_web_name_when_path_absent() {
+        let file = egui::DroppedFile {
+            name: "web-drop.toml".to_string(),
+            ..Default::default()
+        };
+        let (name, source) = EditorApp::dropped_file_name_and_source(&file);
+        assert_eq!(name, "web-drop.toml");
+        assert!(source.is_none());
+    }
 }

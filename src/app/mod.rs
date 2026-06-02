@@ -122,7 +122,7 @@ impl EditorApp {
             .unwrap_or_default();
 
         let lang = Language::from_system();
-        let initial_tab = Tab::new(renderer, lang.i18n().get("status_welcome"));
+        let initial_tab = Tab::new(renderer);
 
         Self {
             tabs: vec![initial_tab],
@@ -220,6 +220,48 @@ impl EditorApp {
         self.lang.i18n()
     }
 
+    /// Clear status overrides that are actually locale-dependent defaults.
+    ///
+    /// This makes language switching update the status bar immediately
+    /// even for tabs that still hold old pre-localized status text.
+    pub(super) fn clear_default_status_overrides_on_language_switch(&mut self) {
+        for tab in &mut self.tabs {
+            if tab.status.is_empty() {
+                continue;
+            }
+
+            let status = tab.status.clone();
+            let mut is_default = false;
+
+            for &lang in Language::all() {
+                let i18n = lang.i18n();
+
+                if status == i18n.get("status_welcome") {
+                    is_default = true;
+                    break;
+                }
+
+                if let Some(level) = tab.level.as_ref()
+                    && status == i18n.fmt_status_loaded(level.objects.len(), level.roots.len())
+                {
+                    is_default = true;
+                    break;
+                }
+
+                if let Some(save_view) = tab.save_view.as_ref()
+                    && status == save_view.status_bar_text(tab.file_name.as_deref(), i18n)
+                {
+                    is_default = true;
+                    break;
+                }
+            }
+
+            if is_default {
+                tab.status.clear();
+            }
+        }
+    }
+
     /// Handle WASM pending file and native drag-and-drop file input.
     fn handle_file_input(&mut self, _ui: &mut egui::Ui, ctx: &egui::Context) {
         #[cfg(target_arch = "wasm32")]
@@ -241,7 +283,8 @@ impl EditorApp {
                     if let Ok(text) = String::from_utf8(data) {
                         self.load_level_text_into_tab(name, &text, None);
                     } else {
-                        self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string();
+                        self.tabs[self.active_tab].status =
+                            self.t().get("status_utf8_decode_failed");
                     }
                 } else if crate::io::crypto::SaveFileType::detect(&name).is_some() {
                     self.load_save_into_tab(name, data);
@@ -293,7 +336,8 @@ impl EditorApp {
                         match String::from_utf8(data) {
                             Ok(text) => self.load_level_text_into_tab(name, &text, source_path),
                             Err(_) => {
-                                self.tabs[self.active_tab].status = "UTF-8 解码失败".to_string()
+                                self.tabs[self.active_tab].status =
+                                    self.t().get("status_utf8_decode_failed")
                             }
                         }
                     } else if crate::io::crypto::SaveFileType::detect(&name).is_some() {

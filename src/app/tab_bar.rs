@@ -104,7 +104,7 @@ impl EditorApp {
                 // "+" button to add a new empty tab
                 if ui.button("+").clicked() {
                     let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
-                    let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+                    let new_tab = Tab::new(new_renderer);
                     self.tabs.push(new_tab);
                     self.active_tab = self.tabs.len() - 1;
                 }

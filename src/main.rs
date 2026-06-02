@@ -465,7 +465,7 @@ fn main() {
 
     wasm_bindgen_futures::spawn_local(async {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else {
-            log::error!("应用启动失败: 无法获取浏览器 document");
+            log::error!("Application startup failed: could not get browser document");
             return;
         };
 
@@ -495,23 +495,27 @@ fn main() {
                     "<pre style='color:red;white-space:pre-wrap'>{error}</pre>"
                 ));
             }
-            log::error!("应用启动失败: {error}");
+            log::error!("Application startup failed: {error}");
             return;
         }
 
         let Some(canvas_element) = document.get_element_by_id("the_canvas_id") else {
             if let Some(body) = document.body() {
-                body.set_inner_html("<p style='color:red'>应用启动失败: 未找到渲染画布</p>");
+                body.set_inner_html(
+                    "<p style='color:red'>Application startup failed: rendering canvas was not found</p>",
+                );
             }
-            log::error!("应用启动失败: 未找到 canvas 元素 the_canvas_id");
+            log::error!("Application startup failed: canvas element the_canvas_id was not found");
             return;
         };
 
         let Ok(canvas) = canvas_element.dyn_into::<web_sys::HtmlCanvasElement>() else {
             if let Some(body) = document.body() {
-                body.set_inner_html("<p style='color:red'>应用启动失败: 渲染节点不是 canvas</p>");
+                body.set_inner_html(
+                    "<p style='color:red'>Application startup failed: render target is not a canvas</p>",
+                );
             }
-            log::error!("应用启动失败: the_canvas_id 不是 HtmlCanvasElement");
+            log::error!("Application startup failed: the_canvas_id is not an HtmlCanvasElement");
             return;
         };
 
@@ -543,7 +547,9 @@ fn main() {
         if let Err(e) = start_result
             && let Some(body) = document.body()
         {
-            body.set_inner_html(&format!("<p style='color:red'>应用启动失败: {e:?}</p>"));
+            body.set_inner_html(&format!(
+                "<p style='color:red'>Application startup failed: {e:?}</p>"
+            ));
         } else if let Some(loading) = document.get_element_by_id("loading_text") {
             loading.remove();
         }

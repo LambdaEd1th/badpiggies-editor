@@ -61,7 +61,7 @@ pub(super) struct Tab {
     pub(super) selected: BTreeSet<ObjectIndex>,
     /// Canvas renderer state (owns per-level caches; shares GPU pipelines via Arc).
     pub(super) renderer: LevelRenderer,
-    /// Status message.
+    /// Transient status override. Empty means the status bar derives a localized default.
     pub(super) status: String,
     /// Pending delete confirmation: (object_indices, display_label).
     pub(super) pending_delete: Option<(Vec<ObjectIndex>, String)>,
@@ -78,14 +78,14 @@ pub(super) struct Tab {
 }
 
 impl Tab {
-    pub(super) fn new(renderer: LevelRenderer, welcome_status: String) -> Self {
+    pub(super) fn new(renderer: LevelRenderer) -> Self {
         Self {
             level: None,
             file_name: None,
             source_path: None,
             selected: BTreeSet::new(),
             renderer,
-            status: welcome_status,
+            status: String::new(),
             pending_delete: None,
             pending_level_warning: None,
             history: UndoStack {
@@ -96,6 +96,22 @@ impl Tab {
             select_anchor: None,
             save_view: None,
         }
+    }
+
+    pub(super) fn status_text(&self, i18n: &I18n) -> String {
+        if !self.status.is_empty() {
+            return self.status.clone();
+        }
+
+        if let Some(save_view) = self.save_view.as_ref() {
+            return save_view.status_bar_text(self.file_name.as_deref(), i18n);
+        }
+
+        if let Some(level) = self.level.as_ref() {
+            return i18n.fmt_status_loaded(level.objects.len(), level.roots.len());
+        }
+
+        i18n.get("status_welcome")
     }
 
     /// Display name for the tab.
@@ -138,8 +154,6 @@ impl Tab {
     ) {
         match parser::parse_level(data) {
             Ok(level) => {
-                let obj_count = level.objects.len();
-                let root_count = level.roots.len();
                 self.renderer.set_level_key(&name);
                 self.renderer.set_level(&level);
                 self.level = Some(level);
@@ -148,7 +162,7 @@ impl Tab {
                 self.selected.clear();
                 self.history.undo.clear();
                 self.history.redo.clear();
-                self.status = i18n.fmt_status_loaded(obj_count, root_count);
+                self.status.clear();
             }
             Err(e) => {
                 self.status = status_parse_error_message(i18n, AppError::from(e));
@@ -165,8 +179,6 @@ impl Tab {
     ) {
         match parse_level_text(&name, text) {
             Ok(level) => {
-                let obj_count = level.objects.len();
-                let root_count = level.roots.len();
                 self.renderer.set_level_key(&name);
                 self.renderer.set_level(&level);
                 self.level = Some(level);
@@ -175,7 +187,7 @@ impl Tab {
                 self.selected.clear();
                 self.history.undo.clear();
                 self.history.redo.clear();
-                self.status = i18n.fmt_status_loaded(obj_count, root_count);
+                self.status.clear();
             }
             Err(e) => {
                 self.status = status_parse_error_message(i18n, e);

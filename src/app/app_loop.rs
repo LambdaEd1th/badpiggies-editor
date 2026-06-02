@@ -172,7 +172,7 @@ impl eframe::App for EditorApp {
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::T)))
         {
             let new_renderer = self.tabs[self.active_tab].renderer.clone_for_new_tab();
-            let new_tab = Tab::new(new_renderer, self.lang.i18n().get("status_welcome"));
+            let new_tab = Tab::new(new_renderer);
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
         }
@@ -243,7 +243,7 @@ impl eframe::App for EditorApp {
         // ── Status bar ──
         egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(&self.tabs[self.active_tab].status);
+                ui.label(self.tabs[self.active_tab].status_text(t));
                 if let Some(mw) = self.tabs[self.active_tab].renderer.mouse_world {
                     ui.separator();
                     ui.label(format!("X: {:.2}  Y: {:.2}", mw.x, mw.y));

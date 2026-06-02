@@ -65,8 +65,6 @@ impl Filter {
 pub struct SaveViewerData {
     /// Detected file type (needed for re-encryption on export).
     pub file_type: Option<SaveFileType>,
-    /// File type label (Progress / Contraption / Achievements).
-    pub file_type_label: String,
     /// Decrypted XML text (left panel, editable).
     pub xml_text: String,
     /// Parsed structured data (right panel, editable).
@@ -109,6 +107,8 @@ pub struct SaveViewerData {
     preview_tex_cache: TextureCache,
     /// Resolved level name for .contraption files (e.g. "Level_21 (1-1)").
     pub level_name: Option<String>,
+    /// Whether the default status bar text should include the source file name.
+    pub status_includes_file_name: bool,
 }
 
 /// Resolve the level scene name from a `.contraption` filename using SHA1 reverse lookup.
@@ -132,6 +132,19 @@ fn localized_file_type_label(file_type: Option<&SaveFileType>, i18n: &I18n) -> S
 }
 
 impl SaveViewerData {
+    pub fn status_bar_text(&self, file_name: Option<&str>, i18n: &I18n) -> String {
+        if let Some(error) = self.error.as_ref() {
+            return error.localized(i18n);
+        }
+
+        let file_type_label = localized_file_type_label(self.file_type.as_ref(), i18n);
+        if self.status_includes_file_name && let Some(file_name) = file_name {
+            return i18n.fmt_save_viewer_file_type_bytes(file_name, &file_type_label, self.xml_text.len());
+        }
+
+        i18n.fmt_save_viewer_type_bytes(&file_type_label, self.xml_text.len())
+    }
+
     /// Decrypt and parse a save file, returning the editor data and a status message.
     pub fn load(file_name: &str, raw_data: &[u8], i18n: &I18n) -> (Self, String) {
         let Some(file_type) = SaveFileType::detect(file_name) else {
@@ -140,7 +153,6 @@ impl SaveViewerData {
             return (
                 Self {
                     file_type: None,
-                    file_type_label: localized_file_type_label(None, i18n),
                     xml_text: String::new(),
                     data: None,
                     error: Some(error),
@@ -162,6 +174,7 @@ impl SaveViewerData {
                     show_preview: false,
                     preview_tex_cache: TextureCache::new(),
                     level_name: None,
+                    status_includes_file_name: false,
                 },
                 status,
             );
@@ -192,7 +205,6 @@ impl SaveViewerData {
                 (
                     Self {
                         file_type: Some(file_type),
-                        file_type_label,
                         xml_text: xml_clean,
                         data,
                         error: parse_error,
@@ -214,6 +226,7 @@ impl SaveViewerData {
                         show_preview: is_contraption,
                         preview_tex_cache: TextureCache::new(),
                         level_name: level_name.clone(),
+                        status_includes_file_name: false,
                     },
                     status,
                 )
@@ -223,7 +236,6 @@ impl SaveViewerData {
                 (
                     Self {
                         file_type: Some(file_type),
-                        file_type_label,
                         xml_text: String::new(),
                         data: None,
                         error: Some(e),
@@ -245,6 +257,7 @@ impl SaveViewerData {
                         show_preview: false,
                         preview_tex_cache: TextureCache::new(),
                         level_name,
+                        status_includes_file_name: false,
                     },
                     message,
                 )
@@ -281,7 +294,6 @@ impl SaveViewerData {
         (
             Self {
                 file_type,
-                file_type_label,
                 xml_text: xml_clean,
                 data,
                 error: parse_error,
@@ -303,6 +315,7 @@ impl SaveViewerData {
                 show_preview: is_contraption,
                 preview_tex_cache: TextureCache::new(),
                 level_name: resolve_level_name(file_name),
+                status_includes_file_name: true,
             },
             status,
         )
@@ -509,10 +522,11 @@ impl SaveViewerData {
         egui::Panel::top("save_top_bar").show_inside(ui, |ui| {
             // Header
             ui.horizontal(|ui| {
+                let file_type_label = localized_file_type_label(self.file_type.as_ref(), t);
                 ui.label(format!(
                     "{}: {}",
                     t.get("save_viewer_type"),
-                    self.file_type_label
+                    file_type_label
                 ));
                 if let Some(ref name) = self.level_name {
                     ui.separator();

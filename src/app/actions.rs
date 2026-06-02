@@ -544,7 +544,7 @@ impl EditorApp {
         let tab = &self.tabs[self.active_tab];
         if tab.level.is_some() || tab.save_view.is_some() {
             let new_renderer = tab.renderer.clone_for_new_tab();
-            let mut new_tab = Tab::new(new_renderer, String::new());
+            let mut new_tab = Tab::new(new_renderer);
             new_tab.load_level(name, data, i18n, source_path);
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
@@ -564,7 +564,7 @@ impl EditorApp {
         let tab = &self.tabs[self.active_tab];
         if tab.level.is_some() || tab.save_view.is_some() {
             let new_renderer = tab.renderer.clone_for_new_tab();
-            let mut new_tab = Tab::new(new_renderer, String::new());
+            let mut new_tab = Tab::new(new_renderer);
             new_tab.load_level_text(name, text, i18n, source_path);
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
@@ -577,6 +577,7 @@ impl EditorApp {
     pub(super) fn load_save_into_tab(&mut self, name: String, data: Vec<u8>) {
         let i18n = self.lang.i18n();
         let (sv, status) = super::save_viewer::SaveViewerData::load(&name, &data, i18n);
+        let status = if sv.error.is_some() { status } else { String::new() };
         let tab = &self.tabs[self.active_tab];
         let is_empty = tab.level.is_none() && tab.save_view.is_none();
         if is_empty {
@@ -585,9 +586,10 @@ impl EditorApp {
             self.tabs[self.active_tab].status = status;
         } else {
             let new_renderer = tab.renderer.clone_for_new_tab();
-            let mut new_tab = Tab::new(new_renderer, status);
+            let mut new_tab = Tab::new(new_renderer);
             new_tab.save_view = Some(sv);
             new_tab.file_name = Some(name);
+            new_tab.status = status;
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
         }
@@ -597,6 +599,7 @@ impl EditorApp {
     pub(super) fn load_xml_into_tab(&mut self, name: String, data: Vec<u8>) {
         let i18n = self.lang.i18n();
         let (sv, status) = super::save_viewer::SaveViewerData::load_xml(&name, &data, i18n);
+        let status = if sv.error.is_some() { status } else { String::new() };
         let tab = &self.tabs[self.active_tab];
         let is_empty = tab.level.is_none() && tab.save_view.is_none();
         if is_empty {
@@ -605,9 +608,10 @@ impl EditorApp {
             self.tabs[self.active_tab].status = status;
         } else {
             let new_renderer = tab.renderer.clone_for_new_tab();
-            let mut new_tab = Tab::new(new_renderer, status);
+            let mut new_tab = Tab::new(new_renderer);
             new_tab.save_view = Some(sv);
             new_tab.file_name = Some(name);
+            new_tab.status = status;
             self.tabs.push(new_tab);
             self.active_tab = self.tabs.len() - 1;
         }
@@ -623,7 +627,7 @@ impl EditorApp {
             tab.selected.clear();
             tab.history.undo.clear();
             tab.history.redo.clear();
-            tab.status = self.lang.i18n().get("status_welcome");
+            tab.status.clear();
             return;
         }
         self.tabs.remove(idx);

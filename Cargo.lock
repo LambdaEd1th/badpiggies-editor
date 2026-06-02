@@ -222,7 +222,7 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "badpiggies-editor"
-version = "0.4.0-beta2"
+version = "0.4.0-beta3"
 dependencies = [
  "aes",
  "bytemuck",

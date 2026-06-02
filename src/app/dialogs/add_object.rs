@@ -12,6 +12,22 @@ use super::{
     render_prefab_index_picker, render_vec3_row,
 };
 
+fn add_prefab_default_name_for_state(
+    app: &EditorApp,
+    level: Option<&LevelData>,
+    data_type: DataType,
+) -> String {
+    match data_type {
+        DataType::Terrain => EditorApp::preferred_terrain_name_for_level(
+            level,
+            app.tabs[app.active_tab]
+                .renderer
+                .terrain_draw_has_collider(),
+        ),
+        _ => add_prefab_default_name(data_type).to_string(),
+    }
+}
+
 fn prefab_option_name(option: &PrefabOption) -> &str {
     option
         .label
@@ -195,12 +211,21 @@ impl EditorApp {
                             });
                     }
                 });
+                let previous_default_name = add_prefab_default_name_for_state(
+                    self,
+                    self.tabs[self.active_tab].level.as_ref(),
+                    previous_data_type,
+                );
+                let current_default_name = add_prefab_default_name_for_state(
+                    self,
+                    self.tabs[self.active_tab].level.as_ref(),
+                    self.add_obj_data_type,
+                );
                 if !self.add_obj_is_parent
                     && self.add_obj_data_type != previous_data_type
-                    && (self.add_obj_name.is_empty()
-                        || self.add_obj_name == add_prefab_default_name(previous_data_type))
+                    && (self.add_obj_name.is_empty() || self.add_obj_name == previous_default_name)
                 {
-                    self.add_obj_name = add_prefab_default_name(self.add_obj_data_type).to_string();
+                    self.add_obj_name = current_default_name;
                 }
                 ui.horizontal(|ui| {
                     ui.label(t.get("add_name"));
@@ -258,11 +283,16 @@ impl EditorApp {
                     if ui.button(t.get("btn_ok")).clicked() {
                         let previous_warnings = self.current_level_warnings();
                         self.push_undo();
+                        let default_add_name = add_prefab_default_name_for_state(
+                            self,
+                            self.tabs[self.active_tab].level.as_ref(),
+                            self.add_obj_data_type,
+                        );
                         let add_name = if self.add_obj_name.trim().is_empty() {
                             if self.add_obj_is_parent {
                                 "NewObject".to_string()
                             } else {
-                                add_prefab_default_name(self.add_obj_data_type).to_string()
+                                default_add_name
                             }
                         } else {
                             self.add_obj_name.clone()
@@ -285,28 +315,69 @@ impl EditorApp {
                                     parent: None,
                                 }));
                             } else {
-                                let terrain_data = (data_type == DataType::Terrain)
-                                    .then(|| Box::new(build_default_terrain_data()));
-                                let override_data = (data_type == DataType::PrefabOverrides)
-                                    .then(|| make_override_data(String::new()));
-                                level.objects.push(LevelObject::Prefab(PrefabInstance {
-                                    name: add_name.clone(),
-                                    position,
-                                    prefab_index,
-                                    rotation,
-                                    scale,
-                                    data_type,
-                                    terrain_data,
-                                    override_data,
-                                    parent: None,
-                                }));
+                                if data_type == DataType::Terrain {
+                                    let local_nodes = vec![
+                                        crate::domain::terrain_gen::CurveNode {
+                                            position: Vec2 { x: -5.0, y: -0.25 },
+                                            texture: 1,
+                                        },
+                                        crate::domain::terrain_gen::CurveNode {
+                                            position: Vec2 { x: -1.5, y: 0.25 },
+                                            texture: 1,
+                                        },
+                                        crate::domain::terrain_gen::CurveNode {
+                                            position: Vec2 { x: 1.5, y: 0.25 },
+                                            texture: 1,
+                                        },
+                                        crate::domain::terrain_gen::CurveNode {
+                                            position: Vec2 { x: 5.0, y: -0.25 },
+                                            texture: 1,
+                                        },
+                                    ];
+                                    let center = Vec2 {
+                                        x: position.x,
+                                        y: position.y,
+                                    };
+                                    let wants_collider = tab.renderer.terrain_draw_has_collider();
+                                    let mut prefab = Self::build_terrain_prefab_from_local_nodes(
+                                        level,
+                                        center,
+                                        local_nodes,
+                                        wants_collider,
+                                    );
+                                    let custom_name = add_name.trim();
+                                    if !custom_name.is_empty() {
+                                        prefab.name = custom_name.to_string();
+                                    }
+                                    level.objects.push(LevelObject::Prefab(prefab));
+                                } else {
+                                    let terrain_data = (data_type == DataType::Terrain)
+                                        .then(|| Box::new(build_default_terrain_data()));
+                                    let override_data = (data_type == DataType::PrefabOverrides)
+                                        .then(|| make_override_data(String::new()));
+                                    level.objects.push(LevelObject::Prefab(PrefabInstance {
+                                        name: add_name.clone(),
+                                        position,
+                                        prefab_index,
+                                        rotation,
+                                        scale,
+                                        data_type,
+                                        terrain_data,
+                                        override_data,
+                                        parent: None,
+                                    }));
+                                }
                             }
                             level.roots.push(new_idx);
                             tab.selected = std::collections::BTreeSet::from([new_idx]);
                             let cam = tab.renderer.camera.clone();
                             tab.renderer.set_level(level);
                             tab.renderer.camera = cam;
-                            tab.status = t.fmt1("status_added", &add_name);
+                            if !is_parent && data_type == DataType::Terrain {
+                                tab.status = t.fmt1("status_added", "Terrain");
+                            } else {
+                                tab.status = t.fmt1("status_added", &add_name);
+                            }
                             added = true;
                         }
                         if added {

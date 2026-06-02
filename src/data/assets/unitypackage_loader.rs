@@ -8,22 +8,17 @@
 //! Lookups are addressed by Unity pathname (`"Assets/..."`) at runtime.
 
 use std::borrow::Cow;
-#[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
 #[cfg(not(target_arch = "wasm32"))]
 use std::env;
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
-#[cfg(not(target_arch = "wasm32"))]
-use std::io::Read;
+use std::io::{Cursor, Read};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
-#[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
 
-#[cfg(not(target_arch = "wasm32"))]
 use flate2::read::GzDecoder;
-#[cfg(not(target_arch = "wasm32"))]
 use tar::Archive;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -31,15 +26,16 @@ const EXTERNAL_UNITYPACKAGE_PATH_ENV: &str = "BP_EDITOR_EXTERNAL_UNITYPACKAGE_PA
 #[cfg(not(target_arch = "wasm32"))]
 const DEFAULT_UNITYPACKAGE_RELATIVE_PATH: &str =
     "assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
+#[cfg(target_arch = "wasm32")]
+const DEFAULT_UNITYPACKAGE_RUNTIME_ASSET: &str =
+    "data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage";
 
-#[cfg(not(target_arch = "wasm32"))]
 struct ExternalAssetIndex {
     asset_bytes_by_pathname: HashMap<String, Vec<u8>>,
     by_pathname: HashMap<String, String>,
     by_guid: HashMap<String, String>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Default)]
 struct UnityPackageEntry {
     pathname: Option<String>,
@@ -47,25 +43,38 @@ struct UnityPackageEntry {
     meta_text: Option<String>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn external_index() -> Option<&'static ExternalAssetIndex> {
     static EXTERNAL_INDEX: OnceLock<Option<ExternalAssetIndex>> = OnceLock::new();
     EXTERNAL_INDEX
         .get_or_init(|| {
-            let package_path = env::var_os(EXTERNAL_UNITYPACKAGE_PATH_ENV)
-                .map(PathBuf::from)
-                .unwrap_or_else(default_unitypackage_path);
-
-            if !package_path.is_file() {
-                panic!(
-                    "Unity package not found at {}. Set {} or place package at {}.",
-                    package_path.display(),
-                    EXTERNAL_UNITYPACKAGE_PATH_ENV,
-                    DEFAULT_UNITYPACKAGE_RELATIVE_PATH
+            #[cfg(target_arch = "wasm32")]
+            {
+                let bytes = crate::data::runtime_assets::read_runtime_asset_bytes(
+                    DEFAULT_UNITYPACKAGE_RUNTIME_ASSET,
                 );
+                Some(build_external_index_from_unitypackage_bytes(
+                    bytes,
+                    DEFAULT_UNITYPACKAGE_RUNTIME_ASSET,
+                ))
             }
 
-            Some(build_external_index_from_unitypackage(package_path))
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let package_path = env::var_os(EXTERNAL_UNITYPACKAGE_PATH_ENV)
+                    .map(PathBuf::from)
+                    .unwrap_or_else(default_unitypackage_path);
+
+                if !package_path.is_file() {
+                    panic!(
+                        "Unity package not found at {}. Set {} or place package at {}.",
+                        package_path.display(),
+                        EXTERNAL_UNITYPACKAGE_PATH_ENV,
+                        DEFAULT_UNITYPACKAGE_RELATIVE_PATH
+                    );
+                }
+
+                Some(build_external_index_from_unitypackage(package_path))
+            }
         })
         .as_ref()
 }
@@ -79,8 +88,7 @@ fn default_unitypackage_path() -> PathBuf {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAssetIndex {
-    let mut per_guid: HashMap<String, UnityPackageEntry> = HashMap::new();
-
+    let mut bytes = Vec::new();
     let file = fs::File::open(&package_path).unwrap_or_else(|error| {
         panic!(
             "Failed to open unitypackage {}: {}",
@@ -88,14 +96,30 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
             error
         )
     });
-    let decoder = GzDecoder::new(file);
+    let mut reader = std::io::BufReader::new(file);
+    reader.read_to_end(&mut bytes).unwrap_or_else(|error| {
+        panic!(
+            "Failed to read unitypackage bytes {}: {}",
+            package_path.display(),
+            error
+        )
+    });
+
+    build_external_index_from_unitypackage_bytes(bytes, &package_path.display().to_string())
+}
+
+fn build_external_index_from_unitypackage_bytes(
+    bytes: Vec<u8>,
+    source_name: &str,
+) -> ExternalAssetIndex {
+    let mut per_guid: HashMap<String, UnityPackageEntry> = HashMap::new();
+    let decoder = GzDecoder::new(Cursor::new(bytes));
     let mut archive = Archive::new(decoder);
 
     let entries = archive.entries().unwrap_or_else(|error| {
         panic!(
             "Failed to read unitypackage entries {}: {}",
-            package_path.display(),
-            error
+            source_name, error
         )
     });
 
@@ -103,8 +127,7 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
         let mut entry = entry_result.unwrap_or_else(|error| {
             panic!(
                 "Failed to read unitypackage entry {}: {}",
-                package_path.display(),
-                error
+                source_name, error
             )
         });
         if !entry.header().entry_type().is_file() {
@@ -114,8 +137,7 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
         let path = entry.path().unwrap_or_else(|error| {
             panic!(
                 "Failed to parse unitypackage entry path {}: {}",
-                package_path.display(),
-                error
+                source_name, error
             )
         });
         let parts: Vec<_> = path.iter().collect();
@@ -129,8 +151,7 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
         entry.read_to_end(&mut data).unwrap_or_else(|error| {
             panic!(
                 "Failed to read unitypackage entry bytes {}: {}",
-                package_path.display(),
-                error
+                source_name, error
             )
         });
 
@@ -158,12 +179,9 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
 
     for (folder_guid, entry) in per_guid {
         let Some(pathname) = entry.pathname else {
-            // Skip incomplete package nodes that cannot be addressed by Unity pathname.
             continue;
         };
         let Some(asset_bytes) = entry.asset_bytes else {
-            // Unity packages include directory records (folderAsset) that have
-            // pathname/meta but no asset payload; those should not be indexed.
             continue;
         };
 
@@ -185,7 +203,6 @@ fn build_external_index_from_unitypackage(package_path: PathBuf) -> ExternalAsse
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn read_guid_from_meta_text(text: &str) -> Option<String> {
     text.lines().find_map(|line| {
         line.trim()
@@ -195,65 +212,36 @@ fn read_guid_from_meta_text(text: &str) -> Option<String> {
     })
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 fn read_asset_by_guid(guid: &str) -> Option<Cow<'static, [u8]>> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Some(index) = external_index() {
-            let pathname = index.by_guid.get(guid)?;
-            let bytes = read_external_asset_by_pathname(index, pathname)?;
-            return Some(Cow::Owned(bytes));
-        }
-    }
-
-    None
+    let index = external_index()?;
+    let pathname = index.by_guid.get(guid)?;
+    let bytes = read_external_asset_by_pathname(index, pathname)?;
+    Some(Cow::Owned(bytes))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn read_external_asset_by_pathname(index: &ExternalAssetIndex, pathname: &str) -> Option<Vec<u8>> {
     index.asset_bytes_by_pathname.get(pathname).cloned()
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 fn pathname_by_guid(guid: &str) -> Option<&'static str> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Some(index) = external_index() {
-            return index.by_guid.get(guid).map(|pathname| pathname.as_str());
-        }
-    }
-
-    None
+    let index = external_index()?;
+    index.by_guid.get(guid).map(|pathname| pathname.as_str())
 }
 
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub fn guid_for_pathname(pathname: &str) -> Option<&'static str> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Some(index) = external_index() {
-            let guid = index.by_pathname.get(pathname)?;
-            if guid.is_empty() {
-                return None;
-            }
-            return Some(guid.as_str());
-        }
+    let index = external_index()?;
+    let guid = index.by_pathname.get(pathname)?;
+    if guid.is_empty() {
+        return None;
     }
-
-    None
+    Some(guid.as_str())
 }
 
 /// Read by full Unity pathname, e.g. `"Assets/Texture2D/foo.png"`.
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub fn read_pathname(pathname: &str) -> Option<Cow<'static, [u8]>> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Some(index) = external_index() {
-            let bytes = read_external_asset_by_pathname(index, pathname)?;
-            return Some(Cow::Owned(bytes));
-        }
-    }
-
-    None
+    let index = external_index()?;
+    let bytes = read_external_asset_by_pathname(index, pathname)?;
+    Some(Cow::Owned(bytes))
 }
 
 pub fn read_pathname_text(pathname: &str) -> Option<String> {
@@ -271,21 +259,17 @@ pub fn pathname_for_guid(guid: &str) -> Option<&'static str> {
 /// Iterate full Unity pathnames matching `prefix` and `suffix`.
 /// Example: `list_pathnames("Assets/Prefab/", ".prefab")` returns
 /// `["Assets/Prefab/Cake_01.prefab", ...]`.
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub fn list_pathnames(prefix: &str, suffix: &str) -> Vec<String> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Some(index) = external_index() {
-            let mut out: Vec<String> = index
-                .by_pathname
-                .keys()
-                .filter(|p| p.starts_with(prefix) && p.ends_with(suffix))
-                .cloned()
-                .collect();
-            out.sort();
-            return out;
-        }
-    }
+    let Some(index) = external_index() else {
+        return Vec::new();
+    };
 
-    Vec::new()
+    let mut out: Vec<String> = index
+        .by_pathname
+        .keys()
+        .filter(|p| p.starts_with(prefix) && p.ends_with(suffix))
+        .cloned()
+        .collect();
+    out.sort();
+    out
 }

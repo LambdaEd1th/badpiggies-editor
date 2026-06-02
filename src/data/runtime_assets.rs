@@ -14,6 +14,7 @@ use wasm_bindgen::JsCast;
 const RUNTIME_ASSETS_DIR_ENV: &str = "BP_EDITOR_RUNTIME_ASSETS_DIR";
 
 const REQUIRED_RUNTIME_ASSETS: &[&str] = &[
+    "data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage",
     "ui/app-icon.png",
     "ui/tool-select.svg",
     "ui/tool-box-select.svg",

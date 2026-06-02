@@ -45,14 +45,14 @@ lzma-rs = { version = "0.3", features = ["raw_decoder"] }
 md5 = "0.8"
 unity-asset = "0.2.0"
 unity-asset-binary = "0.2.0"
+flate2 = "1"
+tar = "0.4"
 
 # Native dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.11"
 rfd = "0.17"
 clap = { version = "4", features = ["derive"] }
-flate2 = "1"
-tar = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 winit = { version = "0.30.13", default-features = false, features = [

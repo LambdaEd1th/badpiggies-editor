@@ -505,16 +505,38 @@ static DESSERT_Y_OFFSETS: LazyLock<HashMap<&'static str, f32>> = LazyLock::new(|
 
 fn load_dessert_y_offset(name: &str) -> f32 {
     let asset_key = format!("Assets/Prefab/{name}.prefab");
-    let text = assets::read_pathname_text(&asset_key)
-        .unwrap_or_else(|| panic!("{asset_key} should load from embedded assets"));
-    let prefab = PrefabAssetDocument::parse(&text)
-        .unwrap_or_else(|| panic!("{asset_key} should parse from embedded assets"));
-    let collider = prefab
-        .root_component("BoxCollider")
-        .unwrap_or_else(|| panic!("{asset_key} must include a root BoxCollider"));
-    let center = collider
-        .field_vec3("m_Center")
-        .unwrap_or_else(|| panic!("{asset_key} BoxCollider must include m_Center"));
+    let Some(text) = assets::read_pathname_text(&asset_key) else {
+        log::warn!(
+            "Missing dessert prefab {}, fallback y offset = 0",
+            asset_key
+        );
+        return 0.0;
+    };
+
+    let Some(prefab) = PrefabAssetDocument::parse(&text) else {
+        log::warn!(
+            "Failed to parse dessert prefab {}, fallback y offset = 0",
+            asset_key
+        );
+        return 0.0;
+    };
+
+    let Some(collider) = prefab.root_component("BoxCollider") else {
+        log::warn!(
+            "Dessert prefab {} missing root BoxCollider, fallback y offset = 0",
+            asset_key
+        );
+        return 0.0;
+    };
+
+    let Some(center) = collider.field_vec3("m_Center") else {
+        log::warn!(
+            "Dessert prefab {} missing BoxCollider.m_Center, fallback y offset = 0",
+            asset_key
+        );
+        return 0.0;
+    };
+
     center[1]
 }
 

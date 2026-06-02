@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::types::LevelData;
 use crate::unity_runtime::{Scene, components::LevelManager as RuntimeLevelManager};
@@ -11,7 +11,6 @@ pub enum LevelWarningSeverity {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LevelWarningKind {
-    MultipleSlingshots,
     MultipleLevelManagers,
     MissingLevelManager,
     MultipleLevelStarts,
@@ -40,7 +39,6 @@ pub struct LevelWarning {
 impl LevelWarning {
     pub fn message_key(self) -> &'static str {
         match self.kind {
-            LevelWarningKind::MultipleSlingshots => "level_warning_multiple_slingshots",
             LevelWarningKind::MissingLevelManager => "level_warning_missing_level_manager",
             LevelWarningKind::MissingLevelStart => "level_warning_missing_level_start",
             LevelWarningKind::MultipleCameraSystems => "level_warning_multiple_camera_system",
@@ -75,11 +73,7 @@ struct KnownRiskObject {
     kind: LevelWarningKind,
 }
 
-const KNOWN_RISK_OBJECTS: [KnownRiskObject; 4] = [
-    KnownRiskObject {
-        name: "Slingshot",
-        kind: LevelWarningKind::MultipleSlingshots,
-    },
+const KNOWN_RISK_OBJECTS: [KnownRiskObject; 3] = [
     KnownRiskObject {
         name: "LevelManager",
         kind: LevelWarningKind::MultipleLevelManagers,
@@ -157,11 +151,20 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
     let camera_system_count = counts.get("CameraSystem").copied().unwrap_or(0);
     let game_camera_count = counts.get("GameCamera").copied().unwrap_or(0);
     let hud_camera_count = counts.get("HUDCamera").copied().unwrap_or(0);
+    // Some shipped levels (e.g. race layouts) place multiple instances of the same
+    // background prefab. Counting raw instances causes false positives, so we only
+    // count distinct world-background prefab names here.
     let world_object_count = level
         .objects
         .iter()
-        .filter(|object| WORLD_TAGGED_BACKGROUND_OBJECTS.contains(&object.name()))
-        .count();
+        .filter_map(|object| {
+            let name = object.name();
+            WORLD_TAGGED_BACKGROUND_OBJECTS
+                .contains(&name)
+                .then_some(name)
+        })
+        .collect::<HashSet<_>>()
+        .len();
     let goal_area_count = level
         .objects
         .iter()
@@ -172,13 +175,9 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
 
     let mut warnings = Vec::new();
 
-    if counts.get("Slingshot").copied().unwrap_or(0) > 1 {
-        warnings.push(LevelWarning {
-            kind: LevelWarningKind::MultipleSlingshots,
-            object_name: "Slingshot",
-            count: counts["Slingshot"],
-        });
-    }
+    // Unity Bird logic explicitly supports multiple slingshots by querying all
+    // `Slingshot`-tagged objects and selecting the nearest one for each bird.
+    // So slingshot count alone is not a risk signal and should not warn.
 
     match level_manager_count {
         0 => warnings.push(LevelWarning {
@@ -272,13 +271,11 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
 
     warnings.extend(KNOWN_RISK_OBJECTS.iter().filter_map(|rule| {
         let count = counts.get(rule.name).copied().unwrap_or(0);
-        (count > 1 && rule.name != "Slingshot" && rule.name != "LevelManager").then_some(
-            LevelWarning {
-                kind: rule.kind,
-                object_name: rule.name,
-                count,
-            },
-        )
+        (count > 1 && rule.name != "LevelManager").then_some(LevelWarning {
+            kind: rule.kind,
+            object_name: rule.name,
+            count,
+        })
     }));
 
     match dessert_places_count {
@@ -301,9 +298,11 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
 #[cfg(test)]
 mod tests {
     use super::{LevelWarning, LevelWarningKind, LevelWarningSeverity, collect_level_warnings};
+    use crate::domain::parser::parse_level;
     use crate::domain::types::{
         DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
+    use std::path::Path;
 
     fn prefab(name: &str) -> LevelObject {
         LevelObject::Prefab(PrefabInstance {
@@ -344,6 +343,47 @@ mod tests {
         })
     }
 
+    fn collect_assetbundle_level_paths(dir: &Path, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                collect_assetbundle_level_paths(&path, out);
+                continue;
+            }
+            if path.extension().and_then(|ext| ext.to_str()) != Some("bytes") {
+                continue;
+            }
+            let Ok(relative) =
+                path.strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_levels"))
+            else {
+                continue;
+            };
+            out.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+
+    fn all_assetbundle_level_paths() -> Vec<String> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_levels/assetbundles");
+        let mut paths = Vec::new();
+        collect_assetbundle_level_paths(&root, &mut paths);
+        paths.sort();
+        paths
+    }
+
+    fn parse_test_level(relative_path: &str) -> LevelData {
+        let level_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_levels")
+            .join(relative_path);
+        let bytes = std::fs::read(&level_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
+        parse_level(bytes)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()))
+    }
+
     fn level_manager_prefab(sandbox: Option<bool>) -> LevelObject {
         let mut raw_text = String::from("GameObject LevelManager\n\tComponent LevelManager\n");
         if let Some(sandbox) = sandbox {
@@ -357,9 +397,10 @@ mod tests {
     }
 
     #[test]
-    fn warns_for_multiple_slingshots() {
+    fn does_not_warn_for_multiple_slingshots() {
         let level = LevelData {
             objects: vec![
+                prefab("Slingshot"),
                 prefab("Slingshot"),
                 prefab("Slingshot"),
                 prefab("Pig"),
@@ -372,17 +413,10 @@ mod tests {
                 prefab("Background_Jungle_01_SET"),
                 prefab("GoalArea_01"),
             ],
-            roots: vec![0, 1, 2, 3],
+            roots: vec![0, 1, 2, 3, 4, 5],
         };
 
-        assert_eq!(
-            collect_level_warnings(&level),
-            vec![LevelWarning {
-                kind: LevelWarningKind::MultipleSlingshots,
-                object_name: "Slingshot",
-                count: 2,
-            }]
-        );
+        assert!(collect_level_warnings(&level).is_empty());
     }
 
     #[test]
@@ -486,6 +520,26 @@ mod tests {
                 count: 2,
             }]
         );
+    }
+
+    #[test]
+    fn does_not_warn_for_duplicate_same_world_background_prefab() {
+        let level = LevelData {
+            objects: vec![
+                level_manager_prefab(Some(false)),
+                prefab("LevelStart"),
+                prefab("CameraSystem"),
+                prefab("GameCamera"),
+                prefab("HUDCamera"),
+                prefab("DessertPlaces"),
+                prefab("Background_Jungle_01_SET"),
+                prefab("Background_Jungle_01_SET"),
+                prefab("GoalArea_01"),
+            ],
+            roots: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        };
+
+        assert!(collect_level_warnings(&level).is_empty());
     }
 
     #[test]
@@ -690,6 +744,7 @@ mod tests {
                 prefab("EffectManager"),
                 prefab("IngameCamera"),
                 prefab("Slingshot"),
+                prefab("Slingshot"),
                 prefab("LevelManager"),
                 prefab("Slingshot"),
                 prefab("EffectManager"),
@@ -709,18 +764,13 @@ mod tests {
                 prefab("DessertPlaces"),
             ],
             roots: vec![
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
             ],
         };
 
         assert_eq!(
             collect_level_warnings(&level),
             vec![
-                LevelWarning {
-                    kind: LevelWarningKind::MultipleSlingshots,
-                    object_name: "Slingshot",
-                    count: 2,
-                },
                 LevelWarning {
                     kind: LevelWarningKind::MultipleLevelManagers,
                     object_name: "LevelManager",
@@ -762,6 +812,37 @@ mod tests {
                     count: 2,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn audit_assetbundle_levels_have_no_risk_warnings() {
+        let mut warned = Vec::new();
+
+        for relative_path in all_assetbundle_level_paths() {
+            let level = parse_test_level(&relative_path);
+            let warnings = collect_level_warnings(&level);
+            if warnings.is_empty() {
+                continue;
+            }
+
+            let summary = warnings
+                .iter()
+                .map(|warning| {
+                    format!(
+                        "{:?} {} x{}",
+                        warning.kind, warning.object_name, warning.count
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            warned.push(format!("{} => {}", relative_path, summary));
+        }
+
+        assert!(
+            warned.is_empty(),
+            "assetbundle levels with warnings:\n{}",
+            warned.join("\n")
         );
     }
 }

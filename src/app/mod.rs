@@ -84,10 +84,10 @@ pub struct EditorApp {
 }
 
 impl EditorApp {
-    fn terrain_template_for_level<'a>(
-        level: &'a LevelData,
+    fn terrain_template_for_level(
+        level: &LevelData,
         wants_collider: bool,
-    ) -> Option<(&'a str, &'a TerrainData)> {
+    ) -> Option<(&str, &TerrainData)> {
         let mut terrain_name_counts: std::collections::HashMap<&str, usize> =
             std::collections::HashMap::new();
         for object in &level.objects {

@@ -138,8 +138,14 @@ impl SaveViewerData {
         }
 
         let file_type_label = localized_file_type_label(self.file_type.as_ref(), i18n);
-        if self.status_includes_file_name && let Some(file_name) = file_name {
-            return i18n.fmt_save_viewer_file_type_bytes(file_name, &file_type_label, self.xml_text.len());
+        if self.status_includes_file_name
+            && let Some(file_name) = file_name
+        {
+            return i18n.fmt_save_viewer_file_type_bytes(
+                file_name,
+                &file_type_label,
+                self.xml_text.len(),
+            );
         }
 
         i18n.fmt_save_viewer_type_bytes(&file_type_label, self.xml_text.len())

@@ -262,6 +262,38 @@ impl EditorApp {
         }
     }
 
+    /// Re-translate simple no-argument status overrides when language changes.
+    pub(super) fn relocalize_simple_status_overrides_on_language_switch(&mut self) {
+        const KEYS: &[&str] = &[
+            "status_exported",
+            "status_unity3d_imported",
+            "status_unity3d_no_text_assets",
+            "status_utf8_decode_failed",
+        ];
+
+        let target = self.t();
+        for tab in &mut self.tabs {
+            if tab.status.is_empty() {
+                continue;
+            }
+
+            let status = tab.status.clone();
+            let mut matched_key = None;
+            'find: for key in KEYS {
+                for &lang in Language::all() {
+                    if status == lang.i18n().get(key) {
+                        matched_key = Some(*key);
+                        break 'find;
+                    }
+                }
+            }
+
+            if let Some(key) = matched_key {
+                tab.status = target.get(key);
+            }
+        }
+    }
+
     /// Handle WASM pending file and native drag-and-drop file input.
     fn handle_file_input(&mut self, _ui: &mut egui::Ui, ctx: &egui::Context) {
         #[cfg(target_arch = "wasm32")]

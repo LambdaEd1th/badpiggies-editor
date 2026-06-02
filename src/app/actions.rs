@@ -577,7 +577,11 @@ impl EditorApp {
     pub(super) fn load_save_into_tab(&mut self, name: String, data: Vec<u8>) {
         let i18n = self.lang.i18n();
         let (sv, status) = super::save_viewer::SaveViewerData::load(&name, &data, i18n);
-        let status = if sv.error.is_some() { status } else { String::new() };
+        let status = if sv.error.is_some() {
+            status
+        } else {
+            String::new()
+        };
         let tab = &self.tabs[self.active_tab];
         let is_empty = tab.level.is_none() && tab.save_view.is_none();
         if is_empty {
@@ -599,7 +603,11 @@ impl EditorApp {
     pub(super) fn load_xml_into_tab(&mut self, name: String, data: Vec<u8>) {
         let i18n = self.lang.i18n();
         let (sv, status) = super::save_viewer::SaveViewerData::load_xml(&name, &data, i18n);
-        let status = if sv.error.is_some() { status } else { String::new() };
+        let status = if sv.error.is_some() {
+            status
+        } else {
+            String::new()
+        };
         let tab = &self.tabs[self.active_tab];
         let is_empty = tab.level.is_none() && tab.save_view.is_none();
         if is_empty {

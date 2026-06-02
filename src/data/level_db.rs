@@ -292,10 +292,44 @@ fn scene_lookup() -> &'static HashMap<String, (String, String)> {
     LOOKUP.get_or_init(build_scene_lookup)
 }
 
+fn normalize_scene_key(scene_key: &str) -> String {
+    scene_key
+        .trim()
+        .split('_')
+        .map(|part| {
+            if part.chars().all(|ch| ch.is_ascii_digit()) {
+                let stripped = part.trim_start_matches('0');
+                if stripped.is_empty() {
+                    "0".to_string()
+                } else {
+                    stripped.to_string()
+                }
+            } else {
+                part.to_ascii_lowercase()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("_")
+}
+
+fn normalized_scene_lookup() -> &'static HashMap<String, (String, String)> {
+    static LOOKUP: OnceLock<HashMap<String, (String, String)>> = OnceLock::new();
+    LOOKUP.get_or_init(|| {
+        let mut normalized = HashMap::new();
+        for (scene_key, (label, scene)) in scene_lookup() {
+            normalized
+                .entry(normalize_scene_key(scene_key))
+                .or_insert_with(|| (label.clone(), scene.clone()));
+        }
+        normalized
+    })
+}
+
 /// Look up a base level scene and numbered label from a scene key.
 pub fn scene_level_name(scene_key: &str) -> Option<(&'static str, &'static str)> {
     scene_lookup()
         .get(scene_key)
+        .or_else(|| normalized_scene_lookup().get(&normalize_scene_key(scene_key)))
         .map(|(label, scene)| (label.as_str(), scene.as_str()))
 }
 
@@ -346,6 +380,18 @@ mod tests {
             level_display_name_for_filename("C:\\tmp\\episode_6_level_VI_data.yaml"),
             Some("episode_6_level_VI (6-VI)".to_string())
         );
+
+        let level_01 = level_display_name_for_filename("Level_01_data.bytes");
+        assert!(level_01.is_some());
+        assert_eq!(
+            level_display_name_for_filename("level_01_data.bytes"),
+            level_01
+        );
+        assert_eq!(
+            level_display_name_for_filename("Level_1_data.bytes"),
+            level_01
+        );
+
         assert_eq!(level_display_name_for_filename("unknown_level.bytes"), None);
     }
 

@@ -130,6 +130,7 @@ impl EditorApp {
                         .clicked()
                     {
                         self.lang = lang;
+                        self.relocalize_simple_status_overrides_on_language_switch();
                         self.clear_default_status_overrides_on_language_switch();
                         ui.close();
                     }

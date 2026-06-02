@@ -531,7 +531,7 @@ impl EditorApp {
                         let cam = tab.renderer.camera.clone();
                         tab.renderer.set_level(level);
                         tab.renderer.camera = cam;
-                        tab.status = t.fmt1("status_deleted", &del_name);
+                        tab.status = t.fmt1("status_deleted", del_name);
                     }
                     tab.pending_delete = None;
                 }

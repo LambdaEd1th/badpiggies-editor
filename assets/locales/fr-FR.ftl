@@ -1,0 +1,339 @@
+locale_native_name = Français
+
+# Menu bar
+menu_file = Fichier
+tab_untitled = (sans titre)
+menu_open_level = Ouvrir un fichier de niveau…
+menu_export_from_unity3d = Exporter depuis un fichier unity3d…
+menu_export_level = Exporter le niveau
+menu_import_to_unity3d = Importer vers un fichier unity3d…
+menu_import_text = Importer YAML/TOML…
+menu_export_yaml = Exporter en YAML
+menu_export_toml = Exporter en TOML
+menu_edit = Édition
+menu_undo = Annuler
+menu_redo = Rétablir
+menu_copy = Copier
+menu_cut = Couper
+menu_paste = Coller
+menu_duplicate = Dupliquer
+menu_flip_horizontal = Retourner horizontalement
+menu_flip_vertical = Retourner verticalement
+menu_delete = Supprimer
+menu_clear_selection = Effacer la sélection
+menu_expand_all = Développer tout
+menu_collapse_all = Réduire tout
+menu_add_object = Ajouter un objet…
+menu_view = Affichage
+menu_fit_view = Adapter à la vue
+menu_background = Arrière-plan
+menu_object_list = Liste des objets
+menu_properties = Propriétés
+menu_grid = Grille
+menu_physics_ground = Sol physique
+menu_level_bounds = Limites du niveau
+menu_dark_overlay = Overlay sombre
+menu_night_vision_overlay = Overlay de vision nocturne
+menu_terrain_tris = Triangles du terrain
+menu_language = Langue
+menu_help = Aide
+menu_shortcuts = Raccourcis clavier
+menu_about = À propos
+menu_export_log = Exporter le journal
+
+# Window titles
+win_confirm_delete = Confirmer la suppression
+win_level_warning = Avertissement de risque connu
+win_shortcuts = Raccourcis clavier
+win_about = À propos
+win_add_object = Ajouter un objet
+win_export_from_unity3d = Exporter depuis un fichier unity3d
+win_import_to_unity3d = Importer vers un fichier unity3d
+
+# Buttons
+btn_ok = OK
+btn_cancel = Annuler
+btn_confirm = Confirmer
+btn_i_understand_the_risks = Je comprends les risques
+btn_add = + Ajouter
+btn_open_selected = Ouvrir la sélection
+btn_import_current_level = Importer le niveau actuel
+btn_select_all = Sélectionner tout
+btn_visual = Visuel
+btn_clear_all = Effacer la sélection
+btn_text = Texte
+
+# unity3d dialogs
+label_unity3d_file = Fichier unity3d :
+label_current_level = Niveau actuel :
+label_unity3d_entries = Entrées
+
+# Shortcuts window
+shortcuts_key = Raccourci
+shortcuts_action = Action
+shortcuts_section_mouse = Souris
+shortcuts_scroll = Molette de défilement
+shortcuts_zoom = Zoom de la vue
+shortcuts_drag = Glisser-déposer (zone vide)
+shortcuts_pan = Panoramique
+shortcuts_click = Cliquer sur un objet
+shortcuts_select = Sélectionner un objet
+shortcuts_cmd_click_action = Basculer la sélection
+shortcuts_shift_click = Maj+Clic
+shortcuts_shift_click_action = Sélection de plage
+shortcuts_section_keyboard = Raccourcis clavier
+shortcuts_b_key = B
+shortcuts_toggle_bg = Basculer l'arrière-plan
+shortcuts_undo_action = Annuler
+shortcuts_redo_action = Rétablir
+shortcuts_copy_action = Copier un objet
+shortcuts_cut_action = Couper un objet
+shortcuts_paste_action = Coller un objet
+shortcuts_duplicate_action = Dupliquer
+shortcuts_delete_action = Supprimer un objet
+shortcuts_section_terrain = Édition du terrain
+shortcuts_terrain_select = Cliquer sur le terrain
+shortcuts_terrain_select_action = Afficher les nœuds de courbe
+shortcuts_terrain_drag = Glisser le nœud
+shortcuts_terrain_drag_action = Déplacer le nœud de courbe
+shortcuts_terrain_dblclick = Double-clic sur le segment
+shortcuts_terrain_dblclick_action = Insérer un nouveau nœud
+shortcuts_terrain_delete = Supprimer / Retour arrière sur le nœud
+shortcuts_terrain_delete_action = Supprimer le nœud (min 3)
+shortcuts_terrain_rclick = Clic droit sur le nœud
+shortcuts_terrain_rclick_action = Ouvrir le menu du nœud
+
+# About window
+about_built_with = Construit avec eframe / egui / wgpu
+about_license = Licence : GNU AGPL v3.0
+about_version_prefix = Version : 
+
+# Add object dialog
+add_type = Type :
+add_name = Nom :
+add_search = Recherche :
+add_search_hint = Filtrer les noms de préfabriqué
+add_search_no_matches = Aucun préfabriqué correspondant
+add_prefab_index = Indice du préfabriqué :
+add_kind_prefab = Préfabriqué
+add_kind_parent = Parent
+add_data_type = Type de données :
+add_data_type_none = Aucun
+add_data_type_terrain = Terrain
+add_data_type_prefab_overrides = PrefabOverrides
+add_data_type_terrain_help = Terrain crée des données de terrain par défaut et conserve l'indice du préfabriqué que vous avez sélectionné.
+add_data_type_prefab_overrides_help = PrefabOverrides crée une charge de remplacement vide que vous pouvez modifier ultérieurement dans le panneau des propriétés.
+
+# Panels
+panel_object_list = Liste des objets
+panel_properties = Propriétés
+panel_select_hint = Sélectionnez un objet pour afficher les propriétés
+panel_drop_hint = Déposez un fichier .bytes ici
+panel_open_hint = ou utilisez Fichier > Ouvrir un fichier de niveau…
+
+# Properties view
+prop_type_prefab = Type : Préfabriqué
+prop_type_parent = Type : Parent
+prop_name = Nom :
+prop_prefab_index = Indice du préfabriqué :
+prop_position = Position
+prop_rotation = Rotation
+prop_scale = Échelle
+prop_data_type = Type de données :
+prop_terrain = Données de terrain
+prop_fill_tex_index = Indice de texture de remplissage :
+prop_fill_vert_count = Nombre de sommets de remplissage :
+prop_curve_vert_count = Nombre de sommets de courbe :
+prop_curve_tex_count = Nombre de textures de courbe :
+prop_collider = Colliseur :
+prop_fill_color = Couleur de remplissage
+prop_override = Données de remplacement
+prop_byte_count = Nombre d'octets :
+prop_child_count = Nombre d'enfants :
+prop_fill_offset_x = Décalage de remplissage X :
+prop_fill_offset_y = Décalage de remplissage Y :
+prop_curve_tex = Texture de courbe { $idx }
+prop_strip_width = Largeur de bande :
+prop_fade_threshold = Seuil de fondu :
+prop_terrain_closed = Boucle fermée :
+add_terrain = Ajouter des données de terrain
+
+# Status messages
+status_welcome = Ouvrez un fichier de niveau .bytes pour commencer l'édition
+status_loaded = Chargé : { $obj_count } objets, { $root_count } racines
+status_exported = Exporté avec succès
+status_unity3d_imported = Niveau actuel importé dans le fichier unity3d
+status_unity3d_no_text_assets = Aucune entrée TextAsset trouvée dans ce fichier unity3d
+status_added = Ajouté : { $name }
+status_delete_confirm = Supprimer « { $name } » ?
+status_read_error = Erreur de lecture : { $name }
+status_export_error = Erreur d'exportation : { $name }
+status_parse_error = Erreur d'analyse : { $name }
+level_warning_intro_preview = Ce niveau contient des combinaisons d'objets à risque connu. Le démarrage de l'aperçu peut ne pas correspondre au comportement du jeu original.
+level_warning_intro_export = Ce niveau contient des combinaisons d'objets à risque connu. L'exporter peut créer un niveau qui casse le jeu original.
+level_warning_intro_editor = Cette édition a introduit des combinaisons d'objets à risque connu. Le jeu original peut se comporter de manière imprévisible ou se casser.
+level_warning_intro_preview_low = Ce niveau contient des problèmes d'objets connus. L'aperçu peut manquer le comportement facultatif du jeu original.
+level_warning_intro_export_low = Ce niveau contient des problèmes d'objets connus. L'exporter peut désactiver le comportement facultatif du jeu original sans nécessairement casser le niveau.
+level_warning_intro_editor_low = Cette édition a introduit des problèmes d'objets connus. Le jeu original peut ignorer les systèmes facultatifs ou se comporter différemment dans certaines situations.
+level_warning_section_high = Risque élevé
+level_warning_section_low = Impact inférieur
+level_warning_badge_high = ÉLEVÉ
+level_warning_badge_low = FAIBLE
+level_warning_multiple_slingshots = Trouvé { $count } objet(s) « { $name } ». Le jeu original localise les lance-pierres via des requêtes de scène spéciales et peut se comporter de manière imprévisible avec plus d'un.
+level_warning_multiple_camera_system = Trouvé { $count } objet(s) « { $name } ». Chaque CameraSystem génère des objets GameCamera et HUDCamera, tandis que le jeu original utilise ultérieurement des recherches de caméra singulières comme Camera.main, HUDCamera, GameCamera et CameraSystem par nom.
+level_warning_multiple_game_camera = Trouvé { $count } objet(s) « { $name } ». Le jeu original s'attend à une seule MainCamera/GameCamera et utilise des recherches singulières comme Camera.main, FindGameObjectWithTag(« MainCamera ») et GameObject.Find(« GameCamera »).
+level_warning_multiple_hud_camera = Trouvé { $count } objet(s) « { $name } ». Le jeu original s'attend à une seule caméra HUD et utilise à plusieurs reprises FindGameObjectWithTag(« HUDCamera ») sans gestion de l'ambiguïté.
+level_warning_multiple_world_object = Trouvé { $count } objet(s) « { $name } ». LevelManager résout un seul objet d'arrière-plan marqué World, puis lit son PositionSerializer ou nom sans désambiguation.
+level_warning_multiple_singleton = Trouvé { $count } objet(s) « { $name } ». Le jeu original utilise des recherches de scène de type singleton pour cet objet et peut choisir une instance arbitraire ou se casser quand plusieurs existent.
+level_warning_missing_level_manager = Aucun objet « { $name } » n'a été trouvé. De nombreux systèmes du jeu original déréférencent LevelManager directement, donc l'aperçu/l'exportation du gameplay peut casser immédiatement.
+level_warning_missing_level_start = Aucun objet « { $name } » n'a été trouvé. Le jeu original revient à une origine par défaut pour le placement du mécanisme et la configuration de la caméra, ce qui peut produire un comportement de niveau cassé.
+level_warning_missing_camera_system = Aucun objet « { $name } » n'a été trouvé. Le jeu original s'attend à ce que CameraSystem crée GameCamera et HUDCamera, puis résout les caméras par le biais de recherches singulières telles que Camera.main et HUDCamera.
+level_warning_missing_game_camera = Aucun objet « { $name } » n'a été trouvé même si un CameraSystem existe. Le préfabriqué CameraSystem expédié fournit normalement la GameCamera marquée MainCamera que le code gameplay résout par le biais des recherches Camera.main, MainCamera et GameCamera.
+level_warning_missing_hud_camera = Aucun objet « { $name } » n'a été trouvé même si un CameraSystem existe. Le code UI résout à plusieurs reprises la caméra HUD par FindGameObjectWithTag(« HUDCamera »).
+level_warning_missing_world_object = Aucun objet « { $name } » n'a été trouvé. LevelManager recherche un seul objet d'arrière-plan marqué World pendant le chargement et lit immédiatement son PositionSerializer ou nom.
+level_warning_missing_goal_area = Aucun objet cible correspondant à « { $name } » n'a été trouvé. Dans les niveaux non-sandbox, le jeu original résout une seule cible marquée Goal pour l'achèvement, donc terminer le niveau peut être impossible.
+level_warning_multiple_goal_area = Trouvé { $count } objet(s) cible(s) correspondant à « { $name } ». LevelManager résout la cible via une recherche d'étiquette Goal unique et peut en utiliser une arbitraire quand plusieurs zones cibles existent.
+level_warning_missing_dessert_places = Aucun objet « { $name } » n'a été trouvé. Les niveaux expédiés incluent systématiquement cette racine, mais BaseGameMode omet légèrement le placement du dessert quand elle manque, donc le spawn du dessert peut être désactivé au lieu de se casser.
+level_warning_multiple_dessert_places = Trouvé { $count } objet(s) « { $name } ». BaseGameMode résout une seule racine DessertPlaces via GameObject.Find(« DessertPlaces »), donc plusieurs racines peuvent faire charger le placement du dessert depuis une branche arbitraire.
+level_warning_continue = Continuer quand même ?
+
+# App errors
+app_error_io = Erreur E/S : { $name }
+app_error_invalid_data = Données invalides : { $name }
+app_error_crypto = Erreur cryptographique : { $name }
+app_error_browser = Erreur du navigateur : { $name }
+app_error_state = Erreur d'état interne : { $name }
+error_unknown_file_type = Type de fichier inconnu
+error_unsupported_file_format = Format de fichier non pris en charge
+error_parse_yaml_level = Impossible d'analyser le niveau YAML : { $name }
+error_parse_toml_level = Impossible d'analyser le niveau TOML : { $name }
+error_serialize_yaml_level = Impossible de sérialiser le niveau YAML : { $name }
+error_serialize_toml_level = Impossible de sérialiser le niveau TOML : { $name }
+error_xml_parse = Erreur d'analyse XML : { $name }
+error_invalid_utf8 = UTF-8 invalide : { $name }
+error_pbkdf2_init = Impossible d'initialiser PBKDF2 HMAC-SHA1
+error_aes_encrypt_buffer_too_small = Tampon de chiffrement AES trop petit
+error_aes_decrypt_failed = Échec du déchiffrement AES : { $name }
+error_file_too_short_sha1 = Fichier trop court pour le hachage SHA1
+error_sha1_mismatch = Désaccord du hachage SHA1 — le fichier peut être corrompu
+error_browser_api_call_failed = L'appel à l'API du navigateur a échoué : { $name }
+error_download_link_unavailable = Impossible de créer un lien de téléchargement
+error_window_unavailable = Fenêtre indisponible
+error_document_unavailable = Document indisponible
+error_document_body_unavailable = Corps du document indisponible
+error_icon_layers_missing = L'actif intégré icon-layers.toml est manquant
+error_icon_layers_not_utf8 = icon-layers.toml n'est pas en UTF-8 valide : { $name }
+error_icon_layers_parse = Impossible d'analyser icon-layers.toml : { $name }
+error_bg_data_parse = Impossible d'analyser bg-data.toml : { $name }
+error_sprite_data_parse = Impossible d'analyser sprite-data.toml : { $name }
+error_level_refs_parse = Impossible d'analyser level-refs.toml : { $name }
+error_terrain_control_png_encode = Impossible d'encoder le PNG de contrôle du terrain : { $name }
+
+# Override tree
+override_name_hint = Nom
+
+# CLI
+cli_read_error = Impossible de lire { $path } : { $error }
+cli_parse_error = Impossible d'analyser { $path } : { $error }
+cli_unsupported_input = Format d'entrée non pris en charge : .{ $name }
+cli_serialize_yaml_error = Impossible de sérialiser YAML : { $name }
+cli_serialize_toml_error = Impossible de sérialiser TOML : { $name }
+cli_unsupported_output = Format de sortie non pris en charge : .{ $name }
+cli_write_error = Impossible d'écrire dans { $path } : { $error }
+cli_detect_save_type_error_input = Impossible de détecter le type de fichier de sauvegarde du nom de fichier d'entrée « { $name } ». Utilisez --type progress|contraption|achievements
+cli_detect_save_type_error_output = Impossible de détecter le type de fichier de sauvegarde du nom de fichier de sortie « { $name } ». Utilisez --type progress|contraption|achievements
+cli_stdout_write_error = Impossible d'écrire sur la sortie standard : { $name }
+cli_convert_ok = { $input } -> { $output } ({ $obj_count } objets, { $root_count } racines)
+cli_decrypt_ok = Déchiffré { $input } ({ $type }) -> { $output } ({ $bytes } octets)
+cli_encrypt_ok = Chiffré { $input } -> { $output } ({ $type }, { $bytes } octets)
+cli_error_prefix = Erreur : { $name }
+
+# Tabs
+menu_close_tab = Fermer l'onglet
+
+# HUD overlay
+hud_zoom = Zoom
+hud_theme = Thème
+hud_unknown_theme = Thème inconnu
+
+# Tool modes
+tool_select = Sélectionner
+tool_box_select = Sélection de boîte
+tool_draw_terrain = Dessiner un terrain
+tool_pan = Panoramique
+tool_window_title = Outils
+tool_preview_title = État d'aperçu
+tool_preview_dark_overlay_title = Aperçu de l'overlay sombre
+tool_preview_build = Construire
+tool_preview_play = Lecture
+tool_preview_pause = Pause
+tool_preview_night_vision = Vision nocturne
+tool_preview_night_vision_powerup = Amélioration de la vision nocturne
+tool_preview_night_vision_active = Vision nocturne active
+tool_terrain_presets = Présets de terrain
+tool_terrain_preset_circle = Ellipse
+tool_terrain_preset_rectangle = Rectangle
+tool_terrain_preset_perfect_circle = Cercle parfait
+tool_terrain_preset_square = Carré
+tool_terrain_preset_equilateral_triangle = Triangle équilatéral
+tool_terrain_round_segments = Nœuds ellipse/cercle
+
+# Tool mode shortcuts
+shortcuts_section_tools = Modes d'outil
+shortcuts_tool_select = V
+shortcuts_tool_box_select = M
+shortcuts_tool_draw_terrain = P
+shortcuts_tool_pan = H
+
+# Level bounds editor
+menu_edit_level_bounds = Éditer les limites du niveau…
+win_level_bounds = Limites du niveau
+bounds_pos_x = Position X :
+bounds_pos_y = Position Y :
+bounds_size_w = Largeur :
+bounds_size_h = Hauteur :
+
+# Save file viewer
+menu_open_save = Ouvrir un fichier de sauvegarde…
+save_viewer_title = Visionneuse de sauvegarde
+save_viewer_type = Type
+save_viewer_size = Taille
+save_viewer_filter = Filtre :
+save_viewer_status_type_bytes = { $type } : { $bytes } octets
+save_viewer_status_file_type_bytes = { $file_name } : { $type }, { $bytes } octets
+save_viewer_raw_xml = XML brut
+save_viewer_structured = Vue structurée
+save_viewer_no_data = Aucune donnée chargée
+save_file_type_unknown = Inconnu
+save_file_type_progress = Progrès
+save_file_type_contraption = Mécanisme
+save_file_type_achievements = Réalisations
+save_viewer_part_count = Pièces
+save_viewer_completed = complété
+save_col_key = Clé
+save_col_type = Type
+save_col_value = Valeur
+save_col_part_type = Type de pièce
+save_col_custom_idx = Indice personnalisé
+save_col_rot = Rotation
+save_col_flipped = Retourné
+save_col_progress = Progrès
+save_col_completed = Complété
+save_col_synced = Synchronisé
+save_editor_modified = Modifié
+save_editor_parse_xml = Analyser XML
+save_editor_add_entry = + Ajouter une entrée
+menu_export_save = Exporter le fichier de sauvegarde…
+menu_import_xml = Importer la sauvegarde XML…
+menu_export_xml = Exporter la sauvegarde XML…
+save_editor_regex_err = Expression régulière invalide
+save_filter_hint = filtre (regex)
+save_edit_clear_all = Effacer toutes les entrées
+save_edit_duplicate_all = Dupliquer toutes les entrées
+menu_select_all = Sélectionner tout
+save_edit_deselect_all = Désélectionner tout
+save_edit_delete_selected = Supprimer la sélection
+save_edit_duplicate_selected = Dupliquer la sélection
+save_viewer_reveal_xml = Révéler en XML
+context_toggle_node_texture = Basculer la texture du nœud
+contraption_preview_title = Aperçu du mécanisme

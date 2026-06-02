@@ -19,9 +19,7 @@ pub enum LevelWarningKind {
     MultipleCameraSystems,
     MissingCameraSystem,
     MultipleGameCameras,
-    MissingGameCamera,
     MultipleHudCameras,
-    MissingHudCamera,
     MultipleWorldObjects,
     MissingWorldObject,
     MissingGoalArea,
@@ -48,9 +46,7 @@ impl LevelWarning {
             LevelWarningKind::MultipleCameraSystems => "level_warning_multiple_camera_system",
             LevelWarningKind::MissingCameraSystem => "level_warning_missing_camera_system",
             LevelWarningKind::MultipleGameCameras => "level_warning_multiple_game_camera",
-            LevelWarningKind::MissingGameCamera => "level_warning_missing_game_camera",
             LevelWarningKind::MultipleHudCameras => "level_warning_multiple_hud_camera",
-            LevelWarningKind::MissingHudCamera => "level_warning_missing_hud_camera",
             LevelWarningKind::MultipleWorldObjects => "level_warning_multiple_world_object",
             LevelWarningKind::MissingWorldObject => "level_warning_missing_world_object",
             LevelWarningKind::MissingGoalArea => "level_warning_missing_goal_area",
@@ -227,32 +223,20 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
     }
 
     if camera_system_count == 1 {
-        match game_camera_count {
-            0 => warnings.push(LevelWarning {
-                kind: LevelWarningKind::MissingGameCamera,
-                object_name: "GameCamera",
-                count: 0,
-            }),
-            count if count > 1 => warnings.push(LevelWarning {
+        if game_camera_count > 1 {
+            warnings.push(LevelWarning {
                 kind: LevelWarningKind::MultipleGameCameras,
                 object_name: "GameCamera",
-                count,
-            }),
-            _ => {}
+                count: game_camera_count,
+            });
         }
 
-        match hud_camera_count {
-            0 => warnings.push(LevelWarning {
-                kind: LevelWarningKind::MissingHudCamera,
-                object_name: "HUDCamera",
-                count: 0,
-            }),
-            count if count > 1 => warnings.push(LevelWarning {
+        if hud_camera_count > 1 {
+            warnings.push(LevelWarning {
                 kind: LevelWarningKind::MultipleHudCameras,
                 object_name: "HUDCamera",
-                count,
-            }),
-            _ => {}
+                count: hud_camera_count,
+            });
         }
     }
 
@@ -402,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn warns_for_missing_camera_children_with_single_camera_system() {
+    fn does_not_warn_for_missing_top_level_camera_children_with_single_camera_system() {
         let level = LevelData {
             objects: vec![
                 level_manager_prefab(Some(false)),
@@ -415,21 +399,7 @@ mod tests {
             roots: vec![0, 1, 2, 3, 4, 5],
         };
 
-        assert_eq!(
-            collect_level_warnings(&level),
-            vec![
-                LevelWarning {
-                    kind: LevelWarningKind::MissingGameCamera,
-                    object_name: "GameCamera",
-                    count: 0,
-                },
-                LevelWarning {
-                    kind: LevelWarningKind::MissingHudCamera,
-                    object_name: "HUDCamera",
-                    count: 0,
-                },
-            ]
-        );
+        assert!(collect_level_warnings(&level).is_empty());
     }
 
     #[test]

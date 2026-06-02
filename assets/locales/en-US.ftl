@@ -1,3 +1,5 @@
+locale_native_name = English
+
 # Menu bar
 menu_file = File
 tab_untitled = (untitled)

@@ -1,27 +1,51 @@
-//! CJK font configuration for egui.
+//! Runtime UI font configuration for egui.
 
 use eframe::egui;
 
-/// Load a CJK font and register it as a fallback for proportional + monospace.
+/// Load runtime UI fonts and register them as fallbacks for proportional + monospace.
 pub(super) fn configure_cjk_fonts(ctx: &egui::Context) {
-    let Some(data) = load_system_cjk_font() else {
-        log::warn!("No system CJK font found — Chinese text will render as squares");
-        return;
-    };
-
     let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        "cjk".into(),
-        std::sync::Arc::new(egui::FontData::from_owned(data)),
-    );
+
+    for (name, data) in load_runtime_ui_fonts() {
+        fonts.font_data.insert(
+            name.into(),
+            std::sync::Arc::new(egui::FontData::from_owned(data)),
+        );
+    }
+
     if let Some(list) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        list.push("ui-latin".into());
+        list.push("ui-arabic".into());
         list.push("cjk".into());
     }
     if let Some(list) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+        list.push("ui-latin".into());
+        list.push("ui-arabic".into());
         list.push("cjk".into());
     }
 
     ctx.set_fonts(fonts);
+}
+
+fn load_runtime_ui_fonts() -> Vec<(&'static str, Vec<u8>)> {
+    let mut fonts = Vec::new();
+
+    fonts.push((
+        "ui-latin",
+        crate::data::runtime_assets::read_runtime_asset_bytes("fonts/NotoSans-Regular.ttf"),
+    ));
+    fonts.push((
+        "ui-arabic",
+        crate::data::runtime_assets::read_runtime_asset_bytes("fonts/NotoNaskhArabic-Regular.ttf"),
+    ));
+
+    if let Some(data) = load_system_cjk_font() {
+        fonts.push(("cjk", data));
+    } else {
+        log::warn!("No CJK font found — Chinese text will render as squares");
+    }
+
+    fonts
 }
 
 #[cfg(not(target_arch = "wasm32"))]

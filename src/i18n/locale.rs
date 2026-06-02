@@ -213,9 +213,9 @@ static LOCALES: LazyLock<Vec<LocaleEntry>> = LazyLock::new(|| {
             continue;
         }
 
-        let leaked_tag: &'static str = Box::leak(tag.to_string().into_boxed_str());
-        let display = locale_display_name(leaked_tag);
         let source = crate::data::runtime_assets::read_runtime_asset_text(&path);
+        let leaked_tag: &'static str = Box::leak(tag.to_string().into_boxed_str());
+        let display = locale_display_name(leaked_tag, &source);
 
         entries.push(LocaleEntry {
             lang: Language { tag: leaked_tag },
@@ -235,12 +235,21 @@ static LOCALES: LazyLock<Vec<LocaleEntry>> = LazyLock::new(|| {
 static ALL_LANGUAGES: LazyLock<Vec<Language>> =
     LazyLock::new(|| LOCALES.iter().map(|entry| entry.lang).collect());
 
-fn locale_display_name(tag: &'static str) -> &'static str {
-    let name = match tag {
-        "zh-CN" | "zh" => "中文".to_string(),
-        "en-US" | "en" => "English".to_string(),
-        _ => tag.to_string(),
-    };
+fn locale_display_name(tag: &'static str, source: &str) -> &'static str {
+    let name = source
+        .lines()
+        .find_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                return None;
+            }
+
+            let (key, value) = trimmed.split_once('=')?;
+            (key.trim() == "locale_native_name").then(|| value.trim().to_string())
+        })
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| tag.to_string());
+
     Box::leak(name.into_boxed_str())
 }
 

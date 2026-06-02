@@ -1,3 +1,5 @@
+locale_native_name = 中文
+
 # 菜单栏
 menu_file = 文件
 tab_untitled = (未命名)

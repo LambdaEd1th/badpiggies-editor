@@ -187,7 +187,11 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
         })
         .collect::<HashSet<_>>()
         .len();
-    let goal_area_count = level.objects.iter().filter(|object| is_goal_object(object)).count();
+    let goal_area_count = level
+        .objects
+        .iter()
+        .filter(|object| is_goal_object(object))
+        .count();
     let dessert_places_count = counts.get("DessertPlaces").copied().unwrap_or(0);
     let sandbox_flag = level_sandbox_flag(level);
 

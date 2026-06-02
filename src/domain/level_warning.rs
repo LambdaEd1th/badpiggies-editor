@@ -104,6 +104,28 @@ const WORLD_TAGGED_BACKGROUND_OBJECTS: [&str; 13] = [
     "BackgroundObject",
 ];
 
+fn override_has_goal_tag(raw_text: &str) -> bool {
+    raw_text.lines().any(|line| {
+        let trimmed = line.trim();
+        trimmed == "String m_TagString = Goal"
+            || trimmed == "m_TagString = Goal"
+            || trimmed.ends_with("m_TagString = Goal")
+    })
+}
+
+fn is_goal_object(level_object: &crate::domain::types::LevelObject) -> bool {
+    let name = level_object.name();
+    if name.starts_with("GoalArea") || name == "Goal" {
+        return true;
+    }
+
+    level_object
+        .as_prefab()
+        .and_then(|prefab| prefab.override_data.as_ref())
+        .map(|override_data| override_has_goal_tag(&override_data.raw_text))
+        .unwrap_or(false)
+}
+
 fn level_sandbox_flag(level: &LevelData) -> Option<bool> {
     let mut saw_true = false;
     let mut saw_false = false;
@@ -165,11 +187,7 @@ pub fn collect_level_warnings(level: &LevelData) -> Vec<LevelWarning> {
         })
         .collect::<HashSet<_>>()
         .len();
-    let goal_area_count = level
-        .objects
-        .iter()
-        .filter(|object| object.name().starts_with("GoalArea"))
-        .count();
+    let goal_area_count = level.objects.iter().filter(|object| is_goal_object(object)).count();
     let dessert_places_count = counts.get("DessertPlaces").copied().unwrap_or(0);
     let sandbox_flag = level_sandbox_flag(level);
 
@@ -672,6 +690,28 @@ mod tests {
                 count: 2,
             }]
         );
+    }
+
+    #[test]
+    fn does_not_warn_missing_goal_when_goal_tag_exists_in_override() {
+        let level = LevelData {
+            objects: vec![
+                level_manager_prefab(Some(false)),
+                prefab("LevelStart"),
+                prefab("CameraSystem"),
+                prefab("GameCamera"),
+                prefab("HUDCamera"),
+                prefab("DessertPlaces"),
+                prefab("Background_Jungle_01_SET"),
+                prefab_with_override(
+                    "CustomGoalObject",
+                    "GameObject CustomGoalObject\n\tString m_TagString = Goal\n",
+                ),
+            ],
+            roots: vec![0, 1, 2, 3, 4, 5, 6, 7],
+        };
+
+        assert!(collect_level_warnings(&level).is_empty());
     }
 
     #[test]

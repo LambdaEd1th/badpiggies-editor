@@ -14,7 +14,8 @@ use super::{
     EditorApp, Snapshot, UNDO_MAX,
     dialogs::{
         PrefabOption, build_default_terrain_data, current_level_prefab_options,
-        render_prefab_index_picker,
+        render_prefab_index_picker, update_camera_limits_in_level,
+        update_construction_view_bounds_in_level, update_initial_view_bounds_in_level,
     },
 };
 
@@ -48,6 +49,80 @@ impl EditorApp {
                 ui.separator();
 
                 let tab = &mut self.tabs[self.active_tab];
+
+                let route_preview_bounds = tab.renderer.initial_view_bounds;
+                let route_camera_limits = tab.renderer.camera_limits;
+                let route_build_bounds = tab.renderer.construction_view_bounds;
+                let mut route_changed = false;
+
+                if let Some(level) = tab.level.as_mut() {
+                    egui::CollapsingHeader::new(t.get("panel_camera_route"))
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            ui.label(t.get("prop_goal_area_view"));
+                            if let Some(mut bounds) = route_preview_bounds {
+                                if edit_bounds_rect(ui, "route_preview_bounds", &mut bounds) {
+                                    let before = level.clone();
+                                    update_initial_view_bounds_in_level(level, bounds);
+                                    tab.history.undo.push(Snapshot {
+                                        level: before,
+                                        selected: tab.selected.clone(),
+                                    });
+                                    if tab.history.undo.len() > UNDO_MAX {
+                                        tab.history.undo.remove(0);
+                                    }
+                                    tab.history.redo.clear();
+                                    route_changed = true;
+                                }
+                            } else {
+                                ui.label(t.get("panel_select_hint"));
+                            }
+
+                            ui.add_space(8.0);
+                            ui.label(t.get("prop_camera_limits"));
+                            if let Some(mut bounds) = route_camera_limits {
+                                if edit_bounds_rect(ui, "route_camera_limits", &mut bounds) {
+                                    let before = level.clone();
+                                    update_camera_limits_in_level(level, bounds);
+                                    tab.history.undo.push(Snapshot {
+                                        level: before,
+                                        selected: tab.selected.clone(),
+                                    });
+                                    if tab.history.undo.len() > UNDO_MAX {
+                                        tab.history.undo.remove(0);
+                                    }
+                                    tab.history.redo.clear();
+                                    route_changed = true;
+                                }
+                            } else {
+                                ui.label(t.get("panel_select_hint"));
+                            }
+
+                            ui.add_space(8.0);
+                            ui.label(t.get("prop_build_view_bounds"));
+                            if let Some(mut bounds) = route_build_bounds {
+                                if edit_bounds_rect(ui, "route_build_bounds", &mut bounds) {
+                                    let before = level.clone();
+                                    update_construction_view_bounds_in_level(level, bounds);
+                                    tab.history.undo.push(Snapshot {
+                                        level: before,
+                                        selected: tab.selected.clone(),
+                                    });
+                                    if tab.history.undo.len() > UNDO_MAX {
+                                        tab.history.undo.remove(0);
+                                    }
+                                    tab.history.redo.clear();
+                                    route_changed = true;
+                                }
+                            } else {
+                                ui.label(t.get("panel_select_hint"));
+                            }
+                        });
+                }
+
+                if route_changed && let Some(level) = tab.level.as_mut() {
+                    tab.renderer.reload_level_preserving_preview_state(level);
+                }
                 let prefab_options = current_level_prefab_options(
                     tab.level.as_ref(),
                     tab.file_name.as_deref(),
@@ -396,6 +471,41 @@ fn edit_vec3(ui: &mut egui::Ui, id_prefix: &str, v: &mut Vec3) -> bool {
             changed |= ui.add(egui::DragValue::new(&mut v.y).speed(0.05)).changed();
             ui.label("Z");
             changed |= ui.add(egui::DragValue::new(&mut v.z).speed(0.05)).changed();
+        });
+    });
+    changed
+}
+
+fn edit_bounds_rect(ui: &mut egui::Ui, id_prefix: &str, bounds: &mut [f32; 4]) -> bool {
+    let mut changed = false;
+    ui.push_id(id_prefix, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("TopLeft X");
+            changed |= ui
+                .add(egui::DragValue::new(&mut bounds[0]).speed(0.05))
+                .changed();
+            ui.label("Y");
+            changed |= ui
+                .add(egui::DragValue::new(&mut bounds[1]).speed(0.05))
+                .changed();
+        });
+        ui.horizontal(|ui| {
+            ui.label("Size X");
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut bounds[2])
+                        .speed(0.05)
+                        .range(0.1..=f32::INFINITY),
+                )
+                .changed();
+            ui.label("Y");
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut bounds[3])
+                        .speed(0.05)
+                        .range(0.1..=f32::INFINITY),
+                )
+                .changed();
         });
     });
     changed

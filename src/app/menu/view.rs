@@ -68,6 +68,16 @@ impl EditorApp {
                     }
                 }
                 {
+                    let mut v = self.tabs[self.active_tab].renderer.show_preview_route;
+                    if ui.checkbox(&mut v, t.get("menu_preview_route")).clicked() {
+                        ui.close();
+                        self.tabs[self.active_tab].renderer.show_preview_route = v;
+                        if !v {
+                            self.tabs[self.active_tab].renderer.show_level_bounds = false;
+                        }
+                    }
+                }
+                if self.tabs[self.active_tab].renderer.show_preview_route {
                     let mut v = self.tabs[self.active_tab].renderer.show_level_bounds;
                     if ui.checkbox(&mut v, t.get("menu_level_bounds")).clicked() {
                         ui.close();

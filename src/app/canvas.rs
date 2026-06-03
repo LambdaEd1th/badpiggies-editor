@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use eframe::egui;
 
 use crate::domain::types::*;
-use crate::renderer::CursorMode;
+use crate::renderer::{BoundsEditTarget, CursorMode};
 
 use super::EditorApp;
 use super::dialogs;
@@ -242,7 +242,40 @@ impl EditorApp {
                             tab.history.undo.remove(0);
                         }
                         tab.history.redo.clear();
-                        dialogs::update_camera_limits_in_level(level, result.new_limits);
+                        match result.target {
+                            BoundsEditTarget::InitialView => {
+                                dialogs::update_initial_view_bounds_in_level(
+                                    level,
+                                    result.new_bounds,
+                                );
+                            }
+                            BoundsEditTarget::CameraLimits => {
+                                dialogs::update_camera_limits_in_level(level, result.new_bounds);
+                            }
+                            BoundsEditTarget::ConstructionView => {
+                                dialogs::update_construction_view_bounds_in_level(
+                                    level,
+                                    result.new_bounds,
+                                );
+                            }
+                        }
+                    }
+                    if let Some(result) = tab.renderer.route_node_drag_result.take()
+                        && let Some(ref mut level) = tab.level
+                    {
+                        tab.history.undo.push(Snapshot {
+                            level: level.clone(),
+                            selected: tab.selected.clone(),
+                        });
+                        if tab.history.undo.len() > UNDO_MAX {
+                            tab.history.undo.remove(0);
+                        }
+                        tab.history.redo.clear();
+                        dialogs::update_camera_preview_control_point_in_level(
+                            level,
+                            result.index,
+                            result.new_position,
+                        );
                     }
                     // Pick up terrain draw result — append to selected terrain or create new terrain object
                     if let Some(result) = tab.renderer.draw_terrain_result.take()

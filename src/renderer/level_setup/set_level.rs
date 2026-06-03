@@ -23,7 +23,8 @@ use super::super::sprites;
 use super::super::terrain;
 use super::{
     compute_world_position, find_bg_override_text, find_bg_root_position, load_raw_rgba,
-    parse_authored_camera, parse_camera_limits,
+    parse_authored_camera, parse_camera_limits, parse_construction_view_bounds,
+    parse_custom_preview_route, parse_initial_view_bounds,
 };
 
 impl LevelRenderer {
@@ -475,6 +476,9 @@ impl LevelRenderer {
 
         // Parse camera limits from LevelManager
         self.camera_limits = parse_camera_limits(level);
+        self.initial_view_bounds = parse_initial_view_bounds(level);
+        self.construction_view_bounds = parse_construction_view_bounds(level);
+        self.custom_preview_route = parse_custom_preview_route(level);
 
         if let Some((center, zoom)) = parse_authored_camera(level) {
             self.camera.center = center;

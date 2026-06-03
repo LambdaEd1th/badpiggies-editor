@@ -172,9 +172,40 @@ pub enum BoundsHandle {
     BottomRight,
 }
 
+/// Which logical bounds rectangle is being edited.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoundsEditTarget {
+    InitialView,
+    CameraLimits,
+    ConstructionView,
+}
+
+/// Hovered bounds handle plus its owning bounds target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BoundsHandleHit {
+    pub target: BoundsEditTarget,
+    pub handle: BoundsHandle,
+}
+
 /// Result of a completed level-bounds drag (consumed by app layer).
 pub struct BoundsDragResult {
-    pub new_limits: [f32; 4],
+    pub target: BoundsEditTarget,
+    pub new_bounds: [f32; 4],
+}
+
+/// Which preview-route node is being edited.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RouteNodeTarget {
+    InitialView,
+    CameraLimits,
+    ConstructionView,
+    CustomPreview(usize),
+}
+
+/// Result of a completed custom preview-route node drag.
+pub struct RouteNodeDragResult {
+    pub index: usize,
+    pub new_position: Vec2,
 }
 
 pub enum CanvasContextAction {

@@ -131,9 +131,13 @@ impl LevelRenderer {
         // Tool mode overlays (box-select rect, terrain draw preview)
         self.draw_tool_overlay(&painter, canvas_center, cursor_mode);
 
-        // Set cursor icon for bounds handles
-        if let Some(handle) = self.bounds_hovered_handle {
-            let icon = match handle {
+        // Set cursor icon for overlay editing targets.
+        if self.route_node_dragging.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        } else if self.route_node_hovered.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+        } else if let Some(handle) = self.bounds_hovered_handle {
+            let icon = match handle.handle {
                 BoundsHandle::Move => egui::CursorIcon::Grab,
                 BoundsHandle::Left | BoundsHandle::Right => egui::CursorIcon::ResizeHorizontal,
                 BoundsHandle::Top | BoundsHandle::Bottom => egui::CursorIcon::ResizeVertical,

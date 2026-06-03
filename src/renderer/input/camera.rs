@@ -4,7 +4,10 @@ use eframe::egui;
 
 use crate::domain::types::Vec2;
 
-use super::super::{BoundsDragResult, BoundsDragState, BoundsHandle, LevelRenderer};
+use super::super::{
+    BoundsDragResult, BoundsDragState, BoundsEditTarget, BoundsHandle, BoundsHandleHit,
+    LevelRenderer, RouteNodeDragResult, RouteNodeDragState, RouteNodeTarget,
+};
 
 impl LevelRenderer {
     pub(super) fn handle_pan_mode(
@@ -80,36 +83,16 @@ impl LevelRenderer {
         response: &egui::Response,
         canvas_center: egui::Vec2,
     ) -> bool {
-        // Check if bounds are visible and exist
         if !self.show_level_bounds {
             self.bounds_hovered_handle = None;
+            self.route_node_hovered = None;
             return false;
         }
-        let limits = match self.camera_limits {
-            Some(v) => v,
-            None => {
-                self.bounds_hovered_handle = None;
-                return false;
-            }
-        };
 
         let edge_threshold = 8.0; // screen pixels
+        let node_threshold = 9.0; // screen pixels
 
-        // Compute screen-space rectangle for the bounds
-        let [tl_x, tl_y, w, h] = limits;
-        let p_tl = self
-            .camera
-            .world_to_screen(Vec2 { x: tl_x, y: tl_y }, canvas_center);
-        let p_br = self.camera.world_to_screen(
-            Vec2 {
-                x: tl_x + w,
-                y: tl_y - h,
-            },
-            canvas_center,
-        );
-
-        // Continue active drag
-        if let Some(ref drag) = self.bounds_dragging {
+        if let Some(drag) = self.bounds_dragging {
             if response.dragged_by(egui::PointerButton::Primary) {
                 if let Some(pointer) = response.interact_pointer_pos() {
                     let current = self.camera.screen_to_world(pointer, canvas_center);
@@ -146,34 +129,117 @@ impl LevelRenderer {
                         }
                         _ => new_limits,
                     };
-                    self.camera_limits = Some(new_limits);
+                    self.set_bounds_for_target(drag.target, new_limits);
                 }
                 return true;
             }
-            // Drag ended
             if response.drag_stopped_by(egui::PointerButton::Primary) {
-                let new_limits = self.camera_limits.unwrap_or(drag.original_limits);
+                let new_bounds = self
+                    .bounds_for_target(drag.target)
+                    .unwrap_or(drag.original_limits);
                 self.bounds_dragging = None;
-                self.bounds_drag_result = Some(BoundsDragResult { new_limits });
+                self.bounds_drag_result = Some(BoundsDragResult {
+                    target: drag.target,
+                    new_bounds,
+                });
                 return false;
             }
         }
 
-        // Hover detection + start drag
-        let handle = if let Some(pointer) = response.hover_pos() {
-            self.detect_bounds_handle(pointer, p_tl, p_br, edge_threshold)
-        } else {
-            None
-        };
+        if let Some(drag) = self.route_node_dragging {
+            if response.dragged_by(egui::PointerButton::Primary) {
+                if let Some(pointer) = response.interact_pointer_pos() {
+                    let current = self.camera.screen_to_world(pointer, canvas_center);
+                    let dx = current.x - drag.start_mouse.x;
+                    let dy = current.y - drag.start_mouse.y;
+                    match drag.target {
+                        RouteNodeTarget::InitialView
+                        | RouteNodeTarget::CameraLimits
+                        | RouteNodeTarget::ConstructionView => {
+                            if let Some(target) = Self::route_node_bounds_target(drag.target)
+                                && let Some([tl_x, tl_y, w, h]) = drag.original_bounds
+                            {
+                                self.set_bounds_for_target(target, [tl_x + dx, tl_y + dy, w, h]);
+                            }
+                        }
+                        RouteNodeTarget::CustomPreview(index) => {
+                            self.set_custom_route_point(
+                                index,
+                                Vec2 {
+                                    x: drag.original_pos.x + dx,
+                                    y: drag.original_pos.y + dy,
+                                },
+                            );
+                        }
+                    }
+                }
+                return true;
+            }
+            if response.drag_stopped_by(egui::PointerButton::Primary) {
+                match drag.target {
+                    RouteNodeTarget::InitialView
+                    | RouteNodeTarget::CameraLimits
+                    | RouteNodeTarget::ConstructionView => {
+                        if let Some(target) = Self::route_node_bounds_target(drag.target) {
+                            let new_bounds = self
+                                .bounds_for_target(target)
+                                .or(drag.original_bounds)
+                                .unwrap_or([0.0, 0.0, 1.0, 1.0]);
+                            self.bounds_drag_result = Some(BoundsDragResult { target, new_bounds });
+                        }
+                    }
+                    RouteNodeTarget::CustomPreview(index) => {
+                        let new_position = self
+                            .route_node_position(drag.target)
+                            .unwrap_or(drag.original_pos);
+                        self.route_node_drag_result = Some(RouteNodeDragResult {
+                            index,
+                            new_position,
+                        });
+                    }
+                }
+                self.route_node_dragging = None;
+                return false;
+            }
+        }
+
+        let route_target = response
+            .hover_pos()
+            .and_then(|pointer| self.detect_route_node(pointer, canvas_center, node_threshold));
+        self.route_node_hovered = route_target;
+        self.bounds_hovered_handle = None;
+
+        if let Some(target) = route_target {
+            if response.drag_started_by(egui::PointerButton::Primary)
+                && let Some(pointer) = response.interact_pointer_pos()
+            {
+                let world = self.camera.screen_to_world(pointer, canvas_center);
+                self.route_node_dragging = Some(RouteNodeDragState {
+                    target,
+                    start_mouse: world,
+                    original_pos: self.route_node_position(target).unwrap_or(world),
+                    original_bounds: Self::route_node_bounds_target(target)
+                        .and_then(|bounds_target| self.bounds_for_target(bounds_target)),
+                });
+                return true;
+            }
+            return response.dragged_by(egui::PointerButton::Primary);
+        }
+
+        let handle = response.hover_pos().and_then(|pointer| {
+            self.detect_visible_bounds_handle(pointer, canvas_center, edge_threshold)
+        });
         self.bounds_hovered_handle = handle;
 
-        if let Some(handle) = handle
+        if let Some(hit) = handle
             && response.drag_started_by(egui::PointerButton::Primary)
             && let Some(pointer) = response.interact_pointer_pos()
+            && let Some(limits) = self.bounds_for_target(hit.target)
         {
             let world = self.camera.screen_to_world(pointer, canvas_center);
             self.bounds_dragging = Some(BoundsDragState {
-                handle,
+                target: hit.target,
+                handle: hit.handle,
                 start_mouse: world,
                 original_limits: limits,
             });
@@ -181,6 +247,136 @@ impl LevelRenderer {
         }
 
         handle.is_some() && response.dragged_by(egui::PointerButton::Primary)
+    }
+
+    fn bounds_for_target(&self, target: BoundsEditTarget) -> Option<[f32; 4]> {
+        match target {
+            BoundsEditTarget::InitialView => self.initial_view_bounds,
+            BoundsEditTarget::CameraLimits => self.camera_limits,
+            BoundsEditTarget::ConstructionView => self.construction_view_bounds,
+        }
+    }
+
+    fn set_bounds_for_target(&mut self, target: BoundsEditTarget, bounds: [f32; 4]) {
+        match target {
+            BoundsEditTarget::InitialView => self.initial_view_bounds = Some(bounds),
+            BoundsEditTarget::CameraLimits => self.camera_limits = Some(bounds),
+            BoundsEditTarget::ConstructionView => self.construction_view_bounds = Some(bounds),
+        }
+    }
+
+    fn route_node_bounds_target(target: RouteNodeTarget) -> Option<BoundsEditTarget> {
+        match target {
+            RouteNodeTarget::InitialView => Some(BoundsEditTarget::InitialView),
+            RouteNodeTarget::CameraLimits => Some(BoundsEditTarget::CameraLimits),
+            RouteNodeTarget::ConstructionView => Some(BoundsEditTarget::ConstructionView),
+            RouteNodeTarget::CustomPreview(_) => None,
+        }
+    }
+
+    fn route_node_position(&self, target: RouteNodeTarget) -> Option<Vec2> {
+        match target {
+            RouteNodeTarget::InitialView
+            | RouteNodeTarget::CameraLimits
+            | RouteNodeTarget::ConstructionView => Self::route_node_bounds_target(target)
+                .and_then(|bounds_target| self.bounds_for_target(bounds_target))
+                .map(Self::bounds_center),
+            RouteNodeTarget::CustomPreview(index) => self
+                .custom_preview_route
+                .as_ref()
+                .and_then(|points| points.get(index).copied()),
+        }
+    }
+
+    fn set_custom_route_point(&mut self, index: usize, point: Vec2) {
+        if let Some(points) = self.custom_preview_route.as_mut()
+            && let Some(slot) = points.get_mut(index)
+        {
+            *slot = point;
+        }
+    }
+
+    fn bounds_center(bounds: [f32; 4]) -> Vec2 {
+        Vec2 {
+            x: bounds[0] + (bounds[2] * 0.5),
+            y: bounds[1] - (bounds[3] * 0.5),
+        }
+    }
+
+    fn detect_route_node(
+        &self,
+        pointer: egui::Pos2,
+        canvas_center: egui::Vec2,
+        threshold: f32,
+    ) -> Option<RouteNodeTarget> {
+        let threshold_sq = threshold * threshold;
+        let mut best = None;
+        let mut best_dist_sq = f32::INFINITY;
+
+        if let Some(points) = self.custom_preview_route.as_ref() {
+            for (index, &point) in points.iter().enumerate() {
+                let screen = self.camera.world_to_screen(point, canvas_center);
+                let dx = pointer.x - screen.x;
+                let dy = pointer.y - screen.y;
+                let dist_sq = dx * dx + dy * dy;
+                if dist_sq <= threshold_sq && dist_sq < best_dist_sq {
+                    best = Some(RouteNodeTarget::CustomPreview(index));
+                    best_dist_sq = dist_sq;
+                }
+            }
+            return best;
+        }
+
+        for target in [
+            RouteNodeTarget::InitialView,
+            RouteNodeTarget::CameraLimits,
+            RouteNodeTarget::ConstructionView,
+        ] {
+            let Some(point) = self.route_node_position(target) else {
+                continue;
+            };
+            let screen = self.camera.world_to_screen(point, canvas_center);
+            let dx = pointer.x - screen.x;
+            let dy = pointer.y - screen.y;
+            let dist_sq = dx * dx + dy * dy;
+            if dist_sq <= threshold_sq && dist_sq < best_dist_sq {
+                best = Some(target);
+                best_dist_sq = dist_sq;
+            }
+        }
+
+        best
+    }
+
+    fn detect_visible_bounds_handle(
+        &self,
+        pointer: egui::Pos2,
+        canvas_center: egui::Vec2,
+        threshold: f32,
+    ) -> Option<BoundsHandleHit> {
+        for target in [
+            BoundsEditTarget::InitialView,
+            BoundsEditTarget::CameraLimits,
+            BoundsEditTarget::ConstructionView,
+        ] {
+            let Some([tl_x, tl_y, w, h]) = self.bounds_for_target(target) else {
+                continue;
+            };
+            let p_tl = self
+                .camera
+                .world_to_screen(Vec2 { x: tl_x, y: tl_y }, canvas_center);
+            let p_br = self.camera.world_to_screen(
+                Vec2 {
+                    x: tl_x + w,
+                    y: tl_y - h,
+                },
+                canvas_center,
+            );
+            if let Some(handle) = self.detect_bounds_handle(pointer, p_tl, p_br, threshold) {
+                return Some(BoundsHandleHit { target, handle });
+            }
+        }
+        None
     }
 
     /// Detect which bounds handle (if any) the pointer is hovering.

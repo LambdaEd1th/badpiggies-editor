@@ -74,6 +74,179 @@ fn sample_circular_arc_preview(
     Some(points)
 }
 
+fn bounds_center(bounds: [f32; 4]) -> Vec2 {
+    let [tl_x, tl_y, w, h] = bounds;
+    Vec2 {
+        x: tl_x + w * 0.5,
+        y: tl_y - h * 0.5,
+    }
+}
+
+fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+    let t2 = t * t;
+    let t3 = t2 * t;
+    0.5 * ((2.0 * p1)
+        + (-p0 + p2) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+}
+
+fn sample_bple_preview_route(points: &[Vec2]) -> Vec<Vec2> {
+    if points.len() < 2 {
+        return points.to_vec();
+    }
+    if points.len() == 2 {
+        return points.to_vec();
+    }
+
+    let mut cp = Vec::with_capacity(points.len() + 2);
+    cp.push(points[0]);
+    cp.extend_from_slice(points);
+    cp.push(*points.last().unwrap_or(&points[0]));
+
+    let mut out = Vec::new();
+    for i in 1..(cp.len() - 2) {
+        let p0 = cp[i - 1];
+        let p1 = cp[i];
+        let p2 = cp[i + 1];
+        let p3 = cp[i + 2];
+        let samples = 20;
+        for s in 0..samples {
+            let t = s as f32 / samples as f32;
+            out.push(Vec2 {
+                x: catmull_rom(p0.x, p1.x, p2.x, p3.x, t),
+                y: catmull_rom(p0.y, p1.y, p2.y, p3.y, t),
+            });
+        }
+    }
+    if let Some(last) = points.last().copied() {
+        out.push(last);
+    }
+    out
+}
+
+/// Catmull-Rom closed loop: the path wraps back to the first point.
+/// The serialised control points in sandbox levels already start and end near
+/// the same position, but we still close the wrap in the ghost padded array so
+/// the interpolation is smooth through the seam.
+fn sample_bple_sandbox_route(points: &[Vec2]) -> Vec<Vec2> {
+    let n = points.len();
+    if n < 2 {
+        return points.to_vec();
+    }
+    // Pad with wrap-around neighbours so tangents at the endpoints are smooth.
+    // cp[0] = points[n-1], cp[1..=n] = original, cp[n+1] = points[0]
+    let mut cp = Vec::with_capacity(n + 2);
+    cp.push(points[n - 1]);
+    cp.extend_from_slice(points);
+    cp.push(points[0]);
+
+    let mut out = Vec::new();
+    // Only iterate up to n-1 so the last point does NOT connect back to the first.
+    for i in 1..n {
+        let p0 = cp[i - 1];
+        let p1 = cp[i];
+        let p2 = cp[(i + 1) % cp.len()];
+        let p3 = cp[(i + 2) % cp.len()];
+        let samples = 20;
+        for s in 0..samples {
+            let t = s as f32 / samples as f32;
+            out.push(Vec2 {
+                x: catmull_rom(p0.x, p1.x, p2.x, p3.x, t),
+                y: catmull_rom(p0.y, p1.y, p2.y, p3.y, t),
+            });
+        }
+    }
+    // Append the final control point exactly so the line ends there.
+    if let Some(&last) = points.last() {
+        out.push(last);
+    }
+    out
+}
+
+fn draw_dashed_polyline(
+    painter: &egui::Painter,
+    pts: &[egui::Pos2],
+    stroke: egui::Stroke,
+    dash_len: f32,
+    gap_len: f32,
+) {
+    if pts.len() < 2 {
+        return;
+    }
+    for pair in pts.windows(2) {
+        let a = pair[0];
+        let b = pair[1];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len <= 1e-3 {
+            continue;
+        }
+        let ux = dx / len;
+        let uy = dy / len;
+        let mut dist = 0.0;
+        while dist < len {
+            let d0 = dist;
+            let d1 = (dist + dash_len).min(len);
+            let p0 = egui::pos2(a.x + ux * d0, a.y + uy * d0);
+            let p1 = egui::pos2(a.x + ux * d1, a.y + uy * d1);
+            painter.line_segment([p0, p1], stroke);
+            dist += dash_len + gap_len;
+        }
+    }
+}
+
+fn draw_arrow_head(
+    painter: &egui::Painter,
+    tip: egui::Pos2,
+    from: egui::Pos2,
+    stroke: egui::Stroke,
+) {
+    let dx = tip.x - from.x;
+    let dy = tip.y - from.y;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len <= 1e-3 {
+        return;
+    }
+
+    let ux = dx / len;
+    let uy = dy / len;
+    let arrow_len = 12.0;
+    let arrow_spread = 0.45;
+    let back_x = tip.x - ux * arrow_len;
+    let back_y = tip.y - uy * arrow_len;
+    let left = egui::pos2(
+        back_x - uy * arrow_len * arrow_spread,
+        back_y + ux * arrow_len * arrow_spread,
+    );
+    let right = egui::pos2(
+        back_x + uy * arrow_len * arrow_spread,
+        back_y - ux * arrow_len * arrow_spread,
+    );
+    painter.line_segment([left, tip], stroke);
+    painter.line_segment([right, tip], stroke);
+}
+
+fn draw_route_node(
+    painter: &egui::Painter,
+    pos: egui::Pos2,
+    radius: f32,
+    fill: egui::Color32,
+    stroke: egui::Stroke,
+    label: &str,
+) {
+    painter.circle_filled(pos, radius, fill);
+    painter.circle_stroke(pos, radius, stroke);
+    painter.text(
+        pos + egui::vec2(radius + 4.0, -radius - 2.0),
+        egui::Align2::LEFT_TOP,
+        label,
+        egui::FontId::proportional(11.0),
+        fill,
+    );
+}
+
 impl LevelRenderer {
     /// Draw terrain triangulation wireframe overlay.
     pub(super) fn draw_terrain_wireframe(
@@ -276,83 +449,313 @@ impl LevelRenderer {
             }
         }
 
-        // Level bounds border (drawn on top of everything)
-        if self.show_level_bounds
-            && let Some([tl_x, tl_y, w, h]) = self.camera_limits
-        {
-            let min_x = tl_x;
-            let max_x = tl_x + w;
-            let min_y = tl_y - h;
-            let max_y = tl_y;
-
+        // Editable bounds overlays (drawn on top of everything)
+        let draw_bounds = |target: crate::renderer::BoundsEditTarget,
+                           vals: [f32; 4],
+                           label_key: &str,
+                           base_color: egui::Color32| {
+            let [tl_x, tl_y, w, h] = vals;
             let p_tl = self
                 .camera
-                .world_to_screen(Vec2 { x: min_x, y: max_y }, canvas_center);
-            let p_br = self
-                .camera
-                .world_to_screen(Vec2 { x: max_x, y: min_y }, canvas_center);
+                .world_to_screen(Vec2 { x: tl_x, y: tl_y }, canvas_center);
+            let p_br = self.camera.world_to_screen(
+                Vec2 {
+                    x: tl_x + w,
+                    y: tl_y - h,
+                },
+                canvas_center,
+            );
             let bounds_rect = egui::Rect::from_two_pos(p_tl, p_br);
             let clipped = bounds_rect.intersect(rect);
-            if clipped.width() > 0.0 && clipped.height() > 0.0 {
-                let is_dragging = self.bounds_dragging.is_some();
-                let is_hovered = self.bounds_hovered_handle.is_some();
-                let color = if is_dragging {
-                    egui::Color32::from_rgba_unmultiplied(255, 255, 100, 220)
-                } else if is_hovered {
-                    egui::Color32::from_rgba_unmultiplied(255, 220, 50, 220)
-                } else {
-                    egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180)
-                };
-                let stroke_w = if is_dragging || is_hovered { 2.5 } else { 2.0 };
-                let stroke = egui::Stroke::new(stroke_w, color);
-                painter.rect_stroke(bounds_rect, 0.0, stroke, egui::StrokeKind::Inside);
+            if clipped.width() <= 0.0 || clipped.height() <= 0.0 {
+                return;
+            }
 
-                // Draw handle squares when hovered or dragging
-                if is_hovered || is_dragging {
-                    let hs = 4.0; // half-size of handle square
-                    let handle_fill = egui::Color32::from_rgba_unmultiplied(255, 200, 0, 200);
-                    let handle_stroke = egui::Stroke::new(
-                        1.0,
-                        egui::Color32::from_rgba_unmultiplied(180, 140, 0, 255),
+            let edit_enabled = self.show_level_bounds;
+            let is_dragging = self
+                .bounds_dragging
+                .as_ref()
+                .is_some_and(|drag| drag.target == target);
+            let is_hovered = self
+                .bounds_hovered_handle
+                .is_some_and(|hit| hit.target == target);
+            let color = if is_dragging {
+                egui::Color32::from_rgba_unmultiplied(255, 255, 100, 220)
+            } else if is_hovered {
+                egui::Color32::from_rgba_unmultiplied(255, 220, 50, 220)
+            } else {
+                base_color
+            };
+            let stroke_w = if is_dragging || is_hovered { 2.5 } else { 2.0 };
+            painter.rect_stroke(
+                bounds_rect,
+                0.0,
+                egui::Stroke::new(stroke_w, color),
+                egui::StrokeKind::Inside,
+            );
+
+            if edit_enabled && (is_hovered || is_dragging) {
+                let hs = 4.0;
+                let handle_fill =
+                    egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 200);
+                let handle_stroke =
+                    egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(40, 40, 40, 220));
+                let cx = (bounds_rect.left() + bounds_rect.right()) / 2.0;
+                let cy = (bounds_rect.top() + bounds_rect.bottom()) / 2.0;
+                for pos in [
+                    bounds_rect.left_top(),
+                    bounds_rect.right_top(),
+                    bounds_rect.left_bottom(),
+                    bounds_rect.right_bottom(),
+                ] {
+                    let r = egui::Rect::from_center_size(pos, egui::vec2(hs * 2.0, hs * 2.0));
+                    painter.rect(r, 0.0, handle_fill, handle_stroke, egui::StrokeKind::Inside);
+                }
+                for pos in [
+                    egui::pos2(cx, bounds_rect.top()),
+                    egui::pos2(cx, bounds_rect.bottom()),
+                    egui::pos2(bounds_rect.left(), cy),
+                    egui::pos2(bounds_rect.right(), cy),
+                ] {
+                    let r = egui::Rect::from_center_size(pos, egui::vec2(hs * 2.0, hs * 2.0));
+                    painter.rect(r, 0.0, handle_fill, handle_stroke, egui::StrokeKind::Inside);
+                }
+            }
+
+            painter.text(
+                egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() - 16.0),
+                egui::Align2::LEFT_TOP,
+                tr.get(label_key),
+                egui::FontId::proportional(11.0),
+                color,
+            );
+            painter.text(
+                egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() + 2.0),
+                egui::Align2::LEFT_TOP,
+                format!("({:.1}, {:.1}) {}x{}", tl_x, tl_y, w, h),
+                egui::FontId::proportional(11.0),
+                color,
+            );
+        };
+
+        let route_node_fill = |target: crate::renderer::RouteNodeTarget,
+                               normal: egui::Color32,
+                               hovered: egui::Color32| {
+            let is_dragging = self
+                .route_node_dragging
+                .as_ref()
+                .is_some_and(|drag| drag.target == target);
+            let is_hovered = self.show_level_bounds && self.route_node_hovered == Some(target);
+            if is_dragging {
+                egui::Color32::from_rgba_unmultiplied(255, 255, 120, 235)
+            } else if is_hovered {
+                hovered
+            } else {
+                normal
+            }
+        };
+
+        let route_node_radius = |target: crate::renderer::RouteNodeTarget, base: f32| {
+            let active = self
+                .route_node_dragging
+                .as_ref()
+                .is_some_and(|drag| drag.target == target)
+                || (self.show_level_bounds && self.route_node_hovered == Some(target));
+            if active { base + 1.5 } else { base }
+        };
+
+        let show_route_guides = self.show_preview_route || self.show_level_bounds;
+        if show_route_guides {
+            if let Some(ref route_points) = self.custom_preview_route {
+                if let Some(vals) = self.camera_limits {
+                    draw_bounds(
+                        crate::renderer::BoundsEditTarget::CameraLimits,
+                        vals,
+                        "prop_camera_limits",
+                        egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180),
                     );
-                    let cx = (bounds_rect.left() + bounds_rect.right()) / 2.0;
-                    let cy = (bounds_rect.top() + bounds_rect.bottom()) / 2.0;
-                    // Corners
-                    for pos in [
-                        bounds_rect.left_top(),
-                        bounds_rect.right_top(),
-                        bounds_rect.left_bottom(),
-                        bounds_rect.right_bottom(),
-                    ] {
-                        let r = egui::Rect::from_center_size(pos, egui::vec2(hs * 2.0, hs * 2.0));
-                        painter.rect(r, 0.0, handle_fill, handle_stroke, egui::StrokeKind::Inside);
+                }
+                if let Some(vals) = self.construction_view_bounds {
+                    draw_bounds(
+                        crate::renderer::BoundsEditTarget::ConstructionView,
+                        vals,
+                        "prop_build_view_bounds",
+                        egui::Color32::from_rgba_unmultiplied(90, 230, 120, 180),
+                    );
+                }
+
+                if self.show_preview_route && route_points.len() >= 2 {
+                    let sampled = sample_bple_sandbox_route(route_points);
+                    let mut screen_pts = Vec::with_capacity(sampled.len());
+                    for p in sampled {
+                        screen_pts.push(self.camera.world_to_screen(p, canvas_center));
                     }
-                    // Edge midpoints
-                    for pos in [
-                        egui::pos2(cx, bounds_rect.top()),
-                        egui::pos2(cx, bounds_rect.bottom()),
-                        egui::pos2(bounds_rect.left(), cy),
-                        egui::pos2(bounds_rect.right(), cy),
-                    ] {
-                        let r = egui::Rect::from_center_size(pos, egui::vec2(hs * 2.0, hs * 2.0));
-                        painter.rect(r, 0.0, handle_fill, handle_stroke, egui::StrokeKind::Inside);
+                    draw_dashed_polyline(
+                        painter,
+                        &screen_pts,
+                        egui::Stroke::new(
+                            2.0,
+                            egui::Color32::from_rgba_unmultiplied(140, 230, 255, 210),
+                        ),
+                        8.0,
+                        6.0,
+                    );
+                    if screen_pts.len() >= 2 {
+                        draw_arrow_head(
+                            painter,
+                            screen_pts[1],
+                            screen_pts[0],
+                            egui::Stroke::new(
+                                2.0,
+                                egui::Color32::from_rgba_unmultiplied(140, 230, 255, 220),
+                            ),
+                        );
                     }
                 }
 
-                painter.text(
-                    egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() - 16.0),
-                    egui::Align2::LEFT_TOP,
-                    tr.get("menu_level_bounds"),
-                    egui::FontId::proportional(11.0),
-                    color,
-                );
-                painter.text(
-                    egui::pos2(bounds_rect.left() + 4.0, bounds_rect.top() + 2.0),
-                    egui::Align2::LEFT_TOP,
-                    format!("({:.1}, {:.1}) {}x{}", tl_x, tl_y, w, h),
-                    egui::FontId::proportional(11.0),
-                    color,
-                );
+                for (i, &world_pt) in route_points.iter().enumerate() {
+                    let screen = self.camera.world_to_screen(world_pt, canvas_center);
+                    let target = crate::renderer::RouteNodeTarget::CustomPreview(i);
+                    draw_route_node(
+                        painter,
+                        screen,
+                        route_node_radius(target, 5.0),
+                        route_node_fill(
+                            target,
+                            egui::Color32::from_rgba_unmultiplied(140, 230, 255, 230),
+                            egui::Color32::from_rgba_unmultiplied(200, 245, 255, 240),
+                        ),
+                        egui::Stroke::new(
+                            1.5,
+                            egui::Color32::from_rgba_unmultiplied(20, 70, 90, 220),
+                        ),
+                        &(i + 1).to_string(),
+                    );
+                }
+            } else {
+                if let Some(vals) = self.initial_view_bounds {
+                    draw_bounds(
+                        crate::renderer::BoundsEditTarget::InitialView,
+                        vals,
+                        "prop_goal_area_view",
+                        egui::Color32::from_rgba_unmultiplied(90, 195, 255, 180),
+                    );
+                }
+                if let Some(vals) = self.camera_limits {
+                    draw_bounds(
+                        crate::renderer::BoundsEditTarget::CameraLimits,
+                        vals,
+                        "prop_camera_limits",
+                        egui::Color32::from_rgba_unmultiplied(255, 200, 0, 180),
+                    );
+                }
+                if let Some(vals) = self.construction_view_bounds {
+                    draw_bounds(
+                        crate::renderer::BoundsEditTarget::ConstructionView,
+                        vals,
+                        "prop_build_view_bounds",
+                        egui::Color32::from_rgba_unmultiplied(90, 230, 120, 180),
+                    );
+                }
+
+                if let (Some(initial_bounds), Some(level_bounds), Some(build_bounds)) = (
+                    self.initial_view_bounds,
+                    self.camera_limits,
+                    self.construction_view_bounds,
+                ) {
+                    let logical_route = [
+                        bounds_center(initial_bounds),
+                        bounds_center(level_bounds),
+                        bounds_center(build_bounds),
+                    ];
+
+                    if self.show_preview_route {
+                        let sampled = sample_bple_preview_route(&logical_route);
+                        let mut screen_pts = Vec::with_capacity(sampled.len());
+                        for p in sampled {
+                            screen_pts.push(self.camera.world_to_screen(p, canvas_center));
+                        }
+                        draw_dashed_polyline(
+                            painter,
+                            &screen_pts,
+                            egui::Stroke::new(
+                                2.0,
+                                egui::Color32::from_rgba_unmultiplied(140, 230, 255, 210),
+                            ),
+                            8.0,
+                            6.0,
+                        );
+
+                        if let Some(tip) = screen_pts.last().copied()
+                            && screen_pts.len() >= 2
+                        {
+                            let from = screen_pts[screen_pts.len() - 2];
+                            draw_arrow_head(
+                                painter,
+                                tip,
+                                from,
+                                egui::Stroke::new(
+                                    2.0,
+                                    egui::Color32::from_rgba_unmultiplied(140, 230, 255, 220),
+                                ),
+                            );
+                        }
+                    }
+
+                    let initial_screen =
+                        self.camera.world_to_screen(logical_route[0], canvas_center);
+                    let middle_screen =
+                        self.camera.world_to_screen(logical_route[1], canvas_center);
+                    let build_screen = self.camera.world_to_screen(logical_route[2], canvas_center);
+                    let initial_target = crate::renderer::RouteNodeTarget::InitialView;
+                    let middle_target = crate::renderer::RouteNodeTarget::CameraLimits;
+                    let build_target = crate::renderer::RouteNodeTarget::ConstructionView;
+                    draw_route_node(
+                        painter,
+                        initial_screen,
+                        route_node_radius(initial_target, 5.0),
+                        route_node_fill(
+                            initial_target,
+                            egui::Color32::from_rgba_unmultiplied(210, 245, 255, 230),
+                            egui::Color32::from_rgba_unmultiplied(240, 250, 255, 240),
+                        ),
+                        egui::Stroke::new(
+                            1.0,
+                            egui::Color32::from_rgba_unmultiplied(20, 70, 90, 220),
+                        ),
+                        &tr.get("prop_goal_area_view"),
+                    );
+                    draw_route_node(
+                        painter,
+                        middle_screen,
+                        route_node_radius(middle_target, 6.5),
+                        route_node_fill(
+                            middle_target,
+                            egui::Color32::from_rgba_unmultiplied(255, 220, 60, 235),
+                            egui::Color32::from_rgba_unmultiplied(255, 238, 120, 240),
+                        ),
+                        egui::Stroke::new(
+                            2.0,
+                            egui::Color32::from_rgba_unmultiplied(80, 55, 0, 235),
+                        ),
+                        "2",
+                    );
+                    draw_route_node(
+                        painter,
+                        build_screen,
+                        route_node_radius(build_target, 4.5),
+                        route_node_fill(
+                            build_target,
+                            egui::Color32::from_rgba_unmultiplied(120, 240, 150, 230),
+                            egui::Color32::from_rgba_unmultiplied(180, 248, 190, 238),
+                        ),
+                        egui::Stroke::new(
+                            1.0,
+                            egui::Color32::from_rgba_unmultiplied(20, 80, 35, 220),
+                        ),
+                        "3",
+                    );
+                }
             }
         }
 

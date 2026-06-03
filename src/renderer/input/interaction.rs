@@ -57,9 +57,11 @@ impl LevelRenderer {
         self.box_select_result = None;
         self.draw_terrain_result = None;
         self.bounds_drag_result = None;
+        self.route_node_drag_result = None;
         self.suppress_context_menu_this_frame = false;
         self.hovered_rotation_handle = None;
         self.hovered_scale_handle = None;
+        self.route_node_hovered = None;
 
         // Level bounds dragging takes priority (available in all modes when visible)
         if self.handle_bounds_drag(response, canvas_center) {

@@ -20,6 +20,7 @@ pub mod bezier_mesh;
 pub mod box_collider;
 pub mod bridge;
 pub mod camera;
+pub mod camera_preview;
 pub mod engine;
 pub mod fan;
 pub mod level_manager;
@@ -39,6 +40,7 @@ pub use bezier_mesh::BezierMesh;
 pub use box_collider::BoxCollider;
 pub use bridge::Bridge;
 pub use camera::Camera;
+pub use camera_preview::CameraPreview;
 pub use engine::Engine;
 pub use fan::Fan;
 pub use level_manager::LevelManager;
@@ -140,6 +142,7 @@ pub fn make_component_by_suffix(suffix: &str) -> Option<Box<dyn UnityComponent>>
         "UnmanagedSprite" => Box::new(UnmanagedSprite::default()),
         "ParticleSystem" => Box::new(ParticleSystem::default()),
         "Camera" => Box::new(Camera::default()),
+        "CameraPreview" => Box::new(CameraPreview::default()),
         "Rigidbody" => Box::new(Rigidbody::default()),
         _ => return None,
     })

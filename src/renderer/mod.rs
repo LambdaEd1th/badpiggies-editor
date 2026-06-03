@@ -101,10 +101,21 @@ struct NodeDragState {
 }
 
 /// State for an active level-bounds drag operation.
+#[derive(Clone, Copy)]
 struct BoundsDragState {
+    target: BoundsEditTarget,
     handle: BoundsHandle,
     start_mouse: Vec2,
     original_limits: [f32; 4],
+}
+
+/// State for an active preview-route node drag operation.
+#[derive(Clone, Copy)]
+struct RouteNodeDragState {
+    target: RouteNodeTarget,
+    start_mouse: Vec2,
+    original_pos: Vec2,
+    original_bounds: Option<[f32; 4]>,
 }
 
 /// Renderer state for drawing levels.
@@ -198,7 +209,13 @@ pub struct LevelRenderer {
     /// Completed bounds drag result (consumed by app layer).
     pub bounds_drag_result: Option<BoundsDragResult>,
     /// Which bounds handle is currently hovered (for cursor icon).
-    pub bounds_hovered_handle: Option<BoundsHandle>,
+    pub bounds_hovered_handle: Option<BoundsHandleHit>,
+    /// Active preview-route node drag state.
+    route_node_dragging: Option<RouteNodeDragState>,
+    /// Completed preview-route node drag result (sandbox CameraPreview only).
+    pub route_node_drag_result: Option<RouteNodeDragResult>,
+    /// Which preview-route node is currently hovered.
+    route_node_hovered: Option<RouteNodeTarget>,
     /// Residual camera offset for dragged sprite, kept until drag_result is consumed
     /// (prevents 1-frame snap-back when opaque batch hasn't been rebuilt yet).
     pending_drag_offset: Option<(ObjectIndex, f32, f32)>,
@@ -222,8 +239,17 @@ pub struct LevelRenderer {
     night_vision_enabled: bool,
     /// Parsed camera limits from LevelManager (topLeft + size).
     pub camera_limits: Option<[f32; 4]>,
-    /// Whether to show the level bounds border.
+    /// Parsed initial preview-view bounds (derived from preview offset + zoom-out).
+    pub initial_view_bounds: Option<[f32; 4]>,
+    /// Parsed build-view bounds (derived from LevelStart + construction offset).
+    pub construction_view_bounds: Option<[f32; 4]>,
+    /// Whether editing of route bounds and route nodes is enabled.
     pub show_level_bounds: bool,
+    /// Whether to show the preview route overlay.
+    pub show_preview_route: bool,
+    /// Pre-serialised camera route control points (sandbox levels only).
+    /// `None` for normal levels — they use the 3-point derived route instead.
+    pub custom_preview_route: Option<Vec<crate::domain::types::Vec2>>,
     /// Whether to show terrain fill triangulation wireframe.
     pub show_terrain_tris: bool,
     /// Pre-computed lit area polygons (world-space vertices for each LitArea).

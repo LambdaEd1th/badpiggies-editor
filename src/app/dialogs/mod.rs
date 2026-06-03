@@ -604,6 +604,161 @@ pub(super) fn update_camera_limits_in_level(level: &mut LevelData, vals: [f32; 4
     }
 }
 
+/// Update (or create) LevelManager preview-view fields from a bounds rectangle.
+/// Converts `[topLeft.x, topLeft.y, size.x, size.y]` into:
+/// - `m_previewOffset` = center point (x/y), preserving existing z when present
+/// - `m_previewZoomOut` = max(width, height) / 2
+#[allow(dead_code)]
+pub(super) fn update_initial_view_bounds_in_level(level: &mut LevelData, vals: [f32; 4]) {
+    let [tl_x, tl_y, w, h] = vals;
+    let zoom_out = (w.max(h) * 0.5).max(0.5);
+    let center_x = tl_x + (w * 0.5);
+    let center_y = tl_y - (h * 0.5);
+
+    let mut goal_pos = Vec3::default();
+    for obj in level.objects.iter() {
+        let name = obj.name();
+        if name.starts_with("GoalArea") || name == "Goal" {
+            goal_pos = obj.position();
+            break;
+        }
+    }
+
+    for obj in level.objects.iter_mut() {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "LevelManager"
+        {
+            let od = p.override_data.get_or_insert_with(|| PrefabOverrideData {
+                raw_text: "GameObject LevelManager\n\tComponent LevelManager\n".to_string(),
+                raw_bytes: b"GameObject LevelManager\n\tComponent LevelManager\n".to_vec(),
+            });
+
+            let mut nodes = parse_override_text(&od.raw_text);
+            let level_manager = ensure_level_manager_component(&mut nodes);
+
+            let z = level_manager
+                .child("Vector3", "m_previewOffset")
+                .and_then(|offset| offset.child("Float", "z"))
+                .and_then(|z_node| z_node.value.as_ref())
+                .and_then(|v| v.parse::<f32>().ok())
+                .unwrap_or(-10.0);
+
+            let preview_offset = ensure_child_node(level_manager, "Vector3", "m_previewOffset");
+            set_float_child(preview_offset, "x", center_x - goal_pos.x);
+            set_float_child(preview_offset, "y", center_y - goal_pos.y);
+            set_float_child(preview_offset, "z", z);
+
+            set_float_child(level_manager, "m_previewZoomOut", zoom_out);
+
+            let result = serialize_override_tree(&nodes);
+            od.raw_bytes = result.as_bytes().to_vec();
+            od.raw_text = result;
+            return;
+        }
+    }
+}
+
+/// Update (or create) the build-view bounds via LevelManager construction offset.
+/// Converts `[topLeft.x, topLeft.y, size.x, size.y]` into the LevelStart-relative
+/// `m_constructionOffset` vector, preserving any existing z when possible.
+pub(super) fn update_construction_view_bounds_in_level(level: &mut LevelData, vals: [f32; 4]) {
+    let [tl_x, tl_y, w, h] = vals;
+    let half = (w.max(h) * 0.5).max(0.5);
+    let center_x = tl_x + (w * 0.5);
+    let center_y = tl_y - (h * 0.5);
+
+    let mut level_start_pos = Vec3::default();
+    for obj in level.objects.iter() {
+        match obj {
+            LevelObject::Prefab(p) if p.name == "LevelStart" => {
+                level_start_pos = p.position;
+                break;
+            }
+            LevelObject::Parent(p) if p.name == "LevelStart" => {
+                level_start_pos = p.position;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    for obj in level.objects.iter_mut() {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "LevelManager"
+        {
+            let od = p.override_data.get_or_insert_with(|| PrefabOverrideData {
+                raw_text: "GameObject LevelManager\n\tComponent LevelManager\n".to_string(),
+                raw_bytes: b"GameObject LevelManager\n\tComponent LevelManager\n".to_vec(),
+            });
+
+            let mut nodes = parse_override_text(&od.raw_text);
+            let level_manager = ensure_level_manager_component(&mut nodes);
+
+            let z = level_manager
+                .child("Vector3", "m_constructionOffset")
+                .and_then(|offset| offset.child("Float", "z"))
+                .and_then(|z_node| z_node.value.as_ref())
+                .and_then(|v| v.parse::<f32>().ok())
+                .unwrap_or(-half);
+
+            let construction_offset =
+                ensure_child_node(level_manager, "Vector3", "m_constructionOffset");
+            set_float_child(construction_offset, "x", center_x - level_start_pos.x);
+            set_float_child(construction_offset, "y", center_y - level_start_pos.y);
+            set_float_child(construction_offset, "z", z);
+
+            let result = serialize_override_tree(&nodes);
+            od.raw_bytes = result.as_bytes().to_vec();
+            od.raw_text = result;
+            return;
+        }
+    }
+}
+
+/// Update one `CameraPreview.m_controlPoints[index].position` entry on the
+/// `CameraSystem -> GameCamera` override tree.
+pub(super) fn update_camera_preview_control_point_in_level(
+    level: &mut LevelData,
+    index: usize,
+    new_position: Vec2,
+) {
+    for obj in level.objects.iter_mut() {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "CameraSystem"
+        {
+            let od = p.override_data.get_or_insert_with(|| PrefabOverrideData {
+                raw_text: "GameObject CameraSystem\n".to_string(),
+                raw_bytes: b"GameObject CameraSystem\n".to_vec(),
+            });
+
+            let mut nodes = parse_override_text(&od.raw_text);
+            let camera_system = ensure_game_object_node(&mut nodes, "CameraSystem");
+            let owner = ensure_camera_preview_owner(camera_system);
+            let camera_preview = ensure_component_node(owner, "CameraPreview");
+            let control_points = ensure_child_node(camera_preview, "Array", "m_controlPoints");
+
+            let existing_size = control_points
+                .child("ArraySize", "size")
+                .and_then(|node| node.value.as_deref())
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(0);
+            let size = ensure_child_node(control_points, "ArraySize", "size");
+            size.value = Some(existing_size.max(index + 1).to_string());
+
+            let element = ensure_child_node(control_points, "Element", &index.to_string());
+            let data = ensure_child_node(element, "Generic", "data");
+            let position = ensure_child_node(data, "Vector2", "position");
+            set_float_child(position, "x", new_position.x);
+            set_float_child(position, "y", new_position.y);
+
+            let result = serialize_override_tree(&nodes);
+            od.raw_bytes = result.as_bytes().to_vec();
+            od.raw_text = result;
+            return;
+        }
+    }
+}
+
 fn ensure_level_manager_component(nodes: &mut Vec<OverrideNode>) -> &mut OverrideNode {
     if find_first_node_mut(nodes, &|node| {
         node.node_type == "Component"
@@ -648,6 +803,63 @@ fn ensure_level_manager_component(nodes: &mut Vec<OverrideNode>) -> &mut Overrid
     .expect("LevelManager component should exist")
 }
 
+fn ensure_game_object_node<'a>(
+    nodes: &'a mut Vec<OverrideNode>,
+    name: &str,
+) -> &'a mut OverrideNode {
+    if nodes
+        .iter()
+        .all(|node| node.node_type != "GameObject" || node.name != name)
+    {
+        nodes.push(OverrideNode {
+            node_type: "GameObject".to_string(),
+            name: name.to_string(),
+            value: None,
+            children: Vec::new(),
+        });
+    }
+
+    nodes
+        .iter_mut()
+        .find(|node| node.node_type == "GameObject" && node.name == name)
+        .expect("game object should exist")
+}
+
+fn ensure_camera_preview_owner(root: &mut OverrideNode) -> &mut OverrideNode {
+    if root.child("GameObject", "GameCamera").is_some() {
+        root.child_mut("GameObject", "GameCamera")
+            .expect("GameCamera child should exist")
+    } else {
+        root
+    }
+}
+
+fn ensure_component_node<'a>(parent: &'a mut OverrideNode, suffix: &str) -> &'a mut OverrideNode {
+    let existing_index = parent.children.iter().position(|node| {
+        node.node_type == "Component"
+            && (node.name == suffix
+                || node
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(|name| name == suffix))
+    });
+
+    let index = if let Some(index) = existing_index {
+        index
+    } else {
+        parent.children.push(OverrideNode {
+            node_type: "Component".to_string(),
+            name: suffix.to_string(),
+            value: None,
+            children: Vec::new(),
+        });
+        parent.children.len() - 1
+    };
+
+    &mut parent.children[index]
+}
+
 fn ensure_child_node<'a>(
     parent: &'a mut OverrideNode,
     node_type: &str,
@@ -676,14 +888,19 @@ fn set_float_child(parent: &mut OverrideNode, name: &str, value: f32) {
 mod tests {
     use super::{
         global_prefab_name_options, parse_loader_prefab_count, update_camera_limits_in_level,
+        update_camera_preview_control_point_in_level, update_construction_view_bounds_in_level,
+        update_initial_view_bounds_in_level,
     };
     use crate::data::assets;
     use crate::domain::prefab_override::{OverrideNode, find_first_node, parse_override_text};
     use crate::domain::types::{
-        DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
+        DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec2, Vec3,
     };
 
     const EXISTING_CAMERA_LIMITS: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tGeneric m_cameraLimits\n\t\t\tVector2 topLeft\n\t\t\t\tFloat x = 1\n\t\t\t\tFloat y = 2\n\t\t\tVector2 size\n\t\t\t\tFloat x = 3\n\t\t\t\tFloat y = 4\n";
+    const EXISTING_PREVIEW_FIELDS: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tVector3 m_previewOffset\n\t\t\tFloat x = 1\n\t\t\tFloat y = 2\n\t\t\tFloat z = -13\n\t\tFloat m_previewZoomOut = 8\n";
+    const EXISTING_CONSTRUCTION_FIELDS: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tVector3 m_constructionOffset\n\t\t\tFloat x = 1\n\t\t\tFloat y = 2\n\t\t\tFloat z = -7\n";
+    const EXISTING_CAMERA_PREVIEW_ROUTE: &str = "GameObject CameraSystem\n\tGameObject GameCamera\n\t\tComponent CameraPreview\n\t\t\tArray m_controlPoints\n\t\t\t\tArraySize size = 2\n\t\t\t\tElement 0\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector2 position\n\t\t\t\t\t\t\tFloat x = 1\n\t\t\t\t\t\t\tFloat y = 2\n\t\t\t\t\t\tFloat zoom = 20\n\t\t\t\tElement 1\n\t\t\t\t\tGeneric data\n\t\t\t\t\t\tVector2 position\n\t\t\t\t\t\t\tFloat x = 3\n\t\t\t\t\t\t\tFloat y = 4\n\t\t\t\t\t\tFloat zoom = 10\n";
 
     #[test]
     fn embedded_prefab_name_options_include_goal_area() {
@@ -773,9 +990,193 @@ mod tests {
         );
     }
 
+    #[test]
+    fn update_initial_view_bounds_rewrites_existing_preview_fields() {
+        let mut goal = prefab(None);
+        goal.name = "GoalArea_01".to_string();
+        goal.position = Vec3 {
+            x: 100.0,
+            y: 200.0,
+            z: 0.0,
+        };
+        let mut level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab(Some(EXISTING_PREVIEW_FIELDS))),
+                LevelObject::Prefab(goal),
+            ],
+            roots: vec![0, 1],
+        };
+
+        update_initial_view_bounds_in_level(&mut level, [-4.0, 10.0, 20.0, 20.0]);
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let offset = find_first_node(&nodes, &|node| {
+            node.node_type == "Vector3" && node.name == "m_previewOffset"
+        })
+        .expect("missing preview offset");
+        let zoom = find_first_node(&nodes, &|node| {
+            node.node_type == "Float" && node.name == "m_previewZoomOut"
+        })
+        .expect("missing preview zoom");
+
+        assert_eq!(read_vec3(offset), [-94.0, -200.0, -13.0]);
+        assert_eq!(
+            zoom.value.as_deref().and_then(|v| v.parse::<f32>().ok()),
+            Some(10.0)
+        );
+    }
+
+    #[test]
+    fn update_initial_view_bounds_creates_missing_preview_fields() {
+        let mut goal = prefab(None);
+        goal.name = "GoalArea_01".to_string();
+        goal.position = Vec3 {
+            x: 2.0,
+            y: 3.0,
+            z: 0.0,
+        };
+        let mut level = LevelData {
+            objects: vec![LevelObject::Prefab(prefab(None)), LevelObject::Prefab(goal)],
+            roots: vec![0, 1],
+        };
+
+        update_initial_view_bounds_in_level(&mut level, [0.0, 12.0, 8.0, 6.0]);
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let offset = find_first_node(&nodes, &|node| {
+            node.node_type == "Vector3" && node.name == "m_previewOffset"
+        })
+        .expect("missing preview offset");
+        let zoom = find_first_node(&nodes, &|node| {
+            node.node_type == "Float" && node.name == "m_previewZoomOut"
+        })
+        .expect("missing preview zoom");
+
+        assert_eq!(read_vec3(offset), [2.0, 6.0, -10.0]);
+        assert_eq!(
+            zoom.value.as_deref().and_then(|v| v.parse::<f32>().ok()),
+            Some(4.0)
+        );
+    }
+
+    #[test]
+    fn update_construction_view_bounds_rewrites_existing_construction_fields() {
+        let mut level_start = prefab(None);
+        level_start.name = "LevelStart".to_string();
+        level_start.position = Vec3 {
+            x: 10.0,
+            y: -5.0,
+            z: 0.0,
+        };
+        let mut level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab(Some(EXISTING_CONSTRUCTION_FIELDS))),
+                LevelObject::Prefab(level_start),
+            ],
+            roots: vec![0, 1],
+        };
+
+        update_construction_view_bounds_in_level(&mut level, [6.0, 0.0, 14.0, 14.0]);
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let offset = find_first_node(&nodes, &|node| {
+            node.node_type == "Vector3" && node.name == "m_constructionOffset"
+        })
+        .expect("missing construction offset");
+
+        assert_eq!(read_vec3(offset), [3.0, -2.0, -7.0]);
+    }
+
+    #[test]
+    fn update_construction_view_bounds_creates_missing_construction_fields() {
+        let mut level_start = prefab(None);
+        level_start.name = "LevelStart".to_string();
+        level_start.position = Vec3 {
+            x: 2.0,
+            y: 3.0,
+            z: 0.0,
+        };
+        let mut level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab(None)),
+                LevelObject::Prefab(level_start),
+            ],
+            roots: vec![0, 1],
+        };
+
+        update_construction_view_bounds_in_level(&mut level, [0.0, 12.0, 8.0, 6.0]);
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let offset = find_first_node(&nodes, &|node| {
+            node.node_type == "Vector3" && node.name == "m_constructionOffset"
+        })
+        .expect("missing construction offset");
+
+        assert_eq!(read_vec3(offset), [2.0, 6.0, -4.0]);
+    }
+
+    #[test]
+    fn update_camera_preview_control_point_rewrites_existing_route_node() {
+        let mut level = LevelData {
+            objects: vec![LevelObject::Prefab(named_prefab(
+                "CameraSystem",
+                Some(EXISTING_CAMERA_PREVIEW_ROUTE),
+            ))],
+            roots: vec![0],
+        };
+
+        update_camera_preview_control_point_in_level(&mut level, 1, Vec2 { x: 7.0, y: -8.0 });
+
+        let raw_text = level.objects[0]
+            .as_prefab()
+            .and_then(|prefab| prefab.override_data.as_ref())
+            .map(|od| od.raw_text.as_str())
+            .expect("missing override data");
+        let nodes = parse_override_text(raw_text);
+        let element = find_first_node(&nodes, &|node| {
+            node.node_type == "Element" && node.name == "1"
+        })
+        .expect("missing route element");
+        let position = element
+            .child("Generic", "data")
+            .and_then(|data| data.child("Vector2", "position"))
+            .expect("missing route position");
+        let zoom = element
+            .child("Generic", "data")
+            .and_then(|data| data.child("Float", "zoom"))
+            .expect("missing zoom");
+
+        assert_eq!(read_vec2(position), [7.0, -8.0]);
+        assert_eq!(zoom.value.as_deref(), Some("10"));
+    }
+
     fn prefab(raw_text: Option<&str>) -> PrefabInstance {
+        named_prefab("LevelManager", raw_text)
+    }
+
+    fn named_prefab(name: &str, raw_text: Option<&str>) -> PrefabInstance {
         PrefabInstance {
-            name: "LevelManager".to_string(),
+            name: name.to_string(),
             position: Vec3::default(),
             prefab_index: 0,
             rotation: Vec3::default(),
@@ -802,6 +1203,20 @@ mod tests {
             node.child("Float", "y")
                 .and_then(OverrideNode::value_as_f32)
                 .expect("missing y"),
+        ]
+    }
+
+    fn read_vec3(node: &OverrideNode) -> [f32; 3] {
+        [
+            node.child("Float", "x")
+                .and_then(OverrideNode::value_as_f32)
+                .expect("missing x"),
+            node.child("Float", "y")
+                .and_then(OverrideNode::value_as_f32)
+                .expect("missing y"),
+            node.child("Float", "z")
+                .and_then(OverrideNode::value_as_f32)
+                .expect("missing z"),
         ]
     }
 }

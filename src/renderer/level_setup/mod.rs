@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::data::assets;
 use crate::domain::types::{LevelData, LevelObject, ObjectIndex, Vec2, Vec3};
 use crate::unity_runtime::components::{
-    Camera as UnityCamera, LevelManager, Transform as UnityTransform,
+    Camera as UnityCamera, CameraPreview, LevelManager, Transform as UnityTransform,
 };
 use crate::unity_runtime::scene::Scene;
 
@@ -112,6 +112,9 @@ impl LevelRenderer {
             bounds_dragging: None,
             bounds_drag_result: None,
             bounds_hovered_handle: None,
+            route_node_dragging: None,
+            route_node_drag_result: None,
+            route_node_hovered: None,
             pending_drag_offset: None,
             pending_transform_preview: None,
             show_bg: true,
@@ -122,7 +125,11 @@ impl LevelRenderer {
             contraption_has_night_vision: false,
             night_vision_enabled: false,
             camera_limits: None,
+            initial_view_bounds: None,
+            construction_view_bounds: None,
             show_level_bounds: false,
+            show_preview_route: false,
+            custom_preview_route: None,
             show_terrain_tris: false,
             lit_area_polygons: Vec::new(),
             fan_emitters: Vec::new(),
@@ -223,6 +230,9 @@ impl LevelRenderer {
             bounds_dragging: None,
             bounds_drag_result: None,
             bounds_hovered_handle: None,
+            route_node_dragging: None,
+            route_node_drag_result: None,
+            route_node_hovered: None,
             pending_drag_offset: None,
             pending_transform_preview: None,
             show_bg: self.show_bg,
@@ -233,7 +243,11 @@ impl LevelRenderer {
             contraption_has_night_vision: false,
             night_vision_enabled: false,
             camera_limits: None,
+            initial_view_bounds: None,
+            construction_view_bounds: None,
             show_level_bounds: self.show_level_bounds,
+            show_preview_route: self.show_preview_route,
+            custom_preview_route: None,
             show_terrain_tris: self.show_terrain_tris,
             lit_area_polygons: Vec::new(),
             fan_emitters: Vec::new(),
@@ -429,6 +443,70 @@ pub(super) fn parse_camera_limits(level: &LevelData) -> Option<[f32; 4]> {
     None
 }
 
+/// Parse LevelManager preview-view settings and convert to a bounds rectangle.
+/// Returns `[topLeft.x, topLeft.y, size.x, size.y]` where width/height are
+/// both `preview_zoom_out * 2`.
+pub(super) fn parse_initial_view_bounds(level: &LevelData) -> Option<[f32; 4]> {
+    let goal_position = goal_area_position(level)?;
+    for obj in &level.objects {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "LevelManager"
+            && let Some(ref od) = p.override_data
+            && let Some((scene, root)) = Scene::from_override_text(&od.raw_text)
+            && let Some((_, lm)) = scene.get_component_of::<LevelManager>(root)
+            && let (Some(offset), Some(zoom_out)) = (lm.preview_offset, lm.preview_zoom_out)
+            && zoom_out > 0.0
+        {
+            let size = zoom_out * 2.0;
+            let center_x = goal_position.x + offset[0];
+            let center_y = goal_position.y + offset[1];
+            return Some([center_x - zoom_out, center_y + zoom_out, size, size]);
+        }
+    }
+    None
+}
+
+/// Parse build-view camera settings and convert to a bounds rectangle.
+/// Uses `LevelStart.position + m_constructionOffset.xy` as center and
+/// `abs(m_constructionOffset.z)` as half-size.
+pub(super) fn parse_construction_view_bounds(level: &LevelData) -> Option<[f32; 4]> {
+    let mut level_start = None;
+    for obj in &level.objects {
+        match obj {
+            LevelObject::Prefab(p) if p.name == "LevelStart" => {
+                level_start = Some(p.position);
+                break;
+            }
+            LevelObject::Parent(p) if p.name == "LevelStart" => {
+                level_start = Some(p.position);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let level_start = level_start?;
+
+    for obj in &level.objects {
+        if let LevelObject::Prefab(p) = obj
+            && p.name == "LevelManager"
+            && let Some(ref od) = p.override_data
+            && let Some((scene, root)) = Scene::from_override_text(&od.raw_text)
+            && let Some((_, lm)) = scene.get_component_of::<LevelManager>(root)
+            && let Some(offset) = lm.construction_offset
+        {
+            let half = offset[2].abs();
+            if half <= 0.0 {
+                continue;
+            }
+            let center_x = level_start.x + offset[0];
+            let center_y = level_start.y + offset[1];
+            let size = half * 2.0;
+            return Some([center_x - half, center_y + half, size, size]);
+        }
+    }
+    None
+}
+
 fn background_override_has_transform_or_serializer(raw_text: &str) -> bool {
     let Some((scene, _root)) = Scene::from_override_text(raw_text) else {
         return false;
@@ -444,11 +522,51 @@ fn background_override_has_transform_or_serializer(raw_text: &str) -> bool {
     })
 }
 
+fn goal_area_position(level: &LevelData) -> Option<Vec2> {
+    for obj in &level.objects {
+        let name = obj.name();
+        if name.starts_with("GoalArea") || name == "Goal" {
+            let pos = obj.position();
+            return Some(Vec2 { x: pos.x, y: pos.y });
+        }
+    }
+    None
+}
+
+/// Parse the pre-serialised `CameraPreview.m_controlPoints` from the
+/// `CameraSystem → GameCamera` object hierarchy.  Returns `None` for normal
+/// levels (where the route is built dynamically at runtime by `IngameCamera`).
+pub(super) fn parse_custom_preview_route(level: &LevelData) -> Option<Vec<Vec2>> {
+    for obj in &level.objects {
+        if let LevelObject::Prefab(prefab) = obj
+            && prefab.name == "CameraSystem"
+            && let Some(ref od) = prefab.override_data
+            && let Some((scene, root)) = Scene::from_override_text(&od.raw_text)
+        {
+            let owner = scene.find_child(root, "GameCamera").unwrap_or(root);
+            if let Some((_, cp)) = scene.get_component_of::<CameraPreview>(owner)
+                && !cp.control_points.is_empty()
+            {
+                return Some(
+                    cp.control_points
+                        .iter()
+                        .map(|p| Vec2 {
+                            x: p.position[0],
+                            y: p.position[1],
+                        })
+                        .collect(),
+                );
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         LevelRenderer, find_bg_override_text, find_bg_root_position, parse_authored_camera,
-        parse_camera_limits,
+        parse_camera_limits, parse_construction_view_bounds, parse_initial_view_bounds,
     };
     use crate::domain::parser::parse_level;
     use crate::domain::types::{
@@ -456,6 +574,10 @@ mod tests {
     };
 
     const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n\t\tGeneric m_cameraLimits\n\t\t\tVector2 topLeft\n\t\t\t\tFloat x = -202.43\n\t\t\t\tFloat y = 28.3\n\t\t\tVector2 size\n\t\t\t\tFloat x = 96.5\n\t\t\t\tFloat y = 49.7\n";
+
+    const LEVEL_MANAGER_PREVIEW_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tVector3 m_previewOffset\n\t\t\tFloat x = 14\n\t\t\tFloat y = -7\n\t\t\tFloat z = -10\n\t\tFloat m_previewZoomOut = 18\n";
+
+    const LEVEL_MANAGER_CONSTRUCTION_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tVector3 m_constructionOffset\n\t\t\tFloat x = 3\n\t\t\tFloat y = -2\n\t\t\tFloat z = -7\n";
 
     const CAMERA_SYSTEM_OVERRIDE: &str = "GameObject CameraSystem\n\tComponent Camera\n\t\tBoolean orthographic = True\n\t\tFloat orthographic size = 9.430499\n";
 
@@ -498,6 +620,50 @@ mod tests {
         assert!((center.x - 12.5).abs() < 0.001);
         assert!((center.y + 3.75).abs() < 0.001);
         assert!((zoom - (600.0 / (9.430499 * 2.0))).abs() < 0.001);
+    }
+
+    #[test]
+    fn parses_initial_view_bounds_from_level_manager_preview_fields() {
+        let mut goal = prefab("GoalArea_01", "");
+        goal.position = Vec3 {
+            x: 100.0,
+            y: 200.0,
+            z: 0.0,
+        };
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab("LevelManager", LEVEL_MANAGER_PREVIEW_OVERRIDE)),
+                LevelObject::Prefab(goal),
+            ],
+            roots: vec![0, 1],
+        };
+
+        assert_eq!(
+            parse_initial_view_bounds(&level),
+            Some([96.0, 211.0, 36.0, 36.0])
+        );
+    }
+
+    #[test]
+    fn parses_construction_view_bounds_from_level_start_and_offset() {
+        let mut level_start = prefab("LevelStart", "");
+        level_start.position = Vec3 {
+            x: 10.0,
+            y: -5.0,
+            z: 0.0,
+        };
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(prefab("LevelManager", LEVEL_MANAGER_CONSTRUCTION_OVERRIDE)),
+                LevelObject::Prefab(level_start),
+            ],
+            roots: vec![0, 1],
+        };
+
+        assert_eq!(
+            parse_construction_view_bounds(&level),
+            Some([6.0, 0.0, 14.0, 14.0])
+        );
     }
 
     #[test]

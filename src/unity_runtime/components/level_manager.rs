@@ -24,6 +24,12 @@ pub struct LevelManager {
     pub construction_grid_rows: Option<Vec<i32>>,
     /// Camera rectangle: top-left + size.
     pub camera_limits: Option<CameraLimits>,
+    /// Build-mode camera offset from LevelStart (x/y center offset, z half-size sign).
+    pub construction_offset: Option<[f32; 3]>,
+    /// Initial preview camera center (x/y are used by the editor; z is preserved).
+    pub preview_offset: Option<[f32; 3]>,
+    /// Initial preview camera half-size in world units.
+    pub preview_zoom_out: Option<f32>,
     pub extra: Vec<(String, SceneValue)>,
 }
 
@@ -57,6 +63,18 @@ impl UnityComponent for LevelManager {
                     }
                 }
                 self.camera_limits = Some([tl[0], tl[1], sz[0], sz[1]]);
+                true
+            }
+            ("m_constructionOffset", SceneValue::Vector3(p)) => {
+                self.construction_offset = Some([p.x, p.y, p.z]);
+                true
+            }
+            ("m_previewOffset", SceneValue::Vector3(p)) => {
+                self.preview_offset = Some([p.x, p.y, p.z]);
+                true
+            }
+            ("m_previewZoomOut", SceneValue::Float(v)) => {
+                self.preview_zoom_out = Some(*v);
                 true
             }
             ("m_constructionGridRows", SceneValue::Generic(entries)) => {
@@ -157,6 +175,15 @@ mod tests {
         "\t\t\tVector2 size\n",
         "\t\t\t\tFloat x = 20\n",
         "\t\t\t\tFloat y = -8\n",
+        "\t\tVector3 m_constructionOffset\n",
+        "\t\t\tFloat x = 3\n",
+        "\t\t\tFloat y = 5\n",
+        "\t\t\tFloat z = -7\n",
+        "\t\tVector3 m_previewOffset\n",
+        "\t\t\tFloat x = 4\n",
+        "\t\t\tFloat y = -2\n",
+        "\t\t\tFloat z = -10\n",
+        "\t\tFloat m_previewZoomOut = 22\n",
     );
 
     #[test]
@@ -173,5 +200,8 @@ mod tests {
             Some(&[15, 15, 0, 2][..])
         );
         assert_eq!(lm.camera_limits, Some([-10.0, 5.0, 20.0, -8.0]));
+        assert_eq!(lm.construction_offset, Some([3.0, 5.0, -7.0]));
+        assert_eq!(lm.preview_offset, Some([4.0, -2.0, -10.0]));
+        assert_eq!(lm.preview_zoom_out, Some(22.0));
     }
 }

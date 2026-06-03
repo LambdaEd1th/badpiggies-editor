@@ -333,3 +333,117 @@ impl Language {
         english_language()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    fn project_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    }
+
+    fn locale_dir() -> PathBuf {
+        project_root().join("assets/locales")
+    }
+
+    fn source_dir() -> PathBuf {
+        project_root().join("src")
+    }
+
+    fn parse_ftl_keys(path: &Path) -> BTreeSet<String> {
+        let source = fs::read_to_string(path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        source
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    return None;
+                }
+
+                let (key, _) = line.split_once('=')?;
+                let key = key.trim();
+                (!key.is_empty()).then(|| key.to_string())
+            })
+            .collect()
+    }
+
+    fn locale_files() -> Vec<PathBuf> {
+        let mut files: Vec<_> = fs::read_dir(locale_dir())
+            .expect("failed to read locale dir")
+            .map(|entry| entry.expect("failed to read locale dir entry").path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "ftl"))
+            .collect();
+        files.sort();
+        files
+    }
+
+    fn collect_source_texts(dir: &Path, texts: &mut Vec<String>) {
+        let mut entries: Vec<_> = fs::read_dir(dir)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", dir.display()))
+            .map(|entry| entry.expect("failed to read source dir entry").path())
+            .collect();
+        entries.sort();
+
+        for path in entries {
+            if path.is_dir() {
+                collect_source_texts(&path, texts);
+                continue;
+            }
+
+            if path.extension().is_some_and(|ext| ext == "rs") {
+                texts.push(
+                    fs::read_to_string(&path).unwrap_or_else(|error| {
+                        panic!("failed to read {}: {error}", path.display())
+                    }),
+                );
+            }
+        }
+    }
+
+    fn used_locale_keys(keys: &BTreeSet<String>) -> BTreeSet<String> {
+        let mut texts = Vec::new();
+        collect_source_texts(&source_dir(), &mut texts);
+
+        keys.iter()
+            .filter(|key| {
+                let needle = format!("\"{key}\"");
+                texts.iter().any(|text| text.contains(&needle))
+            })
+            .cloned()
+            .collect()
+    }
+
+    #[test]
+    fn locale_key_sets_match_english_baseline() {
+        let locale_files = locale_files();
+        let english_path = locale_dir().join("en-US.ftl");
+        let english_keys = parse_ftl_keys(&english_path);
+
+        for path in locale_files {
+            let keys = parse_ftl_keys(&path);
+            assert_eq!(
+                keys,
+                english_keys,
+                "locale key set mismatch for {}",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn english_locale_has_no_unused_keys() {
+        let english_path = locale_dir().join("en-US.ftl");
+        let keys = parse_ftl_keys(&english_path);
+        let used_keys = used_locale_keys(&keys);
+        let unused: Vec<_> = keys.difference(&used_keys).cloned().collect();
+
+        assert!(
+            unused.is_empty(),
+            "unused locale keys found in en-US.ftl: {}",
+            unused.join(", ")
+        );
+    }
+}

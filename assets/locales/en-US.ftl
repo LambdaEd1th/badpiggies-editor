@@ -260,6 +260,7 @@ tool_terrain_preset_equilateral_triangle = Equilateral Triangle
 tool_terrain_curve_segments = Curve Nodes
 tool_terrain_draw_mode = Draw Mode
 tool_terrain_draw_mode_curve = Conic Curve
+tool_terrain_draw_mode_arc = Circular Arc
 tool_terrain_draw_mode_horizontal = Horizontal
 tool_terrain_draw_mode_vertical = Vertical
 tool_terrain_draw_splat = Draw Splat

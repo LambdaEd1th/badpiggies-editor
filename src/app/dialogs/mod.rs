@@ -105,6 +105,10 @@ fn draw_mode_icon(mode: TerrainDrawMode) -> egui::Image<'static> {
             "bytes://tool-terrain-mode-curve.svg",
             crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-terrain-mode-curve.svg"),
         ),
+        TerrainDrawMode::CircularArc => egui::Image::from_bytes(
+            "bytes://tool-terrain-mode-arc.svg",
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-terrain-mode-arc.svg"),
+        ),
         TerrainDrawMode::Horizontal => egui::Image::from_bytes(
             "bytes://tool-terrain-mode-horizontal.svg",
             crate::data::runtime_assets::read_runtime_asset_bytes(

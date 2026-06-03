@@ -260,6 +260,7 @@ tool_terrain_preset_equilateral_triangle = 正三角形
 tool_terrain_curve_segments = 曲线节点
 tool_terrain_draw_mode = 绘制模式
 tool_terrain_draw_mode_curve = 圆锥曲线
+tool_terrain_draw_mode_arc = 正圆弧
 tool_terrain_draw_mode_horizontal = 水平线
 tool_terrain_draw_mode_vertical = 垂直线
 tool_terrain_draw_splat = 绘制 Splat

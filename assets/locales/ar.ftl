@@ -260,6 +260,7 @@ tool_terrain_preset_equilateral_triangle = مثلث متساوي الأضلاع
 tool_terrain_curve_segments = عقد المنحنى
 tool_terrain_draw_mode = وضع الرسم
 tool_terrain_draw_mode_curve = منحنى مخروطي
+tool_terrain_draw_mode_arc = قوس دائري
 tool_terrain_draw_mode_horizontal = أفقي
 tool_terrain_draw_mode_vertical = عمودي
 tool_terrain_draw_splat = Splat الرسم

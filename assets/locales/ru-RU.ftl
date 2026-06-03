@@ -260,6 +260,7 @@ tool_terrain_preset_equilateral_triangle = Равносторонний треу
 tool_terrain_curve_segments = Узлы кривой
 tool_terrain_draw_mode = Режим рисования
 tool_terrain_draw_mode_curve = Коническая кривая
+tool_terrain_draw_mode_arc = Круговая дуга
 tool_terrain_draw_mode_horizontal = Горизонталь
 tool_terrain_draw_mode_vertical = Вертикаль
 tool_terrain_draw_splat = Splat рисования

@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use eframe::egui;
 
 use crate::domain::types::*;
+use crate::renderer::CursorMode;
 
 use super::EditorApp;
 use super::dialogs;
@@ -34,6 +35,35 @@ impl EditorApp {
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 let tab = &mut self.tabs[active_tab];
                 if tab.level.is_some() {
+                    if cursor_mode == CursorMode::DrawTerrain
+                        && let Some(level) = tab.level.as_ref()
+                    {
+                        if tab.selected.len() == 1 {
+                            let idx = *tab.selected.iter().next().unwrap_or(&usize::MAX);
+                            if idx < level.objects.len()
+                                && let LevelObject::Prefab(prefab) = &level.objects[idx]
+                                && let Some(td) = prefab.terrain_data.as_ref()
+                            {
+                                let mut nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
+                                if crate::domain::terrain_gen::is_closed_loop(&nodes)
+                                    && nodes.len() >= 2
+                                {
+                                    nodes.pop();
+                                }
+
+                                if let Some(last) = nodes.last() {
+                                    let anchor = Vec2 {
+                                        x: prefab.position.x + last.position.x,
+                                        y: prefab.position.y + last.position.y,
+                                    };
+                                    tab.renderer.prime_terrain_draw_anchor_if_idle(anchor);
+                                }
+                            }
+                        } else {
+                            tab.renderer.clear_terrain_draw_anchor_if_idle();
+                        }
+                    }
+
                     let sel = tab.selected.clone();
                     tab.renderer.show(ui, &sel, cursor_mode, t, has_clipboard);
                     canvas_context_action = tab.renderer.context_action.take();
@@ -246,6 +276,8 @@ impl EditorApp {
                             None
                         };
 
+                        let mut continuation_anchor = None;
+
                         if let Some(obj_idx) = selected_terrain_index {
                             if let LevelObject::Prefab(ref mut prefab) = level.objects[obj_idx]
                                 && let Some(ref mut td) = prefab.terrain_data
@@ -299,6 +331,15 @@ impl EditorApp {
 
                                 if nodes.len() >= 2 {
                                     crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
+
+                                    if !result.closed
+                                        && let Some(last) = nodes.last()
+                                    {
+                                        continuation_anchor = Some(Vec2 {
+                                            x: prefab.position.x + last.position.x,
+                                            y: prefab.position.y + last.position.y,
+                                        });
+                                    }
                                 }
                             }
 
@@ -343,6 +384,10 @@ impl EditorApp {
                             level.roots.push(new_idx);
                             tab.selected = std::collections::BTreeSet::from([new_idx]);
 
+                            if !result.closed {
+                                continuation_anchor = result.points.last().copied();
+                            }
+
                             tab.renderer.reload_level_preserving_preview_state(level);
                             let label = if result.closed {
                                 "Terrain (closed)"
@@ -351,6 +396,9 @@ impl EditorApp {
                             };
                             tab.status = t.fmt1("status_added", label);
                         }
+
+                        tab.renderer
+                            .set_terrain_draw_continuation_anchor(continuation_anchor);
                     }
                 } else {
                     let rect = ui.available_rect_before_wrap();

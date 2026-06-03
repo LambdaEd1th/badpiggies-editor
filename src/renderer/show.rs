@@ -310,17 +310,19 @@ impl LevelRenderer {
                         Some(CanvasContextAction::FlipVertical(context_indices.clone()));
                     ui.close();
                 }
-                ui.separator();
-                if ui
-                    .add_enabled(
-                        has_context_selection,
-                        egui::Button::new(tr.get("menu_delete")).shortcut_text("Del"),
-                    )
-                    .clicked()
-                {
-                    self.context_action =
-                        Some(CanvasContextAction::Delete(context_indices.clone()));
-                    ui.close();
+                if context_menu_node_can_delete.is_none() {
+                    ui.separator();
+                    if ui
+                        .add_enabled(
+                            has_context_selection,
+                            egui::Button::new(tr.get("menu_delete")).shortcut_text("Del"),
+                        )
+                        .clicked()
+                    {
+                        self.context_action =
+                            Some(CanvasContextAction::Delete(context_indices.clone()));
+                        ui.close();
+                    }
                 }
 
                 if let Some((object_index, node_index, can_delete)) = context_menu_node_can_delete {

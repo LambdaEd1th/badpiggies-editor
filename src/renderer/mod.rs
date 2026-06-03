@@ -190,6 +190,9 @@ pub struct LevelRenderer {
     draw_terrain_points: Vec<Vec2>,
     /// Whether a freehand draw is currently active.
     draw_terrain_active: bool,
+    /// Persistent continuation anchor (world-space) used to resume drawing
+    /// from the previous segment end after mode switches/tool changes.
+    terrain_draw_continuation_anchor: Option<Vec2>,
     /// Active bounds drag state.
     bounds_dragging: Option<BoundsDragState>,
     /// Completed bounds drag result (consumed by app layer).

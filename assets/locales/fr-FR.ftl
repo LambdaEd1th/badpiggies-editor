@@ -260,6 +260,7 @@ tool_terrain_preset_equilateral_triangle = Triangle équilatéral
 tool_terrain_curve_segments = Nœuds de courbe
 tool_terrain_draw_mode = Mode de tracé
 tool_terrain_draw_mode_curve = Courbe conique
+tool_terrain_draw_mode_arc = Arc circulaire
 tool_terrain_draw_mode_horizontal = Horizontal
 tool_terrain_draw_mode_vertical = Vertical
 tool_terrain_draw_splat = Splat de tracé

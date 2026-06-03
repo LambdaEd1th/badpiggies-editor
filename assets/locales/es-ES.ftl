@@ -260,6 +260,7 @@ tool_terrain_preset_equilateral_triangle = Triángulo equilátero
 tool_terrain_curve_segments = Nodos de curva
 tool_terrain_draw_mode = Modo de dibujo
 tool_terrain_draw_mode_curve = Curva cónica
+tool_terrain_draw_mode_arc = Arco circular
 tool_terrain_draw_mode_horizontal = Horizontal
 tool_terrain_draw_mode_vertical = Vertical
 tool_terrain_draw_splat = Splat de dibujo

@@ -176,11 +176,26 @@ impl LevelRenderer {
     }
 
     pub fn set_terrain_draw_mode(&mut self, mode: TerrainDrawMode) {
-        if self.terrain_draw_mode != mode {
+        let mode_changed = self.terrain_draw_mode != mode;
+        if mode_changed {
             self.draw_terrain_points.clear();
             self.draw_terrain_active = false;
         }
         self.terrain_draw_mode = mode;
+
+        // Terrain draw modes and preset-shape placement are mutually exclusive.
+        if mode != TerrainDrawMode::Free {
+            self.terrain_preset_shape = None;
+            self.terrain_preset_drag_start = None;
+        }
+
+        if mode_changed
+            && self.draw_terrain_points.is_empty()
+            && let Some(anchor) = self.terrain_draw_continuation_anchor
+        {
+            self.draw_terrain_points = vec![anchor];
+            self.draw_terrain_active = true;
+        }
     }
 
     pub fn terrain_draw_texture_index(&self) -> usize {
@@ -198,8 +213,74 @@ impl LevelRenderer {
         if self.terrain_preset_shape == Some(shape) {
             self.terrain_preset_shape = None;
         } else {
+            // Terrain preset placement and draw modes are mutually exclusive.
+            self.terrain_draw_mode = TerrainDrawMode::Free;
             self.terrain_preset_shape = Some(shape);
         }
+    }
+
+    pub fn has_active_terrain_preset(&self) -> bool {
+        self.terrain_preset_shape.is_some()
+    }
+
+    pub fn clear_terrain_preset(&mut self) {
+        self.terrain_preset_shape = None;
+        self.terrain_preset_drag_start = None;
+    }
+
+    pub fn set_terrain_draw_continuation_anchor(&mut self, anchor: Option<Vec2>) {
+        self.terrain_draw_continuation_anchor = anchor;
+        self.draw_terrain_points.clear();
+        self.draw_terrain_active = false;
+
+        if let Some(point) = anchor {
+            self.draw_terrain_points.push(point);
+            self.draw_terrain_active = true;
+        }
+    }
+
+    pub fn prime_terrain_draw_anchor_if_idle(&mut self, anchor: Vec2) {
+        // Allow re-anchoring only when the tool is idle (no active stroke),
+        // or when it only has the previously armed anchor point.
+        let can_reanchor = self.draw_terrain_points.is_empty()
+            || (self.draw_terrain_active && self.draw_terrain_points.len() == 1);
+        if !can_reanchor || self.terrain_preset_shape.is_some() {
+            return;
+        }
+
+        let should_update = self
+            .terrain_draw_continuation_anchor
+            .map(|current| {
+                let dx = current.x - anchor.x;
+                let dy = current.y - anchor.y;
+                dx * dx + dy * dy > 1e-8
+            })
+            .unwrap_or(true);
+        if !should_update {
+            return;
+        }
+
+        self.set_terrain_draw_continuation_anchor(Some(anchor));
+    }
+
+    pub(super) fn clear_terrain_draw_continuation_anchor(&mut self) {
+        self.terrain_draw_continuation_anchor = None;
+    }
+
+    pub fn clear_terrain_draw_anchor_if_idle(&mut self) {
+        if self.terrain_draw_continuation_anchor.is_none() {
+            return;
+        }
+
+        let idle_or_anchor_only = self.draw_terrain_points.is_empty()
+            || (self.draw_terrain_active && self.draw_terrain_points.len() == 1);
+        if !idle_or_anchor_only {
+            return;
+        }
+
+        self.terrain_draw_continuation_anchor = None;
+        self.draw_terrain_points.clear();
+        self.draw_terrain_active = false;
     }
 
     pub(crate) fn terrain_preset_preview_points(&self) -> Option<Vec<Vec2>> {

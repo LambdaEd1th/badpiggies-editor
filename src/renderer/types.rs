@@ -128,6 +128,7 @@ pub enum TerrainDrawMode {
     #[default]
     Free,
     Curve,
+    CircularArc,
     Horizontal,
     Vertical,
 }

@@ -162,6 +162,7 @@ impl EditorApp {
                     ui.horizontal(|ui| {
                         for (mode, key) in [
                             (TerrainDrawMode::Curve, "tool_terrain_draw_mode_curve"),
+                            (TerrainDrawMode::CircularArc, "tool_terrain_draw_mode_arc"),
                             (
                                 TerrainDrawMode::Horizontal,
                                 "tool_terrain_draw_mode_horizontal",
@@ -188,8 +189,8 @@ impl EditorApp {
                     ui.horizontal(|ui| {
                         for shape in [
                             TerrainPresetShape::Circle,
-                            TerrainPresetShape::Rectangle,
                             TerrainPresetShape::PerfectCircle,
+                            TerrainPresetShape::Rectangle,
                             TerrainPresetShape::Square,
                             TerrainPresetShape::EquilateralTriangle,
                         ] {
@@ -245,6 +246,14 @@ impl EditorApp {
             self.tabs[self.active_tab]
                 .renderer
                 .set_terrain_draw_texture_index(terrain_draw_texture_index);
+
+            if terrain_draw_mode != TerrainDrawMode::Free
+                && self.tabs[self.active_tab]
+                    .renderer
+                    .has_active_terrain_preset()
+            {
+                self.tabs[self.active_tab].renderer.clear_terrain_preset();
+            }
         }
 
         if show_terrain_presets && terrain_curve_segments != initial_curve_segments {

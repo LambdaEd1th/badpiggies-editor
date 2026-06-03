@@ -9,7 +9,7 @@ use super::terrain_preset_points;
 
 fn constrain_draw_point(mode: TerrainDrawMode, anchor: Vec2, candidate: Vec2) -> Vec2 {
     match mode {
-        TerrainDrawMode::Curve | TerrainDrawMode::Free => candidate,
+        TerrainDrawMode::Curve | TerrainDrawMode::CircularArc | TerrainDrawMode::Free => candidate,
         TerrainDrawMode::Horizontal => Vec2 {
             x: candidate.x,
             y: anchor.y,
@@ -34,6 +34,68 @@ fn sample_quadratic_conic(p0: Vec2, p1: Vec2, p2: Vec2, nodes: usize) -> Vec<Vec
         });
     }
     points
+}
+
+fn circle_center_from_three_points(p0: Vec2, p1: Vec2, p2: Vec2) -> Option<Vec2> {
+    let x1 = p0.x;
+    let y1 = p0.y;
+    let x2 = p1.x;
+    let y2 = p1.y;
+    let x3 = p2.x;
+    let y3 = p2.y;
+
+    let d = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2));
+    if d.abs() < 1e-6 {
+        return None;
+    }
+
+    let x1_sq_y1_sq = x1 * x1 + y1 * y1;
+    let x2_sq_y2_sq = x2 * x2 + y2 * y2;
+    let x3_sq_y3_sq = x3 * x3 + y3 * y3;
+
+    let ux = (x1_sq_y1_sq * (y2 - y3) + x2_sq_y2_sq * (y3 - y1) + x3_sq_y3_sq * (y1 - y2)) / d;
+    let uy = (x1_sq_y1_sq * (x3 - x2) + x2_sq_y2_sq * (x1 - x3) + x3_sq_y3_sq * (x2 - x1)) / d;
+    Some(Vec2 { x: ux, y: uy })
+}
+
+fn angle_delta_ccw(from: f32, to: f32) -> f32 {
+    let tau = std::f32::consts::TAU;
+    (to - from).rem_euclid(tau)
+}
+
+fn sample_circular_arc(p0: Vec2, through: Vec2, p2: Vec2, nodes: usize) -> Option<Vec<Vec2>> {
+    let center = circle_center_from_three_points(p0, through, p2)?;
+    let radius = ((p0.x - center.x).powi(2) + (p0.y - center.y).powi(2)).sqrt();
+    if radius < 1e-6 {
+        return None;
+    }
+
+    let a0 = (p0.y - center.y).atan2(p0.x - center.x);
+    let a1 = (through.y - center.y).atan2(through.x - center.x);
+    let a2 = (p2.y - center.y).atan2(p2.x - center.x);
+
+    let sweep = {
+        let ccw_01 = angle_delta_ccw(a0, a1);
+        let ccw_02 = angle_delta_ccw(a0, a2);
+        if ccw_01 <= ccw_02 {
+            ccw_02
+        } else {
+            -angle_delta_ccw(a2, a0)
+        }
+    };
+
+    let n = nodes.clamp(3, 256);
+    let mut points = Vec::with_capacity(n);
+    let denom = (n - 1) as f32;
+    for i in 0..n {
+        let t = i as f32 / denom;
+        let angle = a0 + sweep * t;
+        points.push(Vec2 {
+            x: center.x + radius * angle.cos(),
+            y: center.y + radius * angle.sin(),
+        });
+    }
+    Some(points)
 }
 
 impl LevelRenderer {
@@ -102,6 +164,13 @@ impl LevelRenderer {
         is_shift: bool,
         is_alt: bool,
     ) {
+        if self.draw_terrain_points.is_empty()
+            && let Some(anchor) = self.terrain_draw_continuation_anchor
+        {
+            self.draw_terrain_points.push(anchor);
+            self.draw_terrain_active = true;
+        }
+
         // Middle-mouse / shift+drag / alt+drag → pan
         if response.dragged_by(egui::PointerButton::Middle)
             || (response.dragged_by(egui::PointerButton::Primary) && is_shift)
@@ -121,11 +190,17 @@ impl LevelRenderer {
             return;
         }
 
-        // Curve mode: 3 clicks define a quadratic conic arc
-        if self.terrain_draw_mode == TerrainDrawMode::Curve {
+        // Curve modes: 3 clicks define a normal conic or a true circular arc.
+        if matches!(
+            self.terrain_draw_mode,
+            TerrainDrawMode::Curve | TerrainDrawMode::CircularArc
+        ) {
             if response.secondary_clicked() && !self.draw_terrain_points.is_empty() {
                 self.draw_terrain_points.pop();
                 self.draw_terrain_active = !self.draw_terrain_points.is_empty();
+                if self.draw_terrain_points.is_empty() {
+                    self.clear_terrain_draw_continuation_anchor();
+                }
                 self.suppress_context_menu_this_frame = true;
                 self.panning = false;
                 return;
@@ -144,8 +219,19 @@ impl LevelRenderer {
                     let start = self.draw_terrain_points[0];
                     let end = self.draw_terrain_points[1];
                     let control = self.draw_terrain_points[2];
-                    let points =
-                        sample_quadratic_conic(start, control, end, self.terrain_curve_segments);
+                    let points = if self.terrain_draw_mode == TerrainDrawMode::CircularArc {
+                        sample_circular_arc(start, control, end, self.terrain_curve_segments)
+                            .unwrap_or_else(|| {
+                                sample_quadratic_conic(
+                                    start,
+                                    control,
+                                    end,
+                                    self.terrain_curve_segments,
+                                )
+                            })
+                    } else {
+                        sample_quadratic_conic(start, control, end, self.terrain_curve_segments)
+                    };
                     self.draw_terrain_result = Some(DrawTerrainResult {
                         points,
                         closed: false,
@@ -161,6 +247,7 @@ impl LevelRenderer {
             if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                 self.draw_terrain_active = false;
                 self.draw_terrain_points.clear();
+                self.clear_terrain_draw_continuation_anchor();
             }
 
             self.panning = false;
@@ -171,6 +258,9 @@ impl LevelRenderer {
         if response.secondary_clicked() && !self.draw_terrain_points.is_empty() {
             self.draw_terrain_points.pop();
             self.draw_terrain_active = !self.draw_terrain_points.is_empty();
+            if self.draw_terrain_points.is_empty() {
+                self.clear_terrain_draw_continuation_anchor();
+            }
             self.suppress_context_menu_this_frame = true;
             self.panning = false;
             return;
@@ -241,6 +331,7 @@ impl LevelRenderer {
         if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.draw_terrain_active = false;
             self.draw_terrain_points.clear();
+            self.clear_terrain_draw_continuation_anchor();
         }
 
         self.panning = false;

@@ -1125,10 +1125,47 @@ pub(crate) fn material_main_tex_st_for_guid(guid: &str) -> Option<[f32; 4]> {
 
 /// Derive the level-refs key from a filename (strip `.bytes` extension).
 pub fn level_key_from_filename(filename: &str) -> String {
-    filename
-        .strip_suffix(".bytes")
-        .unwrap_or(filename)
-        .to_string()
+    let basename = filename.rsplit(['/', '\\']).next().unwrap_or(filename);
+    let mut level_key = basename;
+    for suffix in [".bytes", ".yaml", ".yml", ".toml"] {
+        if level_key.len() > suffix.len()
+            && level_key[level_key.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+        {
+            level_key = &level_key[..level_key.len() - suffix.len()];
+            break;
+        }
+    }
+
+    let level_key_trimmed = level_key.trim();
+    if level_key_trimmed.is_empty() {
+        return level_key.to_string();
+    }
+
+    if let Some((canonical, _)) = data()
+        .refs
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(level_key_trimmed))
+    {
+        return canonical.clone();
+    }
+
+    if let Some((canonical, _)) = data()
+        .prefabs
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(level_key_trimmed))
+    {
+        return canonical.clone();
+    }
+
+    if let Some((canonical, _)) = data()
+        .background_prefabs
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(level_key_trimmed))
+    {
+        return canonical.clone();
+    }
+
+    level_key.to_string()
 }
 
 /// Look up a terrain texture filename by level key and reference index.
@@ -1231,6 +1268,18 @@ mod tests {
         assert_eq!(
             level_key_from_filename("Level_14_data.bytes"),
             "Level_14_data"
+        );
+    }
+
+    #[test]
+    fn level_key_from_filename_matches_known_keys_case_insensitively() {
+        assert_eq!(
+            level_key_from_filename("episode_6_ice sandbox_data.bytes"),
+            "Episode_6_Ice Sandbox_data"
+        );
+        assert_eq!(
+            level_key_from_filename("EPISODE_6_TOWER SANDBOX_DATA.BYTES"),
+            "Episode_6_Tower Sandbox_data"
         );
     }
 

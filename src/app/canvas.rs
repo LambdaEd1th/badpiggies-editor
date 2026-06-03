@@ -232,7 +232,9 @@ impl EditorApp {
                             let idx = *tab.selected.iter().next().unwrap_or(&usize::MAX);
                             if idx < level.objects.len() {
                                 match &level.objects[idx] {
-                                    LevelObject::Prefab(prefab) if prefab.terrain_data.is_some() => {
+                                    LevelObject::Prefab(prefab)
+                                        if prefab.terrain_data.is_some() =>
+                                    {
                                         Some(idx)
                                     }
                                     _ => None,

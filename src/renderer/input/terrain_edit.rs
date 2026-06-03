@@ -144,12 +144,8 @@ impl LevelRenderer {
                     let start = self.draw_terrain_points[0];
                     let end = self.draw_terrain_points[1];
                     let control = self.draw_terrain_points[2];
-                    let points = sample_quadratic_conic(
-                        start,
-                        control,
-                        end,
-                        self.terrain_curve_segments,
-                    );
+                    let points =
+                        sample_quadratic_conic(start, control, end, self.terrain_curve_segments);
                     self.draw_terrain_result = Some(DrawTerrainResult {
                         points,
                         closed: false,

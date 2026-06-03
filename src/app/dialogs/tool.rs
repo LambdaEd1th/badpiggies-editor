@@ -6,7 +6,10 @@ use crate::i18n::locale::I18n;
 use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainDrawMode, TerrainPresetShape};
 
 use super::super::EditorApp;
-use super::{preview_playback_icon, terrain_preset_icon, terrain_preset_label_key, tool_mode_icon};
+use super::{
+    draw_mode_icon, preview_playback_icon, terrain_preset_icon, terrain_preset_label_key,
+    tool_mode_icon,
+};
 
 fn preview_tool_target_name(app: &EditorApp) -> Option<String> {
     let tab = app.tabs.get(app.active_tab)?;
@@ -113,7 +116,7 @@ impl EditorApp {
             base_window_width
         };
         let window_height = if show_terrain_presets {
-            button_size.y + 164.0
+            button_size.y + 188.0
         } else {
             button_size.y + 16.0
         };
@@ -155,6 +158,32 @@ impl EditorApp {
                     ui.add_space(8.0);
                     ui.separator();
                     ui.add_space(6.0);
+                    ui.label(t.get("tool_terrain_draw_mode"));
+                    ui.horizontal(|ui| {
+                        for (mode, key) in [
+                            (TerrainDrawMode::Curve, "tool_terrain_draw_mode_curve"),
+                            (
+                                TerrainDrawMode::Horizontal,
+                                "tool_terrain_draw_mode_horizontal",
+                            ),
+                            (TerrainDrawMode::Vertical, "tool_terrain_draw_mode_vertical"),
+                        ] {
+                            let enabled = terrain_draw_mode == mode;
+                            let response = ui.add(
+                                egui::Button::image(draw_mode_icon(mode))
+                                    .selected(enabled)
+                                    .frame(true)
+                                    .min_size(button_size)
+                                    .image_tint_follows_text_color(true),
+                            );
+                            let response = response.on_hover_text(t.get(key));
+                            if response.clicked() {
+                                terrain_draw_mode =
+                                    if enabled { TerrainDrawMode::Free } else { mode };
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
                     ui.label(t.get("tool_terrain_presets"));
                     ui.horizontal(|ui| {
                         for shape in [
@@ -179,21 +208,6 @@ impl EditorApp {
                         }
                     });
                     ui.add_space(6.0);
-                    ui.horizontal(|ui| {
-                        ui.label(t.get("tool_terrain_draw_mode"));
-                        for (mode, key) in [
-                            (TerrainDrawMode::Curve, "tool_terrain_draw_mode_curve"),
-                            (TerrainDrawMode::Horizontal, "tool_terrain_draw_mode_horizontal"),
-                            (TerrainDrawMode::Vertical, "tool_terrain_draw_mode_vertical"),
-                        ] {
-                            let enabled = terrain_draw_mode == mode;
-                            let response = ui
-                                .add(egui::Button::new(t.get(key)).selected(enabled));
-                            if response.clicked() {
-                                terrain_draw_mode = if enabled { TerrainDrawMode::Free } else { mode };
-                            }
-                        }
-                    });
                     ui.horizontal(|ui| {
                         ui.label(t.get("tool_terrain_curve_segments"));
                         ui.add(
@@ -236,7 +250,7 @@ impl EditorApp {
         if show_terrain_presets && terrain_curve_segments != initial_curve_segments {
             self.tabs[self.active_tab]
                 .renderer
-            .set_terrain_curve_segments(terrain_curve_segments);
+                .set_terrain_curve_segments(terrain_curve_segments);
         }
 
         if let Some(shape) = queued_preset {

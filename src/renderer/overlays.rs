@@ -547,14 +547,23 @@ impl LevelRenderer {
                                     super::TerrainDrawMode::Free => mouse_world,
                                     super::TerrainDrawMode::Horizontal => Vec2 {
                                         x: mouse_world.x,
-                                        y: self.draw_terrain_points.last().map(|p| p.y).unwrap_or(mouse_world.y),
+                                        y: self
+                                            .draw_terrain_points
+                                            .last()
+                                            .map(|p| p.y)
+                                            .unwrap_or(mouse_world.y),
                                     },
                                     super::TerrainDrawMode::Vertical => Vec2 {
-                                        x: self.draw_terrain_points.last().map(|p| p.x).unwrap_or(mouse_world.x),
+                                        x: self
+                                            .draw_terrain_points
+                                            .last()
+                                            .map(|p| p.x)
+                                            .unwrap_or(mouse_world.x),
                                         y: mouse_world.y,
                                     },
                                 };
-                                self.camera.world_to_screen(constrained_world, canvas_center)
+                                self.camera
+                                    .world_to_screen(constrained_world, canvas_center)
                             };
                             painter.line_segment(
                                 [last, preview_mouse],
@@ -563,7 +572,8 @@ impl LevelRenderer {
                         }
 
                         // If near first point and ≥3 points, show closing preview
-                        if self.terrain_draw_mode != super::TerrainDrawMode::Curve && points.len() >= 3
+                        if self.terrain_draw_mode != super::TerrainDrawMode::Curve
+                            && points.len() >= 3
                         {
                             let first_screen = points[0];
                             let dx = mouse.x - first_screen.x;

@@ -18,7 +18,7 @@ use crate::domain::prefab_override::{
 };
 use crate::domain::types::*;
 use crate::i18n::locale::I18n;
-use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
+use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainDrawMode, TerrainPresetShape};
 
 use super::EditorApp;
 pub(super) use unity3d::{Unity3dExportDialogState, Unity3dImportDialogState};
@@ -94,6 +94,32 @@ fn preview_playback_icon(state: PreviewPlaybackState) -> egui::Image<'static> {
         PreviewPlaybackState::Pause => egui::Image::from_bytes(
             "bytes://tool-preview-pause.svg",
             crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-preview-pause.svg"),
+        ),
+    }
+    .fit_to_exact_size(egui::vec2(22.0, 22.0))
+}
+
+fn draw_mode_icon(mode: TerrainDrawMode) -> egui::Image<'static> {
+    match mode {
+        TerrainDrawMode::Curve => egui::Image::from_bytes(
+            "bytes://tool-terrain-mode-curve.svg",
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-terrain-mode-curve.svg"),
+        ),
+        TerrainDrawMode::Horizontal => egui::Image::from_bytes(
+            "bytes://tool-terrain-mode-horizontal.svg",
+            crate::data::runtime_assets::read_runtime_asset_bytes(
+                "ui/tool-terrain-mode-horizontal.svg",
+            ),
+        ),
+        TerrainDrawMode::Vertical => egui::Image::from_bytes(
+            "bytes://tool-terrain-mode-vertical.svg",
+            crate::data::runtime_assets::read_runtime_asset_bytes(
+                "ui/tool-terrain-mode-vertical.svg",
+            ),
+        ),
+        TerrainDrawMode::Free => egui::Image::from_bytes(
+            "bytes://tool-draw-terrain.svg",
+            crate::data::runtime_assets::read_runtime_asset_bytes("ui/tool-draw-terrain.svg"),
         ),
     }
     .fit_to_exact_size(egui::vec2(22.0, 22.0))

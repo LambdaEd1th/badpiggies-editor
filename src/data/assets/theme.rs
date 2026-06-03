@@ -83,26 +83,6 @@ fn build_background_theme_aliases() -> HashMap<String, &'static str> {
         aliases.insert(normalize_bg_name(&prefab_path), theme_name);
     }
 
-    for prefab_path in super::list_pathnames("Assets/Prefab/", ".prefab") {
-        let filename = prefab_path
-            .strip_prefix("Assets/Prefab/")
-            .unwrap_or(prefab_path.as_str());
-        let Some(prefab_name) = Path::new(filename)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-        else {
-            continue;
-        };
-        let normalized_prefab_name = normalize_bg_name(prefab_name);
-        let Some(theme_name) = theme_name_from_cloud_set_stem(&normalized_prefab_name) else {
-            continue;
-        };
-
-        aliases.insert(normalized_prefab_name, theme_name);
-        aliases.insert(normalize_bg_name(filename), theme_name);
-        aliases.insert(normalize_bg_name(&prefab_path), theme_name);
-    }
-
     aliases
 }
 
@@ -126,17 +106,6 @@ fn theme_name_from_background_prefab_stem(normalized: &str) -> Option<&'static s
     }
 }
 
-fn theme_name_from_cloud_set_stem(normalized: &str) -> Option<&'static str> {
-    match normalized {
-        "cloudhalloweenset" => Some("Halloween"),
-        "cloudjungleset" => Some("Jungle"),
-        "cloudlpaset" => Some("Maya"),
-        "cloudnightset" => Some("Night"),
-        "cloudplateauset" => Some("Plateau"),
-        _ => None,
-    }
-}
-
 fn canonical_background_theme_name(normalized: &str) -> Option<&'static str> {
     BG_THEME_PRIORITY
         .iter()
@@ -150,6 +119,10 @@ fn looks_like_background_name(normalized: &str) -> bool {
         || normalized.starts_with("bg_")
 }
 
+fn looks_like_cloud_set_name(normalized: &str) -> bool {
+    normalized.starts_with("cloud") && normalized.ends_with("set")
+}
+
 fn theme_priority(theme: &str) -> usize {
     BG_THEME_PRIORITY
         .iter()
@@ -157,11 +130,82 @@ fn theme_priority(theme: &str) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-fn detect_bg_theme_from_names(object_names: &[String]) -> Option<&'static str> {
+fn detect_bg_theme_from_names_bple_order(
+    object_names: &[String],
+    is_dark_level: bool,
+) -> Option<&'static str> {
+    let has_object = |target: &str| {
+        object_names
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(target))
+    };
+
+    if has_object("Background_Jungle_01_SET") {
+        return detect_bg_theme_from_name("Background_Jungle_01_SET");
+    }
+    if has_object("Background_Plateau_01_SET") {
+        return detect_bg_theme_from_name("Background_Plateau_01_SET");
+    }
+    if is_dark_level || has_object("Background_Cave_01_SET 1") {
+        return detect_bg_theme_from_name("Background_Cave_01_SET 1");
+    }
+    if has_object("Background_Night_01_SET 1") {
+        return detect_bg_theme_from_name("Background_Night_01_SET 1");
+    }
+    if has_object("Background_Forest_01_SET 1") {
+        return detect_bg_theme_from_name("Background_Forest_01_SET 1");
+    }
+    if has_object("Background_Halloween") {
+        return detect_bg_theme_from_name("Background_Halloween");
+    }
+    if has_object("Background_MM_01_SET") {
+        return detect_bg_theme_from_name("Background_MM_01_SET");
+    }
+    if has_object("Background_MM_Temple_01_SET_01") {
+        return detect_bg_theme_from_name("Background_MM_Temple_01_SET_01");
+    }
+
+    None
+}
+
+fn detect_bg_theme_from_names(
+    object_names: &[String],
+    is_dark_level: bool,
+) -> Option<&'static str> {
+    if let Some(theme) = detect_bg_theme_from_names_bple_order(object_names, is_dark_level) {
+        return Some(theme);
+    }
+
+    // Prefer explicit Background*/bg_* objects over decorative cloud set names.
+    // This mirrors Unity's runtime intent where ambient/background selection is
+    // driven by concrete background objects.
+    let mut best_background_match = None;
+    for name in object_names {
+        let normalized = normalize_bg_name(name);
+        if !looks_like_background_name(&normalized) {
+            continue;
+        }
+        if let Some(theme) = theme_name_for_background_prefab(name) {
+            match best_background_match {
+                Some(current) if theme_priority(current) <= theme_priority(theme) => {}
+                _ => best_background_match = Some(theme),
+            }
+        }
+    }
+    if best_background_match.is_some() {
+        return best_background_match;
+    }
+
+    // Fallback for levels with no explicit Background* root (legacy/edge cases).
+    // Cloud sets are visual decoration and not part of the BPLE background
+    // branch chain, so they are excluded from theme detection.
     let mut best_match = None;
 
     for name in object_names {
         let normalized = normalize_bg_name(name);
+        if looks_like_cloud_set_name(&normalized) {
+            continue;
+        }
         if let Some(theme) = theme_name_for_background_prefab(name) {
             if theme == "Cave" && !looks_like_background_name(&normalized) {
                 continue;
@@ -204,27 +248,43 @@ fn background_prefab_name(level_key: &str, bg_override_text: Option<&str>) -> Op
     crate::domain::level::refs::get_background_prefab_ref(level_key, ref_index)
 }
 
+fn detection_name_candidates(
+    level_key: &str,
+    object_names: &[String],
+    bg_override_text: Option<&str>,
+) -> Vec<String> {
+    let mut names = object_names.to_vec();
+
+    if let Some(raw) = bg_override_text {
+        if let Some(prefab_name) = background_prefab_name(level_key, Some(raw)) {
+            names.push(prefab_name.to_string());
+        }
+        if let Some(root_name) = background_override_root_name(raw) {
+            names.push(root_name);
+        }
+    }
+
+    names
+}
+
 /// Detect which background theme to use.
+#[allow(dead_code)]
 pub fn detect_bg_theme(
     level_key: &str,
     object_names: &[String],
     bg_override_text: Option<&str>,
 ) -> Option<&'static str> {
-    if let Some(raw) = bg_override_text {
-        if let Some(prefab_name) = background_prefab_name(level_key, Some(raw))
-            && let Some(theme) = detect_bg_theme_from_name(prefab_name)
-        {
-            return Some(theme);
-        }
+    detect_bg_theme_with_dark_level(level_key, object_names, bg_override_text, false)
+}
 
-        if let Some(root_name) = background_override_root_name(raw)
-            && let Some(theme) = detect_bg_theme_from_name(&root_name)
-        {
-            return Some(theme);
-        }
-    }
-
-    detect_bg_theme_from_names(object_names)
+pub fn detect_bg_theme_with_dark_level(
+    level_key: &str,
+    object_names: &[String],
+    bg_override_text: Option<&str>,
+    is_dark_level: bool,
+) -> Option<&'static str> {
+    let names = detection_name_candidates(level_key, object_names, bg_override_text);
+    detect_bg_theme_from_names(&names, is_dark_level)
 }
 
 #[cfg(test)]
@@ -232,9 +292,9 @@ pub fn detect_bg_theme(
 mod tests {
     use super::{
         background_override_root_name, background_prefab_name, background_prefab_ref_index,
-        detect_bg_theme, get_object_color, ground_color, ground_color_candidate_rgb,
-        is_ground_color_candidate_sprite, props_tint_color_for_prefab, should_skip_render,
-        sky_top_color, theme_name_for_background_prefab,
+        detect_bg_theme, detect_bg_theme_with_dark_level, get_object_color, ground_color,
+        ground_color_candidate_rgb, is_ground_color_candidate_sprite, props_tint_color_for_prefab,
+        should_skip_render, sky_top_color, theme_name_for_background_prefab,
     };
     use crate::domain::level::refs::{get_prefab_override, level_key_from_filename};
     use crate::domain::parser::parse_level;
@@ -394,6 +454,74 @@ mod tests {
     }
 
     #[test]
+    fn level_sandbox_10_prefers_background_forest_over_cloud_plateau_set() {
+        let path = "assetbundles/episode_sandbox_levels.unity3d/Level_Sandbox_10_data.bytes";
+        let names = parsed_object_names(path);
+        assert_eq!(
+            detect_bg_theme(
+                "Level_Sandbox_10_data",
+                &names,
+                parsed_bg_override(path).as_deref(),
+            ),
+            Some("Morning")
+        );
+    }
+
+    #[test]
+    fn dark_level_flag_matches_bple_cave_branch() {
+        let names = vec!["CloudPlateauSet".to_string(), "SomeOtherObject".to_string()];
+        assert_eq!(
+            detect_bg_theme_with_dark_level("level_key", &names, None, true),
+            Some("Cave")
+        );
+    }
+
+    #[test]
+    fn dark_level_cave_branch_still_beats_mm_background_override() {
+        let path = "assetbundles/episode_sandbox_levels.unity3d/Episode_6_Tower Sandbox_data.bytes";
+        let names = vec!["SomeOtherObject".to_string()];
+        assert_eq!(
+            detect_bg_theme_with_dark_level(
+                "Episode_6_Tower Sandbox_data",
+                &names,
+                parsed_bg_override(path).as_deref(),
+                true,
+            ),
+            Some("Cave")
+        );
+    }
+
+    #[test]
+    fn bple_branch_order_prefers_jungle_when_multiple_backgrounds_exist() {
+        let names = vec![
+            "Background_MM_Temple_01_SET_01".to_string(),
+            "Background_MM_01_SET".to_string(),
+            "Background_Forest_01_SET 1".to_string(),
+            "Background_Night_01_SET 1".to_string(),
+            "Background_Cave_01_SET 1".to_string(),
+            "Background_Plateau_01_SET".to_string(),
+            "Background_Jungle_01_SET".to_string(),
+        ];
+
+        assert_eq!(detect_bg_theme("level_key", &names, None), Some("Jungle"));
+    }
+
+    #[test]
+    fn cloud_set_aliases_are_fallback_only_when_no_background_object_exists() {
+        let only_cloud = vec!["CloudPlateauSet".to_string()];
+        assert_eq!(detect_bg_theme("level_key", &only_cloud, None), None);
+
+        let cloud_plus_background = vec![
+            "CloudPlateauSet".to_string(),
+            "Background_Forest_01_SET 1".to_string(),
+        ];
+        assert_eq!(
+            detect_bg_theme("level_key", &cloud_plus_background, None),
+            Some("Morning")
+        );
+    }
+
+    #[test]
     fn background_theme_name_normalizes_known_name_forms() {
         assert_eq!(
             theme_name_for_background_prefab("background_mm_cave_02_set_dark.prefab"),
@@ -411,14 +539,8 @@ mod tests {
             theme_name_for_background_prefab("MayaHigh"),
             Some("MayaHigh")
         );
-        assert_eq!(
-            theme_name_for_background_prefab("CloudJungleSet"),
-            Some("Jungle")
-        );
-        assert_eq!(
-            theme_name_for_background_prefab("CloudLPASet"),
-            Some("Maya")
-        );
+        assert_eq!(theme_name_for_background_prefab("CloudJungleSet"), None);
+        assert_eq!(theme_name_for_background_prefab("CloudLPASet"), None);
         assert_eq!(theme_name_for_background_prefab("backgroundobject"), None);
     }
 

@@ -76,8 +76,16 @@ impl LevelRenderer {
         self.bg_override_text = find_bg_override_text(&level.objects);
         let bg_root_offset = find_bg_root_position(&level.objects).map(|pos| [pos.x, pos.y, pos.z]);
 
-        self.bg_theme =
-            assets::detect_bg_theme(&self.level_key, &names, self.bg_override_text.as_deref());
+        // Parse dark-level and LitArea data before theme detection so we can
+        // mirror BPLE's `m_darkLevel || Background_Cave_01_SET 1` branch.
+        parse_dark_level_data(level, &mut self.dark_level, &mut self.lit_area_polygons);
+
+        self.bg_theme = assets::detect_bg_theme_with_dark_level(
+            &self.level_key,
+            &names,
+            self.bg_override_text.as_deref(),
+            self.dark_level,
+        );
 
         // Build background layer cache (pre-compute tile grouping/singletons)
         self.bg_layer_cache = self.bg_theme.and_then(|theme| {
@@ -456,8 +464,6 @@ impl LevelRenderer {
         // Parse construction grid from LevelManager override data
         self.construction_grid = grid::parse_construction_grid(level);
 
-        // Parse dark level flag and LitArea polygons
-        parse_dark_level_data(level, &mut self.dark_level, &mut self.lit_area_polygons);
         if self.dark_level
             && let Some(ref construction_grid) = self.construction_grid
         {

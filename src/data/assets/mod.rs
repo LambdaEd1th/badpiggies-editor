@@ -11,7 +11,7 @@ pub use atlas_materials::atlas_for_material_guid;
 pub use terrain::{get_terrain_fill_texture, get_terrain_splat0, get_terrain_splat1_for_level};
 pub use texture_cache::TextureCache;
 pub use theme::{
-    detect_bg_theme, get_object_color, ground_color, props_tint_color_for_prefab,
+    detect_bg_theme_with_dark_level, get_object_color, ground_color, props_tint_color_for_prefab,
     props_tint_is_alpha_blend, should_skip_render, skip_props_tint, sky_top_color,
     theme_name_for_background_prefab,
 };

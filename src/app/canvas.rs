@@ -214,7 +214,7 @@ impl EditorApp {
                         tab.history.redo.clear();
                         dialogs::update_camera_limits_in_level(level, result.new_limits);
                     }
-                    // Pick up terrain draw result — create new terrain object
+                    // Pick up terrain draw result — append to selected terrain or create new terrain object
                     if let Some(result) = tab.renderer.draw_terrain_result.take()
                         && let Some(ref mut level) = tab.level
                         && result.points.len() >= 2
@@ -228,51 +228,127 @@ impl EditorApp {
                         }
                         tab.history.redo.clear();
 
-                        // Create a new terrain Prefab from drawn points
-                        let center = {
-                            let mut cx = 0.0f32;
-                            let mut cy = 0.0f32;
-                            for p in &result.points {
-                                cx += p.x;
-                                cy += p.y;
+                        let selected_terrain_index = if tab.selected.len() == 1 {
+                            let idx = *tab.selected.iter().next().unwrap_or(&usize::MAX);
+                            if idx < level.objects.len() {
+                                match &level.objects[idx] {
+                                    LevelObject::Prefab(prefab) if prefab.terrain_data.is_some() => {
+                                        Some(idx)
+                                    }
+                                    _ => None,
+                                }
+                            } else {
+                                None
                             }
-                            let n = result.points.len() as f32;
-                            Vec2 {
-                                x: cx / n,
-                                y: cy / n,
-                            }
-                        };
-                        let local_nodes: Vec<crate::domain::terrain_gen::CurveNode> = result
-                            .points
-                            .iter()
-                            .map(|p| crate::domain::terrain_gen::CurveNode {
-                                position: Vec2 {
-                                    x: p.x - center.x,
-                                    y: p.y - center.y,
-                                },
-                                texture: 1,
-                            })
-                            .collect();
-                        let wants_collider = tab.renderer.terrain_draw_has_collider();
-                        let new_obj =
-                            LevelObject::Prefab(Self::build_terrain_prefab_from_local_nodes(
-                                level,
-                                center,
-                                local_nodes,
-                                wants_collider,
-                            ));
-                        let new_idx = level.objects.len();
-                        level.objects.push(new_obj);
-                        level.roots.push(new_idx);
-                        tab.selected = std::collections::BTreeSet::from([new_idx]);
-
-                        tab.renderer.reload_level_preserving_preview_state(level);
-                        let label = if result.closed {
-                            "Terrain (closed)"
                         } else {
-                            "Terrain"
+                            None
                         };
-                        tab.status = t.fmt1("status_added", label);
+
+                        if let Some(obj_idx) = selected_terrain_index {
+                            if let LevelObject::Prefab(ref mut prefab) = level.objects[obj_idx]
+                                && let Some(ref mut td) = prefab.terrain_data
+                            {
+                                let mut nodes = crate::domain::terrain_gen::extract_curve_nodes(td);
+
+                                // Reopen closed loop so new strokes continue from the tail.
+                                if crate::domain::terrain_gen::is_closed_loop(&nodes)
+                                    && nodes.len() >= 2
+                                {
+                                    nodes.pop();
+                                }
+
+                                let texture = result.texture_index.min(1);
+                                let mut local_points: Vec<Vec2> = result
+                                    .points
+                                    .iter()
+                                    .map(|p| Vec2 {
+                                        x: p.x - prefab.position.x,
+                                        y: p.y - prefab.position.y,
+                                    })
+                                    .collect();
+
+                                if let (Some(last_existing), Some(first_new)) =
+                                    (nodes.last(), local_points.first())
+                                {
+                                    let dx = last_existing.position.x - first_new.x;
+                                    let dy = last_existing.position.y - first_new.y;
+                                    if dx * dx + dy * dy <= 1e-8 {
+                                        local_points.remove(0);
+                                    }
+                                }
+
+                                for point in local_points {
+                                    nodes.push(crate::domain::terrain_gen::CurveNode {
+                                        position: point,
+                                        texture,
+                                    });
+                                }
+
+                                if result.closed
+                                    && let (Some(first), Some(last)) =
+                                        (nodes.first().cloned(), nodes.last())
+                                {
+                                    let dx = first.position.x - last.position.x;
+                                    let dy = first.position.y - last.position.y;
+                                    if dx * dx + dy * dy > 1e-8 {
+                                        nodes.push(first);
+                                    }
+                                }
+
+                                if nodes.len() >= 2 {
+                                    crate::domain::terrain_gen::regenerate_terrain(td, &nodes);
+                                }
+                            }
+
+                            tab.renderer.reload_level_preserving_preview_state(level);
+                            tab.status = t.fmt1("status_added", "Terrain Nodes");
+                        } else {
+                            // Create a new terrain Prefab from drawn points
+                            let center = {
+                                let mut cx = 0.0f32;
+                                let mut cy = 0.0f32;
+                                for p in &result.points {
+                                    cx += p.x;
+                                    cy += p.y;
+                                }
+                                let n = result.points.len() as f32;
+                                Vec2 {
+                                    x: cx / n,
+                                    y: cy / n,
+                                }
+                            };
+                            let local_nodes: Vec<crate::domain::terrain_gen::CurveNode> = result
+                                .points
+                                .iter()
+                                .map(|p| crate::domain::terrain_gen::CurveNode {
+                                    position: Vec2 {
+                                        x: p.x - center.x,
+                                        y: p.y - center.y,
+                                    },
+                                    texture: result.texture_index.min(1),
+                                })
+                                .collect();
+                            let wants_collider = tab.renderer.terrain_draw_has_collider();
+                            let new_obj =
+                                LevelObject::Prefab(Self::build_terrain_prefab_from_local_nodes(
+                                    level,
+                                    center,
+                                    local_nodes,
+                                    wants_collider,
+                                ));
+                            let new_idx = level.objects.len();
+                            level.objects.push(new_obj);
+                            level.roots.push(new_idx);
+                            tab.selected = std::collections::BTreeSet::from([new_idx]);
+
+                            tab.renderer.reload_level_preserving_preview_state(level);
+                            let label = if result.closed {
+                                "Terrain (closed)"
+                            } else {
+                                "Terrain"
+                            };
+                            tab.status = t.fmt1("status_added", label);
+                        }
                     }
                 } else {
                     let rect = ui.available_rect_before_wrap();

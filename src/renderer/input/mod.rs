@@ -2,7 +2,7 @@
 
 use crate::domain::types::Vec2;
 
-use super::{LevelRenderer, TerrainPresetShape};
+use super::{LevelRenderer, TerrainDrawMode, TerrainPresetShape};
 
 fn constrain_square_end(start: Vec2, end: Vec2) -> Vec2 {
     let dx = end.x - start.x;
@@ -35,7 +35,7 @@ fn terrain_preset_points(
     shape: TerrainPresetShape,
     start: Vec2,
     end: Vec2,
-    round_segments: usize,
+    curve_segments: usize,
 ) -> Vec<Vec2> {
     let constrained_end = match shape {
         TerrainPresetShape::PerfectCircle | TerrainPresetShape::Square => {
@@ -52,7 +52,7 @@ fn terrain_preset_points(
 
     match shape {
         TerrainPresetShape::Circle | TerrainPresetShape::PerfectCircle => {
-            let segments = round_segments.max(3);
+            let segments = curve_segments.max(3);
             let center = Vec2 {
                 x: (min_x + max_x) * 0.5,
                 y: (min_y + max_y) * 0.5,
@@ -155,8 +155,8 @@ impl LevelRenderer {
         self.terrain_preset_shape
     }
 
-    pub fn terrain_round_segments(&self) -> usize {
-        self.terrain_round_segments
+    pub fn terrain_curve_segments(&self) -> usize {
+        self.terrain_curve_segments
     }
 
     pub fn terrain_draw_has_collider(&self) -> bool {
@@ -167,8 +167,28 @@ impl LevelRenderer {
         self.terrain_draw_has_collider = has_collider;
     }
 
-    pub fn set_terrain_round_segments(&mut self, segments: usize) {
-        self.terrain_round_segments = segments.clamp(3, 128);
+    pub fn set_terrain_curve_segments(&mut self, segments: usize) {
+        self.terrain_curve_segments = segments.clamp(3, 128);
+    }
+
+    pub fn terrain_draw_mode(&self) -> TerrainDrawMode {
+        self.terrain_draw_mode
+    }
+
+    pub fn set_terrain_draw_mode(&mut self, mode: TerrainDrawMode) {
+        if self.terrain_draw_mode != mode {
+            self.draw_terrain_points.clear();
+            self.draw_terrain_active = false;
+        }
+        self.terrain_draw_mode = mode;
+    }
+
+    pub fn terrain_draw_texture_index(&self) -> usize {
+        self.terrain_draw_texture_index
+    }
+
+    pub fn set_terrain_draw_texture_index(&mut self, texture_index: usize) {
+        self.terrain_draw_texture_index = texture_index.min(1);
     }
 
     pub fn toggle_terrain_preset(&mut self, shape: TerrainPresetShape) {
@@ -190,7 +210,7 @@ impl LevelRenderer {
             shape,
             start,
             end,
-            self.terrain_round_segments,
+            self.terrain_curve_segments,
         ))
     }
 }

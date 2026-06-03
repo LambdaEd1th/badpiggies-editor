@@ -17,7 +17,7 @@ use super::edge_shader;
 use super::fill_shader;
 use super::opaque_shader;
 use super::sprite_shader;
-use super::{Camera, LevelRenderer, PreviewPlaybackState};
+use super::{Camera, LevelRenderer, PreviewPlaybackState, TerrainDrawMode};
 
 impl LevelRenderer {
     pub fn new(render_state: Option<&egui_wgpu::RenderState>) -> Self {
@@ -103,7 +103,9 @@ impl LevelRenderer {
             terrain_preset_shape: None,
             terrain_draw_has_collider: true,
             terrain_preset_drag_start: None,
-            terrain_round_segments: 24,
+            terrain_curve_segments: 24,
+            terrain_draw_mode: TerrainDrawMode::default(),
+            terrain_draw_texture_index: 1,
             draw_terrain_points: Vec::new(),
             draw_terrain_active: false,
             bounds_dragging: None,
@@ -211,7 +213,9 @@ impl LevelRenderer {
             terrain_preset_shape: None,
             terrain_draw_has_collider: self.terrain_draw_has_collider,
             terrain_preset_drag_start: None,
-            terrain_round_segments: self.terrain_round_segments,
+            terrain_curve_segments: self.terrain_curve_segments,
+            terrain_draw_mode: self.terrain_draw_mode,
+            terrain_draw_texture_index: self.terrain_draw_texture_index,
             draw_terrain_points: Vec::new(),
             draw_terrain_active: false,
             bounds_dragging: None,

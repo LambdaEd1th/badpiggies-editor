@@ -278,7 +278,15 @@ tool_terrain_preset_rectangle = 矩形
 tool_terrain_preset_perfect_circle = 正圆
 tool_terrain_preset_square = 正四边形
 tool_terrain_preset_equilateral_triangle = 正三角形
-tool_terrain_round_segments = 椭圆/正圆节点
+tool_terrain_curve_segments = 曲线节点
+tool_terrain_draw_mode = 绘制模式
+tool_terrain_draw_mode_curve = 圆锥曲线
+tool_terrain_draw_mode_free = 自由绘制
+tool_terrain_draw_mode_horizontal = 水平线
+tool_terrain_draw_mode_vertical = 垂直线
+tool_terrain_draw_splat = 绘制 Splat
+tool_terrain_draw_splat0 = Splat0
+tool_terrain_draw_splat1 = Splat1
 
 # 工具模式快捷键
 shortcuts_section_tools = 工具模式

@@ -278,7 +278,15 @@ tool_terrain_preset_rectangle = Rectángulo
 tool_terrain_preset_perfect_circle = Círculo perfecto
 tool_terrain_preset_square = Cuadrado
 tool_terrain_preset_equilateral_triangle = Triángulo equilátero
-tool_terrain_round_segments = Nodos de elipse/círculo
+tool_terrain_curve_segments = Nodos de curva
+tool_terrain_draw_mode = Modo de dibujo
+tool_terrain_draw_mode_curve = Curva cónica
+tool_terrain_draw_mode_free = Mano alzada
+tool_terrain_draw_mode_horizontal = Horizontal
+tool_terrain_draw_mode_vertical = Vertical
+tool_terrain_draw_splat = Splat de dibujo
+tool_terrain_draw_splat0 = Splat0
+tool_terrain_draw_splat1 = Splat1
 
 # Tool mode shortcuts
 shortcuts_section_tools = Modos de herramienta

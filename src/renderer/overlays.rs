@@ -500,22 +500,71 @@ impl LevelRenderer {
                         painter.circle_filled(*pt, 3.5, color);
                     }
 
-                    // Highlight first point when closeable (≥3 points)
-                    if points.len() >= 3 {
+                    // Highlight first point when closeable (≥3 points) in polyline modes
+                    if self.terrain_draw_mode != super::TerrainDrawMode::Curve && points.len() >= 3
+                    {
                         painter.circle_stroke(points[0], 8.0, egui::Stroke::new(2.0, close_color));
                     }
 
-                    // Draw preview line from last point to mouse cursor
+                    // Draw preview for current draw mode
                     if self.draw_terrain_active
                         && let Some(mouse) = painter.ctx().input(|i| i.pointer.latest_pos())
                     {
                         let dash_color = egui::Color32::from_rgba_unmultiplied(100, 220, 100, 140);
-                        if let Some(&last) = points.last() {
-                            painter.line_segment([last, mouse], egui::Stroke::new(1.0, dash_color));
+                        if self.terrain_draw_mode == super::TerrainDrawMode::Curve {
+                            if self.draw_terrain_points.len() == 2 {
+                                let start = self.draw_terrain_points[0];
+                                let end = self.draw_terrain_points[1];
+                                let control = self.camera.screen_to_world(mouse, canvas_center);
+                                let nodes = self.terrain_curve_segments.clamp(3, 256);
+                                let mut sampled = Vec::with_capacity(nodes);
+                                let denom = (nodes - 1) as f32;
+                                for i in 0..nodes {
+                                    let t = i as f32 / denom;
+                                    let omt = 1.0 - t;
+                                    let world = Vec2 {
+                                        x: omt * omt * start.x
+                                            + 2.0 * omt * t * control.x
+                                            + t * t * end.x,
+                                        y: omt * omt * start.y
+                                            + 2.0 * omt * t * control.y
+                                            + t * t * end.y,
+                                    };
+                                    sampled.push(self.camera.world_to_screen(world, canvas_center));
+                                }
+                                for pair in sampled.windows(2) {
+                                    painter.line_segment(
+                                        [pair[0], pair[1]],
+                                        egui::Stroke::new(1.5, dash_color),
+                                    );
+                                }
+                            }
+                        } else if let Some(&last) = points.last() {
+                            let preview_mouse = {
+                                let mouse_world = self.camera.screen_to_world(mouse, canvas_center);
+                                let constrained_world = match self.terrain_draw_mode {
+                                    super::TerrainDrawMode::Curve => mouse_world,
+                                    super::TerrainDrawMode::Free => mouse_world,
+                                    super::TerrainDrawMode::Horizontal => Vec2 {
+                                        x: mouse_world.x,
+                                        y: self.draw_terrain_points.last().map(|p| p.y).unwrap_or(mouse_world.y),
+                                    },
+                                    super::TerrainDrawMode::Vertical => Vec2 {
+                                        x: self.draw_terrain_points.last().map(|p| p.x).unwrap_or(mouse_world.x),
+                                        y: mouse_world.y,
+                                    },
+                                };
+                                self.camera.world_to_screen(constrained_world, canvas_center)
+                            };
+                            painter.line_segment(
+                                [last, preview_mouse],
+                                egui::Stroke::new(1.0, dash_color),
+                            );
                         }
 
                         // If near first point and ≥3 points, show closing preview
-                        if points.len() >= 3 {
+                        if self.terrain_draw_mode != super::TerrainDrawMode::Curve && points.len() >= 3
+                        {
                             let first_screen = points[0];
                             let dx = mouse.x - first_screen.x;
                             let dy = mouse.y - first_screen.y;

@@ -123,6 +123,15 @@ pub enum TerrainPresetShape {
     EquilateralTriangle,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TerrainDrawMode {
+    #[default]
+    Free,
+    Curve,
+    Horizontal,
+    Vertical,
+}
+
 /// Result of a completed box-selection drag.
 pub struct BoxSelectResult {
     /// Indices of objects whose world positions fall inside the box.
@@ -135,6 +144,8 @@ pub struct DrawTerrainResult {
     pub points: Vec<Vec2>,
     /// Whether the curve was closed (last point snapped to first).
     pub closed: bool,
+    /// Curve texture slot for newly drawn nodes (0 = splat0, 1 = splat1).
+    pub texture_index: usize,
 }
 
 /// Which part of the level bounds rectangle is being dragged.

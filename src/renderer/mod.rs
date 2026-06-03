@@ -180,8 +180,12 @@ pub struct LevelRenderer {
     terrain_draw_has_collider: bool,
     /// World-space drag start for the armed terrain preset shape.
     terrain_preset_drag_start: Option<Vec2>,
-    /// Node count used for ellipse and perfect-circle preset generation.
-    terrain_round_segments: usize,
+    /// Node count used for curve/conic sampling and round preset generation.
+    terrain_curve_segments: usize,
+    /// Point placement mode for terrain drawing.
+    terrain_draw_mode: TerrainDrawMode,
+    /// Curve texture slot used for newly drawn terrain nodes (0/1).
+    terrain_draw_texture_index: usize,
     /// Active freehand terrain draw points (world coords).
     draw_terrain_points: Vec<Vec2>,
     /// Whether a freehand draw is currently active.

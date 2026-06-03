@@ -278,7 +278,15 @@ tool_terrain_preset_rectangle = مستطيل
 tool_terrain_preset_perfect_circle = دائرة مثالية
 tool_terrain_preset_square = مربع
 tool_terrain_preset_equilateral_triangle = مثلث متساوي الأضلاع
-tool_terrain_round_segments = عقد القطع الناقص/الدائرة
+tool_terrain_curve_segments = عقد المنحنى
+tool_terrain_draw_mode = وضع الرسم
+tool_terrain_draw_mode_curve = منحنى مخروطي
+tool_terrain_draw_mode_free = رسم حر
+tool_terrain_draw_mode_horizontal = أفقي
+tool_terrain_draw_mode_vertical = عمودي
+tool_terrain_draw_splat = Splat الرسم
+tool_terrain_draw_splat0 = Splat0
+tool_terrain_draw_splat1 = Splat1
 
 # Tool mode shortcuts
 shortcuts_section_tools = أوضاع الأدوات

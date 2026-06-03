@@ -278,7 +278,15 @@ tool_terrain_preset_rectangle = Прямоугольник
 tool_terrain_preset_perfect_circle = Идеальный круг
 tool_terrain_preset_square = Квадрат
 tool_terrain_preset_equilateral_triangle = Равносторонний треугольник
-tool_terrain_round_segments = Узлы эллипса/круга
+tool_terrain_curve_segments = Узлы кривой
+tool_terrain_draw_mode = Режим рисования
+tool_terrain_draw_mode_curve = Коническая кривая
+tool_terrain_draw_mode_free = От руки
+tool_terrain_draw_mode_horizontal = Горизонталь
+tool_terrain_draw_mode_vertical = Вертикаль
+tool_terrain_draw_splat = Splat рисования
+tool_terrain_draw_splat0 = Splat0
+tool_terrain_draw_splat1 = Splat1
 
 # Tool mode shortcuts
 shortcuts_section_tools = Режимы инструментов

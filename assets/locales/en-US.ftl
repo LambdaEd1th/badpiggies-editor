@@ -278,7 +278,15 @@ tool_terrain_preset_rectangle = Rectangle
 tool_terrain_preset_perfect_circle = Perfect Circle
 tool_terrain_preset_square = Square
 tool_terrain_preset_equilateral_triangle = Equilateral Triangle
-tool_terrain_round_segments = Ellipse/Circle Nodes
+tool_terrain_curve_segments = Curve Nodes
+tool_terrain_draw_mode = Draw Mode
+tool_terrain_draw_mode_curve = Conic Curve
+tool_terrain_draw_mode_free = Freehand
+tool_terrain_draw_mode_horizontal = Horizontal
+tool_terrain_draw_mode_vertical = Vertical
+tool_terrain_draw_splat = Draw Splat
+tool_terrain_draw_splat0 = Splat0
+tool_terrain_draw_splat1 = Splat1
 
 # Tool mode shortcuts
 shortcuts_section_tools = Tool Modes

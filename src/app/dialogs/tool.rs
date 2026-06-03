@@ -3,7 +3,7 @@
 use eframe::egui;
 
 use crate::i18n::locale::I18n;
-use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainPresetShape};
+use crate::renderer::{CursorMode, PreviewPlaybackState, TerrainDrawMode, TerrainPresetShape};
 
 use super::super::EditorApp;
 use super::{preview_playback_icon, terrain_preset_icon, terrain_preset_label_key, tool_mode_icon};
@@ -89,19 +89,31 @@ impl EditorApp {
         } else {
             true
         };
-        let mut terrain_round_segments = if show_terrain_presets {
-            self.tabs[self.active_tab].renderer.terrain_round_segments()
+        let mut terrain_curve_segments = if show_terrain_presets {
+            self.tabs[self.active_tab].renderer.terrain_curve_segments()
         } else {
             24
         };
-        let initial_round_segments = terrain_round_segments;
+        let mut terrain_draw_mode = if show_terrain_presets {
+            self.tabs[self.active_tab].renderer.terrain_draw_mode()
+        } else {
+            TerrainDrawMode::Free
+        };
+        let mut terrain_draw_texture_index = if show_terrain_presets {
+            self.tabs[self.active_tab]
+                .renderer
+                .terrain_draw_texture_index()
+        } else {
+            1
+        };
+        let initial_curve_segments = terrain_curve_segments;
         let window_width = if show_terrain_presets {
             base_window_width.max(button_size.x * 5.0 + button_spacing * 4.0)
         } else {
             base_window_width
         };
         let window_height = if show_terrain_presets {
-            button_size.y + 126.0
+            button_size.y + 164.0
         } else {
             button_size.y + 16.0
         };
@@ -168,11 +180,39 @@ impl EditorApp {
                     });
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        ui.label(t.get("tool_terrain_round_segments"));
+                        ui.label(t.get("tool_terrain_draw_mode"));
+                        for (mode, key) in [
+                            (TerrainDrawMode::Curve, "tool_terrain_draw_mode_curve"),
+                            (TerrainDrawMode::Horizontal, "tool_terrain_draw_mode_horizontal"),
+                            (TerrainDrawMode::Vertical, "tool_terrain_draw_mode_vertical"),
+                        ] {
+                            let enabled = terrain_draw_mode == mode;
+                            let response = ui
+                                .add(egui::Button::new(t.get(key)).selected(enabled));
+                            if response.clicked() {
+                                terrain_draw_mode = if enabled { TerrainDrawMode::Free } else { mode };
+                            }
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(t.get("tool_terrain_curve_segments"));
                         ui.add(
-                            egui::DragValue::new(&mut terrain_round_segments)
+                            egui::DragValue::new(&mut terrain_curve_segments)
                                 .range(3..=128)
                                 .speed(1),
+                        );
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(t.get("tool_terrain_draw_splat"));
+                        ui.selectable_value(
+                            &mut terrain_draw_texture_index,
+                            0,
+                            t.get("tool_terrain_draw_splat0"),
+                        );
+                        ui.selectable_value(
+                            &mut terrain_draw_texture_index,
+                            1,
+                            t.get("tool_terrain_draw_splat1"),
                         );
                     });
                     ui.horizontal(|ui| {
@@ -185,12 +225,18 @@ impl EditorApp {
             self.tabs[self.active_tab]
                 .renderer
                 .set_terrain_draw_has_collider(terrain_draw_has_collider);
-        }
-
-        if show_terrain_presets && terrain_round_segments != initial_round_segments {
             self.tabs[self.active_tab]
                 .renderer
-                .set_terrain_round_segments(terrain_round_segments);
+                .set_terrain_draw_mode(terrain_draw_mode);
+            self.tabs[self.active_tab]
+                .renderer
+                .set_terrain_draw_texture_index(terrain_draw_texture_index);
+        }
+
+        if show_terrain_presets && terrain_curve_segments != initial_curve_segments {
+            self.tabs[self.active_tab]
+                .renderer
+            .set_terrain_curve_segments(terrain_curve_segments);
         }
 
         if let Some(shape) = queued_preset {

@@ -2,8 +2,39 @@
 
 use eframe::egui;
 
-use super::super::{DrawTerrainResult, LevelRenderer, TerrainPresetShape};
+use crate::domain::types::Vec2;
+
+use super::super::{DrawTerrainResult, LevelRenderer, TerrainDrawMode, TerrainPresetShape};
 use super::terrain_preset_points;
+
+fn constrain_draw_point(mode: TerrainDrawMode, anchor: Vec2, candidate: Vec2) -> Vec2 {
+    match mode {
+        TerrainDrawMode::Curve | TerrainDrawMode::Free => candidate,
+        TerrainDrawMode::Horizontal => Vec2 {
+            x: candidate.x,
+            y: anchor.y,
+        },
+        TerrainDrawMode::Vertical => Vec2 {
+            x: anchor.x,
+            y: candidate.y,
+        },
+    }
+}
+
+fn sample_quadratic_conic(p0: Vec2, p1: Vec2, p2: Vec2, nodes: usize) -> Vec<Vec2> {
+    let n = nodes.clamp(3, 256);
+    let mut points = Vec::with_capacity(n);
+    let denom = (n - 1) as f32;
+    for i in 0..n {
+        let t = i as f32 / denom;
+        let omt = 1.0 - t;
+        points.push(Vec2 {
+            x: omt * omt * p0.x + 2.0 * omt * t * p1.x + t * t * p2.x,
+            y: omt * omt * p0.y + 2.0 * omt * t * p1.y + t * t * p2.y,
+        });
+    }
+    points
+}
 
 impl LevelRenderer {
     pub(super) fn handle_terrain_preset_mode(
@@ -48,8 +79,9 @@ impl LevelRenderer {
             let height = (end.y - start.y).abs();
             if width > 0.05 && height > 0.05 {
                 self.draw_terrain_result = Some(DrawTerrainResult {
-                    points: terrain_preset_points(shape, start, end, self.terrain_round_segments),
+                    points: terrain_preset_points(shape, start, end, self.terrain_curve_segments),
                     closed: true,
+                    texture_index: self.terrain_draw_texture_index,
                 });
             }
             self.terrain_preset_shape = None;
@@ -89,6 +121,56 @@ impl LevelRenderer {
             return;
         }
 
+        // Curve mode: 3 clicks define a quadratic conic arc
+        if self.terrain_draw_mode == TerrainDrawMode::Curve {
+            if response.secondary_clicked() && !self.draw_terrain_points.is_empty() {
+                self.draw_terrain_points.pop();
+                self.draw_terrain_active = !self.draw_terrain_points.is_empty();
+                self.suppress_context_menu_this_frame = true;
+                self.panning = false;
+                return;
+            }
+
+            if response.clicked()
+                && !is_shift
+                && !is_alt
+                && let Some(pointer) = response.interact_pointer_pos()
+            {
+                let world = self.camera.screen_to_world(pointer, canvas_center);
+                self.draw_terrain_points.push(world);
+                self.draw_terrain_active = true;
+
+                if self.draw_terrain_points.len() == 3 {
+                    let start = self.draw_terrain_points[0];
+                    let end = self.draw_terrain_points[1];
+                    let control = self.draw_terrain_points[2];
+                    let points = sample_quadratic_conic(
+                        start,
+                        control,
+                        end,
+                        self.terrain_curve_segments,
+                    );
+                    self.draw_terrain_result = Some(DrawTerrainResult {
+                        points,
+                        closed: false,
+                        texture_index: self.terrain_draw_texture_index,
+                    });
+                    self.draw_terrain_points.clear();
+                    self.draw_terrain_active = false;
+                    self.panning = false;
+                    return;
+                }
+            }
+
+            if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.draw_terrain_active = false;
+                self.draw_terrain_points.clear();
+            }
+
+            self.panning = false;
+            return;
+        }
+
         // Right-click while drawing removes the most recently placed point.
         if response.secondary_clicked() && !self.draw_terrain_points.is_empty() {
             self.draw_terrain_points.pop();
@@ -104,7 +186,10 @@ impl LevelRenderer {
             && !is_alt
             && let Some(pointer) = response.interact_pointer_pos()
         {
-            let world = self.camera.screen_to_world(pointer, canvas_center);
+            let mut world = self.camera.screen_to_world(pointer, canvas_center);
+            if let Some(last) = self.draw_terrain_points.last().copied() {
+                world = constrain_draw_point(self.terrain_draw_mode, last, world);
+            }
 
             // Check if closing: ≥3 points and click is near the first point
             if self.draw_terrain_points.len() >= 3 {
@@ -119,6 +204,7 @@ impl LevelRenderer {
                     self.draw_terrain_result = Some(DrawTerrainResult {
                         points: std::mem::take(&mut self.draw_terrain_points),
                         closed: true,
+                        texture_index: self.terrain_draw_texture_index,
                     });
                     self.panning = false;
                     return;
@@ -126,8 +212,19 @@ impl LevelRenderer {
             }
 
             // Normal point placement
-            self.draw_terrain_points.push(world);
-            self.draw_terrain_active = true;
+            let should_add_point = self
+                .draw_terrain_points
+                .last()
+                .map(|last| {
+                    let dx = world.x - last.x;
+                    let dy = world.y - last.y;
+                    dx * dx + dy * dy > 1e-8
+                })
+                .unwrap_or(true);
+            if should_add_point {
+                self.draw_terrain_points.push(world);
+                self.draw_terrain_active = true;
+            }
         }
 
         // Enter — finish as open curve
@@ -137,6 +234,7 @@ impl LevelRenderer {
                 self.draw_terrain_result = Some(DrawTerrainResult {
                     points: std::mem::take(&mut self.draw_terrain_points),
                     closed: false,
+                    texture_index: self.terrain_draw_texture_index,
                 });
             } else {
                 self.draw_terrain_points.clear();

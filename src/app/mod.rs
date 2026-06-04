@@ -87,7 +87,7 @@ impl EditorApp {
     fn terrain_template_for_level(
         level: &LevelData,
         wants_collider: bool,
-    ) -> Option<(&str, &TerrainData)> {
+    ) -> Option<&PrefabInstance> {
         let mut terrain_name_counts: std::collections::HashMap<&str, usize> =
             std::collections::HashMap::new();
         for object in &level.objects {
@@ -117,7 +117,7 @@ impl EditorApp {
                     };
                     let td = prefab.terrain_data.as_deref()?;
                     (td.has_collider == wants_collider && prefab.name == dominant_name)
-                        .then_some((prefab.name.as_str(), td))
+                        .then_some(prefab)
                 })
             })
             .or_else(|| {
@@ -126,7 +126,7 @@ impl EditorApp {
                         return None;
                     };
                     let td = prefab.terrain_data.as_deref()?;
-                    (td.has_collider == wants_collider).then_some((prefab.name.as_str(), td))
+                    (td.has_collider == wants_collider).then_some(prefab)
                 })
             })
             .or_else(|| {
@@ -134,10 +134,39 @@ impl EditorApp {
                     let LevelObject::Prefab(prefab) = object else {
                         return None;
                     };
-                    let td = prefab.terrain_data.as_deref()?;
-                    Some((prefab.name.as_str(), td))
+                    prefab.terrain_data.as_ref()?;
+                    Some(prefab)
                 })
             })
+    }
+
+    fn terrain_prefab_option_name(label: &str) -> &str {
+        let name = label
+            .split_once(' ')
+            .filter(|(prefix, _)| prefix.starts_with('#'))
+            .map(|(_, name)| name)
+            .unwrap_or(label);
+        name.split(" (+").next().unwrap_or(name)
+    }
+
+    fn fallback_terrain_prefab_index_for_level(
+        level: &LevelData,
+        file_name: Option<&str>,
+        source_path: Option<&str>,
+        preferred_name: &str,
+    ) -> Option<i16> {
+        let prefab_options =
+            dialogs::current_level_prefab_options(Some(level), file_name, source_path);
+
+        prefab_options
+            .iter()
+            .find(|option| Self::terrain_prefab_option_name(&option.label) == preferred_name)
+            .or_else(|| {
+                prefab_options.iter().find(|option| {
+                    Self::terrain_prefab_option_name(&option.label).starts_with("e2dTerrain")
+                })
+            })
+            .map(|option| option.index)
     }
 
     pub(super) fn preferred_terrain_name_for_level(
@@ -146,7 +175,7 @@ impl EditorApp {
     ) -> String {
         level
             .and_then(|level| Self::terrain_template_for_level(level, wants_collider))
-            .map(|(name, _)| name.to_string())
+            .map(|prefab| prefab.name.clone())
             .unwrap_or_else(|| "e2dTerrainBase".to_string())
     }
 
@@ -283,6 +312,8 @@ impl EditorApp {
 
     pub(super) fn build_terrain_prefab_from_local_nodes(
         level: &LevelData,
+        file_name: Option<&str>,
+        source_path: Option<&str>,
         center: Vec2,
         local_nodes: Vec<crate::domain::terrain_gen::CurveNode>,
         wants_collider: bool,
@@ -322,8 +353,14 @@ impl EditorApp {
         let terrain_template = Self::terrain_template_for_level(level, wants_collider);
 
         let mut terrain_name = "e2dTerrainBase".to_string();
-        if let Some((name, template)) = terrain_template {
-            terrain_name = name.to_string();
+        let mut prefab_index = None;
+        if let Some(template_prefab) = terrain_template {
+            terrain_name = template_prefab.name.clone();
+            prefab_index = Some(template_prefab.prefab_index);
+            let template = template_prefab
+                .terrain_data
+                .as_deref()
+                .expect("terrain template prefab should have terrain_data");
             td.fill_texture_tile_offset_x = template.fill_texture_tile_offset_x;
             td.fill_texture_tile_offset_y = template.fill_texture_tile_offset_y;
             td.fill_color = template.fill_color;
@@ -336,9 +373,20 @@ impl EditorApp {
         td.has_collider = wants_collider;
         crate::domain::terrain_gen::regenerate_terrain(&mut td, &local_nodes);
 
+        let prefab_index = prefab_index
+            .or_else(|| {
+                Self::fallback_terrain_prefab_index_for_level(
+                    level,
+                    file_name,
+                    source_path,
+                    &terrain_name,
+                )
+            })
+            .unwrap_or(0);
+
         PrefabInstance {
             name: terrain_name,
-            prefab_index: Self::next_prefab_index_for_level(level),
+            prefab_index,
             position: Vec3 {
                 x: center.x,
                 y: center.y,
@@ -544,6 +592,44 @@ pub(super) fn civil_from_days(z: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::EditorApp;
+    use crate::domain::types::{
+        Color, CurveTexture, DataType, LevelData, LevelObject, PrefabInstance, TerrainData,
+        TerrainMesh, Vec2, Vec3,
+    };
+
+    fn sample_terrain_data(has_collider: bool) -> TerrainData {
+        TerrainData {
+            fill_texture_tile_offset_x: 12.0,
+            fill_texture_tile_offset_y: -4.0,
+            fill_mesh: TerrainMesh::default(),
+            fill_color: Color {
+                r: 0.5,
+                g: 0.6,
+                b: 0.7,
+                a: 1.0,
+            },
+            fill_texture_index: 32,
+            curve_mesh: TerrainMesh::default(),
+            curve_textures: vec![
+                CurveTexture {
+                    texture_index: 7,
+                    size: Vec2 { x: 0.5, y: 0.5 },
+                    fixed_angle: false,
+                    fade_threshold: 0.25,
+                },
+                CurveTexture {
+                    texture_index: 9,
+                    size: Vec2 { x: 0.1, y: 0.1 },
+                    fixed_angle: false,
+                    fade_threshold: 0.0,
+                },
+            ],
+            control_texture_count: 0,
+            control_texture_data: None,
+            has_collider,
+            fill_boundary: None,
+        }
+    }
 
     #[test]
     fn dropped_file_name_prefers_native_path_filename() {
@@ -566,5 +652,70 @@ mod tests {
         let (name, source) = EditorApp::dropped_file_name_and_source(&file);
         assert_eq!(name, "web-drop.toml");
         assert!(source.is_none());
+    }
+
+    #[test]
+    fn build_terrain_prefab_reuses_existing_template_prefab_index() {
+        let terrain_prefab = PrefabInstance {
+            name: "e2dTerrainBase_MM_rock".to_string(),
+            position: Vec3::default(),
+            prefab_index: 12,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            parent: None,
+            data_type: DataType::Terrain,
+            terrain_data: Some(Box::new(sample_terrain_data(true))),
+            override_data: None,
+        };
+        let other_prefab = PrefabInstance {
+            name: "SomeOtherPrefab".to_string(),
+            position: Vec3::default(),
+            prefab_index: 47,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            parent: None,
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: None,
+        };
+        let level = LevelData {
+            objects: vec![
+                LevelObject::Prefab(terrain_prefab),
+                LevelObject::Prefab(other_prefab),
+            ],
+            roots: vec![0, 1],
+        };
+
+        let created = EditorApp::build_terrain_prefab_from_local_nodes(
+            &level,
+            None,
+            None,
+            Vec2 { x: 10.0, y: 20.0 },
+            vec![
+                crate::domain::terrain_gen::CurveNode {
+                    position: Vec2 { x: -1.0, y: 0.0 },
+                    texture: 0,
+                },
+                crate::domain::terrain_gen::CurveNode {
+                    position: Vec2 { x: 1.0, y: 0.0 },
+                    texture: 1,
+                },
+            ],
+            true,
+        );
+
+        assert_eq!(created.name, "e2dTerrainBase_MM_rock");
+        assert_eq!(created.prefab_index, 12);
+        let terrain_data = created.terrain_data.expect("created terrain data");
+        assert_eq!(terrain_data.fill_texture_index, 32);
+        assert_eq!(terrain_data.curve_textures[1].texture_index, 9);
     }
 }

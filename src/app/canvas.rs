@@ -277,6 +277,8 @@ impl EditorApp {
                             result.new_position,
                         );
                     }
+                    let file_name = tab.file_name.as_deref();
+                    let source_path = tab.source_path.as_deref();
                     // Pick up terrain draw result — append to selected terrain or create new terrain object
                     if let Some(result) = tab.renderer.draw_terrain_result.take()
                         && let Some(ref mut level) = tab.level
@@ -408,6 +410,8 @@ impl EditorApp {
                             let new_obj =
                                 LevelObject::Prefab(Self::build_terrain_prefab_from_local_nodes(
                                     level,
+                                    file_name,
+                                    source_path,
                                     center,
                                     local_nodes,
                                     wants_collider,

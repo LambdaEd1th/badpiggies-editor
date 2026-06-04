@@ -98,6 +98,21 @@ fn sample_circular_arc(p0: Vec2, through: Vec2, p2: Vec2, nodes: usize) -> Optio
     Some(points)
 }
 
+fn sample_curve_mode_points(
+    mode: TerrainDrawMode,
+    start: Vec2,
+    end: Vec2,
+    control: Vec2,
+    segments: usize,
+) -> Vec<Vec2> {
+    if mode == TerrainDrawMode::CircularArc {
+        sample_circular_arc(start, control, end, segments)
+            .unwrap_or_else(|| sample_quadratic_conic(start, control, end, segments))
+    } else {
+        sample_quadratic_conic(start, control, end, segments)
+    }
+}
+
 impl LevelRenderer {
     pub(super) fn handle_terrain_preset_mode(
         &mut self,
@@ -219,19 +234,13 @@ impl LevelRenderer {
                     let start = self.draw_terrain_points[0];
                     let end = self.draw_terrain_points[1];
                     let control = self.draw_terrain_points[2];
-                    let points = if self.terrain_draw_mode == TerrainDrawMode::CircularArc {
-                        sample_circular_arc(start, control, end, self.terrain_curve_segments)
-                            .unwrap_or_else(|| {
-                                sample_quadratic_conic(
-                                    start,
-                                    control,
-                                    end,
-                                    self.terrain_curve_segments,
-                                )
-                            })
-                    } else {
-                        sample_quadratic_conic(start, control, end, self.terrain_curve_segments)
-                    };
+                    let points = sample_curve_mode_points(
+                        self.terrain_draw_mode,
+                        start,
+                        end,
+                        control,
+                        self.terrain_curve_segments,
+                    );
                     self.draw_terrain_result = Some(DrawTerrainResult {
                         points,
                         closed: false,
@@ -242,6 +251,42 @@ impl LevelRenderer {
                     self.panning = false;
                     return;
                 }
+            }
+
+            if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                let anchor_only = self.terrain_draw_continuation_anchor.is_some()
+                    && self.draw_terrain_points.len() == 1;
+                self.draw_terrain_active = false;
+
+                if self.draw_terrain_points.len() >= 2 {
+                    if let Some(pointer) = ui.input(|i| i.pointer.latest_pos()) {
+                        let start = self.draw_terrain_points[0];
+                        let end = self.draw_terrain_points[1];
+                        let control = self.camera.screen_to_world(pointer, canvas_center);
+                        let points = sample_curve_mode_points(
+                            self.terrain_draw_mode,
+                            start,
+                            end,
+                            control,
+                            self.terrain_curve_segments,
+                        );
+                        self.draw_terrain_result = Some(DrawTerrainResult {
+                            points,
+                            closed: false,
+                            texture_index: self.terrain_draw_texture_index,
+                        });
+                    }
+                    self.draw_terrain_points.clear();
+                } else {
+                    self.draw_terrain_points.clear();
+                    if anchor_only {
+                        self.clear_terrain_draw_continuation_anchor();
+                        self.clicked_empty = true;
+                    }
+                }
+
+                self.panning = false;
+                return;
             }
 
             if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Escape)) {

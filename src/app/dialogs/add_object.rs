@@ -305,6 +305,8 @@ impl EditorApp {
                         let scale = self.add_obj_scale;
                         let mut added = false;
                         let tab = &mut self.tabs[self.active_tab];
+                        let file_name = tab.file_name.as_deref();
+                        let source_path = tab.source_path.as_deref();
                         if let Some(ref mut level) = tab.level {
                             let new_idx = level.objects.len();
                             if is_parent {
@@ -341,6 +343,8 @@ impl EditorApp {
                                     let wants_collider = tab.renderer.terrain_draw_has_collider();
                                     let mut prefab = Self::build_terrain_prefab_from_local_nodes(
                                         level,
+                                        file_name,
+                                        source_path,
                                         center,
                                         local_nodes,
                                         wants_collider,

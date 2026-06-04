@@ -69,7 +69,9 @@ impl EditorApp {
                     canvas_context_action = tab.renderer.context_action.take();
                     canvas_context_selected_object = tab.renderer.context_selected_object.take();
                     // Pick up click-to-select from renderer
-                    if let Some(idx) = canvas_context_selected_object {
+                    if let Some(idx) = canvas_context_selected_object
+                        && !tab.renderer.context_menu_just_opened
+                    {
                         tab.selected = BTreeSet::from([idx]);
                     }
                     if let Some(idx) = tab.renderer.clicked_object {

@@ -42,6 +42,8 @@ menu_help = Help
 menu_shortcuts = Shortcuts
 menu_about = About
 menu_export_log = Export Log
+context_delete_object = Delete Object
+context_delete_node = Delete Node
 
 # Window titles
 win_confirm_delete = Confirm Delete

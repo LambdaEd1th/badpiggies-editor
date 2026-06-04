@@ -173,6 +173,8 @@ pub struct LevelRenderer {
     pub context_action: Option<CanvasContextAction>,
     /// Object that should become selected due to a viewport context-menu click.
     pub context_selected_object: Option<ObjectIndex>,
+    /// True when a context menu was just opened/updated this frame via secondary click.
+    pub context_menu_just_opened: bool,
     /// World position where the current canvas context menu was opened.
     context_menu_world_pos: Option<Vec2>,
     /// Object selection snapshot for the current canvas context menu.

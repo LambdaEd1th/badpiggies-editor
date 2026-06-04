@@ -42,6 +42,8 @@ menu_help = 帮助
 menu_shortcuts = 说明
 menu_about = 关于
 menu_export_log = 导出日志
+context_delete_object = 删除对象
+context_delete_node = 删除节点
 
 # 窗口标题
 win_confirm_delete = 确认删除

@@ -42,6 +42,8 @@ menu_help = Справка
 menu_shortcuts = Клавиатурные сокращения
 menu_about = О программе
 menu_export_log = Экспортировать журнал
+context_delete_object = Удалить объект
+context_delete_node = Удалить узел
 
 # Window titles
 win_confirm_delete = Подтвердить удаление

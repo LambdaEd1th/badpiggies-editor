@@ -42,6 +42,8 @@ menu_help = Aide
 menu_shortcuts = Raccourcis clavier
 menu_about = À propos
 menu_export_log = Exporter le journal
+context_delete_object = Supprimer l'objet
+context_delete_node = Supprimer le nœud
 
 # Window titles
 win_confirm_delete = Confirmer la suppression

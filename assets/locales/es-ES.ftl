@@ -42,6 +42,8 @@ menu_help = Ayuda
 menu_shortcuts = Atajos de teclado
 menu_about = Acerca de
 menu_export_log = Exportar registro
+context_delete_object = Eliminar objeto
+context_delete_node = Eliminar nodo
 
 # Window titles
 win_confirm_delete = Confirmar eliminación

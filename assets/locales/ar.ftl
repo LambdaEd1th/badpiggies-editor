@@ -42,6 +42,8 @@ menu_help = مساعدة
 menu_shortcuts = اختصارات لوحة المفاتيح
 menu_about = حول
 menu_export_log = تصدير السجل
+context_delete_object = حذف الكائن
+context_delete_node = حذف العقدة
 
 # Window titles
 win_confirm_delete = تأكيد الحذف

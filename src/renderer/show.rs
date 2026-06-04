@@ -36,6 +36,7 @@ impl LevelRenderer {
         let canvas_center = rect.center().to_vec2();
         self.context_action = None;
         self.context_selected_object = None;
+        self.context_menu_just_opened = false;
 
         // Advance animation time (use stable_dt = measured frame interval, not predicted)
         self.time += ui.input(|i| i.stable_dt as f64);
@@ -186,6 +187,11 @@ impl LevelRenderer {
         let hovered_node = self.hovered_terrain_node;
         let suppress_context_menu = self.suppress_context_menu_this_frame
             || (cursor_mode == CursorMode::DrawTerrain && !self.draw_terrain_points.is_empty());
+
+        // Snapshot whether a context menu was already visible *before* this
+        // frame's input processing, so we can avoid the egui popup close↗reopen
+        // race that causes a one-frame flash on consecutive right-clicks.
+        let had_context_menu_open = egui::Popup::is_any_open(ui.ctx());
         let terrain_node_can_delete = |node: Option<(ObjectIndex, usize)>| {
             node.and_then(|(object_index, node_index)| {
                 self.terrain_data
@@ -202,29 +208,40 @@ impl LevelRenderer {
         };
         let context_menu_node_can_delete = terrain_node_can_delete(self.context_menu_node);
         if !suppress_context_menu && response.secondary_clicked() {
-            let hovered_node_can_delete = terrain_node_can_delete(hovered_node);
-            let context_world = response
-                .interact_pointer_pos()
-                .map(|pointer| self.camera.screen_to_world(pointer, canvas_center));
-            let context_object = context_world
-                .and_then(|world| self.hit_test(world, selected))
-                .or_else(|| hovered_node.map(|(object_index, _)| object_index));
-            self.context_menu_world_pos = context_world;
-            self.context_menu_indices = context_object
-                .map(|index| {
-                    if selected.contains(&index) {
-                        selected.iter().copied().collect()
-                    } else {
-                        vec![index]
-                    }
-                })
-                .unwrap_or_else(|| selected.iter().copied().collect());
-            self.context_menu_node = hovered_node_can_delete
-                .map(|(object_index, node_index, _)| (object_index, node_index));
-            if let Some(index) = context_object
-                && !selected.contains(&index)
-            {
-                self.context_selected_object = Some(index);
+            // A context menu was already open — egui treats this new click as
+            // "outside popup → close".  Trying to reopen in the same frame
+            // races with that close.  Let the menu close cleanly instead.
+            if had_context_menu_open {
+                self.context_menu_world_pos = None;
+                self.context_menu_indices.clear();
+                self.context_menu_node = None;
+                self.suppress_context_menu_this_frame = true;
+            } else {
+                let hovered_node_can_delete = terrain_node_can_delete(hovered_node);
+                let context_world = response
+                    .interact_pointer_pos()
+                    .map(|pointer| self.camera.screen_to_world(pointer, canvas_center));
+                let context_object = context_world
+                    .and_then(|world| self.hit_test(world, selected))
+                    .or_else(|| hovered_node.map(|(object_index, _)| object_index));
+                self.context_menu_world_pos = context_world;
+                self.context_menu_indices = context_object
+                    .map(|index| {
+                        if selected.contains(&index) {
+                            selected.iter().copied().collect()
+                        } else {
+                            vec![index]
+                        }
+                    })
+                    .unwrap_or_else(|| selected.iter().copied().collect());
+                self.context_menu_node = hovered_node_can_delete
+                    .map(|(object_index, node_index, _)| (object_index, node_index));
+                self.context_menu_just_opened = true;
+                if let Some(index) = context_object
+                    && !selected.contains(&index)
+                {
+                    self.context_selected_object = Some(index);
+                }
             }
         }
         let context_world = self.context_menu_world_pos;
@@ -238,7 +255,7 @@ impl LevelRenderer {
         let cut_shortcut = if is_mac { "Cmd+X" } else { "Ctrl+X" };
         let paste_shortcut = if is_mac { "Cmd+V" } else { "Ctrl+V" };
         let dup_shortcut = if is_mac { "Cmd+D" } else { "Ctrl+D" };
-        if !suppress_context_menu {
+        if !suppress_context_menu && !self.suppress_context_menu_this_frame {
             response.context_menu(|ui| {
                 if ui
                     .add_enabled(
@@ -291,6 +308,17 @@ impl LevelRenderer {
                         Some(CanvasContextAction::Duplicate(context_indices.clone()));
                     ui.close();
                 }
+                if ui
+                    .add_enabled(
+                        has_context_selection,
+                        egui::Button::new(tr.get("context_delete_object")).shortcut_text("Del"),
+                    )
+                    .clicked()
+                {
+                    self.context_action =
+                        Some(CanvasContextAction::Delete(context_indices.clone()));
+                    ui.close();
+                }
                 ui.separator();
                 if ui
                     .add_enabled(
@@ -314,20 +342,6 @@ impl LevelRenderer {
                         Some(CanvasContextAction::FlipVertical(context_indices.clone()));
                     ui.close();
                 }
-                if context_menu_node_can_delete.is_none() {
-                    ui.separator();
-                    if ui
-                        .add_enabled(
-                            has_context_selection,
-                            egui::Button::new(tr.get("menu_delete")).shortcut_text("Del"),
-                        )
-                        .clicked()
-                    {
-                        self.context_action =
-                            Some(CanvasContextAction::Delete(context_indices.clone()));
-                        ui.close();
-                    }
-                }
 
                 if let Some((object_index, node_index, can_delete)) = context_menu_node_can_delete {
                     ui.separator();
@@ -339,7 +353,7 @@ impl LevelRenderer {
                         ui.close();
                     }
                     if ui
-                        .add_enabled(can_delete, egui::Button::new(tr.get("menu_delete")))
+                        .add_enabled(can_delete, egui::Button::new(tr.get("context_delete_node")))
                         .clicked()
                     {
                         self.node_edit_action = Some(NodeEditAction::Delete {

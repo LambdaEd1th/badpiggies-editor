@@ -287,9 +287,43 @@ impl EditorApp {
         let Some(level) = tab.level.as_mut() else {
             return;
         };
-        for idx in rotatable {
-            if let LevelObject::Prefab(prefab) = &mut level.objects[idx] {
+        for idx in &rotatable {
+            if let LevelObject::Prefab(prefab) = &mut level.objects[*idx] {
                 prefab.rotation.z += delta_z_degrees;
+            }
+        }
+        // Sync PrefabOverrides Transform rotation for rotated prefabs
+        {
+            let mut to_sync: Vec<(usize, Vec3, f32, Vec3, Vec3)> = Vec::new();
+            for &idx in &rotatable {
+                if let LevelObject::Prefab(ref p) = level.objects[idx]
+                    && p.data_type == DataType::PrefabOverrides
+                    && p.override_data.is_some()
+                {
+                    let parent_pos = p
+                        .parent
+                        .and_then(|pi| level.objects.get(pi))
+                        .map(|o| o.position())
+                        .unwrap_or_default();
+                    to_sync.push((idx, p.position, p.rotation.z, p.scale, parent_pos));
+                }
+            }
+            for (idx, pos, rot_z, scale, parent_pos) in to_sync {
+                if let LevelObject::Prefab(pm) = &mut level.objects[idx]
+                    && let Some(ref mut od) = pm.override_data
+                {
+                    let (new_text, new_bytes) =
+                        crate::domain::object_deserializer::sync_override_transform(
+                            &od.raw_text,
+                            pos,
+                            rot_z,
+                            scale,
+                            parent_pos,
+                            0.0,
+                        );
+                    od.raw_text = new_text;
+                    od.raw_bytes = new_bytes;
+                }
             }
         }
 
@@ -322,9 +356,43 @@ impl EditorApp {
         let Some(level) = tab.level.as_mut() else {
             return;
         };
-        for idx in flippable {
-            if let LevelObject::Prefab(prefab) = &mut level.objects[idx] {
+        for idx in &flippable {
+            if let LevelObject::Prefab(prefab) = &mut level.objects[*idx] {
                 Self::flip_prefab_along_axis(prefab, horizontal);
+            }
+        }
+        // Sync PrefabOverrides Transform scale for flipped prefabs
+        {
+            let mut to_sync: Vec<(usize, Vec3, f32, Vec3, Vec3)> = Vec::new();
+            for &idx in &flippable {
+                if let LevelObject::Prefab(ref p) = level.objects[idx]
+                    && p.data_type == DataType::PrefabOverrides
+                    && p.override_data.is_some()
+                {
+                    let parent_pos = p
+                        .parent
+                        .and_then(|pi| level.objects.get(pi))
+                        .map(|o| o.position())
+                        .unwrap_or_default();
+                    to_sync.push((idx, p.position, p.rotation.z, p.scale, parent_pos));
+                }
+            }
+            for (idx, pos, rot_z, scale, parent_pos) in to_sync {
+                if let LevelObject::Prefab(pm) = &mut level.objects[idx]
+                    && let Some(ref mut od) = pm.override_data
+                {
+                    let (new_text, new_bytes) =
+                        crate::domain::object_deserializer::sync_override_transform(
+                            &od.raw_text,
+                            pos,
+                            rot_z,
+                            scale,
+                            parent_pos,
+                            0.0,
+                        );
+                    od.raw_text = new_text;
+                    od.raw_bytes = new_bytes;
+                }
             }
         }
 
@@ -350,6 +418,32 @@ impl EditorApp {
         if let LevelObject::Prefab(prefab) = &mut level.objects[index] {
             prefab.scale.x = scale_xy.x;
             prefab.scale.y = scale_xy.y;
+        }
+        // Sync PrefabOverrides Transform scale
+        if let LevelObject::Prefab(ref p) = level.objects[index]
+            && p.data_type == DataType::PrefabOverrides
+            && p.override_data.is_some()
+        {
+            let parent_pos = p
+                .parent
+                .and_then(|pi| level.objects.get(pi))
+                .map(|o| o.position())
+                .unwrap_or_default();
+            if let LevelObject::Prefab(pm) = &mut level.objects[index]
+                && let Some(ref mut od) = pm.override_data
+            {
+                let (new_text, new_bytes) =
+                    crate::domain::object_deserializer::sync_override_transform(
+                        &od.raw_text,
+                        pm.position,
+                        pm.rotation.z,
+                        pm.scale,
+                        parent_pos,
+                        0.0,
+                    );
+                od.raw_text = new_text;
+                od.raw_bytes = new_bytes;
+            }
         }
 
         tab.renderer.reload_level_preserving_preview_state(level);

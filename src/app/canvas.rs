@@ -101,7 +101,11 @@ impl EditorApp {
                         }
                         tab.history.redo.clear();
 
-                        for &sel_idx in &tab.selected {
+                        let mut moved: Vec<usize> = tab.selected.iter().copied().collect();
+                        if !tab.selected.contains(&idx) {
+                            moved.push(idx);
+                        }
+                        for &sel_idx in &moved {
                             if sel_idx < level.objects.len() {
                                 match &mut level.objects[sel_idx] {
                                     LevelObject::Prefab(p) => {
@@ -115,15 +119,46 @@ impl EditorApp {
                                 }
                             }
                         }
-                        if !tab.selected.contains(&idx) {
-                            match &mut level.objects[idx] {
-                                LevelObject::Prefab(p) => {
-                                    p.position.x += delta.x;
-                                    p.position.y += delta.y;
+                        // Sync PrefabOverrides Transform data for moved prefabs
+                        {
+                            let mut to_sync: Vec<(usize, Vec3, f32, Vec3, Vec3)> = Vec::new();
+                            for &sel_idx in &moved {
+                                if sel_idx >= level.objects.len() {
+                                    continue;
                                 }
-                                LevelObject::Parent(p) => {
-                                    p.position.x += delta.x;
-                                    p.position.y += delta.y;
+                                if let LevelObject::Prefab(ref p) = level.objects[sel_idx]
+                                    && p.data_type == DataType::PrefabOverrides
+                                    && p.override_data.is_some()
+                                {
+                                    let parent_pos = p
+                                        .parent
+                                        .and_then(|pi| level.objects.get(pi))
+                                        .map(|o| o.position())
+                                        .unwrap_or_default();
+                                    to_sync.push((
+                                        sel_idx,
+                                        p.position,
+                                        p.rotation.z,
+                                        p.scale,
+                                        parent_pos,
+                                    ));
+                                }
+                            }
+                            for (sel_idx, pos, rot_z, scale, parent_pos) in to_sync {
+                                if let LevelObject::Prefab(pm) = &mut level.objects[sel_idx]
+                                    && let Some(ref mut od) = pm.override_data
+                                {
+                                    let (new_text, new_bytes) =
+                                        crate::domain::object_deserializer::sync_override_transform(
+                                            &od.raw_text,
+                                            pos,
+                                            rot_z,
+                                            scale,
+                                            parent_pos,
+                                            0.0, // parent rotation z (parents store no rotation)
+                                        );
+                                    od.raw_text = new_text;
+                                    od.raw_bytes = new_bytes;
                                 }
                             }
                         }

@@ -1209,6 +1209,189 @@ fn read_particle_system<H: RuntimeHost>(
 }
 
 // ===========================================================================
+// PrefabOverrides Transform sync helpers
+// ===========================================================================
+
+/// Find the line index and indentation of `Vector3 m_LocalPosition` in
+/// override text. Returns `(line_index, indent_string)` or `None`.
+fn find_local_position_line(lines: &[&str]) -> Option<(usize, String)> {
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start_matches('\t');
+        if trimmed == "Vector3 m_LocalPosition" {
+            let indent = &line[..line.len() - trimmed.len()];
+            return Some((i, indent.to_string()));
+        }
+    }
+    None
+}
+
+/// Find the line index of `Quaternion m_LocalRotation` in override text.
+fn find_local_rotation_line(lines: &[&str]) -> Option<(usize, String)> {
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start_matches('\t');
+        if trimmed == "Quaternion m_LocalRotation" {
+            let indent = &line[..line.len() - trimmed.len()];
+            return Some((i, indent.to_string()));
+        }
+    }
+    None
+}
+
+/// Find the line index of `Vector3 m_LocalScale` in override text.
+fn find_local_scale_line(lines: &[&str]) -> Option<(usize, String)> {
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start_matches('\t');
+        if trimmed == "Vector3 m_LocalScale" {
+            let indent = &line[..line.len() - trimmed.len()];
+            return Some((i, indent.to_string()));
+        }
+    }
+    None
+}
+
+/// Update a specific Float field (e.g. `Float x = value`) after a given line.
+/// Returns `true` if the field was found and updated.
+fn update_float_line(
+    lines: &mut [String],
+    start_line: usize,
+    field_name: &str,
+    new_value: f32,
+    field_indent: &str,
+) -> bool {
+    let prefix = format!("{field_indent}Float {field_name} = ");
+    for line in lines.iter_mut().skip(start_line + 1) {
+        let trimmed = line.trim_start_matches('\t');
+        if trimmed.starts_with("Float ") {
+            if let Some(stripped) = line.strip_prefix(&prefix)
+                && stripped
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '-' || c == '.')
+            {
+                *line = format!("{prefix}{new_value}");
+                return true;
+            }
+        } else if !trimmed.is_empty() && !trimmed.starts_with("Float ") {
+            // Moved past the Float block — stop searching
+            break;
+        }
+    }
+    false
+}
+
+/// Update the `m_LocalPosition` in a PrefabOverrides override text to match
+/// a new world position. The new local position is computed as
+/// `new_world - parent_world`. If the override text does not contain a
+/// `Vector3 m_LocalPosition` block, the original text is returned unchanged.
+pub fn sync_override_local_position(
+    text: &str,
+    new_world_x: f32,
+    new_world_y: f32,
+    new_world_z: f32,
+    parent_world_x: f32,
+    parent_world_y: f32,
+    parent_world_z: f32,
+) -> String {
+    let local_x = new_world_x - parent_world_x;
+    let local_y = new_world_y - parent_world_y;
+    let local_z = new_world_z - parent_world_z;
+
+    let raw_lines: Vec<&str> = text.lines().collect();
+    let Some((pos_line, indent)) = find_local_position_line(&raw_lines) else {
+        return text.to_string();
+    };
+    let field_indent = format!("{indent}\t");
+
+    let mut lines: Vec<String> = raw_lines.iter().map(|s| s.to_string()).collect();
+    update_float_line(&mut lines, pos_line, "x", local_x, &field_indent);
+    update_float_line(&mut lines, pos_line, "y", local_y, &field_indent);
+    update_float_line(&mut lines, pos_line, "z", local_z, &field_indent);
+
+    lines.join("\n")
+}
+
+/// Update the `m_LocalRotation` quaternion in a PrefabOverrides override text
+/// to match a new world Z-rotation in degrees. The quaternion is derived from
+/// `(new_world_z_deg - parent_world_z_deg)` around the Z axis only. If the
+/// override text does not contain a `Quaternion m_LocalRotation` block, the
+/// original text is returned unchanged.
+pub fn sync_override_local_rotation(
+    text: &str,
+    new_world_z_deg: f32,
+    parent_world_z_deg: f32,
+) -> String {
+    let local_z_deg = new_world_z_deg - parent_world_z_deg;
+    let half = (local_z_deg.to_radians() * 0.5) as f64;
+    let (s, c) = half.sin_cos();
+    let qz = s as f32;
+    let qw = c as f32;
+
+    let raw_lines: Vec<&str> = text.lines().collect();
+    let Some((rot_line, indent)) = find_local_rotation_line(&raw_lines) else {
+        return text.to_string();
+    };
+    let field_indent = format!("{indent}\t");
+
+    let mut lines: Vec<String> = raw_lines.iter().map(|s| s.to_string()).collect();
+    update_float_line(&mut lines, rot_line, "x", 0.0, &field_indent);
+    update_float_line(&mut lines, rot_line, "y", 0.0, &field_indent);
+    update_float_line(&mut lines, rot_line, "z", qz, &field_indent);
+    update_float_line(&mut lines, rot_line, "w", qw, &field_indent);
+
+    lines.join("\n")
+}
+
+/// Update the `m_LocalScale` in a PrefabOverrides override text to match new
+/// scale values. If the override text does not contain a `Vector3 m_LocalScale`
+/// block, the original text is returned unchanged.
+pub fn sync_override_local_scale(
+    text: &str,
+    new_scale_x: f32,
+    new_scale_y: f32,
+    new_scale_z: f32,
+) -> String {
+    let raw_lines: Vec<&str> = text.lines().collect();
+    let Some((scale_line, indent)) = find_local_scale_line(&raw_lines) else {
+        return text.to_string();
+    };
+    let field_indent = format!("{indent}\t");
+
+    let mut lines: Vec<String> = raw_lines.iter().map(|s| s.to_string()).collect();
+    update_float_line(&mut lines, scale_line, "x", new_scale_x, &field_indent);
+    update_float_line(&mut lines, scale_line, "y", new_scale_y, &field_indent);
+    update_float_line(&mut lines, scale_line, "z", new_scale_z, &field_indent);
+
+    lines.join("\n")
+}
+
+/// Sync all Transform overrides (`m_LocalPosition`, `m_LocalRotation`,
+/// `m_LocalScale`) in a PrefabOverrides text with the given world-space
+/// transform values relative to a parent.
+///
+/// Returns `(updated_text, updated_bytes)`.
+pub fn sync_override_transform(
+    text: &str,
+    new_world_pos: Vec3,
+    new_world_rot_z_deg: f32,
+    new_scale: Vec3,
+    parent_world_pos: Vec3,
+    parent_world_rot_z_deg: f32,
+) -> (String, Vec<u8>) {
+    let mut updated = sync_override_local_position(
+        text,
+        new_world_pos.x,
+        new_world_pos.y,
+        new_world_pos.z,
+        parent_world_pos.x,
+        parent_world_pos.y,
+        parent_world_pos.z,
+    );
+    updated = sync_override_local_rotation(&updated, new_world_rot_z_deg, parent_world_rot_z_deg);
+    updated = sync_override_local_scale(&updated, new_scale.x, new_scale.y, new_scale.z);
+    let bytes = updated.as_bytes().to_vec();
+    (updated, bytes)
+}
+
+// ===========================================================================
 // Tests — exercise the state machine with a mock host on real override text
 // ===========================================================================
 

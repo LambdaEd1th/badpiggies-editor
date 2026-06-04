@@ -313,8 +313,12 @@ impl LevelRenderer {
             }
         }
 
-        // Enter — finish as open curve
+        // Enter — finish as open curve. If we're sitting on a continuation
+        // anchor with no new segment yet, treat Enter as "done with this terrain"
+        // and clear the current selection via the existing clicked_empty path.
         if self.draw_terrain_active && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            let anchor_only = self.terrain_draw_continuation_anchor.is_some()
+                && self.draw_terrain_points.len() == 1;
             self.draw_terrain_active = false;
             if self.draw_terrain_points.len() >= 2 {
                 self.draw_terrain_result = Some(DrawTerrainResult {
@@ -324,6 +328,10 @@ impl LevelRenderer {
                 });
             } else {
                 self.draw_terrain_points.clear();
+                if anchor_only {
+                    self.clear_terrain_draw_continuation_anchor();
+                    self.clicked_empty = true;
+                }
             }
         }
 

@@ -243,9 +243,7 @@ pub struct LevelRenderer {
     pub initial_view_bounds: Option<[f32; 4]>,
     /// Parsed build-view bounds (derived from LevelStart + construction offset).
     pub construction_view_bounds: Option<[f32; 4]>,
-    /// Whether editing of route bounds and route nodes is enabled.
-    pub show_level_bounds: bool,
-    /// Whether to show the preview route overlay.
+    /// Whether to show and edit the preview route overlay.
     pub show_preview_route: bool,
     /// Pre-serialised camera route control points (sandbox levels only).
     /// `None` for normal levels — they use the 3-point derived route instead.

@@ -471,7 +471,7 @@ impl LevelRenderer {
                 return;
             }
 
-            let edit_enabled = self.show_level_bounds;
+            let edit_enabled = self.show_preview_route;
             let is_dragging = self
                 .bounds_dragging
                 .as_ref()
@@ -545,7 +545,7 @@ impl LevelRenderer {
                 .route_node_dragging
                 .as_ref()
                 .is_some_and(|drag| drag.target == target);
-            let is_hovered = self.show_level_bounds && self.route_node_hovered == Some(target);
+            let is_hovered = self.show_preview_route && self.route_node_hovered == Some(target);
             if is_dragging {
                 egui::Color32::from_rgba_unmultiplied(255, 255, 120, 235)
             } else if is_hovered {
@@ -560,12 +560,11 @@ impl LevelRenderer {
                 .route_node_dragging
                 .as_ref()
                 .is_some_and(|drag| drag.target == target)
-                || (self.show_level_bounds && self.route_node_hovered == Some(target));
+                || (self.show_preview_route && self.route_node_hovered == Some(target));
             if active { base + 1.5 } else { base }
         };
 
-        let show_route_guides = self.show_preview_route || self.show_level_bounds;
-        if show_route_guides {
+        if self.show_preview_route {
             if let Some(ref route_points) = self.custom_preview_route {
                 if let Some(vals) = self.camera_limits {
                     draw_bounds(

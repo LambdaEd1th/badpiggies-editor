@@ -83,7 +83,7 @@ impl LevelRenderer {
         response: &egui::Response,
         canvas_center: egui::Vec2,
     ) -> bool {
-        if !self.show_level_bounds {
+        if !self.show_preview_route {
             self.bounds_hovered_handle = None;
             self.route_node_hovered = None;
             return false;

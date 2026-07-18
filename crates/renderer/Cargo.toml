@@ -1,0 +1,47 @@
+[package]
+name = "badpiggies_editor_renderer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Pure-wgpu level renderer hosted directly on an HTML canvas"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[dependencies]
+badpiggies_editor_core = { path = "../core", default-features = false }
+bytemuck = { version = "1", features = ["derive"] }
+fluent-bundle = "0.16"
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sys-locale = { version = "0.3", features = ["js"] }
+unic-langid = { version = "0.9", features = ["macros"] }
+wgpu = "30"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1"
+js-sys = "0.3"
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "KeyboardEvent",
+    "OffscreenCanvas",
+    "PointerEvent",
+    "Response",
+    "WheelEvent",
+    "Window",
+] }

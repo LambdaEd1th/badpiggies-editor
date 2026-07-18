@@ -10,28 +10,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Native Check & Clippy (${{ matrix.os }})
+  native:
+    name: Native (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy,rustfmt
 
-      - name: Install Linux GPU dependencies
+      - name: Install Linux WebView dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
             pkg-config \
             libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
             libxdo-dev \
             libxcb-render0-dev \
             libxcb-shape0-dev \
@@ -39,44 +41,67 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev
 
-      - name: Cache cargo registry
+      - name: Cache Cargo
         uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+            target
+          key: native-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: native-${{ runner.os }}-
 
-      - name: cargo check
-        run: cargo check --all-targets
+      - name: Format
+        run: cargo fmt --all --check
 
-      - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
+      - name: Check workspace
+        run: cargo check --workspace --all-targets
 
-  wasm:
-    name: WASM Check & Clippy
+      - name: Test workspace
+        run: cargo test --workspace --all-targets
+
+      - name: Clippy workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  web:
+    name: WASM And Dioxus Web
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Rust stable + wasm32 target + clippy
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
           components: clippy
 
-      - name: Cache cargo registry
+      - name: Cache Cargo
         uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: wasm-cargo-
+            target
+          key: web-${{ hashFiles('**/Cargo.lock', 'app/assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
+          restore-keys: web-
 
-      - name: cargo check (wasm32)
-        run: cargo check --target wasm32-unknown-unknown
+      - name: Check WASM workspace
+        run: cargo check --workspace --target wasm32-unknown-unknown
 
-      - name: cargo clippy (wasm32)
-        run: cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings
+      - name: Clippy WASM workspace
+        run: cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
+
+      - name: Install Web build tools
+        run: |
+          cargo install dioxus-cli --version 0.7.9 --locked
+          cargo install wasm-pack --version 0.15.0 --locked
+
+      - name: Build worker
+        run: ./scripts/build-web-worker.sh
+
+      - name: Build renderer
+        run: ./scripts/build-web-renderer.sh
+
+      - name: Build Dioxus Web release
+        run: dx build --platform web --package badpiggies-editor-app --release --debug-symbols=false

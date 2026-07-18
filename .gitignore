@@ -1,4 +1,7 @@
 /target
+.DS_Store
+/app/assets/renderer/pkg/
+/app/assets/worker/pkg/
 dist/
 
 # IDE / editor

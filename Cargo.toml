@@ -1,91 +1,19 @@
-[package]
-name = "badpiggies-editor"
-version = "0.4.1"
+[workspace]
+members = [
+    "app",
+    "crates/core",
+    "crates/renderer",
+    "crates/worker",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.5.0-beta1"
 edition = "2024"
 authors = ["LambdaEd1th"]
-description = "Editor for Bad Piggies"
 license = "AGPL-3.0-or-later"
+publish = false
 
-[package.metadata.bundle]
-name = "Bad Piggies Editor"
-identifier = "io.github.lambdaed1th.badpiggies_editor"
-icon = ["assets/ui/app-icon.png"]
-category = "public.app-category.developer-tools"
-short_description = "Editor for Bad Piggies"
-long_description = """
-A cross-platform editor for Bad Piggies levels and save data,
-built with egui and wgpu.
-"""
-
-[dependencies]
-eframe = { version = "0.34", default-features = false, features = [
-    "default_fonts",
-    "wgpu",
-] }
-egui = "0.34"
-egui-wgpu = "0.34"
-egui_extras = { version = "0.34", features = ["image", "svg"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
-log = "0.4"
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
-toml = { version = "1.1", features = ["preserve_order"] }
-bytemuck = { version = "1", features = ["derive"] }
-fluent-bundle = "0.16"
-unic-langid = { version = "0.9", features = ["macros"] }
-sys-locale = { version = "0.3", features = ["js"] }
-aes = "0.9"
-cbc = { version = "0.2", features = ["alloc"] }
-pbkdf2 = { version = "0.13", features = ["hmac"] }
-sha1 = "0.11"
-quick-xml = "0.39"
-regex = "1"
-lz4_flex = "0.11"
-lzma-rs = { version = "0.3", features = ["raw_decoder"] }
-md5 = "0.8"
-unity-asset = "0.2.0"
-unity-asset-binary = "0.2.0"
-flate2 = "1"
-tar = "0.4"
-
-# Native dependencies
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-env_logger = "0.11"
-rfd = "0.17"
-clap = { version = "4", features = ["derive"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-winit = { version = "0.30.13", default-features = false, features = [
-    "x11",
-    "wayland",
-] }
-
-# WASM dependencies
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-rfd = "0.17"
-web-sys = { version = "0.3", features = [
-    "Document",
-    "Element",
-    "Response",
-    "HtmlElement",
-    "Window",
-    "HtmlCanvasElement",
-    "HtmlInputElement",
-    "File",
-    "FileList",
-    "FileReader",
-    "Blob",
-    "Url",
-    "DragEvent",
-    "DataTransfer",
-    "console",
-] }
-js-sys = "0.3"
-console_error_panic_hook = "0.1"
-
-# Optimize dependencies in dev builds for smoother editor experience
 [profile.dev.package."*"]
 opt-level = 2
 

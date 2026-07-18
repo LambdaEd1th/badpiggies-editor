@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Native binaries and desktop packages (runtime assets bundled) ──────────
+  # Native binaries and desktop packages (runtime assets bundled).
   build_native:
     name: Build Native (${{ matrix.artifact }})
     runs-on: ${{ matrix.os }}
@@ -51,7 +51,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Linux GPU dependencies
+      - name: Install Linux WebView dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y
@@ -59,6 +59,7 @@ jobs:
             dpkg-dev \
             pkg-config \
             libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
             libxdo-dev \
             libxcb-render0-dev \
             libxcb-shape0-dev \
@@ -73,11 +74,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: native-release-${{ matrix.artifact }}-cargo-${{ hashFiles('**/Cargo.lock', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
+          key: native-release-${{ matrix.artifact }}-cargo-${{ hashFiles('**/Cargo.lock', 'app/assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: native-release-${{ matrix.artifact }}-cargo-
 
       - name: Build release binary
-        run: cargo build --release
+        run: cargo build --release --package badpiggies-editor-app --bin badpiggies-editor
 
       - name: Install cargo-bundle
         if: matrix.package_app == true || matrix.package_deb == true
@@ -85,19 +86,20 @@ jobs:
 
       - name: Build macOS app bundle
         if: matrix.package_app == true
-        run: cargo bundle --release --format osx
+        run: cargo bundle --release --format osx --package badpiggies-editor-app
 
       - name: Package macOS app bundle
         if: matrix.package_app == true
         run: |
           APP_PATH=$(find target/release/bundle/osx -maxdepth 1 -name '*.app' -print -quit)
           test -n "$APP_PATH"
-          cp -R assets "$APP_PATH/Contents/Resources/assets"
+          rm -rf "$APP_PATH/Contents/Resources/assets"
+          cp -R app/assets "$APP_PATH/Contents/Resources/assets"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "${{ matrix.artifact }}-app-${{ github.ref_name }}.zip"
 
       - name: Build Debian package
         if: matrix.package_deb == true
-        run: cargo bundle --release --format deb
+        run: cargo bundle --release --format deb --package badpiggies-editor-app
 
       - name: Package Debian bundle artifact
         if: matrix.package_deb == true
@@ -106,12 +108,13 @@ jobs:
           test -n "$DEB_PATH"
           DEB_FILE="${{ matrix.artifact }}-${{ github.ref_name }}.deb"
           cp "$DEB_PATH" "$DEB_FILE"
-          zip -r "${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip" "$DEB_FILE" assets
+          zip -r "${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip" "$DEB_FILE" app/assets
 
       - name: Package binary (Unix)
         if: matrix.package_zip == true && runner.os != 'Windows'
         run: |
           cp target/release/${{ matrix.binary }} ${{ matrix.binary }}
+          cp -R app/assets assets
           zip -r ${{ matrix.artifact }}-${{ github.ref_name }}.zip ${{ matrix.binary }} assets
 
       - name: Package binary (Windows)
@@ -119,6 +122,7 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item target/release/${{ matrix.binary }} ${{ matrix.binary }}
+          Copy-Item -Recurse app/assets assets
           Compress-Archive -Path @("${{ matrix.binary }}", "assets") -DestinationPath "${{ matrix.artifact }}-${{ github.ref_name }}.zip"
 
       - name: Upload binary artifact
@@ -142,7 +146,7 @@ jobs:
           name: ${{ matrix.artifact }}-deb
           path: ${{ matrix.artifact }}-${{ github.ref_name }}-deb.zip
 
-  # ── WASM + Pages artifact (runtime assets copied into dist/) ───────────────
+  # WASM + Pages artifact.
   build_wasm:
     name: Build WASM
     runs-on: ubuntu-latest
@@ -163,26 +167,31 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
+          key: wasm-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'app/assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: wasm-release-${{ runner.os }}-cargo-
 
-      - name: Install Trunk
-        run: cargo install trunk --locked
+      - name: Install Web build tools
+        run: |
+          cargo install dioxus-cli --version 0.7.9 --locked
+          cargo install wasm-pack --version 0.15.0 --locked
+
+      - name: Build Web Worker
+        run: ./scripts/build-web-worker.sh
+
+      - name: Build Web Renderer
+        run: ./scripts/build-web-renderer.sh
 
       - name: Build WASM site
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          # Disable trunk's built-in wasm-opt: it rejects bulk-memory ops
-          # that wasm-bindgen 0.2.115+ emits.  We run wasm-opt manually below.
-          sed -i 's/data-wasm-opt="2"/data-wasm-opt="0"/' index.html
-          trunk build --release --public-url "/${REPO_NAME}/"
-
-      - name: Optimize WASM
-        run: |
-          sudo apt-get update -y && sudo apt-get install -y binaryen
-          WASM=$(find dist -name '*_bg.wasm' | head -1)
-          wasm-opt --all-features -O2 "$WASM" -o "${WASM}.opt"
-          mv "${WASM}.opt" "$WASM"
+          dx build \
+            --platform web \
+            --package badpiggies-editor-app \
+            --release \
+            --debug-symbols=false \
+            --base-path "/${REPO_NAME}/"
+          rm -rf dist
+          cp -R target/dx/badpiggies-editor/release/web/public dist
 
       - name: Package web artifact
         run: zip -r badpiggies-editor-web-${{ github.ref_name }}.zip dist
@@ -198,7 +207,7 @@ jobs:
         with:
           path: ./dist
 
-  # ── GitHub Release ───────────────────────────────────────────────────────────
+  # GitHub Release.
   publish_release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
@@ -218,7 +227,7 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
 
-  # ── Deploy to GitHub Pages ───────────────────────────────────────────────────
+  # Deploy to GitHub Pages.
   deploy_pages:
     name: Deploy To GitHub Pages
     runs-on: ubuntu-latest

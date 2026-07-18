@@ -1,0 +1,356 @@
+//! Parsers for decrypted Bad Piggies save file XML content.
+
+use quick_xml::Reader;
+use quick_xml::events::Event;
+use serde::{Deserialize, Serialize};
+
+use crate::diagnostics::error::{AppError, AppResult};
+
+/// A key-value entry from Progress.dat or Settings.xml.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgressEntry {
+    pub key: String,
+    pub value_type: String,
+    pub value: String,
+}
+
+/// A contraption part.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ContraptionPart {
+    pub x: i32,
+    pub y: i32,
+    pub part_type: i32,
+    pub custom_part_index: i32,
+    pub rot: i32,
+    pub flipped: bool,
+}
+
+/// An achievement entry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AchievementEntry {
+    pub id: String,
+    pub progress: f64,
+    pub completed: bool,
+    pub synced: bool,
+}
+
+/// Parsed save file content.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum SaveData {
+    Progress(Vec<ProgressEntry>),
+    Contraption(Vec<ContraptionPart>),
+    Achievements(Vec<AchievementEntry>),
+}
+
+/// Helper: get a UTF-8 attribute value by name from a quick-xml `BytesStart`.
+fn attr_str(e: &quick_xml::events::BytesStart, name: &[u8]) -> Option<String> {
+    e.attributes()
+        .filter_map(|a| a.ok())
+        .find(|a| a.key.as_ref() == name)
+        .and_then(|a| String::from_utf8(a.value.to_vec()).ok())
+}
+
+/// Parse Progress.dat / Settings.xml XML.
+pub fn parse_progress_xml(xml: &str) -> AppResult<Vec<ProgressEntry>> {
+    let mut reader = Reader::from_str(xml);
+    let mut entries = Vec::new();
+    loop {
+        match reader.read_event() {
+            Ok(Event::Empty(ref e) | Event::Start(ref e)) => {
+                let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if tag == "data" {
+                    continue;
+                }
+                let key = attr_str(e, b"key").unwrap_or_default();
+                let value = attr_str(e, b"value").unwrap_or_default();
+                entries.push(ProgressEntry {
+                    key,
+                    value_type: tag,
+                    value,
+                });
+            }
+            Ok(Event::Eof) => break,
+            Err(error) => {
+                return Err(AppError::invalid_data_key1(
+                    "error_xml_parse",
+                    error.to_string(),
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(entries)
+}
+
+/// Parse ContraptionDataset XML.
+pub fn parse_contraption_xml(xml: &str) -> AppResult<Vec<ContraptionPart>> {
+    let mut reader = Reader::from_str(xml);
+    let mut parts = Vec::new();
+    loop {
+        match reader.read_event() {
+            Ok(Event::Empty(ref e) | Event::Start(ref e)) => {
+                let tag = e.name();
+                if tag.as_ref() != b"ContraptionDatasetUnit" {
+                    continue;
+                }
+                let x = attr_str(e, b"x").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let y = attr_str(e, b"y").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let part_type = attr_str(e, b"partType")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0);
+                let custom_part_index = attr_str(e, b"customPartIndex")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0);
+                let rot = attr_str(e, b"rot")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0);
+                let flipped = attr_str(e, b"flipped")
+                    .map(|v| v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+                parts.push(ContraptionPart {
+                    x,
+                    y,
+                    part_type,
+                    custom_part_index,
+                    rot,
+                    flipped,
+                });
+            }
+            Ok(Event::Eof) => break,
+            Err(error) => {
+                return Err(AppError::invalid_data_key1(
+                    "error_xml_parse",
+                    error.to_string(),
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(parts)
+}
+
+/// Parse Achievements.xml.
+pub fn parse_achievements_xml(xml: &str) -> AppResult<Vec<AchievementEntry>> {
+    let mut reader = Reader::from_str(xml);
+    let mut entries = Vec::new();
+    loop {
+        match reader.read_event() {
+            Ok(Event::Empty(ref e) | Event::Start(ref e)) => {
+                let tag = e.name();
+                if tag.as_ref() != b"Achievement" {
+                    continue;
+                }
+                let id = attr_str(e, b"id").unwrap_or_default();
+                let progress = attr_str(e, b"progress")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.0);
+                let completed = attr_str(e, b"completed")
+                    .map(|v| v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+                let synced = attr_str(e, b"synced")
+                    .map(|v| v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(false);
+                entries.push(AchievementEntry {
+                    id,
+                    progress,
+                    completed,
+                    synced,
+                });
+            }
+            Ok(Event::Eof) => break,
+            Err(error) => {
+                return Err(AppError::invalid_data_key1(
+                    "error_xml_parse",
+                    error.to_string(),
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(entries)
+}
+
+/// Try to detect the save file type from decrypted XML content.
+pub fn detect_type_from_xml(xml: &str) -> Option<crate::io::crypto::SaveFileType> {
+    use crate::io::crypto::SaveFileType;
+    // Look for characteristic element names in the XML
+    if xml.contains("<ContraptionDataset") || xml.contains("<ContraptionDatasetUnit") {
+        Some(SaveFileType::Contraption)
+    } else if xml.contains("<Achievement") {
+        Some(SaveFileType::Achievements)
+    } else if xml.contains("<data") {
+        Some(SaveFileType::Progress)
+    } else {
+        None
+    }
+}
+
+/// Parse decrypted XML bytes based on file type.
+pub fn parse_save_data(
+    file_type: &crate::io::crypto::SaveFileType,
+    xml_bytes: &[u8],
+) -> AppResult<SaveData> {
+    let xml = String::from_utf8(xml_bytes.to_vec())
+        .map_err(|error| AppError::invalid_data_key1("error_invalid_utf8", error.to_string()))?;
+    // Strip BOM if present
+    let xml = xml.strip_prefix('\u{feff}').unwrap_or(&xml);
+    match file_type {
+        crate::io::crypto::SaveFileType::Progress => {
+            parse_progress_xml(xml).map(SaveData::Progress)
+        }
+        crate::io::crypto::SaveFileType::Contraption => {
+            parse_contraption_xml(xml).map(SaveData::Contraption)
+        }
+        crate::io::crypto::SaveFileType::Achievements => {
+            parse_achievements_xml(xml).map(SaveData::Achievements)
+        }
+    }
+}
+
+/// XML-escape a string for use in attribute values.
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// Serialize Progress entries to XML.
+pub fn serialize_progress_xml(entries: &[ProgressEntry]) -> String {
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<data>\n");
+    for entry in entries {
+        xml.push_str(&format!(
+            "  <{} key=\"{}\" value=\"{}\" />\n",
+            xml_escape(&entry.value_type),
+            xml_escape(&entry.key),
+            xml_escape(&entry.value),
+        ));
+    }
+    xml.push_str("</data>");
+    xml
+}
+
+/// Serialize Contraption parts to XML.
+pub fn serialize_contraption_xml(parts: &[ContraptionPart]) -> String {
+    let mut xml = String::from(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<ContraptionDataset xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n  <ContraptionDatasetList>\n",
+    );
+    for part in parts {
+        xml.push_str(&format!(
+            "    <ContraptionDatasetUnit x=\"{}\" y=\"{}\" partType=\"{}\" customPartIndex=\"{}\" rot=\"{}\" flipped=\"{}\" />\n",
+            part.x,
+            part.y,
+            part.part_type,
+            part.custom_part_index,
+            part.rot,
+            if part.flipped { "true" } else { "false" },
+        ));
+    }
+    xml.push_str("  </ContraptionDatasetList>\n</ContraptionDataset>");
+    xml
+}
+
+/// Serialize Achievement entries to XML.
+pub fn serialize_achievements_xml(entries: &[AchievementEntry]) -> String {
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Achievements>\n");
+    for entry in entries {
+        xml.push_str(&format!(
+            "  <Achievement id=\"{}\" progress=\"{}\" completed=\"{}\" synced=\"{}\" />\n",
+            xml_escape(&entry.id),
+            entry.progress,
+            if entry.completed { "True" } else { "False" },
+            if entry.synced { "True" } else { "False" },
+        ));
+    }
+    xml.push_str("</Achievements>");
+    xml
+}
+
+/// Serialize SaveData to XML string.
+pub fn serialize_save_data(data: &SaveData) -> String {
+    match data {
+        SaveData::Progress(entries) => serialize_progress_xml(entries),
+        SaveData::Contraption(parts) => serialize_contraption_xml(parts),
+        SaveData::Achievements(entries) => serialize_achievements_xml(entries),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ContraptionPart, parse_progress_xml, parse_save_data, serialize_contraption_xml};
+    use crate::diagnostics::error::{AppError, AppErrorMessage};
+    use crate::io::crypto::SaveFileType;
+
+    #[test]
+    fn serialize_contraption_xml_preserves_dataset_wrapper_layout() {
+        let xml = serialize_contraption_xml(&[
+            ContraptionPart {
+                x: 0,
+                y: 1,
+                part_type: 10,
+                custom_part_index: 0,
+                rot: 0,
+                flipped: false,
+            },
+            ContraptionPart {
+                x: -2,
+                y: 3,
+                part_type: 14,
+                custom_part_index: 0,
+                rot: 0,
+                flipped: true,
+            },
+        ]);
+
+        assert_eq!(
+            xml,
+            concat!(
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n",
+                "<ContraptionDataset xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n",
+                "  <ContraptionDatasetList>\n",
+                "    <ContraptionDatasetUnit x=\"0\" y=\"1\" partType=\"10\" customPartIndex=\"0\" rot=\"0\" flipped=\"false\" />\n",
+                "    <ContraptionDatasetUnit x=\"-2\" y=\"3\" partType=\"14\" customPartIndex=\"0\" rot=\"0\" flipped=\"true\" />\n",
+                "  </ContraptionDatasetList>\n",
+                "</ContraptionDataset>"
+            )
+        );
+    }
+
+    #[test]
+    fn parse_progress_xml_reports_invalid_data_for_malformed_xml() {
+        let error = match parse_progress_xml("<data><Int key=\"coins\" value=\"1\"></data>") {
+            Ok(_) => panic!("malformed XML should fail"),
+            Err(error) => error,
+        };
+
+        assert!(
+            matches!(
+                error,
+                AppError::InvalidData(AppErrorMessage::Key1 {
+                    key: "error_xml_parse",
+                    ..
+                })
+            ),
+            "expected InvalidData XML parse error, got {error}"
+        );
+    }
+
+    #[test]
+    fn parse_save_data_reports_invalid_data_for_invalid_utf8() {
+        let error = match parse_save_data(&SaveFileType::Progress, &[0xff, 0xfe, 0xfd]) {
+            Ok(_) => panic!("invalid UTF-8 should fail"),
+            Err(error) => error,
+        };
+
+        assert!(
+            matches!(
+                error,
+                AppError::InvalidData(AppErrorMessage::Key1 {
+                    key: "error_invalid_utf8",
+                    ..
+                })
+            ),
+            "expected InvalidData UTF-8 error, got {error}"
+        );
+    }
+}

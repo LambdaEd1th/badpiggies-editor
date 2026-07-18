@@ -1,0 +1,10 @@
+[application]
+name = "badpiggies-editor"
+default_platform = "web"
+out_dir = "dist"
+
+[web.app]
+title = "Bad Piggies Editor"
+
+[desktop.app]
+title = "Bad Piggies Editor"

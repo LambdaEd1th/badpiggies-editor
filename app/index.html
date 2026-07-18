@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title>{app_title}</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #15181d;
+        }
+
+        #main {
+            width: 100%;
+            height: 100%;
+        }
+
+        #bp-startup {
+            display: grid;
+            position: fixed;
+            z-index: 2147483000;
+            inset: 0;
+            place-items: center;
+            background: #15181d;
+            color: #cbd2da;
+            transition: opacity 180ms ease, visibility 180ms ease;
+        }
+
+        #bp-startup.is-finished {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .bp-startup-content {
+            display: grid;
+            width: min(360px, calc(100vw - 48px));
+            justify-items: center;
+            gap: 14px;
+        }
+
+        .bp-startup-icon {
+            width: 68px;
+            height: 68px;
+            border-radius: 14px;
+            object-fit: contain;
+            filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.34));
+        }
+
+        .bp-startup-title {
+            color: #f7f9fb;
+            font-size: 18px;
+            font-weight: 650;
+            letter-spacing: 0;
+        }
+
+        .bp-startup-progress {
+            width: 100%;
+            height: 5px;
+            overflow: hidden;
+            border-radius: 3px;
+            background: #2d3540;
+        }
+
+        #bp-startup-progress-value {
+            width: 0;
+            height: 100%;
+            border-radius: inherit;
+            background: #2cb7aa;
+            transition: width 100ms linear;
+        }
+
+        #bp-startup-status {
+            min-height: 18px;
+            color: #cbd2da;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        #bp-startup-detail {
+            width: 100%;
+            min-height: 16px;
+            max-height: min(28vh, 180px);
+            overflow: auto;
+            color: #7f8996;
+            font-size: 11px;
+            line-height: 1.45;
+            text-align: center;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        #bp-startup-retry {
+            display: none;
+            min-height: 34px;
+            border: 1px solid #49c9bd;
+            border-radius: 6px;
+            background: rgba(44, 183, 170, 0.14);
+            padding: 6px 16px;
+            color: #65ddd2;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        #bp-startup.is-error #bp-startup-retry {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        #bp-startup.is-error .bp-startup-progress {
+            display: none;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: light;
+            }
+
+            html,
+            body,
+            #bp-startup {
+                background: #eef1f4;
+            }
+
+            .bp-startup-title {
+                color: #11161c;
+            }
+
+            #bp-startup-status {
+                color: #35404c;
+            }
+
+            #bp-startup-detail {
+                color: #637080;
+            }
+
+            .bp-startup-progress {
+                background: #d7dde4;
+            }
+
+            #bp-startup-progress-value {
+                background: #168f86;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #bp-startup,
+            #bp-startup-progress-value {
+                transition: none;
+            }
+        }
+    </style>
+    {style_include}
+</head>
+<body>
+    <div id="bp-startup" role="status" aria-live="polite" aria-busy="true">
+        <div class="bp-startup-content">
+            <img class="bp-startup-icon" src="/{base_path}/assets/ui/app-icon.png" alt="">
+            <div class="bp-startup-title">Bad Piggies Editor</div>
+            <div class="bp-startup-progress" aria-hidden="true">
+                <div id="bp-startup-progress-value"></div>
+            </div>
+            <div id="bp-startup-status">Loading application...</div>
+            <div id="bp-startup-detail"></div>
+            <button id="bp-startup-retry" type="button">Retry</button>
+        </div>
+    </div>
+    <div id="main"></div>
+    <script>
+        (() => {
+            const root = document.getElementById("bp-startup");
+            const status = document.getElementById("bp-startup-status");
+            const detail = document.getElementById("bp-startup-detail");
+            const progress = document.getElementById("bp-startup-progress-value");
+            const retry = document.getElementById("bp-startup-retry");
+            const originalFetch = window.fetch.bind(window);
+            const assetState = { loaded: 0, total: 0, relative: "" };
+
+            function clampPercent(value) {
+                return Math.max(0, Math.min(100, Number(value) || 0));
+            }
+
+            function setProgress(value) {
+                progress.style.width = `${clampPercent(value)}%`;
+            }
+
+            function formatBytes(bytes) {
+                if (!Number.isFinite(bytes) || bytes <= 0) return "";
+                return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+            }
+
+            function setStage(label, description = "", percent) {
+                status.textContent = label || "Loading...";
+                detail.textContent = description || "";
+                if (Number.isFinite(percent)) setProgress(percent);
+            }
+
+            function assetDescription(relative, loadedBytes = 0, totalBytes = 0) {
+                const position = Math.min(assetState.loaded + 1, assetState.total);
+                const parts = [`${position}/${assetState.total}`, relative];
+                if (loadedBytes > 0) {
+                    const bytes = totalBytes > 0
+                        ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
+                        : formatBytes(loadedBytes);
+                    parts.push(bytes);
+                }
+                return parts.filter(Boolean).join("  |  ");
+            }
+
+            function updateAssets(loaded, total, relative) {
+                assetState.loaded = Number(loaded) || 0;
+                assetState.total = Number(total) || 0;
+                assetState.relative = relative || "";
+                const percent = assetState.total > 0
+                    ? (assetState.loaded / assetState.total) * 100
+                    : 0;
+                setStage(
+                    "Loading runtime assets...",
+                    assetState.relative ? assetDescription(assetState.relative) : "",
+                    percent,
+                );
+            }
+
+            function fail(message) {
+                root.classList.add("is-error");
+                root.setAttribute("aria-busy", "false");
+                status.textContent = "Unable to load application resources";
+                detail.textContent = message || "Unknown startup error";
+            }
+
+            function finish() {
+                root.setAttribute("aria-busy", "false");
+                root.classList.add("is-finished");
+                window.setTimeout(() => root.remove(), 220);
+            }
+
+            async function trackResponse(response, onProgress) {
+                if (!response.body) return response;
+                const total = Number(response.headers.get("content-length") || 0);
+                const reader = response.body.getReader();
+                let loaded = 0;
+                const stream = new ReadableStream({
+                    async pull(controller) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            onProgress(loaded, total, true);
+                            controller.close();
+                            return;
+                        }
+                        loaded += value.byteLength;
+                        onProgress(loaded, total, false);
+                        controller.enqueue(value);
+                    },
+                    cancel(reason) {
+                        return reader.cancel(reason);
+                    },
+                });
+                return new Response(stream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers,
+                });
+            }
+
+            function requestUrl(input) {
+                return typeof input === "string" ? input : input?.url || "";
+            }
+
+            window.bpStartup = { setStage, updateAssets, fail, finish };
+            retry.addEventListener("click", () => window.location.reload());
+
+            window.fetch = async (input, init) => {
+                const url = requestUrl(input);
+                const response = await originalFetch(input, init);
+                const pathname = new URL(url, document.baseURI).pathname;
+
+                if (/\/(?:wasm|assets)\/badpiggies-editor_bg(?:-[^/]+)?\.wasm$/.test(pathname)) {
+                    return trackResponse(response, (loaded, total, done) => {
+                        const percent = total > 0 ? (loaded / total) * 100 : 0;
+                        const bytes = total > 0
+                            ? `${formatBytes(loaded)} / ${formatBytes(total)}`
+                            : formatBytes(loaded);
+                        setStage(done ? "Initializing application..." : "Loading application...", bytes, percent);
+                    });
+                }
+
+                if (
+                    assetState.total > 0 &&
+                    assetState.relative &&
+                    pathname.endsWith(`/assets/${assetState.relative}`)
+                ) {
+                    return trackResponse(response, (loaded, total) => {
+                        const fraction = total > 0 ? loaded / total : 0;
+                        const percent = ((assetState.loaded + fraction) / assetState.total) * 100;
+                        setStage(
+                            "Loading runtime assets...",
+                            assetDescription(assetState.relative, loaded, total),
+                            percent,
+                        );
+                    });
+                }
+
+                return response;
+            };
+        })();
+    </script>
+</body>
+</html>

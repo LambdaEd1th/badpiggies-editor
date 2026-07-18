@@ -1,9 +1,0 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M32 12V52" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 12L24 20" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 12L40 20" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 52L24 44" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 52L40 44" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M14 12H50" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
-  <path d="M14 52H50" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
-</svg>

@@ -94,6 +94,7 @@ jobs:
           APP_PATH=$(find target/release/bundle/osx -maxdepth 1 -name '*.app' -print -quit)
           test -n "$APP_PATH"
           rm -rf "$APP_PATH/Contents/Resources/assets"
+          mkdir -p "$APP_PATH/Contents/Resources"
           cp -R app/assets "$APP_PATH/Contents/Resources/assets"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "${{ matrix.artifact }}-app-${{ github.ref_name }}.zip"
 

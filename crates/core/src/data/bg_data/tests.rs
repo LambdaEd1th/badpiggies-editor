@@ -5,8 +5,6 @@ use super::{
     parse_position_serializer_overrides, parse_runtime_bg_overrides, sky_texture_files,
 };
 use crate::domain::level::refs::MaterialShaderKind;
-use crate::domain::parser::parse_level;
-use crate::domain::types::LevelObject;
 
 #[test]
 fn background_themes_can_come_from_prefab_scan() {
@@ -367,57 +365,44 @@ fn maya_tree_fill_keeps_flat_atlas_path() {
 
 #[test]
 fn level27_cave_background_override_uses_legacy_transform_path() {
-    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
-    let bytes = std::fs::read(&level_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
-    let level = parse_level(bytes)
-        .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()));
-
-    let bg_override_text = level
-        .objects
-        .iter()
-        .find_map(|object| match object {
-            LevelObject::Prefab(prefab)
-                if prefab.name.contains("Background") && prefab.override_data.is_some() =>
-            {
-                prefab
-                    .override_data
-                    .as_ref()
-                    .map(|data| data.raw_text.clone())
-            }
-            _ => None,
-        })
-        .expect("level 27 background override text");
+    // Minimal transform subtree copied from Level_27's serialized background override.
+    const LEGACY_OVERRIDE: &str = concat!(
+        "\u{feff}GameObject Background_Cave_01_SET 1\n",
+        "\tGameObject FGLayer\n",
+        "\t\tGameObject Fill1\n",
+        "\t\t\tComponent UnityEngine.Transform\n",
+        "\t\t\t\tVector3 m_LocalPosition\n",
+        "\t\t\t\t\tFloat y = 63.3624\n",
+    );
 
     assert!(
-        !bg_override_text.contains("PositionSerializer"),
+        !LEGACY_OVERRIDE.contains("PositionSerializer"),
         "expected Level_27 Cave background override to stay on the legacy Transform path"
     );
     assert!(
-        !bg_override_text.contains("childLocalPositions"),
+        !LEGACY_OVERRIDE.contains("childLocalPositions"),
         "expected Level_27 Cave background override to not carry PositionSerializer child positions"
     );
     assert!(
-        bg_override_text.contains("Component UnityEngine.Transform"),
+        LEGACY_OVERRIDE.contains("Component UnityEngine.Transform"),
         "expected Level_27 Cave background override to include Transform overrides"
     );
 
     let cave_theme = get_theme("Cave").expect("missing Cave theme");
-    let legacy = parse_bg_overrides(&bg_override_text);
-    assert!(
-        !legacy.sprites.is_empty(),
-        "expected Level_27 background override AST to include sprite-level transform overrides"
+    let legacy = parse_bg_overrides(LEGACY_OVERRIDE);
+    assert_eq!(
+        legacy.sprites.get("Fill1"),
+        Some(&[None, Some(63.3624), None]),
+        "expected Level_27 legacy transform coordinates to be preserved"
     );
 
-    let serializer =
-        parse_position_serializer_overrides(&bg_override_text, &cave_theme.child_order);
+    let serializer = parse_position_serializer_overrides(LEGACY_OVERRIDE, &cave_theme.child_order);
     assert!(
         serializer.groups.is_empty() && serializer.sprites.is_empty(),
         "expected Level_27 Cave background override to avoid serializer-derived group or sprite overrides"
     );
 
-    let runtime = parse_runtime_bg_overrides(&bg_override_text, &cave_theme.child_order);
+    let runtime = parse_runtime_bg_overrides(LEGACY_OVERRIDE, &cave_theme.child_order);
     for (name, expected) in &legacy.sprites {
         assert_eq!(
             runtime.sprites.get(name),

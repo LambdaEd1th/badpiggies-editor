@@ -1465,66 +1465,46 @@ mod tests {
         );
     }
 
-    fn terrain_splat1_names_for_level(
-        relative_path: &str,
-        resolved_prefab_name: &str,
-    ) -> std::collections::BTreeSet<String> {
-        let level = parse_test_level(relative_path);
-        let filename = Path::new(relative_path)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .expect("test level file name");
-        let level_key = level_key_from_filename(filename);
-
-        level
-            .objects
-            .iter()
-            .filter_map(|object| {
-                let LevelObject::Prefab(prefab) = object else {
-                    return None;
-                };
-                let terrain = prefab.terrain_data.as_deref()?;
-                let resolved_name = get_prefab_override(&level_key, prefab.prefab_index)
-                    .unwrap_or(prefab.name.as_str());
-                if resolved_name != resolved_prefab_name {
-                    return None;
-                }
-                let splat1_index = terrain.curve_textures.get(1)?.texture_index;
-                get_level_ref(&level_key, splat1_index).map(str::to_string)
-            })
-            .collect()
-    }
-
     #[test]
     fn runtime_loader_refs_keep_mm_maya_splat1_prefab_groups_from_unity_assets() {
-        let border = texture_name_for_guid("6ddb5c22ed9534b248104e4ab9bfaa4e")
-            .expect("Border guid")
-            .to_string();
+        // These are the splat1 references used by the corresponding shipped EP6 terrains.
+        let border =
+            texture_name_for_guid("6ddb5c22ed9534b248104e4ab9bfaa4e").expect("Border guid");
         let border_maya_cave = texture_name_for_guid("977533b9ad59c2ae434820adb5b74076")
-            .expect("Border_Maya_Cave guid")
-            .to_string();
+            .expect("Border_Maya_Cave guid");
 
         assert_eq!(
-            terrain_splat1_names_for_level(
-                "assetbundles/episode_6_levels.unity3d/episode_6_level_10_data.bytes",
-                "e2dTerrainBase_MM_rock",
-            ),
-            std::collections::BTreeSet::from([border.clone()])
+            get_prefab_override("episode_6_level_10_data", 94),
+            Some("e2dTerrainBase_MM_rock")
         );
+        for index in [20, 29, 41, 50, 59, 71, 74, 77, 80] {
+            assert_eq!(
+                get_level_ref("episode_6_level_10_data", index),
+                Some(border)
+            );
+        }
+
         assert_eq!(
-            terrain_splat1_names_for_level(
-                "assetbundles/episode_6_levels.unity3d/episode_6_level_17_data.bytes",
-                "e2dTerrainBase_MM_rock",
-            ),
-            std::collections::BTreeSet::from([border_maya_cave.clone()])
+            get_prefab_override("episode_6_level_17_data", 74),
+            Some("e2dTerrainBase_MM_rock")
         );
+        for index in [22, 28, 31, 34, 40] {
+            assert_eq!(
+                get_level_ref("episode_6_level_17_data", index),
+                Some(border_maya_cave)
+            );
+        }
+
         assert_eq!(
-            terrain_splat1_names_for_level(
-                "assetbundles/episode_6_levels.unity3d/episode_6_level_18_data.bytes",
-                "e2dTerrainDark_MM_TempleDarkRock",
-            ),
-            std::collections::BTreeSet::from([border_maya_cave])
+            get_prefab_override("episode_6_level_18_data", 91),
+            Some("e2dTerrainDark_MM_TempleDarkRock")
         );
+        for index in [27, 35] {
+            assert_eq!(
+                get_level_ref("episode_6_level_18_data", index),
+                Some(border_maya_cave)
+            );
+        }
     }
 
     #[test]

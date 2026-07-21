@@ -382,8 +382,6 @@ mod tests {
     use crate::renderer::grid::{ConstructionGrid, ConstructionGridCellStyle};
     use crate::unity_runtime::components::LevelManager;
     use crate::unity_runtime::scene::Scene;
-    use std::path::Path;
-
     const LEVEL_MANAGER_OVERRIDE: &str =
         "GameObject LevelManager\n\tComponent LevelManager\n\t\tBoolean m_darkLevel = True\n";
 
@@ -470,9 +468,11 @@ mod tests {
 
     #[test]
     fn dark_sandbox_bytes_parse_as_dark_level() {
-        let level_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
-        );
+        let Some(level_path) = crate::test_support::external_test_level(
+            "assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+        ) else {
+            return;
+        };
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         let level = parse_level(bytes)
@@ -519,9 +519,11 @@ mod tests {
 
     #[test]
     fn dark_sandbox_lit_area_gets_border_from_serialized_border_polygon() {
-        let level_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
-        );
+        let Some(level_path) = crate::test_support::external_test_level(
+            "assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+        ) else {
+            return;
+        };
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         let level = parse_level(bytes)

@@ -693,8 +693,11 @@ mod tests {
 
     #[test]
     fn level27_parses_authored_camera_system_view() {
-        let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
+        let Some(level_path) = crate::test_support::external_test_level(
+            "assetbundles/episode_1_levels.unity3d/Level_27_data.bytes",
+        ) else {
+            return;
+        };
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         let level = parse_level(bytes)
@@ -711,8 +714,11 @@ mod tests {
 
     #[test]
     fn sandbox_level_parses_authored_camera_center_from_game_camera_transform() {
-        let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+        let Some(level_path) = crate::test_support::external_test_level(
+            "assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
+        ) else {
+            return;
+        };
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         let level = parse_level(bytes)

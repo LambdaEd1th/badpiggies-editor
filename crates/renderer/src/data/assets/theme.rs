@@ -310,13 +310,16 @@ mod tests {
     use std::path::Path;
 
     fn parse_test_level(relative_path: &str) -> crate::domain::types::LevelData {
-        let level_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test_levels")
-            .join(relative_path);
+        let level_path = crate::test_support::external_test_level(relative_path)
+            .unwrap_or_else(|| panic!("missing external test level fixture: {relative_path}"));
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         parse_level(bytes)
             .unwrap_or_else(|error| panic!("failed to parse {}: {error}", level_path.display()))
+    }
+
+    fn external_test_levels_available() -> bool {
+        crate::test_support::external_test_levels_root().is_dir()
     }
 
     fn parsed_object_names(relative_path: &str) -> Vec<String> {
@@ -358,8 +361,7 @@ mod tests {
             if path.extension().and_then(|ext| ext.to_str()) != Some("bytes") {
                 continue;
             }
-            let Ok(relative) = path
-                .strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test_levels"))
+            let Ok(relative) = path.strip_prefix(crate::test_support::external_test_levels_root())
             else {
                 continue;
             };
@@ -368,7 +370,7 @@ mod tests {
     }
 
     fn all_test_level_paths() -> Vec<String> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../test_levels");
+        let root = crate::test_support::external_test_levels_root();
         let mut paths = Vec::new();
         collect_test_level_paths(&root, &mut paths);
         paths.sort();
@@ -400,6 +402,9 @@ mod tests {
 
     #[test]
     fn episode6_background_override_refs_drive_theme_detection() {
+        if !external_test_levels_available() {
+            return;
+        }
         let cave_path = "assetbundles/episode_6_levels.unity3d/episode_6_level_5_data.bytes";
         let cave_names = parsed_object_names(cave_path);
         assert_eq!(
@@ -436,6 +441,9 @@ mod tests {
 
     #[test]
     fn episode6_sandbox_background_override_refs_drive_theme_detection() {
+        if !external_test_levels_available() {
+            return;
+        }
         let ice_path =
             "assetbundles/episode_sandbox_levels.unity3d/Episode_6_Ice Sandbox_data.bytes";
         let ice_names = parsed_object_names(ice_path);
@@ -463,6 +471,9 @@ mod tests {
 
     #[test]
     fn level_sandbox_10_prefers_background_forest_over_cloud_plateau_set() {
+        if !external_test_levels_available() {
+            return;
+        }
         let path = "assetbundles/episode_sandbox_levels.unity3d/Level_Sandbox_10_data.bytes";
         let names = parsed_object_names(path);
         assert_eq!(
@@ -486,6 +497,9 @@ mod tests {
 
     #[test]
     fn episode6_dark_background_prefab_beats_generic_cave_fallback() {
+        if !external_test_levels_available() {
+            return;
+        }
         let path = "assetbundles/episode_6_levels.unity3d/episode_6_level_5_data.bytes";
         let names = parsed_object_names(path);
         assert_eq!(
@@ -723,6 +737,9 @@ mod tests {
 
     #[test]
     fn skip_render_legacy_exact_and_decoration_filters_have_no_test_level_hits() {
+        if !external_test_levels_available() {
+            return;
+        }
         let mut hits = Vec::new();
 
         for relative_path in all_test_level_paths() {
@@ -755,6 +772,9 @@ mod tests {
 
     #[test]
     fn skip_render_challenge_hits_are_asset_backed_in_test_levels() {
+        if !external_test_levels_available() {
+            return;
+        }
         let mut hits = Vec::new();
 
         for relative_path in all_test_level_paths() {
@@ -1231,6 +1251,9 @@ mod tests {
 
     #[test]
     fn episode1_sandbox_cave_background_override_is_detected() {
+        if !external_test_levels_available() {
+            return;
+        }
         let path = "assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes";
         let names = parsed_object_names(path);
         let bg_override = parsed_bg_override(path).expect("missing BackgroundObject override");

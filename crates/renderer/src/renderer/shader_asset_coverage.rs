@@ -83,7 +83,11 @@ mod tests {
     ];
 
     fn shader_source_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../BPLE/Assets/Shader")
+        std::env::var_os("BP_EDITOR_UNITY_SHADER_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../BPLE/Assets/Shader")
+            })
     }
 
     fn wgsl_dir() -> PathBuf {
@@ -92,13 +96,18 @@ mod tests {
 
     #[test]
     fn every_embedded_unity_shader_has_a_wgsl_port_file() {
+        let shader_source_dir = shader_source_dir();
+        let verify_unity_sources = shader_source_dir.is_dir();
+
         for (shader_name, wgsl_name) in UNITY_SHADER_PORTS {
-            let shader_path = shader_source_dir().join(shader_name);
-            assert!(
-                shader_path.exists(),
-                "missing Unity shader source {}",
-                shader_name
-            );
+            if verify_unity_sources {
+                let shader_path = shader_source_dir.join(shader_name);
+                assert!(
+                    shader_path.exists(),
+                    "missing Unity shader source {}",
+                    shader_name
+                );
+            }
 
             let wgsl_path = wgsl_dir().join(wgsl_name);
             assert!(

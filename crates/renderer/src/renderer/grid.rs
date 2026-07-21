@@ -256,8 +256,6 @@ mod tests {
     use crate::domain::types::{
         DataType, LevelData, LevelObject, PrefabInstance, PrefabOverrideData, Vec3,
     };
-    use std::path::Path;
-
     const LEVEL_MANAGER_OVERRIDE: &str = "GameObject LevelManager\n\tComponent LevelManager\n\t\tArray m_constructionGridRows\n\t\t\tArraySize size = 4\n\t\t\tElement 0\n\t\t\t\tInteger data = 15\n\t\t\tElement 1\n\t\t\t\tInteger data = 15\n\t\t\tElement 2\n\t\t\t\tInteger data = 0\n\t\t\tElement 3\n\t\t\t\tInteger data = 2\n\t\tObjectReference m_gridCellPrefab = 6\n";
 
     #[test]
@@ -308,9 +306,12 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "manual diagnostic requiring external test level fixtures"]
     fn dump_dark_sandbox_prefab_index_6_names() {
-        let level_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes");
+        let level_path = crate::test_support::external_test_level(
+            "assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+        )
+        .expect("external dark sandbox fixture");
         let level = parse_level(std::fs::read(&level_path).expect("read dark sandbox"))
             .expect("parse dark sandbox");
 

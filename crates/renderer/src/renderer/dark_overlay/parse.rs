@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn dark_sandbox_bytes_parse_as_dark_level() {
         let level_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+            "../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
         );
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
@@ -520,7 +520,7 @@ mod tests {
     #[test]
     fn dark_sandbox_lit_area_gets_border_from_serialized_border_polygon() {
         let level_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
+            "../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes",
         );
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));

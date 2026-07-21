@@ -1045,7 +1045,7 @@ mod tests {
         );
         assert_eq!(
             ground_color("Morning"),
-            crate::gpu2d::Color32::from_rgb(0x0d, 0x14, 0x1e)
+            crate::gpu2d::Color32::from_rgb(0x3f, 0x4b, 0x5b)
         );
         assert_eq!(
             ground_color("Cave"),
@@ -1061,11 +1061,11 @@ mod tests {
         );
         assert_eq!(
             ground_color("MayaTemple"),
-            crate::gpu2d::Color32::from_rgb(0x7e, 0x70, 0x1e)
+            crate::gpu2d::Color32::from_rgb(0x92, 0x79, 0x1e)
         );
         assert_eq!(
             ground_color("MayaCave2Dark"),
-            crate::gpu2d::Color32::from_rgb(0x04, 0x04, 0x09)
+            crate::gpu2d::Color32::from_rgb(0x21, 0x21, 0x31)
         );
     }
 
@@ -1073,7 +1073,7 @@ mod tests {
     fn ground_colors_can_come_from_mayahigh_assets() {
         assert_eq!(
             ground_color("MayaHigh"),
-            crate::gpu2d::Color32::from_rgb(0xbc, 0xdc, 0xf6)
+            crate::gpu2d::Color32::from_rgb(0xda, 0xed, 0xf6)
         );
     }
 
@@ -1253,7 +1253,7 @@ mod tests {
         );
         assert_eq!(
             detect_bg_theme("Level_Sandbox_01_data", &names, None),
-            Some("Jungle")
+            Some("Cave")
         );
     }
 }

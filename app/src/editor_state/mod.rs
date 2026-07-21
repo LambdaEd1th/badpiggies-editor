@@ -2343,6 +2343,66 @@ pub struct CanvasView {
     pub has_clipboard: bool,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl CanvasScene {
+    pub fn into_renderer_payload(self) -> badpiggies_editor_renderer::ScenePayload {
+        badpiggies_editor_renderer::ScenePayload {
+            document_key: self.document_key,
+            revision: self.revision,
+            file_name: self.file_name,
+            level: self.level,
+            view: badpiggies_editor_renderer::ViewPayload {
+                selected: self.selected,
+                grid: self.grid,
+                background: self.background,
+                construction_grid: self.construction_grid,
+                dark_overlay: self.dark_overlay,
+                ground: self.ground,
+                terrain_triangles: self.terrain_triangles,
+                preview_route: self.preview_route,
+                cursor_mode: self.cursor_mode.to_string(),
+                preview_state: self.preview_state.to_string(),
+                night_vision: self.night_vision,
+                terrain_draw_mode: self.terrain_draw_mode.to_string(),
+                terrain_preset: self.terrain_preset.map(str::to_string),
+                terrain_curve_segments: self.terrain_curve_segments,
+                terrain_texture_index: self.terrain_texture_index,
+                terrain_has_collider: self.terrain_has_collider,
+                terrain_continuation_anchor: self.terrain_continuation_anchor,
+                has_clipboard: self.has_clipboard,
+                camera_command: self.camera_command,
+            },
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl CanvasView {
+    pub fn into_renderer_payload(self) -> badpiggies_editor_renderer::ViewPayload {
+        badpiggies_editor_renderer::ViewPayload {
+            selected: self.selected,
+            grid: self.grid,
+            background: self.background,
+            construction_grid: self.construction_grid,
+            dark_overlay: self.dark_overlay,
+            ground: self.ground,
+            terrain_triangles: self.terrain_triangles,
+            preview_route: self.preview_route,
+            cursor_mode: self.cursor_mode.to_string(),
+            preview_state: self.preview_state.to_string(),
+            night_vision: self.night_vision,
+            terrain_draw_mode: self.terrain_draw_mode.to_string(),
+            terrain_preset: self.terrain_preset.map(str::to_string),
+            terrain_curve_segments: self.terrain_curve_segments,
+            terrain_texture_index: self.terrain_texture_index,
+            terrain_has_collider: self.terrain_has_collider,
+            terrain_continuation_anchor: self.terrain_continuation_anchor,
+            has_clipboard: self.has_clipboard,
+            camera_command: self.camera_command,
+        }
+    }
+}
+
 impl EditorState {
     fn terrain_continuation_anchor(&self) -> Option<Vec2> {
         if self.cursor_mode != CursorModeState::DrawTerrain {

@@ -45,6 +45,21 @@ pub struct TerrainDrawData {
     pub edge_splat1: Option<String>,
 }
 
+fn terrain_asset_fallback(
+    serialized_name: &str,
+    resolved_name: Option<&str>,
+    lookup: impl Fn(&str) -> Option<&'static str>,
+) -> Option<&'static str> {
+    let is_transition = [" _ to ", " - to "]
+        .into_iter()
+        .any(|marker| serialized_name.contains(marker));
+    is_transition
+        .then(|| lookup(serialized_name))
+        .flatten()
+        .or_else(|| resolved_name.and_then(&lookup))
+        .or_else(|| lookup(serialized_name))
+}
+
 /// Build terrain draw data for a single prefab instance with terrain data.
 pub fn build_terrain(
     prefab: &PrefabInstance,
@@ -78,8 +93,6 @@ pub fn build_terrain(
 
     let decorative = !td.has_collider;
 
-    let terrain_lookup_name = resolved_name.unwrap_or(&prefab.name);
-
     // Resolve fill texture: loader-derived level refs first, then name-based fallback.
     // Each terrain object's texture is determined by its per-level loader
     // m_references entry, NOT by the background
@@ -91,7 +104,14 @@ pub fn build_terrain(
             crate::domain::level::refs::is_level_ref_null(level_key, td.fill_texture_index)
                 .then(|| fill_shader::WHITE_FILL_TEXTURE_SENTINEL.to_string())
         })
-        .or_else(|| assets::get_terrain_fill_texture(terrain_lookup_name).map(|s| s.to_string()));
+        .or_else(|| {
+            terrain_asset_fallback(
+                &prefab.name,
+                resolved_name,
+                assets::get_terrain_fill_texture,
+            )
+            .map(str::to_string)
+        });
 
     let fill_mesh = build_fill_mesh(td, world_offset);
 
@@ -114,12 +134,18 @@ pub fn build_terrain(
     let edge_splat0 = if !td.curve_textures.is_empty() {
         crate::domain::level::refs::get_level_ref(level_key, td.curve_textures[0].texture_index)
             .map(|s| s.to_string())
-            .or_else(|| assets::get_terrain_splat0(terrain_lookup_name).map(|s| s.to_string()))
+            .or_else(|| {
+                terrain_asset_fallback(&prefab.name, resolved_name, assets::get_terrain_splat0)
+                    .map(str::to_string)
+            })
     } else {
-        assets::get_terrain_splat0(terrain_lookup_name).map(|s| s.to_string())
+        terrain_asset_fallback(&prefab.name, resolved_name, assets::get_terrain_splat0)
+            .map(str::to_string)
     };
-    let fallback_edge_splat1 =
-        assets::get_terrain_splat1_for_level(level_key, terrain_lookup_name).map(|s| s.to_string());
+    let fallback_edge_splat1 = terrain_asset_fallback(&prefab.name, resolved_name, |name| {
+        assets::get_terrain_splat1_for_level(level_key, name)
+    })
+    .map(str::to_string);
     // Resolve splat1 from Unity loader refs first; if the level reference is
     // missing, fall back to the terrain prefab's authored curve texture.
     let edge_splat1 = if td.curve_textures.len() > 1 {
@@ -295,7 +321,8 @@ fn build_edge_shader_data(td: &TerrainData, offset: Vec3) -> (Vec<EdgeVertex>, V
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
 mod tests {
-    use super::control_selects_splat1;
+    use super::{control_selects_splat1, terrain_asset_fallback};
+    use crate::data::assets;
 
     #[test]
     fn control_selector_matches_unity_green_channel_rule() {
@@ -309,6 +336,18 @@ mod tests {
         assert!(!control_selects_splat1(Some(&pixels), 3));
         assert!(!control_selects_splat1(Some(&pixels), 99));
         assert!(!control_selects_splat1(None, 0));
+    }
+
+    #[test]
+    fn serialized_transition_name_wins_over_base_prefab_fallback() {
+        assert_eq!(
+            terrain_asset_fallback(
+                "e2dTerrainBase _ to morning",
+                Some("e2dTerrainBase"),
+                assets::get_terrain_fill_texture,
+            ),
+            Some("Ground_Rocks_Texture_06.png")
+        );
     }
 }
 

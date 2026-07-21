@@ -949,8 +949,9 @@ fn maya_temple_near_top_still_tiles() {
 
 #[test]
 fn episode6_level1_background_cache_applies_level_root_offset() {
-    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../test_levels/assetbundles/episode_6_levels.unity3d/episode_6_level_1_data.bytes");
+    let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        "../../../test_levels/assetbundles/episode_6_levels.unity3d/episode_6_level_1_data.bytes",
+    );
     let bytes = std::fs::read(&level_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
     let level = parse_level(bytes)
@@ -1169,7 +1170,7 @@ fn cave_preserves_both_fill_bands_and_tiles_top_bottom_rows_separately() {
 #[test]
 fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
     let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
+        .join("../../../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
     let bytes = std::fs::read(&level_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
     let level = parse_level(bytes)
@@ -1286,7 +1287,7 @@ fn level27_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
 #[test]
 fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
     let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
+        "../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
     );
     let bytes = std::fs::read(&level_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
@@ -1397,7 +1398,7 @@ fn sandbox_cave_override_keeps_duplicate_fill_and_strip_instances_distinct() {
 #[test]
 fn sandbox_cave_foreground_fill_extends_and_pillars_tile() {
     let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
+        "../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes",
     );
     let bytes = std::fs::read(&level_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));

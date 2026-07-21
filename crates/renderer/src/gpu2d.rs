@@ -10,9 +10,12 @@ use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub, SubAssign};
 use std::rc::Rc;
 
 use bytemuck::{Pod, Zeroable};
+#[cfg(target_arch = "wasm32")]
 use js_sys::{Reflect, Uint8Array};
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(inline_js = r#"
 let systemTextCanvas = null;
 let systemTextContext = null;
@@ -648,6 +651,8 @@ struct ContextInner {
     texture_layout: wgpu::BindGroupLayout,
     textures: RefCell<Vec<TextureResource>>,
     system_font_available: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    native_text: RefCell<Option<crate::native_text::NativeTextRasterizer>>,
     text_cache: RefCell<HashMap<(String, u32), TextureHandle>>,
     cursor: Cell<CursorIcon>,
     input: RefCell<InputState>,
@@ -680,9 +685,14 @@ impl Context {
                 },
             ],
         });
+        #[cfg(target_arch = "wasm32")]
         let system_font_available = system_text_rasterizer_available();
+        #[cfg(not(target_arch = "wasm32"))]
+        let native_text = crate::native_text::NativeTextRasterizer::new();
+        #[cfg(not(target_arch = "wasm32"))]
+        let system_font_available = native_text.is_some();
         if !system_font_available {
-            log::warn!("Canvas2D system font rasterizer is unavailable");
+            log::warn!("System font rasterizer is unavailable");
         }
         let context = Self(Rc::new(ContextInner {
             device: device.clone(),
@@ -690,6 +700,8 @@ impl Context {
             texture_layout,
             textures: RefCell::new(Vec::new()),
             system_font_available,
+            #[cfg(not(target_arch = "wasm32"))]
+            native_text: RefCell::new(native_text),
             text_cache: RefCell::new(HashMap::new()),
             cursor: Cell::new(CursorIcon::Default),
             input: RefCell::new(InputState::default()),
@@ -811,7 +823,11 @@ impl Context {
 
     pub fn font_backend(&self) -> &'static str {
         if self.0.system_font_available {
-            "canvas2d-system"
+            if cfg!(target_arch = "wasm32") {
+                "canvas2d-system"
+            } else {
+                "cosmic-text-system"
+            }
         } else {
             "unavailable"
         }
@@ -829,15 +845,30 @@ impl Context {
         if !self.0.system_font_available {
             return None;
         }
-        let rasterized = rasterize_system_text(text, size).ok()?;
-        let width = Reflect::get(&rasterized, &JsValue::from_str("width"))
-            .ok()?
-            .as_f64()? as usize;
-        let height = Reflect::get(&rasterized, &JsValue::from_str("height"))
-            .ok()?
-            .as_f64()? as usize;
-        let alpha =
-            Uint8Array::new(&Reflect::get(&rasterized, &JsValue::from_str("alpha")).ok()?).to_vec();
+        #[cfg(target_arch = "wasm32")]
+        let (width, height, alpha) = {
+            let rasterized = rasterize_system_text(text, size).ok()?;
+            let width = Reflect::get(&rasterized, &JsValue::from_str("width"))
+                .ok()?
+                .as_f64()? as usize;
+            let height = Reflect::get(&rasterized, &JsValue::from_str("height"))
+                .ok()?
+                .as_f64()? as usize;
+            let alpha =
+                Uint8Array::new(&Reflect::get(&rasterized, &JsValue::from_str("alpha")).ok()?)
+                    .to_vec();
+            (width, height, alpha)
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        let (width, height, alpha) = {
+            let rasterized = self
+                .0
+                .native_text
+                .borrow_mut()
+                .as_mut()?
+                .rasterize(text, size)?;
+            (rasterized.width, rasterized.height, rasterized.alpha)
+        };
         if width == 0 || height == 0 || alpha.len() != width * height {
             return None;
         }
@@ -1254,6 +1285,96 @@ pub struct Renderer {
     last_stats: FrameStats,
 }
 
+fn egui_premultiplied_alpha_blending() -> wgpu::BlendState {
+    wgpu::BlendState {
+        color: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        },
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+            dst_factor: wgpu::BlendFactor::One,
+            operation: wgpu::BlendOperation::Add,
+        },
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RenderViewport {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+const VIEWPORT_CORNER_SEGMENTS: usize = 32;
+
+fn normalized_color_channel(channel: f64) -> u8 {
+    (channel.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+fn bottom_corner_mask(width: f32, height: f32, radius: f32, color: Color32) -> Mesh {
+    let radius = radius.min(width * 0.5).min(height).max(0.0);
+    if radius <= 0.0 || !radius.is_finite() {
+        return Mesh::default();
+    }
+
+    let mut mesh = Mesh::default();
+    append_corner_mask_fan(
+        &mut mesh,
+        pos2(0.0, height),
+        pos2(radius, height - radius),
+        radius,
+        std::f32::consts::PI,
+        std::f32::consts::FRAC_PI_2,
+        color,
+    );
+    append_corner_mask_fan(
+        &mut mesh,
+        pos2(width, height),
+        pos2(width - radius, height - radius),
+        radius,
+        std::f32::consts::FRAC_PI_2,
+        0.0,
+        color,
+    );
+    mesh
+}
+
+fn append_corner_mask_fan(
+    mesh: &mut Mesh,
+    anchor: Pos2,
+    center: Pos2,
+    radius: f32,
+    start_angle: f32,
+    end_angle: f32,
+    color: Color32,
+) {
+    let base = mesh.vertices.len() as u32;
+    mesh.vertices.push(Vertex {
+        pos: anchor,
+        uv: Pos2::ZERO,
+        color,
+    });
+    for step in 0..=VIEWPORT_CORNER_SEGMENTS {
+        let progress = step as f32 / VIEWPORT_CORNER_SEGMENTS as f32;
+        let angle = start_angle + (end_angle - start_angle) * progress;
+        mesh.vertices.push(Vertex {
+            pos: pos2(
+                center.x + angle.cos() * radius,
+                center.y + angle.sin() * radius,
+            ),
+            uv: Pos2::ZERO,
+            color,
+        });
+    }
+    for step in 0..VIEWPORT_CORNER_SEGMENTS as u32 {
+        mesh.indices
+            .extend_from_slice(&[base, base + step + 1, base + step + 2]);
+    }
+}
+
 impl Renderer {
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat, context: &Context) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -1284,9 +1405,21 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 @group(0) @binding(0) var texture_image: texture_2d<f32>;
 @group(0) @binding(1) var texture_sampler: sampler;
 
+fn interleaved_gradient_noise(n: vec2<f32>) -> f32 {
+    let f = 0.06711056 * n.x + 0.00583715 * n.y;
+    return fract(52.9829189 * fract(f));
+}
+
+fn dither_interleaved(rgb: vec3<f32>, frag_coord: vec4<f32>) -> vec3<f32> {
+    var noise = interleaved_gradient_noise(frag_coord.xy);
+    noise = (noise - 0.5) * 0.95;
+    return rgb + noise / 255.0;
+}
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(texture_image, texture_sampler, input.uv) * input.color;
+    let color = textureSample(texture_image, texture_sampler, input.uv) * input.color;
+    return vec4<f32>(dither_interleaved(color.rgb, input.clip_position), color.a);
 }
 "#
                 .into(),
@@ -1331,7 +1464,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    blend: Some(egui_premultiplied_alpha_blending()),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
@@ -1471,11 +1604,13 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         true
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub const fn last_stats(&self) -> FrameStats {
         self.last_stats
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[cfg(target_arch = "wasm32")]
     pub fn render(
         &mut self,
         device: &wgpu::Device,
@@ -1486,7 +1621,65 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         width: u32,
         height: u32,
     ) {
-        let mut stats = self.prepare_render_list(commands, width, height);
+        self.render_in_viewport(
+            device,
+            queue,
+            target,
+            context,
+            commands,
+            width,
+            height,
+            RenderViewport {
+                x: 0,
+                y: 0,
+                width,
+                height,
+            },
+            wgpu::Color {
+                r: 24.0 / 255.0,
+                g: 27.0 / 255.0,
+                b: 32.0 / 255.0,
+                a: 1.0,
+            },
+            0.0,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn render_in_viewport(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target: &wgpu::TextureView,
+        context: &Context,
+        commands: Vec<Shape>,
+        logical_width: u32,
+        logical_height: u32,
+        viewport: RenderViewport,
+        backdrop_color: wgpu::Color,
+        corner_radius: f32,
+    ) {
+        let logical_width = logical_width.max(1);
+        let logical_height = logical_height.max(1);
+        let viewport = RenderViewport {
+            width: viewport.width.max(1),
+            height: viewport.height.max(1),
+            ..viewport
+        };
+        let mut commands = commands;
+        if corner_radius > 0.0 {
+            commands.push(Shape::Mesh(bottom_corner_mask(
+                logical_width as f32,
+                logical_height as f32,
+                corner_radius,
+                Color32::from_rgb(
+                    normalized_color_channel(backdrop_color.r),
+                    normalized_color_channel(backdrop_color.g),
+                    normalized_color_channel(backdrop_color.b),
+                ),
+            )));
+        }
+        let mut stats = self.prepare_render_list(commands, logical_width, logical_height);
         self.frame_number = self.frame_number.wrapping_add(1);
         stats.frame_number = self.frame_number;
         for item in &self.render_list.items {
@@ -1531,12 +1724,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 24.0 / 255.0,
-                            g: 27.0 / 255.0,
-                            b: 32.0 / 255.0,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(backdrop_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -1546,6 +1734,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
                 multiview_mask: None,
             });
             let mut pass = pass.forget_lifetime();
+            pass.set_viewport(
+                viewport.x as f32,
+                viewport.y as f32,
+                viewport.width as f32,
+                viewport.height as f32,
+                0.0,
+                1.0,
+            );
             let textures = context.0.textures.borrow();
             for item in &self.render_list.items {
                 match item {
@@ -1558,7 +1754,12 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
                         let Some(texture) = texture else {
                             continue;
                         };
-                        pass.set_scissor_rect(0, 0, width.max(1), height.max(1));
+                        pass.set_scissor_rect(
+                            viewport.x,
+                            viewport.y,
+                            viewport.width,
+                            viewport.height,
+                        );
                         pass.set_pipeline(&self.pipeline);
                         pass.set_bind_group(0, &texture.bind_group, &[]);
                         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -1569,10 +1770,18 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
                         pass.draw_indexed(*index_start..(*index_start + *index_count), 0, 0..1);
                     }
                     PreparedItem::Callback(callback) => {
-                        let left = callback.clip_rect.left().max(0.0).floor() as u32;
-                        let top = callback.clip_rect.top().max(0.0).floor() as u32;
-                        let right = callback.clip_rect.right().min(width as f32).ceil() as u32;
-                        let bottom = callback.clip_rect.bottom().min(height as f32).ceil() as u32;
+                        let scale_x = viewport.width as f32 / logical_width as f32;
+                        let scale_y = viewport.height as f32 / logical_height as f32;
+                        let left = viewport.x
+                            + (callback.clip_rect.left().max(0.0) * scale_x).floor() as u32;
+                        let top = viewport.y
+                            + (callback.clip_rect.top().max(0.0) * scale_y).floor() as u32;
+                        let right = viewport.x
+                            + (callback.clip_rect.right().min(logical_width as f32) * scale_x)
+                                .ceil() as u32;
+                        let bottom = viewport.y
+                            + (callback.clip_rect.bottom().min(logical_height as f32) * scale_y)
+                                .ceil() as u32;
                         if right > left && bottom > top {
                             pass.set_scissor_rect(left, top, right - left, bottom - top);
                             callback.callback.paint(&mut pass);
@@ -1583,5 +1792,63 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         }
         queue.submit(Some(encoder.finish()));
         self.last_stats = stats;
+    }
+}
+
+#[cfg(test)]
+mod viewport_corner_mask_tests {
+    use super::*;
+
+    #[test]
+    fn bottom_corner_mask_covers_both_corners_inside_viewport_bounds() {
+        let mesh = bottom_corner_mask(800.0, 500.0, 24.0, Color32::BLACK);
+
+        assert!(mesh.is_valid());
+        assert_eq!(mesh.indices.len(), VIEWPORT_CORNER_SEGMENTS * 2 * 3);
+        assert!(mesh.vertices.iter().all(|vertex| {
+            vertex.pos.x >= 0.0
+                && vertex.pos.x <= 800.0
+                && vertex.pos.y >= 476.0
+                && vertex.pos.y <= 500.0
+        }));
+        assert_eq!(mesh.vertices[0].pos, pos2(0.0, 500.0));
+        assert!(
+            mesh.vertices
+                .iter()
+                .any(|vertex| vertex.pos == pos2(800.0, 500.0))
+        );
+    }
+
+    #[test]
+    fn bottom_corner_mask_is_empty_without_rounding() {
+        let mesh = bottom_corner_mask(800.0, 500.0, 0.0, Color32::BLACK);
+
+        assert!(mesh.vertices.is_empty());
+        assert!(mesh.indices.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod color_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn unmultiplied_color_matches_egui_rounding() {
+        for alpha in 0..=u8::MAX {
+            for value in 0..=u8::MAX {
+                let expected = ((value as f32 * alpha as f32 / 255.0) + 0.5) as u8;
+                let actual = Color32::from_rgba_unmultiplied(value, value, value, alpha);
+                assert_eq!(actual.to_array(), [expected, expected, expected, alpha]);
+            }
+        }
+    }
+
+    #[test]
+    fn mesh_blending_matches_egui_wgpu() {
+        let blend = egui_premultiplied_alpha_blending();
+        assert_eq!(blend.color.src_factor, wgpu::BlendFactor::One);
+        assert_eq!(blend.color.dst_factor, wgpu::BlendFactor::OneMinusSrcAlpha);
+        assert_eq!(blend.alpha.src_factor, wgpu::BlendFactor::OneMinusDstAlpha);
+        assert_eq!(blend.alpha.dst_factor, wgpu::BlendFactor::One);
     }
 }

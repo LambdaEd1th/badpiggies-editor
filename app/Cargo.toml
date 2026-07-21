@@ -38,6 +38,7 @@ toml = { version = "1.1", features = ["preserve_order"] }
 unic-langid = { version = "0.9", features = ["macros"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+badpiggies_editor_renderer = { path = "../crates/renderer" }
 clap = { version = "4", features = ["derive"] }
 dioxus = { version = "0.7.9", default-features = false, features = ["desktop"] }
 env_logger = "0.11"
@@ -52,6 +53,9 @@ winit = { version = "0.30.13", default-features = false, features = [
     "wayland",
 ] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+badpiggies_editor_native_window = { package = "badpiggies-editor-native-window", path = "../crates/native-window" }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
 dioxus = { version = "0.7.9", default-features = false, features = ["web"] }
@@ -64,6 +68,8 @@ web-sys = { version = "0.3", features = [
     "Blob",
     "ClipboardEvent",
     "DataTransfer",
+    "DataTransferItem",
+    "DataTransferItemList",
     "Document",
     "Element",
     "DragEvent",

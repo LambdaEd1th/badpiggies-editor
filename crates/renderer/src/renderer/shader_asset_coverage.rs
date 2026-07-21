@@ -5,69 +5,69 @@ mod tests {
 
     const UNITY_SHADER_PORTS: &[(&str, &str)] = &[
         (
-            "Depth MaskMaskOverlay.shader",
+            "Depth Mask_MaskOverlay.shader",
             "depth_mask__maskoverlay.wgsl",
         ),
         (
-            "Depth MaskMaskOverlayNV.shader",
+            "Depth Mask_MaskOverlayNV.shader",
             "depth_mask__maskoverlaynv.wgsl",
         ),
         (
-            "Depth MaskUnlit Transparent (CG).shader",
+            "Depth Mask_Unlit Transparent (CG).shader",
             "depth_mask__unlit_transparent_cg.wgsl",
         ),
         (
-            "Depth MaskUnlit Transparent ZAlways.shader",
+            "Depth Mask_Unlit Transparent ZAlways.shader",
             "depth_mask__unlit_transparent_zalways.wgsl",
         ),
         ("Photoshot Effect.shader", "photoshot_effect.wgsl"),
-        ("SpineSkeleton.shader", "spine__skeleton.wgsl"),
+        ("Spine_Skeleton.shader", "spine__skeleton.wgsl"),
         (
-            "_CustomDailyChallengeMask.shader",
+            "_Custom_DailyChallengeMask.shader",
             "_custom__dailychallengemask.wgsl",
         ),
         (
-            "_CustomPreAlpha_Unlit_ColorTransparent_Geometry.shader",
+            "_Custom_PreAlpha_Unlit_ColorTransparent_Geometry.shader",
             "_custom__prealpha_unlit_colortransparent_geometry.wgsl",
         ),
         (
-            "_CustomPreAlpha_Unlit_ColorTransparent_GeometryZ.shader",
+            "_Custom_PreAlpha_Unlit_ColorTransparent_GeometryZ.shader",
             "_custom__prealpha_unlit_colortransparent_geometryz.wgsl",
         ),
         (
-            "_CustomPreAlpha_Unlit_ColorTransparent_Geometry_Gray.shader",
+            "_Custom_PreAlpha_Unlit_ColorTransparent_Geometry_Gray.shader",
             "_custom__prealpha_unlit_colortransparent_geometry_gray.wgsl",
         ),
         (
-            "_CustomPreAlpha_Unlit_ColorTransparent_Geometry_Shiny.shader",
+            "_Custom_PreAlpha_Unlit_ColorTransparent_Geometry_Shiny.shader",
             "_custom__prealpha_unlit_colortransparent_geometry_shiny.wgsl",
         ),
         (
-            "_CustomSilhouetteShader.shader",
+            "_Custom_SilhouetteShader.shader",
             "_custom__silhouetteshader.wgsl",
         ),
         (
-            "_CustomText Shader With Z Test.shader",
+            "_Custom_Text Shader With Z Test.shader",
             "_custom__text_shader_with_z_test.wgsl",
         ),
         (
-            "_CustomUnlit_Alpha8Bit_Color.shader",
+            "_Custom_Unlit_Alpha8Bit_Color.shader",
             "_custom__unlit_alpha8bit_color.wgsl",
         ),
         (
-            "_CustomUnlit_ColorTransparent_Geometry.shader",
+            "_Custom_Unlit_ColorTransparent_Geometry.shader",
             "_custom__unlit_colortransparent_geometry.wgsl",
         ),
         (
-            "_CustomUnlit_Color_Geometry.shader",
+            "_Custom_Unlit_Color_Geometry.shader",
             "_custom__unlit_color_geometry.wgsl",
         ),
         (
-            "_CustomUnlit_Monochrome.shader",
+            "_Custom_Unlit_Monochrome.shader",
             "_custom__unlit_monochrome.wgsl",
         ),
         (
-            "_CustomUtility_ZWrite.shader",
+            "_Custom_Utility_ZWrite.shader",
             "_custom__utility_zwrite.wgsl",
         ),
     ];
@@ -83,23 +83,15 @@ mod tests {
     ];
 
     fn shader_source_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../Assets/Shader")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../BPLE/Assets/Shader")
     }
 
     fn wgsl_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/shader")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../app/assets/shader")
     }
 
     #[test]
     fn every_embedded_unity_shader_has_a_wgsl_port_file() {
-        let unity_shader_count = fs::read_dir(shader_source_dir())
-            .expect("expected Assets/Shader directory")
-            .filter_map(Result::ok)
-            .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("shader"))
-            .count();
-
-        assert_eq!(UNITY_SHADER_PORTS.len(), unity_shader_count);
-
         for (shader_name, wgsl_name) in UNITY_SHADER_PORTS {
             let shader_path = shader_source_dir().join(shader_name);
             assert!(

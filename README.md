@@ -2,7 +2,8 @@
 
 A cross-platform level and save editor for **Bad Piggies**, written in Rust 2024.
 The same Dioxus application runs in a native system WebView and in the browser.
-Level rendering runs directly on a raw wgpu canvas surface with no GUI toolkit.
+Level rendering uses a shared pure-wgpu engine with platform-specific native
+window and Web Canvas hosts.
 
 [![Rust](https://img.shields.io/badge/Rust-2024-orange)](https://www.rust-lang.org)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
@@ -24,7 +25,7 @@ Level rendering runs directly on a raw wgpu canvas surface with no GUI toolkit.
 editor/
   app/                    Dioxus UI, editor state, platform adapters, CLI, assets
   crates/core/            UI-free domain, parser, crypto, Unity data, worker protocol
-  crates/renderer/        Pure-wgpu renderer for HTMLCanvasElement or OffscreenCanvas
+  crates/renderer/        Shared pure-wgpu engine with Native and Web hosts
   crates/worker/          Persistent processing Worker bindings around core operations
   scripts/                Renderer/worker build and Dioxus development server scripts
   Dioxus.toml             Dioxus Web/Desktop configuration
@@ -34,9 +35,10 @@ editor/
 The dependency direction is intentionally one-way:
 
 ```text
-badpiggies-editor-app ----> badpiggies_editor_core
-badpiggies_editor_renderer -> badpiggies_editor_core
-badpiggies_editor_worker -> badpiggies_editor_core
+badpiggies-editor-app -----------------> badpiggies_editor_core
+badpiggies-editor-app --(Native only)-> badpiggies_editor_renderer
+badpiggies_editor_renderer -----------> badpiggies_editor_core
+badpiggies_editor_worker -------------> badpiggies_editor_core
 ```
 
 `core` does not depend on Dioxus, Web APIs, file dialogs, or localization. The
@@ -46,6 +48,11 @@ the core resource registry before parsing begins.
 Native builds use Rayon for processing requests, resource database construction,
 Unity bundle work, terrain generation, text search, and renderer preparation.
 The WASM target does not link Rayon or `wasm-bindgen-rayon`.
+
+On Native, the renderer runs in-process and creates a wgpu surface directly from
+the Dioxus/Tao window. The transparent WebView supplies DOM layout and input,
+while scene data, GPU resources, system-font rasterization, and frame scheduling
+remain native Rust. Native packages do not contain the Web renderer WASM module.
 
 On the Web, Dioxus and DOM input remain on the main thread. A dedicated Render
 Worker owns the transferred OffscreenCanvas, wgpu device, resources, and frame
@@ -79,13 +86,11 @@ development packages.
 Native desktop:
 
 ```bash
-./scripts/build-web-renderer.sh
 cargo run --package badpiggies-editor-app --bin badpiggies-editor
 ```
 
-The native WebView uses the generated wgpu renderer module under
-`app/assets/renderer/pkg`. Build it once after a clean checkout and again after
-changing `crates/renderer`.
+The native renderer is compiled automatically as an application dependency and
+does not require `wasm-pack`.
 
 Web development server:
 
@@ -109,6 +114,12 @@ Release Web build:
 ./scripts/build-web-worker.sh
 ./scripts/build-web-renderer.sh
 dx build --platform web --package badpiggies-editor-app --release --debug-symbols=false
+```
+
+Both renderer targets can also be checked/built from one entry point:
+
+```bash
+./scripts/build-renderers.sh all
 ```
 
 Output is written to:
@@ -150,12 +161,12 @@ app/assets/
   locales/    Fluent translations
   shader/     retained game shader resources used by asset databases
   ui/         icons
-  renderer/   Render Worker wrapper and generated pure-wgpu WASM package
+  renderer/   Web Render Worker wrapper and generated pure-wgpu WASM package
   worker/     Processing Worker wrapper and generated WASM package
 ```
 
-Both Worker folders contain a generated `pkg/` directory built with stable
-Rust. The build scripts remove obsolete `threaded/` packages automatically.
+The Web Worker folders contain generated `pkg/` directories built with stable
+Rust. Native builds load the same runtime data directly and do not use them.
 
 Native lookup checks `app/assets`, executable-adjacent `assets`, macOS bundle
 resources, and these environment overrides:

@@ -191,6 +191,29 @@ body,
     color: var(--color-text);
 }
 
+html.native-wgpu-host,
+html.native-wgpu-host body,
+html.native-wgpu-host #main,
+html.native-wgpu-host .app-shell,
+html.native-wgpu-host .rton-center-panel,
+html.native-wgpu-host .rton-editor-stage,
+html.native-wgpu-host .center-pane,
+html.native-wgpu-host .canvas-host,
+html.native-wgpu-host #editor-canvas {
+    background: transparent;
+}
+
+html.native-wgpu-host .rton-center-panel {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+html.native-wgpu-host .save-editor.native-render-surface,
+html.native-wgpu-host .save-editor.native-render-surface .contraption-preview-scroll,
+html.native-wgpu-host .save-editor.native-render-surface #contraption-preview-canvas {
+    background: transparent;
+}
+
 body,
 button,
 input,
@@ -230,6 +253,7 @@ button:disabled {
     --wb-canvas: #101318;
     --wb-canvas-soft: #182027;
     --wb-canvas-accent: color-mix(in srgb, var(--color-accent) 12%, var(--wb-canvas-soft));
+    --wb-shell-background: linear-gradient(135deg, var(--wb-canvas) 0%, var(--wb-canvas-soft) 58%, var(--wb-canvas-accent) 100%);
     --wb-glass: rgba(21, 28, 37, 0.55);
     --wb-glass-strong: rgba(24, 32, 42, 0.72);
     --wb-panel: rgba(24, 31, 40, 0.64);
@@ -256,7 +280,7 @@ button:disabled {
     flex-direction: column;
     gap: 8px;
     overflow: hidden;
-    background: linear-gradient(135deg, var(--wb-canvas) 0%, var(--wb-canvas-soft) 58%, var(--wb-canvas-accent) 100%);
+    background: var(--wb-shell-background);
     padding: 10px;
     color: var(--color-text);
     isolation: isolate;
@@ -765,6 +789,82 @@ button:disabled {
 .rton-workspace-shell.inspector-drawer-mounted {
     --rton-inspector-drawer-track: var(--rton-right-panel-width);
     --rton-inspector-drawer-handle-track: var(--rton-panel-handle-width);
+}
+
+.rton-workspace-shell.dragging-files .rton-side-panel,
+.rton-workspace-shell.dragging-files .rton-center-panel {
+    border-color: color-mix(in srgb, var(--color-accent) 68%, var(--wb-border-bright));
+    box-shadow:
+        var(--wb-shadow-soft),
+        inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent),
+        0 0 24px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.rton-workspace-drop-indicator {
+    display: flex;
+    position: absolute;
+    z-index: 120;
+    top: 14px;
+    left: 50%;
+    width: max-content;
+    max-width: calc(100% - 28px);
+    min-height: 42px;
+    align-items: center;
+    gap: 9px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 58%, var(--wb-border-bright));
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--wb-glass-strong) 92%, var(--color-accent) 8%);
+    padding: 8px 14px 8px 10px;
+    color: var(--color-text-strong);
+    box-shadow: var(--wb-shadow-soft), 0 0 22px color-mix(in srgb, var(--color-accent) 18%, transparent);
+    pointer-events: none;
+    transform: translate3d(-50%, 0, 0);
+    animation: rton-workspace-drop-indicator-in 160ms var(--wb-ease-out) both;
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+    backdrop-filter: blur(18px) saturate(170%);
+}
+
+.rton-workspace-drop-indicator strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rton-workspace-drop-indicator-icon {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
+}
+
+.rton-workspace-drop-indicator-icon .rton-lucide-icon {
+    width: 15px;
+    height: 15px;
+}
+
+@keyframes rton-workspace-drop-indicator-in {
+    from {
+        opacity: 0;
+        transform: translate3d(-50%, -6px, 0) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(-50%, 0, 0) scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rton-workspace-drop-indicator {
+        animation: none;
+    }
 }
 
 .rton-main-content {

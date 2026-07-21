@@ -2,27 +2,26 @@
 
 //! The original level renderer, running directly on wgpu without a GUI toolkit.
 
-#[cfg(target_arch = "wasm32")]
 mod gpu2d;
 
-#[cfg(target_arch = "wasm32")]
 mod contraption_preview;
 
-#[cfg(target_arch = "wasm32")]
 #[allow(dead_code)]
 mod renderer;
 
-#[cfg(target_arch = "wasm32")]
+mod engine;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod native_text;
+
 pub mod domain {
     pub use badpiggies_editor_core::domain::*;
 }
 
-#[cfg(target_arch = "wasm32")]
 pub mod unity_runtime {
     pub use badpiggies_editor_core::unity_runtime::*;
 }
 
-#[cfg(target_arch = "wasm32")]
 pub mod data {
     pub use badpiggies_editor_core::data::{
         bg_data, goal_animation, icon_db, level_db, prefab_sprites, runtime_assets, sprite_db,
@@ -44,7 +43,6 @@ pub mod data {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 pub mod i18n {
     pub mod locale;
 }
@@ -52,5 +50,14 @@ pub mod i18n {
 #[cfg(target_arch = "wasm32")]
 mod web;
 
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
+
+pub use contraption_preview::ContraptionPreviewPayload;
+pub use engine::{RendererEvent, ScenePayload, ViewPayload};
+
 #[cfg(target_arch = "wasm32")]
 pub use web::RendererHandle;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use native::{NativeFrame, NativeRendererHandle, NativeViewport};

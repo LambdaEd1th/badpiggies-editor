@@ -184,10 +184,30 @@ fn canonicalize_name(name: &str) -> String {
         .collect()
 }
 
+fn transition_target_prefab(name: &str) -> Option<String> {
+    let (position, marker) = [" _ to ", " - to "]
+        .into_iter()
+        .find_map(|marker| name.find(marker).map(|position| (position, marker)))?;
+    let source = name[..position].trim();
+    let target = name[position + marker.len()..]
+        .trim_start()
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .next()?;
+    (!source.is_empty() && !target.is_empty()).then(|| format!("{source}_{target}"))
+}
+
 fn resolve_terrain_prefab_key(name: &str) -> Option<&'static str> {
-    let normalized = normalize_terrain(name);
     let aliases = terrain_aliases();
 
+    if let Some(target) = transition_target_prefab(name)
+        && let Some(resolved) = aliases
+            .get(&target)
+            .or_else(|| aliases.get(&canonicalize_name(&target)))
+    {
+        return Some(resolved.as_str());
+    }
+
+    let normalized = normalize_terrain(name);
     aliases
         .get(&normalized)
         .or_else(|| aliases.get(&canonicalize_name(&normalized)))

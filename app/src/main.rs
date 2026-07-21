@@ -167,6 +167,13 @@ mod cli {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
+
+    use dioxus::desktop::tao::event::Event;
+    use dioxus::desktop::tao::window::Window;
+    use dioxus::desktop::{LogicalSize, WindowEvent};
+
     let cli = cli::parse();
     if let Some(command) = cli.command {
         if let Err(error) = cli::run(command) {
@@ -189,7 +196,120 @@ fn main() {
         std::process::exit(1);
     }
     log::info!("Runtime assets loaded");
-    dioxus::launch(app_view::App);
+    let theme = platform::read_theme_preference();
+    let size = platform::read_window_size_preference();
+    let window_handle = Rc::new(RefCell::new(None::<std::sync::Arc<Window>>));
+    let window_scale_factor = Rc::new(Cell::new(1.0_f64));
+    let last_window_size = Rc::new(Cell::new((size.width, size.height)));
+    let on_window_handle = window_handle.clone();
+    let on_window_scale_factor = window_scale_factor.clone();
+    let event_window_handle = window_handle;
+    let event_window_scale_factor = window_scale_factor;
+    let event_last_window_size = last_window_size;
+    let window = platform::native_renderer::window_builder(theme)
+        .with_inner_size(LogicalSize::new(size.width as f64, size.height as f64))
+        .with_min_inner_size(LogicalSize::new(
+            platform::DESKTOP_WINDOW_MIN_WIDTH as f64,
+            platform::DESKTOP_WINDOW_MIN_HEIGHT as f64,
+        ));
+    let config = dioxus::desktop::Config::new()
+        .with_window(window)
+        .with_menu(None)
+        .with_on_window(move |window, _| {
+            on_window_scale_factor.set(window.scale_factor());
+            window.set_inner_size(LogicalSize::new(size.width as f64, size.height as f64));
+            #[cfg(target_os = "macos")]
+            badpiggies_editor_native_window::make_opaque(&window);
+            *on_window_handle.borrow_mut() = Some(window);
+        })
+        .with_custom_event_handler(move |event, _| {
+            let window = event_window_handle.borrow().as_ref().cloned();
+            if let Some(window) = window.as_ref() {
+                event_window_scale_factor.set(window.scale_factor());
+            }
+            match event {
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Resized(size),
+                    ..
+                } if window
+                    .as_ref()
+                    .is_none_or(|window| window.id() == *window_id) =>
+                {
+                    if let Some(size) = save_desktop_window_size_from_physical(
+                        size.width,
+                        size.height,
+                        event_window_scale_factor.get(),
+                    ) {
+                        event_last_window_size.set(size);
+                    }
+                }
+                Event::WindowEvent {
+                    window_id,
+                    event:
+                        WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            new_inner_size,
+                        },
+                    ..
+                } if window
+                    .as_ref()
+                    .is_none_or(|window| window.id() == *window_id) =>
+                {
+                    event_window_scale_factor.set(*scale_factor);
+                    if let Some(size) = save_desktop_window_size_from_physical(
+                        new_inner_size.width,
+                        new_inner_size.height,
+                        *scale_factor,
+                    ) {
+                        event_last_window_size.set(size);
+                    }
+                }
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::CloseRequested | WindowEvent::Destroyed,
+                    ..
+                } if window
+                    .as_ref()
+                    .is_some_and(|window| window.id() == *window_id) =>
+                {
+                    let (width, height) = event_last_window_size.get();
+                    save_desktop_window_size_preference(width, height);
+                }
+                Event::LoopDestroyed => {
+                    let (width, height) = event_last_window_size.get();
+                    save_desktop_window_size_preference(width, height);
+                }
+                _ => {}
+            }
+        });
+    dioxus::LaunchBuilder::desktop()
+        .with_cfg(config)
+        .launch(app_view::App);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn save_desktop_window_size_from_physical(
+    width: u32,
+    height: u32,
+    scale_factor: f64,
+) -> Option<(u32, u32)> {
+    if width == 0 || height == 0 || !scale_factor.is_finite() || scale_factor <= 0.0 {
+        return None;
+    }
+    let logical_size =
+        dioxus::desktop::tao::dpi::PhysicalSize::new(width, height).to_logical::<f64>(scale_factor);
+    let width = logical_size.width.round().max(0.0) as u32;
+    let height = logical_size.height.round().max(0.0) as u32;
+    save_desktop_window_size_preference(width, height);
+    Some((width, height))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn save_desktop_window_size_preference(width: u32, height: u32) {
+    if let Err(error) = platform::save_window_size_preference(width, height) {
+        log::warn!("Failed to save window size preference: {error}");
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

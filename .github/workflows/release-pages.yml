@@ -15,48 +15,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Native WebViews render through the same generated wgpu WASM module as the Web build.
-  build_renderer_assets:
-    name: Build Renderer Assets
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Rust stable + wasm32 target
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Cache cargo registry
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: renderer-release-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'crates/core/**', 'crates/renderer/**') }}
-          restore-keys: renderer-release-${{ runner.os }}-cargo-
-
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --version 0.15.0 --locked
-
-      - name: Build Renderer
-        run: ./scripts/build-web-renderer.sh
-
-      - name: Upload Renderer assets
-        uses: actions/upload-artifact@v7
-        with:
-          name: native-renderer-assets
-          path: app/assets/renderer/pkg
-          if-no-files-found: error
-          retention-days: 1
-
-  # Native binaries and desktop packages (runtime assets bundled).
+  # Native binaries use the in-process wgpu renderer and bundle runtime assets.
   build_native:
     name: Build Native (${{ matrix.artifact }})
-    needs: build_renderer_assets
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -87,19 +48,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Download Renderer assets
-        uses: actions/download-artifact@v8
-        with:
-          name: native-renderer-assets
-          path: app/assets/renderer/pkg
-
-      - name: Verify Renderer assets
-        shell: bash
-        run: |
-          test -s app/assets/renderer/pkg/badpiggies_editor_renderer.js
-          test -s app/assets/renderer/pkg/badpiggies_editor_renderer_bg.wasm
-          test -n "$(find app/assets/renderer/pkg/snippets -type f -name '*.js' -print -quit)"
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -126,7 +74,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: native-release-${{ matrix.artifact }}-cargo-${{ hashFiles('**/Cargo.lock', 'app/assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage', 'app/assets/renderer/pkg/**') }}
+          key: native-release-${{ matrix.artifact }}-cargo-${{ hashFiles('**/Cargo.lock', 'crates/renderer/**', 'app/assets/data/Bad-Piggies-2.3.6-Unity-Windows.unitypackage') }}
           restore-keys: native-release-${{ matrix.artifact }}-cargo-
 
       - name: Build release binary

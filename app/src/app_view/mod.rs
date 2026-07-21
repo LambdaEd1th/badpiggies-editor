@@ -15,8 +15,6 @@ const APP_CSS: &str = "/assets/dioxus.css";
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) const APP_ASSETS: Asset = asset!("/assets", AssetOptions::folder());
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) const APP_ASSETS: &str = "/assets";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn install_native_asset_handler() {
@@ -80,8 +78,20 @@ fn native_asset_content_type(path: &std::path::Path) -> &'static str {
 pub fn App() -> Element {
     #[cfg(not(target_arch = "wasm32"))]
     install_native_asset_handler();
-    use_context_provider(|| Signal::new(EditorState::default()));
+    let _editor_state = use_context_provider(|| Signal::new(EditorState::default()));
     use_context_provider(|| Signal::new(CanvasPointerState::default()));
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let renderer = crate::platform::native_renderer::use_native_renderer();
+        use_context_provider(|| renderer.clone());
+        let appearance_renderer = renderer.clone();
+        use_effect(move || {
+            appearance_renderer.set_theme(_editor_state.read().theme);
+        });
+        use_effect(|| {
+            document::eval("document.documentElement.classList.add('native-wgpu-host');");
+        });
+    }
     #[cfg(target_arch = "wasm32")]
     use_effect(crate::platform::startup::finish);
     rsx! {

@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn dump_dark_sandbox_prefab_index_6_names() {
         let level_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes");
+            .join("../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Episode_6_Dark Sandbox_data.bytes");
         let level = parse_level(std::fs::read(&level_path).expect("read dark sandbox"))
             .expect("parse dark sandbox");
 

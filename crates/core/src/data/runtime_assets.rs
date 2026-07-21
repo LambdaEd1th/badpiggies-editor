@@ -35,7 +35,10 @@ pub fn read_runtime_asset_bytes(relative_path: &str) -> Vec<u8> {
         return bytes;
     }
 
-    #[cfg(test)]
+    #[cfg(all(
+        not(target_arch = "wasm32"),
+        any(test, feature = "test-runtime-assets")
+    ))]
     {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../app/assets")
@@ -58,7 +61,10 @@ pub fn take_runtime_asset_bytes(relative_path: &str) -> Vec<u8> {
         return bytes;
     }
 
-    #[cfg(test)]
+    #[cfg(all(
+        not(target_arch = "wasm32"),
+        any(test, feature = "test-runtime-assets")
+    ))]
     {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../app/assets")

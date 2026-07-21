@@ -1256,6 +1256,22 @@ mod tests {
     }
 
     #[test]
+    fn scenario_58_loader_refs_select_the_morning_terrain_set() {
+        assert_eq!(
+            get_level_ref("scenario_58_data", 9),
+            Some("Ground_Rocks_Texture_06.png")
+        );
+        assert_eq!(
+            get_level_ref("scenario_58_data", 10),
+            Some("Ground_Grass_Texture_3.png")
+        );
+        assert_eq!(
+            get_level_ref("scenario_58_data", 11),
+            Some("Ground_Rocks_Outline_Texture_06.png")
+        );
+    }
+
+    #[test]
     fn runtime_loader_refs_use_unitypackage_truth_for_episode_6_sandboxes() {
         assert_eq!(
             get_level_ref("Episode_6_Ice Sandbox_data", 7),

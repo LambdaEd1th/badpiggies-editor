@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Pure-wgpu level renderer hosted directly on an HTML canvas"
+description = "Shared pure-wgpu level renderer with native window and Web canvas hosts"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -26,6 +26,8 @@ unic-langid = { version = "0.9", features = ["macros"] }
 wgpu = "30"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+cosmic-text = "0.19"
+pollster = "0.4"
 rayon = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -45,3 +47,6 @@ web-sys = { version = "0.3", features = [
     "WheelEvent",
     "Window",
 ] }
+
+[dev-dependencies]
+badpiggies_editor_core = { path = "../core", default-features = false, features = ["test-runtime-assets"] }

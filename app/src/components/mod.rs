@@ -13,9 +13,9 @@ use badpiggies_editor_core::domain::types::{
 use badpiggies_editor_core::worker_protocol::LevelFormat;
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdCheck, LdChevronDown, LdChevronRight, LdEllipsis, LdFolderOpen, LdGithub, LdInfo, LdKeyboard,
-    LdLanguages, LdMenu, LdMonitor, LdMoon, LdPanelRight, LdPlus, LdRedo2, LdScan, LdScrollText,
-    LdSettings, LdSun, LdTrash2, LdUndo2, LdX,
+    LdCheck, LdChevronDown, LdChevronRight, LdEllipsis, LdFileUp, LdFolderOpen, LdGithub, LdInfo,
+    LdKeyboard, LdLanguages, LdMenu, LdMonitor, LdMoon, LdPanelRight, LdPlus, LdRedo2, LdScan,
+    LdScrollText, LdSettings, LdSun, LdTrash2, LdUndo2, LdX,
 };
 use dioxus_free_icons::{Icon, IconShape};
 use dioxus_html::HasFileData;
@@ -114,6 +114,7 @@ const VIEW_SHORTCUTS: &[ShortcutSpec] = &[ShortcutSpec {
 #[component]
 pub fn EditorShell() -> Element {
     let mut state = consume_context::<Signal<EditorState>>();
+    let mut dragging_files = use_signal(|| false);
     use_effect(|| {
         document::eval(WORKSPACE_RESIZER_RUNTIME);
     });
@@ -131,8 +132,14 @@ pub fn EditorShell() -> Element {
     let properties_open = show_properties && !is_save;
     let mobile_tree_open = mobile_panel == Some(MobilePanel::Objects) && !is_save;
     let mobile_properties_open = mobile_panel == Some(MobilePanel::Properties) && !is_save;
+    let dragging_files_snapshot = *dragging_files.read();
     let workspace_class = format!(
-        "rton-workspace-shell {} {} {} {} {} {}",
+        "rton-workspace-shell {} {} {} {} {} {} {}",
+        if dragging_files_snapshot {
+            "dragging-files"
+        } else {
+            ""
+        },
         if tree_open {
             "file-drawer-mounted file-drawer-open"
         } else {
@@ -171,9 +178,19 @@ pub fn EditorShell() -> Element {
     rsx! {
         div {
             class: shell_class,
-            ondragover: move |event| event.prevent_default(),
+            ondragover: move |event| {
+                if workspace_drag_has_files(&event) {
+                    event.prevent_default();
+                    dragging_files.set(true);
+                }
+            },
+            ondragleave: move |_| dragging_files.set(false),
             ondrop: move |event| {
+                if !workspace_drag_has_files(&event) {
+                    return;
+                }
                 event.prevent_default();
+                dragging_files.set(false);
                 for file in event.files() {
                     let name = file.name();
                     dioxus::dioxus_core::spawn_forever(async move {
@@ -186,6 +203,14 @@ pub fn EditorShell() -> Element {
             },
             CommandBar {}
             div { class: workspace_class,
+                if dragging_files_snapshot {
+                    div {
+                        class: "rton-workspace-drop-indicator",
+                        aria_hidden: "true",
+                        span { class: "rton-workspace-drop-indicator-icon", {icon(LdFileUp)} }
+                        strong { {t.get("empty_drop_title")} }
+                    }
+                }
                 if (mobile_tree_open || mobile_properties_open) && !is_save {
                     button {
                         class: "rton-file-drawer-backdrop",
@@ -237,6 +262,30 @@ pub fn EditorShell() -> Element {
             ModalLayer {}
         }
     }
+}
+
+fn workspace_drag_has_files(event: &DragEvent) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(web_event) = event.data().downcast::<web_sys::DragEvent>()
+            && let Some(data_transfer) = web_event.data_transfer()
+        {
+            if data_transfer
+                .files()
+                .is_some_and(|files| files.length() > 0)
+            {
+                return true;
+            }
+            let items = data_transfer.items();
+            for index in 0..items.length() {
+                if items.get(index).is_some_and(|item| item.kind() == "file") {
+                    return true;
+                }
+            }
+        }
+    }
+
+    !event.files().is_empty()
 }
 
 #[component]
@@ -323,6 +372,7 @@ fn CommandBar() -> Element {
                     }
                     div { class: "rton-toolbar-group-shell",
                         div { class: "rton-toolbar-group",
+                            IconButton { label: t.get("menu_add_object"), disabled: is_save, icon: icon(LdPlus), onclick: move |_| state.write().modal = Some(Modal::AddObject) }
                             IconButton { label: t.get("menu_undo"), disabled: !can_undo, icon: icon(LdUndo2), onclick: move |_| state.write().undo() }
                             IconButton { label: t.get("menu_redo"), disabled: !can_redo, icon: icon(LdRedo2), onclick: move |_| state.write().redo() }
                             IconButton { label: t.get("menu_delete"), disabled: !selected, icon: icon(LdTrash2), onclick: move |_| state.write().request_delete_selected() }

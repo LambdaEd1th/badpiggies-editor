@@ -7,6 +7,10 @@ license.workspace = true
 publish.workspace = true
 description = "UI-free Bad Piggies level, save, Unity asset, and worker logic"
 
+[features]
+default = []
+test-runtime-assets = []
+
 [dependencies]
 aes = "0.9"
 bytemuck = { version = "1", features = ["derive"] }

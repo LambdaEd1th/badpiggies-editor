@@ -27,33 +27,35 @@ impl LevelRenderer {
         target_format: wgpu::TextureFormat,
     ) -> Self {
         log::info!("pure wgpu renderer initialized, target_format={target_format:?}");
-        let wgpu_device = Some(device.clone());
-        let wgpu_queue = Some(queue.clone());
-        let edge_resources = Some(Rc::new(edge_shader::init_edge_resources(
-            device,
-            target_format,
-        )));
-        let opaque_resources = Some(Rc::new(opaque_shader::init_opaque_resources(
-            device,
-            target_format,
-        )));
-        let bg_resources = Some(Rc::new(bg_shader::init_bg_resources(device, target_format)));
-        let sprite_resources = Some(Rc::new(sprite_shader::init_sprite_resources(
-            device,
-            target_format,
-        )));
-        let fill_resources = Some(Rc::new(fill_shader::init_fill_resources(
-            device,
-            target_format,
-        )));
-        let dark_mask_resources = Some(Rc::new(dark_mask_shader::init_dark_mask_resources(
-            device,
-            target_format,
-        )));
-        let wireframe_resources = Some(Rc::new(wireframe_shader::init_wireframe_resources(
-            device,
-            target_format,
-        )));
+        Self::new_with_gpu(Some((device, queue, target_format)))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_test() -> Self {
+        Self::new_with_gpu(None)
+    }
+
+    fn new_with_gpu(gpu: Option<(&wgpu::Device, &wgpu::Queue, wgpu::TextureFormat)>) -> Self {
+        let wgpu_device = gpu.map(|(device, _, _)| device.clone());
+        let wgpu_queue = gpu.map(|(_, queue, _)| queue.clone());
+        let edge_resources = gpu
+            .map(|(device, _, format)| Rc::new(edge_shader::init_edge_resources(device, format)));
+        let opaque_resources = gpu.map(|(device, _, format)| {
+            Rc::new(opaque_shader::init_opaque_resources(device, format))
+        });
+        let bg_resources =
+            gpu.map(|(device, _, format)| Rc::new(bg_shader::init_bg_resources(device, format)));
+        let sprite_resources = gpu.map(|(device, _, format)| {
+            Rc::new(sprite_shader::init_sprite_resources(device, format))
+        });
+        let fill_resources = gpu
+            .map(|(device, _, format)| Rc::new(fill_shader::init_fill_resources(device, format)));
+        let dark_mask_resources = gpu.map(|(device, _, format)| {
+            Rc::new(dark_mask_shader::init_dark_mask_resources(device, format))
+        });
+        let wireframe_resources = gpu.map(|(device, _, format)| {
+            Rc::new(wireframe_shader::init_wireframe_resources(device, format))
+        });
         Self {
             camera: Camera::default(),
             world_positions: Vec::new(),
@@ -692,7 +694,7 @@ mod tests {
     #[test]
     fn level27_parses_authored_camera_system_view() {
         let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
+            .join("../../../test_levels/assetbundles/episode_1_levels.unity3d/Level_27_data.bytes");
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         let level = parse_level(bytes)
@@ -710,7 +712,7 @@ mod tests {
     #[test]
     fn sandbox_level_parses_authored_camera_center_from_game_camera_transform() {
         let level_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
+            .join("../../../test_levels/assetbundles/episode_sandbox_levels_2.unity3d/Level_Sandbox_01_data.bytes");
         let bytes = std::fs::read(&level_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", level_path.display()));
         let level = parse_level(bytes)
@@ -775,7 +777,7 @@ mod tests {
 
     #[test]
     fn fit_to_level_prefers_camera_limits_over_object_bounds() {
-        let mut renderer = LevelRenderer::new(None);
+        let mut renderer = LevelRenderer::new_for_test();
         renderer.world_positions = vec![
             (
                 0,

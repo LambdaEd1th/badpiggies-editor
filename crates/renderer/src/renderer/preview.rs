@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn dark_levels_keep_night_vision_enabled_in_build_and_runtime() {
         let level = dark_level();
-        let mut renderer = LevelRenderer::new(None);
+        let mut renderer = LevelRenderer::new_for_test();
         renderer.set_level(&level);
 
         assert!(renderer.contraption_has_night_vision);
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn dark_level_night_vision_toggle_persists_across_preview_states() {
         let level = dark_level();
-        let mut renderer = LevelRenderer::new(None);
+        let mut renderer = LevelRenderer::new_for_test();
         renderer.set_level(&level);
 
         renderer.set_night_vision_enabled(false);
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn non_dark_levels_keep_night_vision_disabled() {
-        let mut renderer = LevelRenderer::new(None);
+        let mut renderer = LevelRenderer::new_for_test();
 
         renderer.set_preview_playback_state(PreviewPlaybackState::Play);
 
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn reload_preserves_dark_level_night_vision_toggle_and_preview_state() {
         let level = dark_level();
-        let mut renderer = LevelRenderer::new(None);
+        let mut renderer = LevelRenderer::new_for_test();
         renderer.set_level(&level);
         renderer.preview_playback_state = PreviewPlaybackState::Pause;
         renderer.set_night_vision_enabled(false);

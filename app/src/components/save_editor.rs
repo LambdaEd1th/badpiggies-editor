@@ -6,17 +6,37 @@ use dioxus::prelude::*;
 
 use super::text_editor::RtonTextEditor;
 use crate::app_actions::files;
+#[cfg(target_arch = "wasm32")]
 use crate::app_view::APP_ASSETS;
 use crate::editor_state::{EditorState, SaveViewMode};
 use crate::platform::processing;
 
+#[cfg(target_arch = "wasm32")]
 const CONTRAPTION_PREVIEW_RUNTIME: &str = include_str!("../../assets/contraption_preview.js");
+#[cfg(not(target_arch = "wasm32"))]
+const CONTRAPTION_PREVIEW_RUNTIME: &str =
+    include_str!("../../assets/native_contraption_preview_host.js");
 
 #[derive(serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ContraptionPreviewMessage {
     Ready,
-    Error { message: String },
+    #[cfg(not(target_arch = "wasm32"))]
+    Bounds {
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        window_width: f32,
+        window_height: f32,
+    },
+    #[cfg(not(target_arch = "wasm32"))]
+    Appearance {
+        dark_mode: bool,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[component]
@@ -40,7 +60,8 @@ pub fn SaveEditor() -> Element {
     let t = state.read().t();
     let entry_count = t.format("save_entry_count", &[("count", row_count.to_string())]);
     rsx! {
-        section { class: "save-editor",
+        section {
+            class: if view == SaveViewMode::Preview { "save-editor native-render-surface" } else { "save-editor" },
             header { class: "save-editor-heading",
                 div {
                     strong { "{name}" }
@@ -207,11 +228,17 @@ fn ContraptionPreview(
     parts: Vec<badpiggies_editor_core::io::save::parser::ContraptionPart>,
 ) -> Element {
     let mut state = consume_context::<Signal<EditorState>>();
+    #[cfg(not(target_arch = "wasm32"))]
+    let native_renderer =
+        consume_context::<crate::platform::native_renderer::NativeRendererContext>();
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut system_dark_mode = use_signal(|| true);
     let t = state.read().t();
     if parts.is_empty() {
         return rsx! { div { class: "save-empty", {t.get("save_contraption_empty")} } };
     }
     let preview_parts = parts.clone();
+    #[cfg(target_arch = "wasm32")]
     let start_preview = move |_| {
         let asset_root = serde_json::to_string(&APP_ASSETS.to_string())
             .unwrap_or_else(|_| "\"/assets\"".to_string());
@@ -227,10 +254,54 @@ fn ContraptionPreview(
                         log::error!("{message}");
                         state.write().active_mut().status = message;
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    ContraptionPreviewMessage::Bounds { .. }
+                    | ContraptionPreviewMessage::Appearance { .. } => {}
                 }
             }
         });
     };
+    #[cfg(not(target_arch = "wasm32"))]
+    let start_preview = {
+        let renderer = native_renderer.clone();
+        move |_| {
+            let mut evaluator = document::eval(CONTRAPTION_PREVIEW_RUNTIME);
+            let renderer = renderer.clone();
+            spawn(async move {
+                while let Ok(message) = evaluator.recv::<ContraptionPreviewMessage>().await {
+                    match message {
+                        ContraptionPreviewMessage::Ready => {
+                            log::info!("Native contraption preview host is ready");
+                        }
+                        ContraptionPreviewMessage::Bounds {
+                            x,
+                            y,
+                            width,
+                            height,
+                            window_width,
+                            window_height,
+                        } => renderer.set_viewport(
+                            x,
+                            y,
+                            width,
+                            height,
+                            window_width,
+                            window_height,
+                            0.0,
+                        ),
+                        ContraptionPreviewMessage::Appearance { dark_mode } => {
+                            system_dark_mode.set(dark_mode);
+                        }
+                        ContraptionPreviewMessage::Error { message } => {
+                            log::error!("{message}");
+                            state.write().active_mut().status = message;
+                        }
+                    }
+                }
+            });
+        }
+    };
+    #[cfg(target_arch = "wasm32")]
     use_effect(move || {
         let theme = state.read().theme.code();
         let parts_json = serde_json::to_string(&preview_parts).unwrap_or_else(|_| "[]".to_string());
@@ -242,6 +313,35 @@ fn ContraptionPreview(
             let _ = document::eval(&script).await;
         });
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let renderer = native_renderer.clone();
+        use_effect(move || {
+            let theme = state.read().theme.code();
+            let dark_mode = match theme {
+                "dark" => true,
+                "light" => false,
+                _ => *system_dark_mode.read(),
+            };
+            renderer.set_contraption_preview(
+                badpiggies_editor_renderer::ContraptionPreviewPayload {
+                    parts: preview_parts.clone(),
+                    dark_mode,
+                },
+            );
+        });
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut renderer = native_renderer.clone();
+        use_effect(move || {
+            for event in renderer.take_events() {
+                if matches!(event, badpiggies_editor_renderer::RendererEvent::Ready) {
+                    log::info!("Native contraption preview renderer is ready");
+                }
+            }
+        });
+    }
     rsx! {
         div { class: "contraption-preview-scroll",
             canvas {

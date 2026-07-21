@@ -35,8 +35,8 @@ pub fn terrain_texture_asset_key(filename: &str) -> Option<String> {
 mod tests {
     use super::terrain::get_terrain_splat1;
     use super::{
-        effect_texture_name_for_material_guid, get_terrain_splat1_for_level, list_pathnames,
-        read_pathname_text,
+        effect_texture_name_for_material_guid, get_terrain_fill_texture, get_terrain_splat0,
+        get_terrain_splat1_for_level, list_pathnames, read_pathname_text,
     };
 
     #[test]
@@ -97,6 +97,31 @@ mod tests {
             get_terrain_splat1_for_level("scenario_12_data", "e2dTerrainBase_05_night"),
             Some("Ground_Rocks_Outline_Texture_03.png")
         );
+    }
+
+    #[test]
+    fn transition_terrain_defaults_follow_the_target_prefab() {
+        for name in [
+            "e2dTerrainBase _ to morning",
+            "e2dTerrainDark _ to morning",
+            "e2dTerrainBase_morning _ to cave",
+        ] {
+            assert_eq!(
+                get_terrain_fill_texture(name),
+                Some("Ground_Rocks_Texture_06.png"),
+                "fill texture for {name}"
+            );
+            assert_eq!(
+                get_terrain_splat0(name),
+                Some("Ground_Grass_Texture_3.png"),
+                "surface texture for {name}"
+            );
+            assert_eq!(
+                get_terrain_splat1(name),
+                Some("Ground_Rocks_Outline_Texture_06.png"),
+                "outline texture for {name}"
+            );
+        }
     }
 
     #[test]

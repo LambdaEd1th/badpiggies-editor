@@ -20,10 +20,10 @@ use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::JsFuture;
 #[cfg(target_arch = "wasm32")]
-use web_sys::{ErrorEvent, MessageEvent, Worker, WorkerOptions, WorkerType};
+use web_sys::{MessageEvent, Worker, WorkerOptions, WorkerType};
 
 #[cfg(target_arch = "wasm32")]
-const PROCESSING_WORKER_URL: &str = "assets/worker/badpiggies-worker.js?v=20260716-pool-1";
+const PROCESSING_WORKER_VERSION: &str = "20260722-pages-path-1";
 
 #[cfg(target_arch = "wasm32")]
 struct PendingRequest {
@@ -38,7 +38,7 @@ struct WorkerClient {
     pending: Rc<RefCell<HashMap<u64, PendingRequest>>>,
     failed: Rc<Cell<bool>>,
     _onmessage: Closure<dyn FnMut(MessageEvent)>,
-    _onerror: Closure<dyn FnMut(ErrorEvent)>,
+    _onerror: Closure<dyn FnMut(JsValue)>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -57,8 +57,8 @@ impl WorkerClient {
     fn new() -> Result<Self, String> {
         let options = WorkerOptions::new();
         options.set_type(WorkerType::Module);
-        let worker =
-            Worker::new_with_options(PROCESSING_WORKER_URL, &options).map_err(js_error_string)?;
+        let worker_url = processing_worker_url();
+        let worker = Worker::new_with_options(&worker_url, &options).map_err(js_error_string)?;
         let pending = Rc::new(RefCell::new(HashMap::<u64, PendingRequest>::new()));
         let failed = Rc::new(Cell::new(false));
 
@@ -76,13 +76,9 @@ impl WorkerClient {
 
         let error_pending = Rc::clone(&pending);
         let error_failed = Rc::clone(&failed);
-        let onerror = Closure::<dyn FnMut(ErrorEvent)>::new(move |event: ErrorEvent| {
+        let onerror = Closure::<dyn FnMut(JsValue)>::new(move |event: JsValue| {
             error_failed.set(true);
-            let message = if event.message().is_empty() {
-                "Processing Worker failed".to_string()
-            } else {
-                event.message()
-            };
+            let message = worker_error_message(&event);
             log::error!("Processing Worker failed: {message}");
             let error = JsValue::from_str(&message);
             for (_, request) in error_pending.borrow_mut().drain() {
@@ -140,6 +136,24 @@ impl WorkerClient {
             },
         ))
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn processing_worker_url() -> String {
+    let asset_root = crate::app_view::APP_ASSETS.to_string();
+    format!(
+        "{}/worker/badpiggies-worker.js?v={PROCESSING_WORKER_VERSION}",
+        asset_root.trim_end_matches('/')
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+fn worker_error_message(event: &JsValue) -> String {
+    Reflect::get(event, &JsValue::from_str("message"))
+        .ok()
+        .and_then(|value| value.as_string())
+        .filter(|message| !message.is_empty())
+        .unwrap_or_else(|| "Processing Worker failed to load".to_string())
 }
 
 #[cfg(target_arch = "wasm32")]

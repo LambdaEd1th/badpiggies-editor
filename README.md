@@ -79,8 +79,13 @@ development packages.
 Native desktop:
 
 ```bash
+./scripts/build-web-renderer.sh
 cargo run --package badpiggies-editor-app --bin badpiggies-editor
 ```
+
+The native WebView uses the generated wgpu renderer module under
+`app/assets/renderer/pkg`. Build it once after a clean checkout and again after
+changing `crates/renderer`.
 
 Web development server:
 

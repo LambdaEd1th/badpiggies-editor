@@ -5,8 +5,10 @@ use crate::domain::types::LevelData;
 use crate::io::crypto::{SaveFileType, decrypt_save_file, encrypt_save_file};
 use crate::io::save::parser::{SaveData, parse_save_data, serialize_save_data};
 use crate::io::unity3d::{
-    Unity3dTextAssetEntry, list_text_assets_from_bytes, read_text_asset_from_bytes,
-    replace_text_asset_in_bundle_bytes,
+    ExtractedUnityTextAsset, Unity3dTextAssetEntry,
+    list_level_text_assets_from_serialized_file_bytes, list_text_assets_from_bytes,
+    read_level_text_assets_from_serialized_file_bytes, read_text_asset_from_bytes,
+    replace_text_asset_in_bundle_bytes, replace_text_asset_in_serialized_file_bytes,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,6 +78,24 @@ pub enum WorkerRequest {
         #[serde(with = "serde_bytes")]
         replacement: Vec<u8>,
     },
+    ReplaceUnitySerializedFileTextAsset {
+        #[serde(with = "serde_bytes")]
+        bytes: Vec<u8>,
+        entry: Unity3dTextAssetEntry,
+        #[serde(with = "serde_bytes")]
+        replacement: Vec<u8>,
+    },
+    ListUnitySerializedFileLevels {
+        asset_name: String,
+        #[serde(with = "serde_bytes")]
+        bytes: Vec<u8>,
+    },
+    ReadUnitySerializedFileLevels {
+        asset_name: String,
+        #[serde(with = "serde_bytes")]
+        bytes: Vec<u8>,
+        entries: Vec<Unity3dTextAssetEntry>,
+    },
     SearchText {
         text: String,
         query: String,
@@ -104,6 +124,9 @@ pub enum WorkerResponse {
     },
     UnityEntries {
         entries: Vec<Unity3dTextAssetEntry>,
+    },
+    ExtractedUnityTextAssets {
+        assets: Vec<ExtractedUnityTextAsset>,
     },
     Bytes {
         #[serde(with = "serde_bytes")]
@@ -183,6 +206,25 @@ fn perform(request: WorkerRequest) -> Result<WorkerResponse, String> {
             replacement,
         } => replace_text_asset_in_bundle_bytes(&bytes, &entry, &replacement)
             .map(|bytes| WorkerResponse::Bytes { bytes })
+            .map_err(|error| error.to_string()),
+        WorkerRequest::ReplaceUnitySerializedFileTextAsset {
+            bytes,
+            entry,
+            replacement,
+        } => replace_text_asset_in_serialized_file_bytes(&bytes, &entry, &replacement)
+            .map(|bytes| WorkerResponse::Bytes { bytes })
+            .map_err(|error| error.to_string()),
+        WorkerRequest::ListUnitySerializedFileLevels { asset_name, bytes } => {
+            list_level_text_assets_from_serialized_file_bytes(&asset_name, bytes)
+                .map(|entries| WorkerResponse::UnityEntries { entries })
+                .map_err(|error| error.to_string())
+        }
+        WorkerRequest::ReadUnitySerializedFileLevels {
+            asset_name,
+            bytes,
+            entries,
+        } => read_level_text_assets_from_serialized_file_bytes(&asset_name, bytes, &entries)
+            .map(|assets| WorkerResponse::ExtractedUnityTextAssets { assets })
             .map_err(|error| error.to_string()),
         WorkerRequest::SearchText {
             text,

@@ -5,7 +5,9 @@ use badpiggies_editor_core::io::save::parser::detect_type_from_xml;
 use badpiggies_editor_core::worker_protocol::{LevelFormat, WorkerRequest, WorkerResponse};
 use dioxus::prelude::*;
 
-use crate::editor_state::{EditorState, Modal, UnityBundleDocument, UnityBundleMode};
+use crate::editor_state::{
+    EditorState, Modal, UnityAssetSource, UnityBundleDocument, UnityBundleMode,
+};
 use crate::platform::processing;
 
 pub async fn import_level(mut state: Signal<EditorState>, name: String, bytes: Vec<u8>) {
@@ -61,6 +63,8 @@ pub async fn import_auto(state: Signal<EditorState>, name: String, bytes: Vec<u8
     let lower = name.to_ascii_lowercase();
     if lower.ends_with(".unity3d") {
         open_unity_bundle(state, name, bytes, UnityBundleMode::ExtractLevels).await;
+    } else if lower.ends_with(".assets") {
+        open_unity_assets_file(state, name, bytes, UnityBundleMode::ExtractLevels).await;
     } else if lower.ends_with(".bytes")
         || lower.ends_with(".yaml")
         || lower.ends_with(".yml")
@@ -107,6 +111,49 @@ pub async fn open_unity_bundle(
                 entries,
                 selected,
                 mode,
+                source: UnityAssetSource::Bundle,
+            });
+            editor.modal = Some(Modal::Unity3d);
+            editor.menu_open = None;
+        }
+        Ok(_) => {
+            state.write().active_mut().status =
+                localized(state, "status_unexpected_worker_response")
+        }
+        Err(error) => state.write().active_mut().status = error,
+    }
+}
+
+pub async fn open_unity_assets_file(
+    mut state: Signal<EditorState>,
+    name: String,
+    bytes: Vec<u8>,
+    mode: UnityBundleMode,
+) {
+    state.write().active_mut().status = localized_with(state, "status_reading", "name", &name);
+    let request = WorkerRequest::ListUnitySerializedFileLevels {
+        asset_name: name.clone(),
+        bytes: bytes.clone(),
+    };
+    match processing::perform(request).await {
+        Ok(WorkerResponse::UnityEntries { entries }) if entries.is_empty() => {
+            state.write().active_mut().status =
+                localized(state, "status_no_level_text_assets_in_file");
+        }
+        Ok(WorkerResponse::UnityEntries { entries }) => {
+            let selected = if mode == UnityBundleMode::ReplaceLevel {
+                BTreeSet::from([0])
+            } else {
+                BTreeSet::new()
+            };
+            let mut editor = state.write();
+            editor.unity_bundle = Some(UnityBundleDocument {
+                name,
+                bytes,
+                entries,
+                selected,
+                mode,
+                source: UnityAssetSource::SerializedFile,
             });
             editor.modal = Some(Modal::Unity3d);
             editor.menu_open = None;
@@ -121,7 +168,7 @@ pub async fn open_unity_bundle(
 
 pub fn extract_unity_levels(mut state: Signal<EditorState>) {
     spawn(async move {
-        let (bundle_name, bundle_bytes, entries) = {
+        let (source, bundle_name, bundle_bytes, entries) = {
             let editor = state.read();
             let Some(bundle) = editor.unity_bundle.as_ref() else {
                 return;
@@ -131,27 +178,56 @@ pub fn extract_unity_levels(mut state: Signal<EditorState>) {
                 .iter()
                 .filter_map(|index| bundle.entries.get(*index).cloned())
                 .collect::<Vec<_>>();
-            (bundle.name.clone(), bundle.bytes.clone(), entries)
+            (
+                bundle.source,
+                bundle.name.clone(),
+                bundle.bytes.clone(),
+                entries,
+            )
         };
         if entries.is_empty() {
             return;
         }
         state.write().modal = None;
-        for entry in entries {
-            let request = WorkerRequest::ReadUnityTextAsset {
-                bundle_name: bundle_name.clone(),
-                bytes: bundle_bytes.clone(),
-                entry: entry.clone(),
-            };
-            match processing::perform(request).await {
-                Ok(WorkerResponse::Bytes { bytes }) => {
-                    import_level(state, format!("{}.bytes", entry.display_name), bytes).await;
+        match source {
+            UnityAssetSource::Bundle => {
+                for entry in entries {
+                    let request = WorkerRequest::ReadUnityTextAsset {
+                        bundle_name: bundle_name.clone(),
+                        bytes: bundle_bytes.clone(),
+                        entry: entry.clone(),
+                    };
+                    match processing::perform(request).await {
+                        Ok(WorkerResponse::Bytes { bytes }) => {
+                            import_level(state, level_file_name(&entry.display_name), bytes).await;
+                        }
+                        Ok(_) => {
+                            state.write().active_mut().status =
+                                localized(state, "status_unexpected_worker_response");
+                        }
+                        Err(error) => state.write().active_mut().status = error,
+                    }
                 }
-                Ok(_) => {
-                    state.write().active_mut().status =
-                        localized(state, "status_unexpected_worker_response");
+            }
+            UnityAssetSource::SerializedFile => {
+                let request = WorkerRequest::ReadUnitySerializedFileLevels {
+                    asset_name: bundle_name,
+                    bytes: bundle_bytes,
+                    entries,
+                };
+                match processing::perform(request).await {
+                    Ok(WorkerResponse::ExtractedUnityTextAssets { assets }) => {
+                        for asset in assets {
+                            import_level(state, level_file_name(&asset.display_name), asset.bytes)
+                                .await;
+                        }
+                    }
+                    Ok(_) => {
+                        state.write().active_mut().status =
+                            localized(state, "status_unexpected_worker_response");
+                    }
+                    Err(error) => state.write().active_mut().status = error,
                 }
-                Err(error) => state.write().active_mut().status = error,
             }
         }
         state.write().unity_bundle = None;
@@ -160,7 +236,7 @@ pub fn extract_unity_levels(mut state: Signal<EditorState>) {
 
 pub fn replace_unity_level(mut state: Signal<EditorState>) {
     spawn(async move {
-        let (level, bundle_name, bundle_bytes, entry) = {
+        let (level, source, asset_name, asset_bytes, entry) = {
             let editor = state.read();
             let Some(level) = editor.active().level.clone() else {
                 return;
@@ -177,7 +253,13 @@ pub fn replace_unity_level(mut state: Signal<EditorState>) {
             else {
                 return;
             };
-            (level, bundle.name.clone(), bundle.bytes.clone(), entry)
+            (
+                level,
+                bundle.source,
+                bundle.name.clone(),
+                bundle.bytes.clone(),
+                entry,
+            )
         };
         let request = WorkerRequest::SerializeLevel {
             level,
@@ -195,16 +277,29 @@ pub fn replace_unity_level(mut state: Signal<EditorState>) {
                 return;
             }
         };
-        let request = WorkerRequest::ReplaceUnityTextAsset {
-            bytes: bundle_bytes,
-            entry,
-            replacement: level_bytes,
+        let request = match source {
+            UnityAssetSource::Bundle => WorkerRequest::ReplaceUnityTextAsset {
+                bytes: asset_bytes,
+                entry,
+                replacement: level_bytes,
+            },
+            UnityAssetSource::SerializedFile => {
+                WorkerRequest::ReplaceUnitySerializedFileTextAsset {
+                    bytes: asset_bytes,
+                    entry,
+                    replacement: level_bytes,
+                }
+            }
         };
         match processing::perform(request).await {
             Ok(WorkerResponse::Bytes { bytes }) => {
                 state.write().modal = None;
                 state.write().unity_bundle = None;
-                save_bytes(state, bundle_name, bytes, "unity3d").await;
+                let extension = match source {
+                    UnityAssetSource::Bundle => "unity3d",
+                    UnityAssetSource::SerializedFile => "assets",
+                };
+                save_bytes(state, asset_name, bytes, extension).await;
             }
             Ok(_) => {
                 state.write().active_mut().status =
@@ -341,6 +436,14 @@ fn export_level_name(name: &str, format: LevelFormat) -> String {
         .or_else(|| name.strip_suffix(".toml"))
         .unwrap_or(name);
     format!("{stem}.{}", format.extension())
+}
+
+fn level_file_name(name: &str) -> String {
+    if name.to_ascii_lowercase().ends_with(".bytes") {
+        name.to_string()
+    } else {
+        format!("{name}.bytes")
+    }
 }
 
 async fn load_parsed_save(

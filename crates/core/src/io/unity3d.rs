@@ -14,6 +14,7 @@ use unity_asset_binary::reader::{BinaryReader, ByteOrder};
 use unity_asset_binary::typetree::{TypeTree, serialize_object_with_typetree};
 
 use crate::diagnostics::error::{AppError, AppResult};
+use crate::domain::parser::parse_level;
 use crate::io::unityfs::UnityFsBundle;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -28,6 +29,13 @@ pub struct Unity3dTextAssetEntry {
     pub asset_index: usize,
     pub path_id: i64,
     pub bundle_asset_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExtractedUnityTextAsset {
+    pub display_name: String,
+    #[serde(with = "serde_bytes")]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -251,6 +259,100 @@ fn display_name_from_asset_path(asset_path: &str) -> String {
         .map(|name| name.to_string_lossy().into_owned())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| asset_path.to_string())
+}
+
+pub fn list_level_text_assets_from_serialized_file_bytes(
+    asset_name: &str,
+    asset_bytes: Vec<u8>,
+) -> AppResult<Vec<Unity3dTextAssetEntry>> {
+    let file = parse_serialized_file(asset_bytes)
+        .map_err(|err| invalid_data(format!("Failed to parse Unity assets file: {err}")))?;
+    let candidates = file
+        .objects
+        .iter()
+        .filter(|object| object.type_id == class_ids::TEXT_ASSET)
+        .collect::<Vec<_>>();
+    let entries = crate::parallel::try_map(candidates, |object_info| -> AppResult<_> {
+        let object = file
+            .find_object_handle(object_info.path_id)
+            .ok_or_else(|| invalid_data(format!("Missing TextAsset {}", object_info.path_id)))?;
+        let raw = parse_raw_text_asset_data(
+            object
+                .raw_data()
+                .map_err(|err| invalid_data(format!("Failed to read TextAsset bytes: {err}")))?,
+            file.header.byte_order(),
+        )?;
+        if !is_level_text_asset_name(&raw.name) || parse_level(raw.script).is_err() {
+            return Ok(None);
+        }
+        Ok(Some(Unity3dTextAssetEntry {
+            asset_path: format!("{asset_name}/{}", raw.name),
+            display_name: raw.name,
+            asset_index: 0,
+            path_id: object_info.path_id,
+            bundle_asset_name: asset_name.to_string(),
+        }))
+    })?;
+
+    let mut entries = entries.into_iter().flatten().collect::<Vec<_>>();
+    entries.sort_by_cached_key(|entry| entry.display_name.to_ascii_lowercase());
+    Ok(entries)
+}
+
+pub fn read_level_text_assets_from_serialized_file_bytes(
+    asset_name: &str,
+    asset_bytes: Vec<u8>,
+    entries: &[Unity3dTextAssetEntry],
+) -> AppResult<Vec<ExtractedUnityTextAsset>> {
+    let file = parse_serialized_file(asset_bytes)
+        .map_err(|err| invalid_data(format!("Failed to parse Unity assets file: {err}")))?;
+    entries
+        .iter()
+        .map(|entry| {
+            let object = file.find_object_handle(entry.path_id).ok_or_else(|| {
+                invalid_data(format!(
+                    "TextAsset {} was not found in {asset_name}",
+                    entry.asset_path
+                ))
+            })?;
+            if object.class_id() != class_ids::TEXT_ASSET {
+                return Err(invalid_data(format!(
+                    "Object {} is not a TextAsset (class_id={})",
+                    entry.path_id,
+                    object.class_id()
+                )));
+            }
+            let raw = parse_raw_text_asset_data(
+                object.raw_data().map_err(|err| {
+                    invalid_data(format!("Failed to read TextAsset bytes: {err}"))
+                })?,
+                file.header.byte_order(),
+            )?;
+            if !is_level_text_asset_name(&raw.name) {
+                return Err(invalid_data(format!(
+                    "TextAsset {} is not a Bad Piggies level",
+                    raw.name
+                )));
+            }
+            Ok(ExtractedUnityTextAsset {
+                display_name: raw.name,
+                bytes: raw.script,
+            })
+        })
+        .collect()
+}
+
+pub fn replace_text_asset_in_serialized_file_bytes(
+    asset_bytes: &[u8],
+    entry: &Unity3dTextAssetEntry,
+    replacement_bytes: &[u8],
+) -> AppResult<Vec<u8>> {
+    replace_text_asset_in_serialized_file(asset_bytes, entry.path_id, replacement_bytes)
+}
+
+fn is_level_text_asset_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with("_data") || lower.ends_with("_data.bytes")
 }
 
 fn replace_text_asset_in_serialized_file(
@@ -839,8 +941,11 @@ fn invalid_data(message: impl Into<String>) -> AppError {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::{
-        Unity3dTextAssetEntry, list_text_assets, list_text_assets_from_bytes, read_text_asset,
-        read_text_asset_from_bytes, replace_text_asset, replace_text_asset_in_bundle_bytes,
+        Unity3dTextAssetEntry, is_level_text_asset_name,
+        list_level_text_assets_from_serialized_file_bytes, list_text_assets,
+        list_text_assets_from_bytes, read_level_text_assets_from_serialized_file_bytes,
+        read_text_asset, read_text_asset_from_bytes, replace_text_asset,
+        replace_text_asset_in_bundle_bytes, replace_text_asset_in_serialized_file_bytes,
     };
 
     use std::fs;
@@ -852,13 +957,34 @@ mod tests {
     use crate::io::unityfs::UnityFsBundle;
 
     fn sample_bundle_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../Assets/StreamingAssets/AssetBundles/Episode_1_Levels.unity3d")
+        v2_3_6_fixture_path("bundles/Episode_1_Levels.unity3d")
+    }
+
+    fn race_bundle_path() -> PathBuf {
+        v2_3_6_fixture_path("bundles/Episode_Race_Levels.unity3d")
     }
 
     fn extracted_level_path() -> PathBuf {
+        v2_3_6_fixture_path("levels/Level_05_data.bytes")
+    }
+
+    fn fixture_path(version: &str, relative_path: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test_levels/assetbundles/episode_1_levels.unity3d/Level_05_data.bytes")
+            .join("tests/fixtures")
+            .join(version)
+            .join(relative_path)
+    }
+
+    fn v1_5_1_fixture_path(relative_path: &str) -> PathBuf {
+        fixture_path("v1.5.1", relative_path)
+    }
+
+    fn v2_3_6_fixture_path(relative_path: &str) -> PathBuf {
+        fixture_path("v2.3.6", relative_path)
+    }
+
+    fn v1_5_1_resources_assets_path() -> PathBuf {
+        v1_5_1_fixture_path("assets/resources.assets")
     }
 
     fn level_05_entry(entries: &[Unity3dTextAssetEntry]) -> Unity3dTextAssetEntry {
@@ -871,6 +997,98 @@ mod tests {
             })
             .cloned()
             .expect("Level_05_data.bytes entry")
+    }
+
+    #[test]
+    fn recognizes_bad_piggies_level_text_asset_names() {
+        assert!(is_level_text_asset_name("scenario_58_data"));
+        assert!(is_level_text_asset_name("Level_05_data.bytes"));
+        assert!(!is_level_text_asset_name("Level_05_contraption"));
+        assert!(!is_level_text_asset_name("localization_data.json"));
+    }
+
+    #[test]
+    fn parses_real_v1_5_1_serialized_file_fixtures() {
+        for (name, expected_objects) in [("sharedassets8.assets", 1), ("sharedassets17.assets", 20)]
+        {
+            let path = v1_5_1_fixture_path(&format!("assets/{name}"));
+            let bytes = fs::read(&path).expect("read v1.5.1 SerializedFile fixture");
+            let file =
+                parse_serialized_file(bytes.clone()).expect("parse v1.5.1 SerializedFile fixture");
+            assert_eq!(file.unity_version, "4.2.1f4");
+            assert_eq!(file.object_count(), expected_objects);
+
+            let levels = list_level_text_assets_from_serialized_file_bytes(name, bytes)
+                .expect("scan v1.5.1 SerializedFile fixture");
+            assert!(
+                levels.is_empty(),
+                "{name} should not contain level TextAssets"
+            );
+        }
+    }
+
+    #[test]
+    fn extracts_levels_from_v1_5_1_resources_assets() {
+        let path = v1_5_1_resources_assets_path();
+        let bytes = fs::read(&path).expect("read v1.5.1 resources.assets");
+        let entries =
+            list_level_text_assets_from_serialized_file_bytes("resources.assets", bytes.clone())
+                .expect("list levels from legacy resources.assets");
+        assert!(
+            entries.len() >= 200,
+            "expected many v1.5.1 levels, got {}",
+            entries.len()
+        );
+        assert!(
+            entries
+                .iter()
+                .all(|entry| is_level_text_asset_name(&entry.display_name))
+        );
+
+        let scenario_58 = entries
+            .iter()
+            .find(|entry| entry.display_name.eq_ignore_ascii_case("scenario_58_data"))
+            .cloned()
+            .expect("scenario_58_data entry");
+        let extracted = read_level_text_assets_from_serialized_file_bytes(
+            "resources.assets",
+            bytes.clone(),
+            std::slice::from_ref(&scenario_58),
+        )
+        .expect("extract scenario_58_data");
+        assert_eq!(extracted.len(), 1);
+        assert_eq!(extracted[0].display_name, "scenario_58_data");
+        assert_eq!(
+            extracted[0].bytes,
+            fs::read(v1_5_1_fixture_path("levels/scenario_58_data.bytes"))
+                .expect("read extracted v1.5.1 scenario fixture")
+        );
+        crate::domain::parser::parse_level(extracted[0].bytes.clone())
+            .expect("parse extracted scenario_58_data");
+
+        let replacement_entry = entries
+            .iter()
+            .find(|entry| entry.display_name.eq_ignore_ascii_case("Level_01_data"))
+            .cloned()
+            .expect("Level_01_data entry");
+        let replacement = read_level_text_assets_from_serialized_file_bytes(
+            "resources.assets",
+            bytes.clone(),
+            &[replacement_entry],
+        )
+        .expect("extract replacement level")
+        .remove(0)
+        .bytes;
+        let updated =
+            replace_text_asset_in_serialized_file_bytes(&bytes, &scenario_58, &replacement)
+                .expect("replace scenario_58_data in resources.assets");
+        let replaced = read_level_text_assets_from_serialized_file_bytes(
+            "resources.assets",
+            updated,
+            &[scenario_58],
+        )
+        .expect("read replaced scenario_58_data");
+        assert_eq!(replaced[0].bytes, replacement);
     }
 
     fn temp_bundle_copy_path() -> PathBuf {
@@ -925,9 +1143,6 @@ mod tests {
 
     #[test]
     fn lists_episode_1_level_text_assets() {
-        if !sample_bundle_path().is_file() {
-            return;
-        }
         let entries = list_text_assets(sample_bundle_path()).expect("list text assets");
 
         assert!(
@@ -948,10 +1163,25 @@ mod tests {
     }
 
     #[test]
-    fn reads_level_05_text_asset_bytes() {
-        if !sample_bundle_path().is_file() || !extracted_level_path().is_file() {
-            return;
+    fn lists_and_reads_race_level_text_assets() {
+        let entries = list_text_assets(race_bundle_path()).expect("list race level text assets");
+        assert_eq!(entries.len(), 8);
+
+        for number in 1..=8 {
+            let expected_name = format!("level_race_{number:02}_data.bytes");
+            let entry = entries
+                .iter()
+                .find(|entry| entry.display_name.eq_ignore_ascii_case(&expected_name))
+                .unwrap_or_else(|| panic!("missing {expected_name}"));
+            let bytes = read_text_asset(race_bundle_path(), entry)
+                .unwrap_or_else(|error| panic!("failed to read {expected_name}: {error}"));
+            crate::domain::parser::parse_level(bytes)
+                .unwrap_or_else(|error| panic!("failed to parse {expected_name}: {error}"));
         }
+    }
+
+    #[test]
+    fn reads_level_05_text_asset_bytes() {
         let entries = list_text_assets(sample_bundle_path()).expect("list text assets");
         let entry = level_05_entry(&entries);
         let actual = read_text_asset(sample_bundle_path(), &entry).expect("read text asset");
@@ -962,9 +1192,6 @@ mod tests {
 
     #[test]
     fn replaces_level_05_text_asset_bytes_in_bundle() {
-        if !sample_bundle_path().is_file() {
-            return;
-        }
         let temp_path = temp_bundle_copy_path();
         fs::copy(sample_bundle_path(), &temp_path).expect("copy sample bundle");
         let _cleanup = TempBundleCleanup(temp_path.clone());
@@ -984,9 +1211,6 @@ mod tests {
 
     #[test]
     fn replacing_text_asset_preserves_non_object_segments() {
-        if !sample_bundle_path().is_file() {
-            return;
-        }
         let bundle_bytes = fs::read(sample_bundle_path()).expect("read sample bundle");
         let entries = list_text_assets(sample_bundle_path()).expect("list text assets");
         let entry = level_05_entry(&entries);

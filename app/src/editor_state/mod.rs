@@ -251,12 +251,19 @@ pub enum UnityBundleMode {
     ReplaceLevel,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnityAssetSource {
+    Bundle,
+    SerializedFile,
+}
+
 pub struct UnityBundleDocument {
     pub name: String,
     pub bytes: Vec<u8>,
     pub entries: Vec<Unity3dTextAssetEntry>,
     pub selected: BTreeSet<usize>,
     pub mode: UnityBundleMode,
+    pub source: UnityAssetSource,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

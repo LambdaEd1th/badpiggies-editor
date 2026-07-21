@@ -483,19 +483,24 @@ fn write_prefab_overrides(writer: &mut BinaryWriter, data: &PrefabOverrideData) 
 mod tests {
     use super::*;
     use std::f32::consts::PI;
-    use std::io;
     use std::path::PathBuf;
 
-    const ROUNDTRIP_LEVEL_ASSET: &str = "assetbundles/episode_1_levels.unity3d/Level_05_data.bytes";
+    const ROUNDTRIP_LEVEL_ASSETS: &[&str] = &[
+        "v1.5.1/levels/Level_05_data.bytes",
+        "v1.5.1/levels/scenario_58_data.bytes",
+        "v2.3.6/levels/Level_05_data.bytes",
+        "v2.3.6/levels/scenario_58_data.bytes",
+    ];
 
     fn parser_test_asset_path(path: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../test_levels")
+            .join("tests/fixtures")
             .join(path)
     }
 
-    fn read_test_asset(path: &str) -> io::Result<Vec<u8>> {
+    fn read_test_asset(path: &str) -> Vec<u8> {
         std::fs::read(parser_test_asset_path(path))
+            .unwrap_or_else(|error| panic!("failed to read test asset {path}: {error}"))
     }
 
     #[test]
@@ -567,33 +572,29 @@ mod tests {
 
     #[test]
     fn test_level_roundtrip() {
-        // This fixture lives outside the editor crate and is optional in CI/check-only clones.
-        let data = match read_test_asset(ROUNDTRIP_LEVEL_ASSET) {
-            Ok(data) => data,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                eprintln!(
-                    "skipping test_level_roundtrip: missing test asset {}",
-                    parser_test_asset_path(ROUNDTRIP_LEVEL_ASSET).display()
-                );
-                return;
-            }
-            Err(error) => panic!("failed to read test asset {ROUNDTRIP_LEVEL_ASSET}: {error}"),
-        };
-        let original = data.clone();
+        for asset in ROUNDTRIP_LEVEL_ASSETS {
+            let data = read_test_asset(asset);
+            let original = data.clone();
+            let level = parse_level(data)
+                .unwrap_or_else(|error| panic!("failed to parse {asset}: {error}"));
+            assert!(!level.objects.is_empty(), "{asset} should have objects");
+            assert!(!level.roots.is_empty(), "{asset} should have roots");
 
-        let Ok(level) = parse_level(data) else {
-            panic!("parse failed");
-        };
-        assert!(!level.objects.is_empty(), "level should have objects");
-        assert!(!level.roots.is_empty(), "level should have roots");
+            let reserialized = serialize_level(&level);
+            assert_eq!(original, reserialized, "{asset} roundtrip bytes mismatch");
+        }
+    }
 
-        // Re-serialize and verify byte-for-byte identity
-        let reserialized = serialize_level(&level);
-        assert_eq!(
-            original.len(),
-            reserialized.len(),
-            "serialized length mismatch"
-        );
-        assert_eq!(original, reserialized, "roundtrip bytes mismatch");
+    #[test]
+    fn versioned_level_fixtures_remain_distinct() {
+        for name in ["Level_05_data.bytes", "scenario_58_data.bytes"] {
+            let v1_5_1 = read_test_asset(&format!("v1.5.1/levels/{name}"));
+            let v2_3_6 = read_test_asset(&format!("v2.3.6/levels/{name}"));
+
+            assert_ne!(
+                v1_5_1, v2_3_6,
+                "{name} must retain its version-specific bytes"
+            );
+        }
     }
 }

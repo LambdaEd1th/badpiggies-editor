@@ -13,9 +13,10 @@ use badpiggies_editor_core::domain::types::{
 use badpiggies_editor_core::worker_protocol::LevelFormat;
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
-    LdCheck, LdChevronDown, LdChevronRight, LdEllipsis, LdFileUp, LdFolderOpen, LdGithub, LdInfo,
-    LdKeyboard, LdLanguages, LdMenu, LdMonitor, LdMoon, LdPanelRight, LdPlus, LdRedo2, LdScan,
-    LdScrollText, LdSettings, LdSun, LdTrash2, LdUndo2, LdX,
+    LdCheck, LdCheckCheck, LdChevronDown, LdChevronRight, LdEllipsis, LdFileUp, LdFolderOpen,
+    LdGithub, LdInfo, LdKeyboard, LdLanguages, LdListTree, LdMenu, LdMonitor, LdMoon, LdPanelRight,
+    LdPlus, LdRedo2, LdScan, LdScrollText, LdSettings, LdSlidersHorizontal, LdSquare, LdSun,
+    LdTrash2, LdUndo2, LdX,
 };
 use dioxus_free_icons::{Icon, IconShape};
 use dioxus_html::HasFileData;
@@ -23,7 +24,8 @@ use dioxus_html::HasFileData;
 use crate::app_actions::files;
 use crate::app_view::canvas::EditorCanvas;
 use crate::editor_state::{
-    CanvasPointerState, EditorState, MobilePanel, Modal, ThemePreference, UnityBundleMode,
+    CanvasPointerState, EditorState, MobilePanel, Modal, ThemePreference, UnityAssetSource,
+    UnityBundleMode,
 };
 use crate::i18n::locale::Language;
 use crate::platform;
@@ -605,7 +607,10 @@ fn MobileAction(
 fn MenuPopup(menu: &'static str, anchor: Option<MenuAnchor>) -> Element {
     let mut state = consume_context::<Signal<EditorState>>();
     let t = state.read().t();
-    let has_level = state.read().active().is_level();
+    let has_level = {
+        let editor = state.read();
+        editor.active().is_level() && !editor.active().is_workspace_placeholder()
+    };
     let has_save = state.read().active().save.is_some();
     let menu_title = match menu {
         "file" => t.get("menu_file"),
@@ -629,19 +634,26 @@ fn MenuPopup(menu: &'static str, anchor: Option<MenuAnchor>) -> Element {
             div { class: "menu-popup-content",
                 match menu {
                     "file" => rsx! {
-                        MenuItem { label: t.get("menu_new_level"), onclick: move |_| { state.write().new_tab(); state.write().menu_open = None; } }
                         FileMenuItem { label: t.get("menu_open_level"), kind: ImportKind::Level }
+                        FileMenuItem { label: t.get("menu_import_text"), kind: ImportKind::LevelText }
+                        FileMenuItem { label: t.get("menu_export_from_unity3d"), kind: ImportKind::UnityExtract }
+                        FileMenuItem { label: t.get("menu_export_from_unity_assets"), kind: ImportKind::UnityAssetsExtract }
                         FileMenuItem { label: t.get("menu_open_save"), kind: ImportKind::Save }
-                        FileMenuItem { label: t.get("menu_open_save_xml"), kind: ImportKind::SaveXml }
-                        div { class: "menu-rule" }
-                        FileMenuItem { label: t.get("menu_extract_unity_levels"), kind: ImportKind::UnityExtract }
-                        FileMenuItem { label: t.get("menu_replace_unity_level"), kind: ImportKind::UnityReplace, disabled: !has_level }
-                        div { class: "menu-rule" }
-                        MenuItem { label: t.get("menu_export_level"), disabled: !has_level, onclick: move |_| files::export_level(state, LevelFormat::Bytes) }
-                        MenuItem { label: t.get("menu_export_yaml"), disabled: !has_level, onclick: move |_| files::export_level(state, LevelFormat::Yaml) }
-                        MenuItem { label: t.get("menu_export_toml"), disabled: !has_level, onclick: move |_| files::export_level(state, LevelFormat::Toml) }
-                        MenuItem { label: t.get("menu_export_save"), disabled: !has_save, onclick: move |_| files::export_save(state) }
-                        MenuItem { label: t.get("menu_export_xml"), disabled: !has_save, onclick: move |_| files::export_save_xml(state) }
+                        FileMenuItem { label: t.get("menu_import_xml"), kind: ImportKind::SaveXml }
+                        if has_save || has_level {
+                            div { class: "menu-rule" }
+                        }
+                        if has_save {
+                            MenuItem { label: t.get("menu_export_save"), onclick: move |_| files::export_save(state) }
+                            MenuItem { label: t.get("menu_export_xml"), onclick: move |_| files::export_save_xml(state) }
+                        }
+                        if has_level {
+                            MenuItem { label: t.get("menu_export_level"), onclick: move |_| files::export_level(state, LevelFormat::Bytes) }
+                            MenuItem { label: t.get("menu_export_yaml"), onclick: move |_| files::export_level(state, LevelFormat::Yaml) }
+                            MenuItem { label: t.get("menu_export_toml"), onclick: move |_| files::export_level(state, LevelFormat::Toml) }
+                            FileMenuItem { label: t.get("menu_import_to_unity3d"), kind: ImportKind::UnityReplace }
+                            FileMenuItem { label: t.get("menu_import_to_unity_assets"), kind: ImportKind::UnityAssetsReplace }
+                        }
                     },
                     "edit" => rsx! {
                         MenuItem { label: t.get("menu_undo"), shortcut: "Ctrl/Cmd+Z", disabled: !state.read().can_undo(), onclick: move |_| state.write().undo() }
@@ -808,37 +820,46 @@ fn CustomSelect(
 #[derive(Clone, Copy, PartialEq)]
 enum ImportKind {
     Level,
+    LevelText,
     Save,
     SaveXml,
     UnityExtract,
+    UnityAssetsExtract,
     UnityReplace,
+    UnityAssetsReplace,
 }
 
 impl ImportKind {
     const fn accept(self) -> &'static str {
         match self {
-            Self::Level => ".bytes,.yaml,.yml,.toml",
+            Self::Level => ".bytes",
+            Self::LevelText => ".yaml,.yml,.toml",
             Self::Save => ".dat,.contraption,.xml",
             Self::SaveXml => ".xml",
             Self::UnityExtract | Self::UnityReplace => ".unity3d",
+            Self::UnityAssetsExtract | Self::UnityAssetsReplace => ".assets",
         }
     }
 
     const fn filter_key(self) -> &'static str {
         match self {
             Self::Level => "filter_level_files",
+            Self::LevelText => "filter_level_text_files",
             Self::Save => "filter_save_files",
             Self::SaveXml => "filter_save_xml",
             Self::UnityExtract | Self::UnityReplace => "filter_unity3d_files",
+            Self::UnityAssetsExtract | Self::UnityAssetsReplace => "filter_unity_assets_files",
         }
     }
 
     const fn extensions(self) -> &'static [&'static str] {
         match self {
-            Self::Level => &["bytes", "yaml", "yml", "toml"],
+            Self::Level => &["bytes"],
+            Self::LevelText => &["yaml", "yml", "toml"],
             Self::Save => &["dat", "contraption", "xml"],
             Self::SaveXml => &["xml"],
             Self::UnityExtract | Self::UnityReplace => &["unity3d"],
+            Self::UnityAssetsExtract | Self::UnityAssetsReplace => &["assets"],
         }
     }
 }
@@ -856,14 +877,20 @@ async fn import_picked_file(
     state.write().active_mut().status = reading;
     state.write().menu_open = None;
     match kind {
-        ImportKind::Level => files::import_level(state, name, bytes).await,
+        ImportKind::Level | ImportKind::LevelText => files::import_level(state, name, bytes).await,
         ImportKind::Save => files::import_save(state, name, bytes).await,
         ImportKind::SaveXml => files::import_save_xml(state, name, bytes).await,
         ImportKind::UnityExtract => {
             files::open_unity_bundle(state, name, bytes, UnityBundleMode::ExtractLevels).await
         }
+        ImportKind::UnityAssetsExtract => {
+            files::open_unity_assets_file(state, name, bytes, UnityBundleMode::ExtractLevels).await
+        }
         ImportKind::UnityReplace => {
             files::open_unity_bundle(state, name, bytes, UnityBundleMode::ReplaceLevel).await
+        }
+        ImportKind::UnityAssetsReplace => {
+            files::open_unity_assets_file(state, name, bytes, UnityBundleMode::ReplaceLevel).await
         }
     }
 }
@@ -933,18 +960,19 @@ mod import_filter_tests {
 
     #[test]
     fn import_filters_match_the_formats_each_action_can_parse() {
-        assert_eq!(
-            ImportKind::Level.extensions(),
-            &["bytes", "yaml", "yml", "toml"]
-        );
+        assert_eq!(ImportKind::Level.extensions(), &["bytes"]);
+        assert_eq!(ImportKind::LevelText.extensions(), &["yaml", "yml", "toml"]);
         assert_eq!(
             ImportKind::Save.extensions(),
             &["dat", "contraption", "xml"]
         );
         assert_eq!(ImportKind::SaveXml.extensions(), &["xml"]);
         assert_eq!(ImportKind::UnityExtract.extensions(), &["unity3d"]);
+        assert_eq!(ImportKind::UnityAssetsExtract.extensions(), &["assets"]);
         assert_eq!(ImportKind::UnityReplace.extensions(), &["unity3d"]);
-        assert_eq!(ImportKind::Level.accept(), ".bytes,.yaml,.yml,.toml");
+        assert_eq!(ImportKind::UnityAssetsReplace.extensions(), &["assets"]);
+        assert_eq!(ImportKind::Level.accept(), ".bytes");
+        assert_eq!(ImportKind::LevelText.accept(), ".yaml,.yml,.toml");
     }
 }
 
@@ -1058,7 +1086,10 @@ fn ObjectTree() -> Element {
             onclick: move |_| context_menu.dismiss(),
             oncontextmenu: move |event| event.prevent_default(),
             div { class: "panel-header panel-heading",
-                span { class: "panel-title", {state.read().t().get("panel_object_list")} }
+                div { class: "panel-header-title-line",
+                    span { class: "panel-header-icon", {icon(LdListTree)} }
+                    span { class: "panel-title", {state.read().t().get("panel_object_list")} }
+                }
                 button {
                     class: "panel-close-mobile",
                     title: t.get("common_close"),
@@ -1357,7 +1388,10 @@ fn PropertiesPanel() -> Element {
     rsx! {
         aside { id: "rton-inspector-drawer", class: "rton-side-panel rton-side-panel-right properties-pane",
             div { class: "panel-header panel-heading",
-                span { class: "panel-title", {state.read().t().get("panel_properties")} }
+                div { class: "panel-header-title-line",
+                    span { class: "panel-header-icon", {icon(LdSlidersHorizontal)} }
+                    span { class: "panel-title", {state.read().t().get("panel_properties")} }
+                }
                 button {
                     class: "panel-close-mobile",
                     title: t.get("common_close"),
@@ -2078,6 +2112,7 @@ fn ModalLayer() -> Element {
         (
             bundle.name.clone(),
             bundle.mode,
+            bundle.source,
             bundle.entries.clone(),
             bundle.selected.clone(),
         )
@@ -2215,9 +2250,46 @@ fn ModalLayer() -> Element {
                         }
                     },
                     Modal::Unity3d => rsx! {
-                        if let Some((bundle_name, mode, entries, selected)) = unity_bundle {
-                            h2 { {if mode == UnityBundleMode::ExtractLevels { t.get("unity_extract_title") } else { t.get("unity_replace_title") }} }
-                            p { class: "modal-description", "{bundle_name}" }
+                        if let Some((bundle_name, mode, source, entries, selected)) = unity_bundle {
+                            h2 {{
+                                if mode == UnityBundleMode::ReplaceLevel && source == UnityAssetSource::SerializedFile {
+                                    t.get("unity_assets_replace_title")
+                                } else if mode == UnityBundleMode::ReplaceLevel {
+                                    t.get("unity_replace_title")
+                                } else if source == UnityAssetSource::SerializedFile {
+                                    t.get("unity_assets_extract_title")
+                                } else {
+                                    t.get("unity_extract_title")
+                                }
+                            }}
+                            div { class: "unity-entry-header",
+                                p { class: "modal-description", title: "{bundle_name}", "{bundle_name}" }
+                                if mode == UnityBundleMode::ExtractLevels {
+                                    div { class: "unity-entry-toolbar",
+                                    button {
+                                        class: "rton-button secondary",
+                                        onclick: move |_| {
+                                            if let Some(bundle) = state.write().unity_bundle.as_mut() {
+                                                bundle.selected = (0..bundle.entries.len()).collect();
+                                            }
+                                        },
+                                        span { class: "button-icon", {icon(LdCheckCheck)} }
+                                        {t.get("btn_select_all")}
+                                    }
+                                    button {
+                                        class: "rton-button secondary",
+                                        disabled: selected.is_empty(),
+                                        onclick: move |_| {
+                                            if let Some(bundle) = state.write().unity_bundle.as_mut() {
+                                                bundle.selected.clear();
+                                            }
+                                        },
+                                        span { class: "button-icon", {icon(LdSquare)} }
+                                        {t.get("btn_clear_all")}
+                                    }
+                                }
+                                }
+                            }
                             div { class: "unity-entry-list",
                                 for (entry_index, entry) in entries.into_iter().enumerate() {
                                     label { class: if selected.contains(&entry_index) { "unity-entry selected" } else { "unity-entry" },

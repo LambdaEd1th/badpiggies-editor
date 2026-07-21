@@ -1131,6 +1131,25 @@ html.rton-panel-resizing * {
     backdrop-filter: blur(18px) saturate(160%);
 }
 
+.panel-header-title-line {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.panel-header-icon {
+    display: inline-grid;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    place-items: center;
+    color: var(--color-accent-text);
+    font-size: 14px;
+    line-height: 1;
+}
+
 .panel-title {
     min-width: 0;
     flex: 1;
@@ -2722,6 +2741,65 @@ html.rton-panel-resizing * {
     border-color: var(--color-accent-border);
     background: var(--color-accent);
     color: var(--color-accent-contrast);
+}
+
+.unity-entry-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.unity-entry-header .modal-description {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    margin: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unity-entry-toolbar {
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.unity-entry-toolbar .rton-button {
+    display: inline-flex;
+    position: relative;
+    height: 28px;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid var(--wb-border);
+    border-radius: var(--wb-radius-control);
+    background: color-mix(in srgb, var(--wb-panel-soft) 82%, transparent);
+    padding: 0 10px;
+    color: var(--color-text-strong);
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: inset 0 1px 0 var(--wb-highlight);
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.unity-entry-toolbar .rton-button:hover {
+    border-color: var(--color-border-stronger);
+    background: var(--color-control-hover);
+}
+
+.unity-entry-toolbar .button-icon {
+    display: inline-grid;
+    width: 14px;
+    min-width: 14px;
+    place-items: center;
+    color: currentColor;
+    line-height: 1;
 }
 
 .confirm-object-list,

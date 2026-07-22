@@ -2507,7 +2507,7 @@ fn LogsDialog() -> Element {
             readonly: true,
             value: "{log_text}",
             spellcheck: "false",
-            wrap: "off",
+            wrap: "soft",
             aria_label: t.get("settings_logs"),
             onfocus: move |_| logs.set(platform::log_buffer::snapshot()),
         }

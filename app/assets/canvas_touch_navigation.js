@@ -5,13 +5,24 @@ function installCanvasTouchNavigation({
     modifiers,
     send,
     forwardPointer,
+    touchEventMode,
 }) {
     const TAP_MOVE_THRESHOLD_SQ = 36;
+    const useTouchEvents = touchEventMode ?? (
+        typeof window !== "undefined" && (
+            "ontouchstart" in window ||
+            (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0)
+        )
+    );
     const touches = new Map();
     let touchSequence = null;
     let gestureBaseline = null;
     let latestGesture = null;
     let gestureFrame = 0;
+
+    if (canvas.dataset) {
+        canvas.dataset.touchInput = useTouchEvents ? "touch-events" : "pointer-events";
+    }
 
     const sendPointerAt = (kind, point, event, detail = 0) => {
         send({
@@ -88,7 +99,123 @@ function installCanvasTouchNavigation({
         gestureBaseline = latestGesture;
     };
 
-    const beginTouch = (event) => {
+    const updateNavigationThreshold = () => {
+        if (!touchSequence || touchSequence.navigating) return;
+        const primary = touches.get(touchSequence.identifier);
+        if (!primary) return;
+        const dx = primary[0] - touchSequence.start[0];
+        const dy = primary[1] - touchSequence.start[1];
+        touchSequence.navigating = dx * dx + dy * dy > TAP_MOVE_THRESHOLD_SQ;
+    };
+
+    const beginSequence = (identifier, point) => {
+        if (!touchSequence) {
+            touchSequence = {
+                identifier,
+                start: point,
+                navigating: false,
+                multi: false,
+            };
+        }
+        if (touches.size >= 2) {
+            touchSequence.multi = true;
+            touchSequence.navigating = true;
+        }
+        resetTouchBaseline();
+    };
+
+    const finishSequence = (point, allowTap, activeCount) => {
+        updateNavigationThreshold();
+        if (touchSequence?.navigating) {
+            latestGesture = touchGeometry();
+            flushTouchTransform();
+        }
+        return Boolean(
+            allowTap &&
+            activeCount === 0 &&
+            touches.size === 1 &&
+            touchSequence &&
+            !touchSequence.navigating &&
+            !touchSequence.multi &&
+            point,
+        );
+    };
+
+    const touchArray = (list) => {
+        const result = [];
+        for (let index = 0; index < (list?.length ?? 0); index += 1) {
+            result.push(list.item?.(index) ?? list[index]);
+        }
+        return result.filter(Boolean);
+    };
+
+    const activeTouchArray = (event) => touchArray(event.targetTouches ?? event.touches);
+
+    const updateTouchList = (list) => {
+        for (const touch of list) {
+            touches.set(touch.identifier, localPoint(touch));
+        }
+    };
+
+    const syncActiveTouches = (list) => {
+        const active = new Set();
+        for (const touch of list) {
+            active.add(touch.identifier);
+            touches.set(touch.identifier, localPoint(touch));
+        }
+        for (const identifier of touches.keys()) {
+            if (!active.has(identifier)) touches.delete(identifier);
+        }
+    };
+
+    const beginTouchEvent = (event) => {
+        event.preventDefault();
+        canvas.focus({ preventScroll: true });
+        if (touchSequence?.navigating) flushTouchTransform();
+        const active = activeTouchArray(event);
+        syncActiveTouches(active);
+        const first = active[0];
+        if (!first) return;
+        beginSequence(first.identifier, touches.get(first.identifier));
+    };
+
+    const moveTouchEvent = (event) => {
+        event.preventDefault();
+        syncActiveTouches(activeTouchArray(event));
+        updateNavigationThreshold();
+        if (touchSequence?.navigating) queueTouchTransform();
+    };
+
+    const finishTouchEvent = (event, allowTap) => {
+        event.preventDefault();
+        const active = activeTouchArray(event);
+        const changed = touchArray(event.changedTouches);
+        updateTouchList(active);
+        updateTouchList(changed);
+        const primaryChanged = changed.find(
+            (touch) => touch.identifier === touchSequence?.identifier,
+        );
+        const point = primaryChanged
+            ? localPoint(primaryChanged)
+            : touches.get(touchSequence?.identifier);
+        const isTap = finishSequence(point, allowTap, active.length);
+        syncActiveTouches(active);
+        if (touches.size) {
+            if (touchSequence) {
+                touchSequence.multi = true;
+                touchSequence.navigating = true;
+            }
+        } else {
+            touchSequence = null;
+        }
+        resetTouchBaseline();
+        if (isTap) {
+            sendPointerAt("down", point, event, 1);
+            sendPointerAt("up", point, event, 1);
+        }
+    };
+
+    const beginPointerTouch = (event) => {
         event.preventDefault();
         canvas.focus({ preventScroll: true });
         try {
@@ -98,58 +225,24 @@ function installCanvasTouchNavigation({
         }
         if (touchSequence?.navigating) flushTouchTransform();
         const point = localPoint(event);
-        if (!touches.size) {
-            touchSequence = {
-                pointerId: event.pointerId,
-                start: point,
-                navigating: false,
-                multi: false,
-            };
-        }
         touches.set(event.pointerId, point);
-        if (touches.size >= 2 && touchSequence) {
-            touchSequence.multi = true;
-            touchSequence.navigating = true;
-        }
-        resetTouchBaseline();
+        beginSequence(event.pointerId, point);
     };
 
-    const moveTouch = (event) => {
+    const movePointerTouch = (event) => {
         if (!touches.has(event.pointerId)) return;
         event.preventDefault();
         touches.set(event.pointerId, localPoint(event));
-        if (touchSequence && !touchSequence.navigating) {
-            const primary = touches.get(touchSequence.pointerId);
-            if (primary) {
-                const dx = primary[0] - touchSequence.start[0];
-                const dy = primary[1] - touchSequence.start[1];
-                touchSequence.navigating = dx * dx + dy * dy > TAP_MOVE_THRESHOLD_SQ;
-            }
-        }
+        updateNavigationThreshold();
         if (touchSequence?.navigating) queueTouchTransform();
     };
 
-    const finishTouch = (event, allowTap) => {
+    const finishPointerTouch = (event, allowTap) => {
         if (!touches.has(event.pointerId)) return;
         event.preventDefault();
         const point = localPoint(event);
         touches.set(event.pointerId, point);
-        if (touchSequence?.pointerId === event.pointerId && !touchSequence.navigating) {
-            const dx = point[0] - touchSequence.start[0];
-            const dy = point[1] - touchSequence.start[1];
-            touchSequence.navigating = dx * dx + dy * dy > TAP_MOVE_THRESHOLD_SQ;
-        }
-        if (touchSequence?.navigating) {
-            latestGesture = touchGeometry();
-            flushTouchTransform();
-        }
-        const isTap = Boolean(
-            allowTap &&
-            touches.size === 1 &&
-            touchSequence?.pointerId === event.pointerId &&
-            !touchSequence.navigating &&
-            !touchSequence.multi,
-        );
+        const isTap = finishSequence(point, allowTap, touches.size - 1);
         touches.delete(event.pointerId);
         if (touches.size) {
             if (touchSequence) {
@@ -166,6 +259,13 @@ function installCanvasTouchNavigation({
         }
     };
 
+    if (useTouchEvents) {
+        listen(canvas, "touchstart", beginTouchEvent, { passive: false });
+        listen(canvas, "touchmove", moveTouchEvent, { passive: false });
+        listen(canvas, "touchend", (event) => finishTouchEvent(event, true), { passive: false });
+        listen(canvas, "touchcancel", (event) => finishTouchEvent(event, false), { passive: false });
+    }
+
     listen(canvas, "pointerenter", (event) => {
         if (event.pointerType !== "touch") forwardPointer("enter", event);
     });
@@ -174,32 +274,42 @@ function installCanvasTouchNavigation({
     });
     listen(canvas, "pointerdown", (event) => {
         if (event.pointerType === "touch") {
-            beginTouch(event);
+            if (!useTouchEvents) beginPointerTouch(event);
             return;
         }
         event.preventDefault();
         canvas.focus({ preventScroll: true });
-        canvas.setPointerCapture(event.pointerId);
+        try {
+            canvas.setPointerCapture(event.pointerId);
+        } catch (_) {
+            // Capture can fail when the pointer is no longer active.
+        }
         forwardPointer("down", event);
     }, { passive: false });
     listen(canvas, "pointermove", (event) => {
         if (event.pointerType === "touch") {
-            moveTouch(event);
+            if (!useTouchEvents) movePointerTouch(event);
             return;
         }
         forwardPointer("move", event, true);
     }, { passive: false });
     listen(canvas, "pointerup", (event) => {
-        if (event.pointerType === "touch") finishTouch(event, true);
-        else forwardPointer("up", event);
+        if (event.pointerType === "touch") {
+            if (!useTouchEvents) finishPointerTouch(event, true);
+        } else {
+            forwardPointer("up", event);
+        }
     }, { passive: false });
     listen(canvas, "pointercancel", (event) => {
-        if (event.pointerType === "touch") finishTouch(event, false);
-        else forwardPointer("cancel", event);
+        if (event.pointerType === "touch") {
+            if (!useTouchEvents) finishPointerTouch(event, false);
+        } else {
+            forwardPointer("cancel", event);
+        }
     }, { passive: false });
     listen(canvas, "lostpointercapture", (event) => {
-        if (event.pointerType === "touch" && touches.has(event.pointerId)) {
-            finishTouch(event, false);
+        if (!useTouchEvents && event.pointerType === "touch" && touches.has(event.pointerId)) {
+            finishPointerTouch(event, false);
         }
     });
 
@@ -207,6 +317,9 @@ function installCanvasTouchNavigation({
         if (gestureFrame) cancelAnimationFrame(gestureFrame);
         gestureFrame = 0;
         touches.clear();
+        touchSequence = null;
+        gestureBaseline = null;
+        latestGesture = null;
     };
 }
 

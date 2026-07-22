@@ -1972,7 +1972,11 @@ html.rton-panel-resizing * {
 #editor-canvas {
     cursor: default;
     outline: 0;
+    overscroll-behavior: none;
     touch-action: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
 }
 
 #editor-canvas.panning {
@@ -2888,7 +2892,8 @@ html.rton-panel-resizing * {
     min-height: 0;
     flex: 1 1 auto;
     resize: none;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     border: 1px solid var(--wb-border);
     border-radius: 8px;
     background: var(--color-stage);
@@ -2897,7 +2902,8 @@ html.rton-panel-resizing * {
     font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
     font-size: 10px;
     line-height: 1.5;
-    white-space: pre;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
 }
 
 .modal.rton-logs-dialog {

@@ -63,7 +63,7 @@ impl LevelRenderer {
 
         // Level bounds dragging takes priority (available in all modes when visible)
         if self.handle_bounds_drag(response, canvas_center) {
-            self.handle_zoom(ui, response, canvas_center, rect);
+            self.handle_zoom(ui, response, canvas_center);
             return;
         }
 
@@ -83,7 +83,7 @@ impl LevelRenderer {
         }
 
         // Zoom is available in all modes
-        self.handle_zoom(ui, response, canvas_center, rect);
+        self.handle_zoom(ui, response, canvas_center);
     }
 
     /// Select mode: click-to-select, drag objects, terrain node editing. (Original behavior.)

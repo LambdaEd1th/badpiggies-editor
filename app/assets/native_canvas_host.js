@@ -34,8 +34,6 @@ return (async function () {
     let resizeObserver = null;
     let pointerFrame = 0;
     let queuedPointerMove = null;
-    const touches = new Map();
-    let lastGesture = null;
 
     const flushPointerMove = () => {
         pointerFrame = 0;
@@ -63,52 +61,14 @@ return (async function () {
         }
     };
 
-    listen(canvas, "pointerenter", (event) => forwardPointer("enter", event));
-    listen(canvas, "pointerleave", (event) => forwardPointer("leave", event));
-    listen(canvas, "pointerdown", (event) => {
-        event.preventDefault();
-        canvas.focus({ preventScroll: true });
-        canvas.setPointerCapture(event.pointerId);
-        if (event.pointerType === "touch") {
-            touches.set(event.pointerId, localPoint(event));
-            if (touches.size >= 2) lastGesture = null;
-        }
-        forwardPointer("down", event);
+    const removeTouchNavigation = installCanvasTouchNavigation({
+        canvas,
+        listen,
+        localPoint,
+        modifiers,
+        send,
+        forwardPointer,
     });
-    listen(canvas, "pointermove", (event) => {
-        if (event.pointerType === "touch" && touches.has(event.pointerId)) {
-            touches.set(event.pointerId, localPoint(event));
-            if (touches.size >= 2) {
-                const points = Array.from(touches.values()).slice(0, 2);
-                const center = [
-                    (points[0][0] + points[1][0]) / 2,
-                    (points[0][1] + points[1][1]) / 2,
-                ];
-                const distance = Math.hypot(
-                    points[1][0] - points[0][0],
-                    points[1][1] - points[0][1],
-                );
-                if (lastGesture && lastGesture.distance > 0) {
-                    send({
-                        type: "touch_transform",
-                        zoom: distance / lastGesture.distance,
-                        dx: center[0] - lastGesture.center[0],
-                        dy: center[1] - lastGesture.center[1],
-                    });
-                }
-                lastGesture = { center, distance };
-                return;
-            }
-        }
-        forwardPointer("move", event, true);
-    });
-    const finishPointer = (kind, event) => {
-        forwardPointer(kind, event);
-        touches.delete(event.pointerId);
-        if (touches.size < 2) lastGesture = null;
-    };
-    listen(canvas, "pointerup", (event) => finishPointer("up", event));
-    listen(canvas, "pointercancel", (event) => finishPointer("cancel", event));
     listen(canvas, "contextmenu", (event) => event.preventDefault());
     listen(canvas, "wheel", (event) => {
         event.preventDefault();
@@ -167,6 +127,7 @@ return (async function () {
         destroy() {
             if (pointerFrame) cancelAnimationFrame(pointerFrame);
             pointerFrame = 0;
+            removeTouchNavigation();
             resizeObserver?.disconnect();
             resizeObserver = null;
             removers.splice(0).forEach((remove) => remove());

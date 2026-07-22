@@ -9,9 +9,17 @@ use crate::editor_state::{CameraState, CanvasPointerState, CursorModeState, Edit
 use badpiggies_editor_core::domain::types::Vec2;
 
 #[cfg(target_arch = "wasm32")]
-const CANVAS_RUNTIME: &str = include_str!("../../assets/editor_canvas.js");
+const CANVAS_RUNTIME: &str = concat!(
+    include_str!("../../assets/canvas_touch_navigation.js"),
+    "\n",
+    include_str!("../../assets/editor_canvas.js")
+);
 #[cfg(not(target_arch = "wasm32"))]
-const CANVAS_RUNTIME: &str = include_str!("../../assets/native_canvas_host.js");
+const CANVAS_RUNTIME: &str = concat!(
+    include_str!("../../assets/canvas_touch_navigation.js"),
+    "\n",
+    include_str!("../../assets/native_canvas_host.js")
+);
 
 #[cfg(target_arch = "wasm32")]
 #[derive(Deserialize)]
@@ -134,6 +142,8 @@ enum NativeCanvasMessage {
         zoom: f32,
         dx: f32,
         dy: f32,
+        x: f32,
+        y: f32,
     },
     Command {
         name: String,
@@ -507,8 +517,8 @@ pub fn EditorCanvas() -> Element {
                             shift,
                             command,
                         } => renderer.key(&key, alt, ctrl, shift, command),
-                        NativeCanvasMessage::TouchTransform { zoom, dx, dy } => {
-                            renderer.touch_transform(zoom, dx, dy);
+                        NativeCanvasMessage::TouchTransform { zoom, dx, dy, x, y } => {
+                            renderer.touch_transform(zoom, dx, dy, x, y);
                         }
                         NativeCanvasMessage::Command { name } => {
                             apply_editor_command(&name, state);

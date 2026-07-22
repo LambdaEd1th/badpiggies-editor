@@ -1,7 +1,7 @@
 const backend = "worker";
 const runtimeThreadCount = 1;
 const fallbackReason = "";
-const rendererVersion = "20260718-pointer-world-3";
+const rendererVersion = "20260723-touch-navigation-1";
 
 const wasmReady = (async () => {
     const runtime = await import(
@@ -161,7 +161,13 @@ self.onmessage = async (event) => {
                 scheduleFrame();
                 break;
             case "touch_transform":
-                handle?.touch_transform(message.zoom, message.dx, message.dy);
+                handle?.touch_transform(
+                    message.zoom,
+                    message.dx,
+                    message.dy,
+                    message.x,
+                    message.y,
+                );
                 scheduleFrame();
                 break;
             case "destroy":

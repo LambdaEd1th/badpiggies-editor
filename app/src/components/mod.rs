@@ -640,20 +640,14 @@ fn MenuPopup(menu: &'static str, anchor: Option<MenuAnchor>) -> Element {
                         FileMenuItem { label: t.get("menu_export_from_unity_assets"), kind: ImportKind::UnityAssetsExtract }
                         FileMenuItem { label: t.get("menu_open_save"), kind: ImportKind::Save }
                         FileMenuItem { label: t.get("menu_import_xml"), kind: ImportKind::SaveXml }
-                        if has_save || has_level {
-                            div { class: "menu-rule" }
-                        }
-                        if has_save {
-                            MenuItem { label: t.get("menu_export_save"), onclick: move |_| files::export_save(state) }
-                            MenuItem { label: t.get("menu_export_xml"), onclick: move |_| files::export_save_xml(state) }
-                        }
-                        if has_level {
-                            MenuItem { label: t.get("menu_export_level"), onclick: move |_| files::export_level(state, LevelFormat::Bytes) }
-                            MenuItem { label: t.get("menu_export_yaml"), onclick: move |_| files::export_level(state, LevelFormat::Yaml) }
-                            MenuItem { label: t.get("menu_export_toml"), onclick: move |_| files::export_level(state, LevelFormat::Toml) }
-                            FileMenuItem { label: t.get("menu_import_to_unity3d"), kind: ImportKind::UnityReplace }
-                            FileMenuItem { label: t.get("menu_import_to_unity_assets"), kind: ImportKind::UnityAssetsReplace }
-                        }
+                        div { class: "menu-rule" }
+                        MenuItem { label: t.get("menu_export_save"), disabled: !has_save, onclick: move |_| files::export_save(state) }
+                        MenuItem { label: t.get("menu_export_xml"), disabled: !has_save, onclick: move |_| files::export_save_xml(state) }
+                        MenuItem { label: t.get("menu_export_level"), disabled: !has_level, onclick: move |_| files::export_level(state, LevelFormat::Bytes) }
+                        MenuItem { label: t.get("menu_export_yaml"), disabled: !has_level, onclick: move |_| files::export_level(state, LevelFormat::Yaml) }
+                        MenuItem { label: t.get("menu_export_toml"), disabled: !has_level, onclick: move |_| files::export_level(state, LevelFormat::Toml) }
+                        FileMenuItem { label: t.get("menu_import_to_unity3d"), kind: ImportKind::UnityReplace, disabled: !has_level }
+                        FileMenuItem { label: t.get("menu_import_to_unity_assets"), kind: ImportKind::UnityAssetsReplace, disabled: !has_level }
                     },
                     "edit" => rsx! {
                         MenuItem { label: t.get("menu_undo"), shortcut: "Ctrl/Cmd+Z", disabled: !state.read().can_undo(), onclick: move |_| state.write().undo() }
@@ -918,7 +912,9 @@ fn FileMenuItem(label: String, kind: ImportKind, #[props(default)] disabled: boo
 
     rsx! {
         if cfg!(target_arch = "wasm32") {
-            label { class: if disabled { "menu-item file-menu-item disabled" } else { "menu-item file-menu-item" },
+            label {
+                class: if disabled { "menu-item file-menu-item disabled" } else { "menu-item file-menu-item" },
+                aria_disabled: disabled,
                 input {
                     class: "file-menu-input",
                     r#type: "file",

@@ -146,8 +146,10 @@ impl NativeRendererContext {
         self.with_renderer(|renderer| renderer.key(key, alt, ctrl, shift, command));
     }
 
-    pub fn touch_transform(&self, zoom: f32, dx: f32, dy: f32) {
-        self.with_renderer(|renderer| renderer.touch_transform(zoom, dx, dy));
+    pub fn touch_transform(&self, zoom: f32, dx: f32, dy: f32, center_x: f32, center_y: f32) {
+        self.with_renderer(|renderer| {
+            renderer.touch_transform(zoom, dx, dy, center_x, center_y);
+        });
     }
 
     pub fn take_events(&mut self) -> Vec<RendererEvent> {

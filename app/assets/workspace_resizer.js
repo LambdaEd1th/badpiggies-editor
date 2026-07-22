@@ -10,11 +10,9 @@
         left: "--rton-left-panel-width",
         right: "--rton-right-panel-width",
     };
-    const MIN_WIDTH = { left: 200, right: 260 };
-    const MAX_WIDTH = { left: 480, right: 560 };
-    const FALLBACK_WIDTH = { left: 260, right: 330 };
-    const MIN_CENTER_WIDTH = 300;
-    const HANDLE_TRACK_WIDTH = 24;
+    const MIN_WIDTH = 220;
+    const MAX_WIDTH = 560;
+    const FALLBACK_WIDTH = { left: 300, right: 380 };
 
     let activeDrag = null;
 
@@ -35,30 +33,23 @@
         return Number.isFinite(width) && width > 0 ? width : FALLBACK_WIDTH[side];
     }
 
-    function limits(shell, side) {
-        const opposite = side === "left" ? "right" : "left";
-        const available = shell.getBoundingClientRect().width
-            - panelWidth(shell, opposite)
-            - MIN_CENTER_WIDTH
-            - HANDLE_TRACK_WIDTH;
-        return {
-            min: MIN_WIDTH[side],
-            max: Math.max(MIN_WIDTH[side], Math.min(MAX_WIDTH[side], available)),
-        };
+    function clampWidth(width) {
+        return Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width)));
     }
 
-    function clampWidth(shell, side, width) {
-        const { min, max } = limits(shell, side);
-        return Math.round(Math.min(max, Math.max(min, width)));
+    function dragWidth(drag, clientX) {
+        const delta = drag.side === "left"
+            ? clientX - drag.startX
+            : drag.startX - clientX;
+        return clampWidth(drag.startWidth + delta);
     }
 
     function updateHandle(handle) {
         const shell = shellFor(handle);
         if (!shell) return;
         const side = sideFor(handle);
-        const { min, max } = limits(shell, side);
-        handle.setAttribute("aria-valuemin", String(Math.round(min)));
-        handle.setAttribute("aria-valuemax", String(Math.round(max)));
+        handle.setAttribute("aria-valuemin", String(MIN_WIDTH));
+        handle.setAttribute("aria-valuemax", String(MAX_WIDTH));
         handle.setAttribute("aria-valuenow", String(Math.round(panelWidth(shell, side))));
     }
 
@@ -66,10 +57,10 @@
         shell.querySelectorAll(".rton-resize-handle").forEach(updateHandle);
     }
 
-    function setWidth(shell, side, width, persist = false) {
-        const next = clampWidth(shell, side, width);
+    function setWidth(shell, side, width, persist = false, updateHandleState = true) {
+        const next = clampWidth(width);
         shell.style.setProperty(PROPERTIES[side], `${next}px`);
-        updateHandles(shell);
+        if (updateHandleState) updateHandles(shell);
         if (persist) {
             try {
                 localStorage.setItem(STORAGE_KEYS[side], String(next));
@@ -93,7 +84,6 @@
         if (!matchMedia(DESKTOP_QUERY).matches) return;
         const left = storedWidth("left");
         const right = storedWidth("right");
-        if (right !== null) setWidth(shell, "right", right);
         if (left !== null) setWidth(shell, "left", left);
         if (right !== null) setWidth(shell, "right", right);
         updateHandles(shell);
@@ -104,30 +94,56 @@
         const shell = shellFor(handle);
         if (!shell) return;
         event.preventDefault();
-        activeDrag = { pointerId: event.pointerId, shell, side: sideFor(handle), handle };
+        const side = sideFor(handle);
+        const startWidth = panelWidth(shell, side);
+        activeDrag = {
+            pointerId: event.pointerId,
+            shell,
+            side,
+            handle,
+            startX: event.clientX,
+            startWidth,
+            pendingWidth: startWidth,
+            frame: 0,
+        };
         handle.setPointerCapture?.(event.pointerId);
-        shell.classList.add("panel-resizing");
+        handle.classList.add("dragging");
+        shell.classList.add("resizing-panel");
         document.documentElement.classList.add("rton-panel-resizing");
     }
 
     function moveDrag(event) {
         if (!activeDrag || event.pointerId !== activeDrag.pointerId) return;
-        const bounds = activeDrag.shell.getBoundingClientRect();
-        const width = activeDrag.side === "left"
-            ? event.clientX - bounds.left
-            : bounds.right - event.clientX;
-        setWidth(activeDrag.shell, activeDrag.side, width);
+        const drag = activeDrag;
+        drag.pendingWidth = dragWidth(drag, event.clientX);
+        if (!drag.frame) {
+            drag.frame = requestAnimationFrame(() => {
+                if (activeDrag !== drag) return;
+                drag.frame = 0;
+                setWidth(drag.shell, drag.side, drag.pendingWidth, false, false);
+            });
+        }
         event.preventDefault();
     }
 
     function finishDrag(event) {
         if (!activeDrag || (event && event.pointerId !== activeDrag.pointerId)) return;
-        const { shell, side, handle, pointerId } = activeDrag;
+        const drag = activeDrag;
+        const { shell, side, handle, pointerId } = drag;
         activeDrag = null;
-        handle.releasePointerCapture?.(pointerId);
-        shell.classList.remove("panel-resizing");
+        if (drag.frame) cancelAnimationFrame(drag.frame);
+        if (event && Number.isFinite(event.clientX)) {
+            drag.pendingWidth = dragWidth(drag, event.clientX);
+        }
+        try {
+            handle.releasePointerCapture?.(pointerId);
+        } catch (_) {
+            // Capture may already be released after a cancelled pointer.
+        }
+        handle.classList.remove("dragging");
+        shell.classList.remove("resizing-panel");
         document.documentElement.classList.remove("rton-panel-resizing");
-        setWidth(shell, side, panelWidth(shell, side), true);
+        setWidth(shell, side, drag.pendingWidth, true);
     }
 
     function resetWidth(handle) {
@@ -148,11 +164,10 @@
         const shell = shellFor(handle);
         if (!shell) return;
         const side = sideFor(handle);
-        const { min, max } = limits(shell, side);
         const step = event.shiftKey ? 24 : 8;
         let width = panelWidth(shell, side);
-        if (event.key === "Home") width = min;
-        else if (event.key === "End") width = max;
+        if (event.key === "Home") width = MIN_WIDTH;
+        else if (event.key === "End") width = MAX_WIDTH;
         else if (event.key === "ArrowLeft") width += side === "right" ? step : -step;
         else if (event.key === "ArrowRight") width += side === "left" ? step : -step;
         else return;

@@ -1042,9 +1042,10 @@ pub struct Modifiers {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct MultiTouchInfo {
+pub struct TouchTransform {
     pub zoom_delta: f32,
     pub translation_delta: Vec2,
+    pub center: Pos2,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -1064,8 +1065,7 @@ pub struct InputState {
     pub modifiers: Modifiers,
     pub smooth_scroll_delta: Vec2,
     pub pointer: PointerState,
-    pub multi_touch_zoom: Option<f32>,
-    pub multi_touch_translation: Vec2,
+    pub touch_transforms: Vec<TouchTransform>,
     pub keys_pressed: HashSet<Key>,
 }
 
@@ -1076,8 +1076,7 @@ impl Default for InputState {
             modifiers: Modifiers::default(),
             smooth_scroll_delta: Vec2::ZERO,
             pointer: PointerState::default(),
-            multi_touch_zoom: None,
-            multi_touch_translation: Vec2::ZERO,
+            touch_transforms: Vec::new(),
             keys_pressed: HashSet::new(),
         }
     }
@@ -1088,11 +1087,8 @@ impl InputState {
         self.keys_pressed.contains(&key)
     }
 
-    pub fn multi_touch(&self) -> Option<MultiTouchInfo> {
-        self.multi_touch_zoom.map(|zoom_delta| MultiTouchInfo {
-            zoom_delta,
-            translation_delta: self.multi_touch_translation,
-        })
+    pub fn touch_transforms(&self) -> &[TouchTransform] {
+        &self.touch_transforms
     }
 }
 

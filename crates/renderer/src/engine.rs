@@ -577,8 +577,7 @@ pub(crate) struct RawInput {
     scroll: gpu2d::Vec2,
     keys_pressed: HashSet<Key>,
     modifiers: gpu2d::Modifiers,
-    multi_touch_zoom: Option<f32>,
-    multi_touch_translation: gpu2d::Vec2,
+    touch_transforms: Vec<gpu2d::TouchTransform>,
 }
 
 impl RawInput {
@@ -666,9 +665,28 @@ impl RawInput {
         }
     }
 
-    pub(crate) fn touch_transform(&mut self, zoom_delta: f32, dx: f32, dy: f32) {
-        self.multi_touch_zoom = Some(zoom_delta);
-        self.multi_touch_translation += gpu2d::vec2(dx, dy);
+    pub(crate) fn touch_transform(
+        &mut self,
+        zoom_delta: f32,
+        dx: f32,
+        dy: f32,
+        center_x: f32,
+        center_y: f32,
+    ) {
+        if !zoom_delta.is_finite()
+            || zoom_delta <= 0.0
+            || !dx.is_finite()
+            || !dy.is_finite()
+            || !center_x.is_finite()
+            || !center_y.is_finite()
+        {
+            return;
+        }
+        self.touch_transforms.push(gpu2d::TouchTransform {
+            zoom_delta,
+            translation_delta: gpu2d::vec2(dx, dy),
+            center: gpu2d::pos2(center_x, center_y),
+        });
     }
 
     pub(crate) fn frame(
@@ -687,8 +705,7 @@ impl RawInput {
             pointer: gpu2d::PointerState {
                 position: pointer_pos,
             },
-            multi_touch_zoom: self.multi_touch_zoom,
-            multi_touch_translation: self.multi_touch_translation,
+            touch_transforms: std::mem::take(&mut self.touch_transforms),
             keys_pressed: std::mem::take(&mut self.keys_pressed),
         };
         let response = gpu2d::Response {
@@ -704,8 +721,37 @@ impl RawInput {
         };
         self.drag_delta = gpu2d::Vec2::ZERO;
         self.scroll = gpu2d::Vec2::ZERO;
-        self.multi_touch_zoom = None;
-        self.multi_touch_translation = gpu2d::Vec2::ZERO;
         (input, response)
+    }
+}
+
+#[cfg(test)]
+mod raw_input_tests {
+    use super::RawInput;
+
+    #[test]
+    fn touch_transforms_keep_order_until_the_next_frame() {
+        let mut input = RawInput::default();
+        input.touch_transform(1.1, 3.0, 4.0, 20.0, 30.0);
+        input.touch_transform(0.9, -2.0, 5.0, 24.0, 35.0);
+
+        let (frame, _) = input.frame(320, 240, 1.0 / 60.0);
+        assert_eq!(frame.touch_transforms.len(), 2);
+        assert_eq!(frame.touch_transforms[0].zoom_delta, 1.1);
+        assert_eq!(frame.touch_transforms[0].center.x, 20.0);
+        assert_eq!(frame.touch_transforms[1].translation_delta.y, 5.0);
+
+        let (next_frame, _) = input.frame(320, 240, 1.0 / 60.0);
+        assert!(next_frame.touch_transforms.is_empty());
+    }
+
+    #[test]
+    fn touch_transforms_reject_non_finite_input() {
+        let mut input = RawInput::default();
+        input.touch_transform(f32::NAN, 0.0, 0.0, 10.0, 10.0);
+        input.touch_transform(1.0, f32::INFINITY, 0.0, 10.0, 10.0);
+
+        let (frame, _) = input.frame(320, 240, 1.0 / 60.0);
+        assert!(frame.touch_transforms.is_empty());
     }
 }

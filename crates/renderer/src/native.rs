@@ -232,8 +232,16 @@ impl NativeRendererHandle {
         self.context.request_repaint();
     }
 
-    pub fn touch_transform(&mut self, zoom_delta: f32, dx: f32, dy: f32) {
-        self.input.touch_transform(zoom_delta, dx, dy);
+    pub fn touch_transform(
+        &mut self,
+        zoom_delta: f32,
+        dx: f32,
+        dy: f32,
+        center_x: f32,
+        center_y: f32,
+    ) {
+        self.input
+            .touch_transform(zoom_delta, dx, dy, center_x, center_y);
         self.context.request_repaint();
     }
 

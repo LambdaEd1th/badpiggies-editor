@@ -583,6 +583,12 @@ button:disabled {
     cursor: pointer;
 }
 
+.file-menu-item.disabled {
+    cursor: default;
+    opacity: 0.4;
+    pointer-events: none;
+}
+
 .file-menu-input {
     position: absolute;
     inset: 0;
@@ -763,8 +769,8 @@ button:disabled {
 /* Workbench island */
 
 .rton-workspace-shell {
-    --rton-left-panel-width: min(260px, 24vw);
-    --rton-right-panel-width: min(330px, 30vw);
+    --rton-left-panel-width: 300px;
+    --rton-right-panel-width: 380px;
     --rton-panel-handle-width: 12px;
     --rton-file-drawer-track: 0px;
     --rton-file-drawer-handle-track: 0px;
@@ -949,30 +955,20 @@ button:disabled {
     cursor: col-resize;
     touch-action: none;
     outline: none;
+    transition: background-color 120ms ease;
 }
 
 .rton-resize-handle::after {
-    position: absolute;
-    top: 12px;
-    bottom: 12px;
-    left: 50%;
-    width: 2px;
-    border-radius: 1px;
-    background: color-mix(in srgb, var(--color-text-muted) 28%, transparent);
-    content: "";
-    opacity: 0;
-    transform: translateX(-50%);
-    transition: background-color 140ms ease, opacity 140ms ease;
+    display: none;
 }
 
-.rton-resize-handle:hover::after,
-.rton-resize-handle:focus-visible::after,
-.rton-workspace-shell.panel-resizing .rton-resize-handle::after {
-    background: color-mix(in srgb, var(--color-accent) 72%, transparent);
-    opacity: 1;
+.rton-resize-handle:hover,
+.rton-resize-handle:focus-visible,
+.rton-resize-handle.dragging {
+    background: color-mix(in srgb, var(--color-accent) 22%, var(--color-bg));
 }
 
-.rton-workspace-shell.panel-resizing .rton-main-content {
+.rton-workspace-shell.resizing-panel .rton-main-content {
     transition: none;
 }
 
@@ -3377,8 +3373,7 @@ kbd.rton-shortcut-key {
 
 @media (max-width: 1179px) and (min-width: 901px) {
     .rton-workspace-shell {
-        --rton-left-panel-width: min(230px, 26vw);
-        --rton-right-panel-width: min(300px, 34vw);
+        --rton-right-panel-width: min(360px, 38vw);
     }
 
     .rton-commandbar-document {

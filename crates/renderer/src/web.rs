@@ -353,9 +353,11 @@ impl RendererHandle {
         }
     }
 
-    pub fn touch_transform(&self, zoom_delta: f32, dx: f32, dy: f32) {
+    pub fn touch_transform(&self, zoom_delta: f32, dx: f32, dy: f32, center_x: f32, center_y: f32) {
         if let Some(runtime) = self.runtime.borrow_mut().as_mut() {
-            runtime.input.touch_transform(zoom_delta, dx, dy);
+            runtime
+                .input
+                .touch_transform(zoom_delta, dx, dy, center_x, center_y);
             runtime.context.request_repaint();
         }
     }

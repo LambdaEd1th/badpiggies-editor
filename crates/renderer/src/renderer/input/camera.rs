@@ -3,9 +3,22 @@
 use crate::domain::types::Vec2;
 
 use super::super::{
-    BoundsDragResult, BoundsDragState, BoundsEditTarget, BoundsHandle, BoundsHandleHit,
+    BoundsDragResult, BoundsDragState, BoundsEditTarget, BoundsHandle, BoundsHandleHit, Camera,
     LevelRenderer, RouteNodeDragResult, RouteNodeDragState, RouteNodeTarget,
 };
+
+fn apply_touch_transform(
+    camera: &mut Camera,
+    touch: crate::gpu2d::TouchTransform,
+    canvas_center: crate::gpu2d::Vec2,
+) {
+    let previous_center = touch.center - touch.translation_delta;
+    let anchor = camera.screen_to_world(previous_center, canvas_center);
+    camera.zoom = (camera.zoom * touch.zoom_delta).clamp(2.0, 500.0);
+    let moved_anchor = camera.screen_to_world(touch.center, canvas_center);
+    camera.center.x -= moved_anchor.x - anchor.x;
+    camera.center.y -= moved_anchor.y - anchor.y;
+}
 
 impl LevelRenderer {
     pub(super) fn handle_pan_mode(
@@ -32,12 +45,16 @@ impl LevelRenderer {
         ui: &crate::gpu2d::Ui,
         response: &crate::gpu2d::Response,
         canvas_center: crate::gpu2d::Vec2,
-        rect: crate::gpu2d::Rect,
     ) {
-        if !response.hovered() {
+        let touch_transforms = ui.input(|input| input.touch_transforms().to_vec());
+        if !response.hovered() && touch_transforms.is_empty() {
             return;
         }
-        let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+        let scroll = if response.hovered() {
+            ui.input(|i| i.smooth_scroll_delta.y)
+        } else {
+            0.0
+        };
         if scroll != 0.0 {
             if let Some(pointer) = response.hover_pos() {
                 let world_before = self.camera.screen_to_world(pointer, canvas_center);
@@ -52,25 +69,8 @@ impl LevelRenderer {
             }
         }
 
-        // Pinch-to-zoom on touch devices (mobile WASM)
-        if let Some(touch) = ui.input(|i| i.multi_touch()) {
-            if (touch.zoom_delta - 1.0).abs() > 0.001 {
-                let center = rect.center();
-                let world_before = self
-                    .camera
-                    .screen_to_world(crate::gpu2d::pos2(center.x, center.y), canvas_center);
-                self.camera.zoom = (self.camera.zoom * touch.zoom_delta).clamp(2.0, 500.0);
-                let world_after = self
-                    .camera
-                    .screen_to_world(crate::gpu2d::pos2(center.x, center.y), canvas_center);
-                self.camera.center.x -= world_after.x - world_before.x;
-                self.camera.center.y -= world_after.y - world_before.y;
-            }
-            let td = touch.translation_delta;
-            if td.x.abs() > 0.5 || td.y.abs() > 0.5 {
-                self.camera.center.x -= td.x / self.camera.zoom;
-                self.camera.center.y += td.y / self.camera.zoom;
-            }
+        for touch in touch_transforms {
+            apply_touch_transform(&mut self.camera, touch, canvas_center);
         }
     }
 
@@ -465,5 +465,58 @@ impl LevelRenderer {
             }
             _ => [tl_x, tl_y, w, h],
         }
+    }
+}
+
+#[cfg(test)]
+mod touch_transform_tests {
+    use super::{Camera, apply_touch_transform};
+    use crate::domain::types::Vec2;
+
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 0.0001,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn touch_transform_keeps_the_world_anchor_under_the_fingers() {
+        let canvas_center = crate::gpu2d::vec2(200.0, 150.0);
+        let mut camera = Camera {
+            center: Vec2 { x: 3.0, y: -2.0 },
+            zoom: 40.0,
+        };
+        let touch = crate::gpu2d::TouchTransform {
+            zoom_delta: 1.75,
+            translation_delta: crate::gpu2d::vec2(28.0, -16.0),
+            center: crate::gpu2d::pos2(330.0, 82.0),
+        };
+        let previous_center = touch.center - touch.translation_delta;
+        let anchor = camera.screen_to_world(previous_center, canvas_center);
+
+        apply_touch_transform(&mut camera, touch, canvas_center);
+
+        let screen_after = camera.world_to_screen(anchor, canvas_center);
+        assert_close(screen_after.x, touch.center.x);
+        assert_close(screen_after.y, touch.center.y);
+        assert_close(camera.zoom, 70.0);
+    }
+
+    #[test]
+    fn single_touch_translation_pans_without_changing_zoom() {
+        let canvas_center = crate::gpu2d::vec2(160.0, 120.0);
+        let mut camera = Camera::default();
+        let touch = crate::gpu2d::TouchTransform {
+            zoom_delta: 1.0,
+            translation_delta: crate::gpu2d::vec2(40.0, 24.0),
+            center: crate::gpu2d::pos2(140.0, 100.0),
+        };
+
+        apply_touch_transform(&mut camera, touch, canvas_center);
+
+        assert_close(camera.center.x, -1.0);
+        assert_close(camera.center.y, 0.6);
+        assert_close(camera.zoom, 40.0);
     }
 }

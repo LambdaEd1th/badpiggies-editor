@@ -2300,6 +2300,7 @@ fn ModalLayer() -> Element {
     let is_settings = modal == Modal::Settings;
     let is_shortcuts = modal == Modal::Shortcuts;
     let is_logs = modal == Modal::Logs;
+    let close_target = if is_logs { Some(Modal::Settings) } else { None };
     let theme = state.read().theme;
     let t = state.read().t();
     let warnings = state.read().current_level_warnings();
@@ -2340,7 +2341,7 @@ fn ModalLayer() -> Element {
         })
         .unwrap_or_default();
     rsx! {
-        div { class: "modal-backdrop", onclick: move |_| state.write().modal = None,
+        div { class: "modal-backdrop", onclick: move |_| state.write().modal = close_target,
             section {
                 class: if is_settings {
                     "modal rton-settings-dialog"
@@ -2353,7 +2354,7 @@ fn ModalLayer() -> Element {
                 },
                 onclick: move |event| event.stop_propagation(),
                 if !is_settings && !is_shortcuts {
-                    button { class: "modal-close", title: t.get("common_close"), onclick: move |_| state.write().modal = None, {icon(LdX)} }
+                    button { class: "modal-close", title: t.get("common_close"), onclick: move |_| state.write().modal = close_target, {icon(LdX)} }
                 }
                 match modal {
                     Modal::Shortcuts => rsx! {

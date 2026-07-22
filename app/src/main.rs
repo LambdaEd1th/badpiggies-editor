@@ -219,7 +219,9 @@ fn main() {
             on_window_scale_factor.set(window.scale_factor());
             window.set_inner_size(LogicalSize::new(size.width as f64, size.height as f64));
             #[cfg(target_os = "macos")]
-            badpiggies_editor_native_window::make_opaque(&window);
+            {
+                badpiggies_editor_native_window::make_opaque(window.as_ref());
+            }
             *on_window_handle.borrow_mut() = Some(window);
         })
         .with_custom_event_handler(move |event, _| {

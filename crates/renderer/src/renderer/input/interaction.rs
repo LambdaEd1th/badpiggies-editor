@@ -33,7 +33,62 @@ fn dragged_scale_sign(original_scale_axis: f32, start_axis: f32, current_axis: f
     axis_side(original_scale_axis) * axis_side(start_axis) * axis_side(current_axis)
 }
 
+fn dragged_scale_sign_with_hysteresis(
+    original_scale_axis: f32,
+    start_axis: f32,
+    current_axis: f32,
+    hysteresis: f32,
+) -> f32 {
+    if hysteresis <= 0.0 || axis_side(start_axis) == axis_side(current_axis) {
+        return dragged_scale_sign(original_scale_axis, start_axis, current_axis);
+    }
+    let effective_current = if current_axis.abs() < hysteresis {
+        start_axis
+    } else {
+        current_axis
+    };
+    dragged_scale_sign(original_scale_axis, start_axis, effective_current)
+}
+
 impl LevelRenderer {
+    fn cancel_direct_interaction(&mut self) {
+        if let Some(drag) = self.dragging.take()
+            && let Some(sprite) = self
+                .sprite_data
+                .iter_mut()
+                .find(|sprite| sprite.index == drag.index)
+        {
+            match drag.mode {
+                DragMode::Move => sprite.world_pos = drag.original_pos,
+                DragMode::Rotate {
+                    original_rotation, ..
+                } => sprite.rotation = original_rotation,
+                DragMode::Scale {
+                    original_scale,
+                    original_half_size,
+                    ..
+                } => {
+                    sprite.scale = (original_scale.x, original_scale.y);
+                    sprite.half_size = original_half_size;
+                }
+            }
+        }
+        if let Some(drag) = self.node_dragging.take()
+            && let Some(terrain) = self
+                .terrain_data
+                .iter_mut()
+                .find(|terrain| terrain.object_index == drag.object_index)
+            && drag.node_index < terrain.curve_world_verts.len()
+        {
+            terrain.curve_world_verts[drag.node_index] = drag.original_curve_pos;
+        }
+        self.pending_drag_offset = None;
+        self.pending_transform_preview = None;
+        self.box_select_start = None;
+        self.terrain_preset_drag_start = None;
+        self.panning = false;
+    }
+
     pub(in crate::renderer) fn handle_interaction(
         &mut self,
         ui: &crate::gpu2d::Ui,
@@ -60,6 +115,18 @@ impl LevelRenderer {
         self.hovered_rotation_handle = None;
         self.hovered_scale_handle = None;
         self.route_node_hovered = None;
+
+        if response.interact_pointer_pos().is_some() {
+            self.touch_input_active =
+                response.pointer_source() == crate::gpu2d::PointerSource::Touch;
+        }
+
+        if response.drag_cancelled_by(crate::gpu2d::PointerButton::Primary) {
+            self.cancel_direct_interaction();
+            self.cancel_bounds_interactions();
+            self.handle_zoom(ui, response, canvas_center);
+            return;
+        }
 
         // Level bounds dragging takes priority (available in all modes when visible)
         if self.handle_bounds_drag(response, canvas_center) {
@@ -96,6 +163,7 @@ impl LevelRenderer {
         is_shift: bool,
         is_alt: bool,
     ) {
+        let is_touch = response.pointer_source() == crate::gpu2d::PointerSource::Touch;
         self.hovered_scale_handle = response
             .hover_pos()
             .and_then(|pointer| self.scale_handle_hit(pointer, canvas_center, selected));
@@ -107,11 +175,15 @@ impl LevelRenderer {
         if response.drag_started_by(crate::gpu2d::PointerButton::Primary)
             && !is_shift
             && !is_alt
-            && let Some(pointer) = response.interact_pointer_pos()
+            && let Some(pointer) = response
+                .press_origin(crate::gpu2d::PointerButton::Primary)
+                .or_else(|| response.interact_pointer_pos())
         {
             let world = self.camera.screen_to_world(pointer, canvas_center);
+            let scale_handle = self.scale_handle_hit(pointer, canvas_center, selected);
+            let rotation_handle = self.rotation_handle_hit(pointer, canvas_center, selected);
 
-            if let Some(target) = self.hovered_scale_handle {
+            if let Some(target) = scale_handle {
                 if let Some(sprite) = self
                     .sprite_data
                     .iter()
@@ -145,7 +217,7 @@ impl LevelRenderer {
                     });
                     self.clicked_object = Some(target.index);
                 }
-            } else if let Some(idx) = self.hovered_rotation_handle {
+            } else if let Some(idx) = rotation_handle {
                 if let Some(sprite) = self.sprite_data.iter().find(|sprite| sprite.index == idx) {
                     let center = self.camera.world_to_screen(
                         Vec2 {
@@ -180,10 +252,19 @@ impl LevelRenderer {
                             x: nx + tdx,
                             y: ny + tdy,
                         },
+                        original_curve_pos: (nx, ny),
                     });
                     self.clicked_object = Some(obj_idx);
                 }
-            } else if let Some(idx) = self.hit_test(world, selected) {
+            } else if let Some(idx) = self.hit_test_with_screen_slop(
+                world,
+                selected,
+                if is_touch {
+                    super::super::TOUCH_OBJECT_HIT_SLOP_PX
+                } else {
+                    0.0
+                },
+            ) {
                 let orig = self
                     .sprite_data
                     .iter()
@@ -205,6 +286,11 @@ impl LevelRenderer {
             || (response.dragged_by(crate::gpu2d::PointerButton::Primary) && is_shift)
             || (response.dragged_by(crate::gpu2d::PointerButton::Primary) && is_alt)
             || (response.dragged_by(crate::gpu2d::PointerButton::Primary)
+                && !is_shift
+                && !is_alt
+                && self.dragging.is_none()
+                && self.node_dragging.is_none())
+            || (response.drag_completed_by(crate::gpu2d::PointerButton::Primary)
                 && !is_shift
                 && !is_alt
                 && self.dragging.is_none()
@@ -295,15 +381,18 @@ impl LevelRenderer {
                             );
                         }
                     }
-                    let sign_x = dragged_scale_sign(
+                    let flip_hysteresis = if is_touch { 12.0 } else { 0.0 };
+                    let sign_x = dragged_scale_sign_with_hysteresis(
                         original_scale.x,
                         start_pointer_local.x,
                         current_local.x,
+                        flip_hysteresis,
                     );
-                    let sign_y = dragged_scale_sign(
+                    let sign_y = dragged_scale_sign_with_hysteresis(
                         original_scale.y,
                         start_pointer_local.y,
                         current_local.y,
+                        flip_hysteresis,
                     );
                     let base_half_x = if original_scale.x.abs() > 0.0001 {
                         original_half_size.0 / original_scale.x.abs()
@@ -432,7 +521,15 @@ impl LevelRenderer {
                 self.clicked_object = Some(idx);
             } else {
                 let click_world = self.camera.screen_to_world(click_pos, canvas_center);
-                self.clicked_object = self.hit_test(click_world, selected);
+                self.clicked_object = self.hit_test_with_screen_slop(
+                    click_world,
+                    selected,
+                    if is_touch {
+                        super::super::TOUCH_OBJECT_HIT_SLOP_PX
+                    } else {
+                        0.0
+                    },
+                );
             }
             self.clicked_empty = self.clicked_object.is_none();
             self.clicked_with_cmd = ui.input(|i| i.modifiers.command);
@@ -576,7 +673,9 @@ impl LevelRenderer {
 
 #[cfg(test)]
 mod tests {
-    use super::{axis_side, corner_uniform_scale, dragged_scale_sign};
+    use super::{
+        axis_side, corner_uniform_scale, dragged_scale_sign, dragged_scale_sign_with_hysteresis,
+    };
     use crate::domain::types::Vec2;
     use crate::renderer::MIN_OBJECT_SCALE;
 
@@ -623,5 +722,17 @@ mod tests {
     fn dragged_scale_sign_preserves_existing_flip_until_crossing_back() {
         assert_eq!(dragged_scale_sign(-2.0, 40.0, 10.0), -1.0);
         assert_eq!(dragged_scale_sign(-2.0, 40.0, -10.0), 1.0);
+    }
+
+    #[test]
+    fn touch_scale_flip_requires_crossing_the_hysteresis_band() {
+        assert_eq!(
+            dragged_scale_sign_with_hysteresis(2.0, 40.0, -8.0, 12.0),
+            1.0
+        );
+        assert_eq!(
+            dragged_scale_sign_with_hysteresis(2.0, 40.0, -14.0, 12.0),
+            -1.0
+        );
     }
 }

@@ -1,19 +1,24 @@
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 #[cfg(target_os = "macos")]
-pub fn make_opaque(window: &tao::window::Window) {
-    use objc2_app_kit::{NSColorSpace, NSWindow};
-    use tao::platform::macos::WindowExtMacOS;
+/// Configures the AppKit window used by Dioxus for opaque native rendering.
+pub fn make_opaque(window: &(impl raw_window_handle::HasWindowHandle + ?Sized)) {
+    use objc2_app_kit::{NSColorSpace, NSView};
+    use raw_window_handle::RawWindowHandle;
 
-    let ns_window = window.ns_window().cast::<NSWindow>();
-    if ns_window.is_null() {
+    let Ok(handle) = window.window_handle() else {
         return;
-    }
+    };
+    let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
+        return;
+    };
 
-    // Tao owns this NSWindow for the full lifetime of `window`; the callback
-    // runs on the AppKit main thread before Dioxus creates its WebView.
+    // WindowHandle guarantees that ns_view remains valid for the borrow.
     unsafe {
-        let window = &*ns_window;
+        let view = &*handle.ns_view.as_ptr().cast::<NSView>();
+        let Some(window) = view.window() else {
+            return;
+        };
         window.setOpaque(true);
         let color_space = NSColorSpace::sRGBColorSpace();
         window.setColorSpace(Some(&color_space));

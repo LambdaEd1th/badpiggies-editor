@@ -126,6 +126,8 @@ enum NativeCanvasMessage {
         ctrl: bool,
         shift: bool,
         command: bool,
+        #[serde(default)]
+        source: String,
     },
     Wheel {
         x: f32,
@@ -507,8 +509,10 @@ pub fn EditorCanvas() -> Element {
                             ctrl,
                             shift,
                             command,
-                        } => renderer
-                            .pointer_event(&kind, x, y, button, detail, alt, ctrl, shift, command),
+                            source,
+                        } => renderer.pointer_event(
+                            &kind, x, y, button, detail, alt, ctrl, shift, command, &source,
+                        ),
                         NativeCanvasMessage::Wheel { x, y } => renderer.wheel(x, y),
                         NativeCanvasMessage::Key {
                             key,

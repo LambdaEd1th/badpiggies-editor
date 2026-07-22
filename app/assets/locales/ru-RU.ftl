@@ -141,6 +141,9 @@ add_data_type_prefab_overrides = PrefabOverrides
 
 # Panels
 panel_object_list = Список объектов
+tree_search_placeholder = Поиск объектов
+tree_clear_search = Очистить поиск
+tree_search_no_matches = Нет подходящих объектов
 panel_properties = Свойства
 panel_select_hint = Выберите объект для просмотра свойств
 panel_drop_hint = Перетащите файл .bytes сюда

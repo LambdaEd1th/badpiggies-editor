@@ -6,8 +6,11 @@ function installCanvasTouchNavigation({
     send,
     forwardPointer,
     touchEventMode,
+    scheduleTimeout = setTimeout,
+    cancelTimeout = clearTimeout,
+    longPressDelay = 500,
 }) {
-    const TAP_MOVE_THRESHOLD_SQ = 36;
+    const DIRECT_DRAG_THRESHOLD_SQ = 64;
     const useTouchEvents = touchEventMode ?? (
         typeof window !== "undefined" && (
             "ontouchstart" in window ||
@@ -16,24 +19,51 @@ function installCanvasTouchNavigation({
     );
     const touches = new Map();
     let touchSequence = null;
+    let longPressTimer = null;
     let gestureBaseline = null;
     let latestGesture = null;
     let gestureFrame = 0;
+    let directPointerMove = null;
+    let directPointerFrame = 0;
+    let lastDirectPointerPoint = null;
 
     if (canvas.dataset) {
         canvas.dataset.touchInput = useTouchEvents ? "touch-events" : "pointer-events";
     }
 
-    const sendPointerAt = (kind, point, event, detail = 0) => {
+    const eventModifiers = (event) => {
+        const values = modifiers(event);
+        return {
+            alt: Boolean(values.alt),
+            ctrl: Boolean(values.ctrl),
+            shift: Boolean(values.shift),
+            command: Boolean(values.command),
+        };
+    };
+
+    const sendPointerAt = (kind, point, values, button = 0, detail = 0) => {
         send({
             type: "pointer",
             kind,
             x: point[0],
             y: point[1],
-            button: 0,
+            button,
             detail,
-            ...modifiers(event),
+            source: "touch",
+            ...values,
         });
+    };
+
+    const clearLongPress = () => {
+        if (longPressTimer !== null) cancelTimeout(longPressTimer);
+        longPressTimer = null;
+    };
+
+    const distanceFromStartSq = (point) => {
+        if (!touchSequence || !point) return 0;
+        const dx = point[0] - touchSequence.start[0];
+        const dy = point[1] - touchSequence.start[1];
+        return dx * dx + dy * dy;
     };
 
     const touchGeometry = () => {
@@ -99,46 +129,116 @@ function installCanvasTouchNavigation({
         gestureBaseline = latestGesture;
     };
 
-    const updateNavigationThreshold = () => {
-        if (!touchSequence || touchSequence.navigating) return;
-        const primary = touches.get(touchSequence.identifier);
-        if (!primary) return;
-        const dx = primary[0] - touchSequence.start[0];
-        const dy = primary[1] - touchSequence.start[1];
-        touchSequence.navigating = dx * dx + dy * dy > TAP_MOVE_THRESHOLD_SQ;
+    const flushDirectPointerMove = () => {
+        if (directPointerFrame) cancelAnimationFrame(directPointerFrame);
+        directPointerFrame = 0;
+        if (!directPointerMove) return;
+        const { point, values } = directPointerMove;
+        directPointerMove = null;
+        sendPointerAt("move", point, values);
+        lastDirectPointerPoint = point;
     };
 
-    const beginSequence = (identifier, point) => {
-        if (!touchSequence) {
-            touchSequence = {
-                identifier,
-                start: point,
-                navigating: false,
-                multi: false,
-            };
+    const queueDirectPointerMove = (point, values) => {
+        const queuedPoint = directPointerMove?.point ?? lastDirectPointerPoint;
+        if (queuedPoint && queuedPoint[0] === point[0] && queuedPoint[1] === point[1]) return;
+        directPointerMove = { point, values };
+        if (!directPointerFrame) {
+            directPointerFrame = requestAnimationFrame(() => {
+                directPointerFrame = 0;
+                flushDirectPointerMove();
+            });
         }
-        if (touches.size >= 2) {
-            touchSequence.multi = true;
-            touchSequence.navigating = true;
+    };
+
+    const scheduleLongPressMenu = () => {
+        clearLongPress();
+        const sequence = touchSequence;
+        longPressTimer = scheduleTimeout(() => {
+            longPressTimer = null;
+            if (touchSequence !== sequence || sequence?.mode !== "pending" || touches.size !== 1) {
+                return;
+            }
+            const point = touches.get(sequence.identifier);
+            if (!point || distanceFromStartSq(point) > DIRECT_DRAG_THRESHOLD_SQ) return;
+            sequence.mode = "consumed";
+            sendPointerAt("down", point, sequence.modifiers, 2, 1);
+            sendPointerAt("up", point, sequence.modifiers, 2, 1);
+        }, longPressDelay);
+    };
+
+    const beginSequence = (identifier, point, event) => {
+        if (touchSequence || !point) return;
+        touchSequence = {
+            identifier,
+            start: point,
+            mode: "pending",
+            modifiers: eventModifiers(event),
+        };
+        scheduleLongPressMenu();
+    };
+
+    const beginDirectPointer = (point, event) => {
+        if (!touchSequence || touchSequence.mode !== "pending") return;
+        clearLongPress();
+        touchSequence.mode = "direct";
+        touchSequence.modifiers = eventModifiers(event);
+        lastDirectPointerPoint = touchSequence.start;
+        sendPointerAt("down", touchSequence.start, touchSequence.modifiers, 0, 1);
+        queueDirectPointerMove(point, touchSequence.modifiers);
+    };
+
+    const enterViewportGesture = (event) => {
+        if (!touchSequence || touchSequence.mode === "viewport" || touchSequence.mode === "consumed") {
+            return;
         }
+        clearLongPress();
+        if (touchSequence.mode === "direct") {
+            const point = touches.get(touchSequence.identifier) ?? touchSequence.start;
+            flushDirectPointerMove();
+            sendPointerAt("cancel", point, eventModifiers(event));
+        }
+        touchSequence.mode = "viewport";
         resetTouchBaseline();
     };
 
-    const finishSequence = (point, allowTap, activeCount) => {
-        updateNavigationThreshold();
-        if (touchSequence?.navigating) {
-            latestGesture = touchGeometry();
-            flushTouchTransform();
+    const handlePrimaryMovement = (event) => {
+        if (!touchSequence) return;
+        if (touchSequence.mode === "viewport") {
+            queueTouchTransform();
+            return;
         }
-        return Boolean(
-            allowTap &&
-            activeCount === 0 &&
-            touches.size === 1 &&
-            touchSequence &&
-            !touchSequence.navigating &&
-            !touchSequence.multi &&
-            point,
-        );
+        if (touchSequence.mode === "consumed") return;
+        const point = touches.get(touchSequence.identifier);
+        if (!point) return;
+        if (touchSequence.mode === "pending") {
+            if (distanceFromStartSq(point) <= DIRECT_DRAG_THRESHOLD_SQ) return;
+            beginDirectPointer(point, event);
+            return;
+        }
+        touchSequence.modifiers = eventModifiers(event);
+        queueDirectPointerMove(point, touchSequence.modifiers);
+    };
+
+    const finishPrimary = (event, point, allowTap) => {
+        if (!touchSequence) return;
+        clearLongPress();
+        const values = eventModifiers(event);
+        if (touchSequence.mode === "pending") {
+            if (allowTap && distanceFromStartSq(point) <= DIRECT_DRAG_THRESHOLD_SQ) {
+                sendPointerAt("down", point, values, 0, 1);
+                sendPointerAt("up", point, values, 0, 1);
+            } else if (allowTap) {
+                beginDirectPointer(point, event);
+                flushDirectPointerMove();
+                sendPointerAt("up", point, values);
+            }
+        } else if (touchSequence.mode === "direct") {
+            queueDirectPointerMove(point, values);
+            flushDirectPointerMove();
+            sendPointerAt(allowTap ? "up" : "cancel", point, values);
+        }
+        touchSequence.mode = "consumed";
     };
 
     const touchArray = (list) => {
@@ -168,22 +268,39 @@ function installCanvasTouchNavigation({
         }
     };
 
+    const finishRemovedTouches = () => {
+        if (!touches.size) {
+            clearLongPress();
+            touchSequence = null;
+            lastDirectPointerPoint = null;
+            resetTouchBaseline();
+            return;
+        }
+        if (touchSequence?.mode === "viewport") {
+            resetTouchBaseline();
+        } else if (touchSequence && !touches.has(touchSequence.identifier)) {
+            touchSequence.mode = "viewport";
+            resetTouchBaseline();
+        }
+    };
+
     const beginTouchEvent = (event) => {
         event.preventDefault();
         canvas.focus({ preventScroll: true });
-        if (touchSequence?.navigating) flushTouchTransform();
         const active = activeTouchArray(event);
+        const changed = touchArray(event.changedTouches);
         syncActiveTouches(active);
-        const first = active[0];
-        if (!first) return;
-        beginSequence(first.identifier, touches.get(first.identifier));
+        if (!touchSequence) {
+            const first = changed[0] ?? active[0];
+            if (first) beginSequence(first.identifier, touches.get(first.identifier), event);
+        }
+        if (touches.size >= 2) enterViewportGesture(event);
     };
 
     const moveTouchEvent = (event) => {
         event.preventDefault();
         syncActiveTouches(activeTouchArray(event));
-        updateNavigationThreshold();
-        if (touchSequence?.navigating) queueTouchTransform();
+        handlePrimaryMovement(event);
     };
 
     const finishTouchEvent = (event, allowTap) => {
@@ -192,27 +309,18 @@ function installCanvasTouchNavigation({
         const changed = touchArray(event.changedTouches);
         updateTouchList(active);
         updateTouchList(changed);
+        if (touchSequence?.mode === "viewport") {
+            latestGesture = touchGeometry();
+            flushTouchTransform();
+        }
         const primaryChanged = changed.find(
             (touch) => touch.identifier === touchSequence?.identifier,
         );
-        const point = primaryChanged
-            ? localPoint(primaryChanged)
-            : touches.get(touchSequence?.identifier);
-        const isTap = finishSequence(point, allowTap, active.length);
+        if (primaryChanged && touchSequence?.mode !== "viewport") {
+            finishPrimary(event, localPoint(primaryChanged), allowTap);
+        }
         syncActiveTouches(active);
-        if (touches.size) {
-            if (touchSequence) {
-                touchSequence.multi = true;
-                touchSequence.navigating = true;
-            }
-        } else {
-            touchSequence = null;
-        }
-        resetTouchBaseline();
-        if (isTap) {
-            sendPointerAt("down", point, event, 1);
-            sendPointerAt("up", point, event, 1);
-        }
+        finishRemovedTouches();
     };
 
     const beginPointerTouch = (event) => {
@@ -223,18 +331,17 @@ function installCanvasTouchNavigation({
         } catch (_) {
             // Capture can fail if the browser already cancelled this pointer.
         }
-        if (touchSequence?.navigating) flushTouchTransform();
         const point = localPoint(event);
         touches.set(event.pointerId, point);
-        beginSequence(event.pointerId, point);
+        if (!touchSequence) beginSequence(event.pointerId, point, event);
+        if (touches.size >= 2) enterViewportGesture(event);
     };
 
     const movePointerTouch = (event) => {
         if (!touches.has(event.pointerId)) return;
         event.preventDefault();
         touches.set(event.pointerId, localPoint(event));
-        updateNavigationThreshold();
-        if (touchSequence?.navigating) queueTouchTransform();
+        handlePrimaryMovement(event);
     };
 
     const finishPointerTouch = (event, allowTap) => {
@@ -242,21 +349,14 @@ function installCanvasTouchNavigation({
         event.preventDefault();
         const point = localPoint(event);
         touches.set(event.pointerId, point);
-        const isTap = finishSequence(point, allowTap, touches.size - 1);
+        if (touchSequence?.mode === "viewport") {
+            latestGesture = touchGeometry();
+            flushTouchTransform();
+        } else if (touchSequence?.identifier === event.pointerId) {
+            finishPrimary(event, point, allowTap);
+        }
         touches.delete(event.pointerId);
-        if (touches.size) {
-            if (touchSequence) {
-                touchSequence.multi = true;
-                touchSequence.navigating = true;
-            }
-        } else {
-            touchSequence = null;
-        }
-        resetTouchBaseline();
-        if (isTap) {
-            sendPointerAt("down", point, event, 1);
-            sendPointerAt("up", point, event, 1);
-        }
+        finishRemovedTouches();
     };
 
     if (useTouchEvents) {
@@ -314,8 +414,13 @@ function installCanvasTouchNavigation({
     });
 
     return () => {
+        clearLongPress();
         if (gestureFrame) cancelAnimationFrame(gestureFrame);
+        if (directPointerFrame) cancelAnimationFrame(directPointerFrame);
         gestureFrame = 0;
+        directPointerFrame = 0;
+        directPointerMove = null;
+        lastDirectPointerPoint = null;
         touches.clear();
         touchSequence = null;
         gestureBaseline = null;
@@ -323,6 +428,6 @@ function installCanvasTouchNavigation({
     };
 }
 
-if (typeof module !== "undefined") {
+if (typeof module !== "undefined" && module.exports) {
     module.exports = { installCanvasTouchNavigation };
 }

@@ -571,12 +571,14 @@ pub(crate) struct RawInput {
     buttons_down: HashSet<PointerButton>,
     buttons_pressed: HashSet<PointerButton>,
     buttons_released: HashSet<PointerButton>,
+    buttons_cancelled: HashSet<PointerButton>,
     buttons_clicked: HashSet<PointerButton>,
     press_origins: HashMap<PointerButton, gpu2d::Pos2>,
     double_clicked: bool,
     scroll: gpu2d::Vec2,
     keys_pressed: HashSet<Key>,
     modifiers: gpu2d::Modifiers,
+    pointer_source: gpu2d::PointerSource,
     touch_transforms: Vec<gpu2d::TouchTransform>,
 }
 
@@ -593,9 +595,13 @@ impl RawInput {
         ctrl: bool,
         shift: bool,
         command: bool,
+        source: &str,
     ) {
         let position = gpu2d::pos2(x, y);
-        if let Some(previous) = self.pointer_pos {
+        if kind == "move"
+            && !self.buttons_down.is_empty()
+            && let Some(previous) = self.pointer_pos
+        {
             self.drag_delta += position - previous;
         }
         self.pointer_pos = Some(position);
@@ -604,6 +610,11 @@ impl RawInput {
             ctrl,
             shift,
             command,
+        };
+        self.pointer_source = match source {
+            "touch" => gpu2d::PointerSource::Touch,
+            "pen" => gpu2d::PointerSource::Pen,
+            _ => gpu2d::PointerSource::Mouse,
         };
         let button = match button {
             0 => Some(PointerButton::Primary),
@@ -626,8 +637,8 @@ impl RawInput {
             ("up", Some(button)) => {
                 self.buttons_down.remove(&button);
                 self.buttons_released.insert(button);
-                if self.press_origins.remove(&button).is_some_and(|origin| {
-                    let delta = position - origin;
+                if self.press_origins.get(&button).is_some_and(|origin| {
+                    let delta = position - *origin;
                     delta.length_sq() <= 36.0
                 }) {
                     self.buttons_clicked.insert(button);
@@ -635,7 +646,7 @@ impl RawInput {
             }
             ("cancel", Some(button)) => {
                 self.buttons_down.remove(&button);
-                self.buttons_released.insert(button);
+                self.buttons_cancelled.insert(button);
                 self.press_origins.remove(&button);
             }
             _ => {}
@@ -708,6 +719,13 @@ impl RawInput {
             touch_transforms: std::mem::take(&mut self.touch_transforms),
             keys_pressed: std::mem::take(&mut self.keys_pressed),
         };
+        let buttons_released = std::mem::take(&mut self.buttons_released);
+        let press_origins = self.press_origins.clone();
+        for button in &buttons_released {
+            if !self.buttons_down.contains(button) {
+                self.press_origins.remove(button);
+            }
+        }
         let response = gpu2d::Response {
             rect,
             pointer_pos,
@@ -715,8 +733,11 @@ impl RawInput {
             drag_delta: self.drag_delta,
             buttons_down: self.buttons_down.clone(),
             buttons_pressed: std::mem::take(&mut self.buttons_pressed),
-            buttons_released: std::mem::take(&mut self.buttons_released),
+            buttons_released,
+            buttons_cancelled: std::mem::take(&mut self.buttons_cancelled),
             buttons_clicked: std::mem::take(&mut self.buttons_clicked),
+            press_origins,
+            pointer_source: self.pointer_source,
             double_clicked: std::mem::take(&mut self.double_clicked),
         };
         self.drag_delta = gpu2d::Vec2::ZERO;
@@ -728,6 +749,7 @@ impl RawInput {
 #[cfg(test)]
 mod raw_input_tests {
     use super::RawInput;
+    use crate::gpu2d::{PointerButton, PointerSource};
 
     #[test]
     fn touch_transforms_keep_order_until_the_next_frame() {
@@ -753,5 +775,96 @@ mod raw_input_tests {
 
         let (frame, _) = input.frame(320, 240, 1.0 / 60.0);
         assert!(frame.touch_transforms.is_empty());
+    }
+
+    #[test]
+    fn touch_pointer_keeps_press_origin_and_source_during_direct_drag() {
+        let mut input = RawInput::default();
+        input.pointer_event(
+            "down", 200.0, 180.0, 0, 1, false, false, false, false, "touch",
+        );
+        input.pointer_event(
+            "up", 200.0, 180.0, 0, 1, false, false, false, false, "touch",
+        );
+        let _ = input.frame(320, 240, 1.0 / 60.0);
+        input.pointer_event(
+            "down", 12.0, 18.0, 0, 1, false, false, false, false, "touch",
+        );
+        input.pointer_event(
+            "move", 30.0, 42.0, 0, 0, false, false, false, false, "touch",
+        );
+
+        let (_, response) = input.frame(320, 240, 1.0 / 60.0);
+        assert_eq!(response.pointer_source(), PointerSource::Touch);
+        assert_eq!(
+            response.press_origin(PointerButton::Primary),
+            Some(crate::gpu2d::pos2(12.0, 18.0))
+        );
+        assert!(response.drag_started_by(PointerButton::Primary));
+        assert!(response.dragged_by(PointerButton::Primary));
+        assert_eq!(
+            response.interact_pointer_pos(),
+            Some(crate::gpu2d::pos2(30.0, 42.0))
+        );
+        assert_eq!(response.drag_delta(), crate::gpu2d::vec2(18.0, 24.0));
+    }
+
+    #[test]
+    fn pointer_cancel_is_not_a_release_or_click() {
+        let mut input = RawInput::default();
+        input.pointer_event(
+            "down", 10.0, 10.0, 0, 1, false, false, false, false, "touch",
+        );
+        let _ = input.frame(320, 240, 1.0 / 60.0);
+        input.pointer_event(
+            "cancel", 18.0, 10.0, 0, 0, false, false, false, false, "touch",
+        );
+
+        let (_, response) = input.frame(320, 240, 1.0 / 60.0);
+        assert!(response.drag_cancelled_by(PointerButton::Primary));
+        assert!(!response.drag_stopped_by(PointerButton::Primary));
+        assert!(!response.clicked());
+        assert_eq!(response.press_origin(PointerButton::Primary), None);
+    }
+
+    #[test]
+    fn quick_touch_drag_can_complete_between_renderer_frames() {
+        let mut input = RawInput::default();
+        input.pointer_event(
+            "down", 10.0, 12.0, 0, 1, false, false, false, false, "touch",
+        );
+        input.pointer_event(
+            "move", 28.0, 18.0, 0, 0, false, false, false, false, "touch",
+        );
+        input.pointer_event("up", 28.0, 18.0, 0, 0, false, false, false, false, "touch");
+
+        let (_, response) = input.frame(320, 240, 1.0 / 60.0);
+        assert!(response.drag_completed_by(PointerButton::Primary));
+        assert_eq!(
+            response.press_origin(PointerButton::Primary),
+            Some(crate::gpu2d::pos2(10.0, 12.0))
+        );
+        assert_eq!(response.drag_delta(), crate::gpu2d::vec2(18.0, 6.0));
+        assert!(!response.clicked());
+
+        let (_, response) = input.frame(320, 240, 1.0 / 60.0);
+        assert_eq!(response.press_origin(PointerButton::Primary), None);
+    }
+
+    #[test]
+    fn touch_secondary_click_reaches_context_menu_input() {
+        let mut input = RawInput::default();
+        input.pointer_event(
+            "down", 80.0, 90.0, 2, 1, false, false, false, false, "touch",
+        );
+        input.pointer_event("up", 80.0, 90.0, 2, 1, false, false, false, false, "touch");
+
+        let (_, response) = input.frame(320, 240, 1.0 / 60.0);
+        assert_eq!(response.pointer_source(), PointerSource::Touch);
+        assert!(response.secondary_clicked());
+        assert_eq!(
+            response.interact_pointer_pos(),
+            Some(crate::gpu2d::pos2(80.0, 90.0))
+        );
     }
 }

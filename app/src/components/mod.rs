@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use badpiggies_editor_core::data::goal_animation::{
     GoalAnimationState, parse_goal_animation_state, set_goal_animation_state,
@@ -8,15 +8,15 @@ use badpiggies_editor_core::domain::prefab_override::{
     OverrideNode, parse_override_text, serialize_override_tree,
 };
 use badpiggies_editor_core::domain::types::{
-    DataType, LevelObject, ObjectIndex, PrefabInstance, PrefabOverrideData, TerrainData,
+    DataType, LevelData, LevelObject, ObjectIndex, PrefabInstance, PrefabOverrideData, TerrainData,
 };
 use badpiggies_editor_core::worker_protocol::LevelFormat;
 use dioxus::prelude::*;
 use dioxus_free_icons::icons::ld_icons::{
     LdCheck, LdCheckCheck, LdChevronDown, LdChevronRight, LdEllipsis, LdFileUp, LdFolderOpen,
     LdGithub, LdInfo, LdKeyboard, LdLanguages, LdListTree, LdMenu, LdMonitor, LdMoon, LdPanelRight,
-    LdPlus, LdRedo2, LdScan, LdScrollText, LdSettings, LdSlidersHorizontal, LdSquare, LdSun,
-    LdTrash2, LdUndo2, LdX,
+    LdPlus, LdRedo2, LdScan, LdScrollText, LdSearch, LdSettings, LdSlidersHorizontal, LdSquare,
+    LdSun, LdTrash2, LdUndo2, LdX,
 };
 use dioxus_free_icons::{Icon, IconShape};
 use dioxus_html::HasFileData;
@@ -1057,6 +1057,161 @@ fn invoke_tree_object_action(
     }
 }
 
+struct TreeSearchContext<'a> {
+    level: &'a LevelData,
+    query: &'a str,
+    group_label: &'a str,
+    terrain_label: &'a str,
+    prefab_label: &'a str,
+}
+
+impl TreeSearchContext<'_> {
+    fn object_matches(&self, object: &LevelObject, index: ObjectIndex) -> bool {
+        let (name, localized_kind, english_kind) = match object {
+            LevelObject::Parent(parent) => (parent.name.as_str(), self.group_label, "group"),
+            LevelObject::Prefab(prefab) if prefab.terrain_data.is_some() => {
+                (prefab.name.as_str(), self.terrain_label, "terrain")
+            }
+            LevelObject::Prefab(prefab) => (prefab.name.as_str(), self.prefab_label, "prefab"),
+        };
+
+        name.to_lowercase().contains(self.query)
+            || localized_kind.to_lowercase().contains(self.query)
+            || english_kind.contains(self.query)
+            || index.to_string().contains(self.query)
+            || format!("#{index}").contains(self.query)
+    }
+
+    fn collect(
+        &self,
+        index: ObjectIndex,
+        visible: &mut BTreeSet<ObjectIndex>,
+        visiting: &mut BTreeSet<ObjectIndex>,
+    ) -> bool {
+        if !visiting.insert(index) {
+            return false;
+        }
+        let Some(object) = self.level.objects.get(index) else {
+            visiting.remove(&index);
+            return false;
+        };
+
+        let mut matched = self.object_matches(object, index);
+        if let LevelObject::Parent(parent) = object {
+            for child in &parent.children {
+                matched |= self.collect(*child, visible, visiting);
+            }
+        }
+        visiting.remove(&index);
+        if matched {
+            visible.insert(index);
+        }
+        matched
+    }
+}
+
+fn object_tree_search_matches(
+    level: &LevelData,
+    query: &str,
+    group_label: &str,
+    terrain_label: &str,
+    prefab_label: &str,
+) -> BTreeSet<ObjectIndex> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return BTreeSet::new();
+    }
+
+    let context = TreeSearchContext {
+        level,
+        query: &query,
+        group_label,
+        terrain_label,
+        prefab_label,
+    };
+    let mut visible = BTreeSet::new();
+    let mut visiting = BTreeSet::new();
+    for root in &level.roots {
+        context.collect(*root, &mut visible, &mut visiting);
+    }
+    visible
+}
+
+#[cfg(test)]
+mod tree_search_tests {
+    use super::object_tree_search_matches;
+    use badpiggies_editor_core::domain::types::{
+        DataType, LevelData, LevelObject, ParentObject, PrefabInstance, Vec3,
+    };
+    use std::collections::BTreeSet;
+
+    fn parent(name: &str, children: Vec<usize>) -> LevelObject {
+        LevelObject::Parent(ParentObject {
+            name: name.to_string(),
+            position: Vec3::default(),
+            children,
+            parent: None,
+        })
+    }
+
+    fn prefab(name: &str) -> LevelObject {
+        LevelObject::Prefab(PrefabInstance {
+            name: name.to_string(),
+            position: Vec3::default(),
+            prefab_index: 0,
+            rotation: Vec3::default(),
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            data_type: DataType::None,
+            terrain_data: None,
+            override_data: None,
+            parent: None,
+        })
+    }
+
+    fn sample_level() -> LevelData {
+        LevelData {
+            objects: vec![
+                parent("World", vec![1, 3]),
+                parent("Vehicles", vec![2]),
+                prefab("King Pig"),
+                prefab("Cake"),
+            ],
+            roots: vec![0],
+        }
+    }
+
+    #[test]
+    fn search_keeps_the_full_parent_path_to_matching_objects() {
+        let matches =
+            object_tree_search_matches(&sample_level(), "king", "Group", "Terrain", "Prefab");
+        assert_eq!(matches, BTreeSet::from([0, 1, 2]));
+    }
+
+    #[test]
+    fn search_matches_visible_kind_and_object_index_text() {
+        let level = sample_level();
+        assert_eq!(
+            object_tree_search_matches(&level, "PREFAB", "Group", "Terrain", "Prefab"),
+            BTreeSet::from([0, 1, 2, 3])
+        );
+        assert_eq!(
+            object_tree_search_matches(&level, "#3", "Group", "Terrain", "Prefab"),
+            BTreeSet::from([0, 3])
+        );
+    }
+
+    #[test]
+    fn matching_a_group_does_not_expand_unmatched_descendants() {
+        let matches =
+            object_tree_search_matches(&sample_level(), "vehicles", "Group", "Terrain", "Prefab");
+        assert_eq!(matches, BTreeSet::from([0, 1]));
+    }
+}
+
 #[component]
 fn ObjectTree() -> Element {
     let mut state = consume_context::<Signal<EditorState>>();
@@ -1066,15 +1221,35 @@ fn ObjectTree() -> Element {
         use_signal(|| 0_u64),
     );
     let mut collapsed = use_signal(BTreeSet::<ObjectIndex>::new);
+    let mut search_query = use_signal(String::new);
     let mobile_open = state.read().mobile_panel == Some(MobilePanel::Objects);
-    let roots = state
-        .read()
-        .active()
-        .level
-        .as_ref()
-        .map(|level| level.roots.clone())
-        .unwrap_or_default();
     let t = state.read().t();
+    let search_value = search_query.read().clone();
+    let search_active = !search_value.trim().is_empty();
+    let group_label = t.get("tree_group");
+    let terrain_label = t.get("add_data_type_terrain");
+    let prefab_label = t.get("tree_prefab");
+    let (roots, objects_empty, visible_indices) = {
+        let editor = state.read();
+        match editor.active().level.as_ref() {
+            Some(level) => {
+                let visible = search_active.then(|| {
+                    Arc::new(object_tree_search_matches(
+                        level,
+                        &search_value,
+                        &group_label,
+                        &terrain_label,
+                        &prefab_label,
+                    ))
+                });
+                (level.roots.clone(), level.objects.is_empty(), visible)
+            }
+            None => (Vec::new(), true, None),
+        }
+    };
+    let has_search_results = visible_indices
+        .as_ref()
+        .is_none_or(|visible| !visible.is_empty());
     rsx! {
         aside {
             id: "rton-file-drawer",
@@ -1100,6 +1275,29 @@ fn ObjectTree() -> Element {
                 button { title: t.get("win_add_object"), onclick: move |_| state.write().modal = Some(Modal::AddObject), {icon(LdPlus)} }
                 button { title: t.get("menu_delete"), onclick: move |_| state.write().request_delete_selected(), {icon(LdTrash2)} }
             }
+            div { class: "file-search-box",
+                div { class: "file-search-inner",
+                    span { class: "search-icon", {icon(LdSearch)} }
+                    input {
+                        r#type: "search",
+                        aria_label: t.get("tree_search_placeholder"),
+                        placeholder: t.get("tree_search_placeholder"),
+                        value: "{search_value}",
+                        disabled: objects_empty,
+                        oninput: move |event| search_query.set(event.value())
+                    }
+                    if !search_value.is_empty() {
+                        button {
+                            class: "file-search-clear",
+                            r#type: "button",
+                            title: t.get("tree_clear_search"),
+                            aria_label: t.get("tree_clear_search"),
+                            onclick: move |_| search_query.set(String::new()),
+                            {icon(LdX)}
+                        }
+                    }
+                }
+            }
             div {
                 class: "tree-scroll",
                 onclick: move |_| {
@@ -1117,12 +1315,19 @@ fn ObjectTree() -> Element {
                         indices: None,
                     });
                 },
+                if search_active && !has_search_results {
+                    div { class: "tree-search-empty", {t.get("tree_search_no_matches")} }
+                }
                 for root in roots {
-                    TreeNode {
-                        index: root,
-                        depth: 0,
-                        context_menu,
-                        collapsed,
+                    if visible_indices.as_ref().is_none_or(|visible| visible.contains(&root)) {
+                        TreeNode {
+                            index: root,
+                            depth: 0,
+                            context_menu,
+                            collapsed,
+                            visible_indices: visible_indices.clone(),
+                            search_active,
+                        }
                     }
                 }
             }
@@ -1256,8 +1461,16 @@ fn TreeNode(
     depth: usize,
     context_menu: ContextMenuTransition<TreeContextMenu>,
     mut collapsed: Signal<BTreeSet<ObjectIndex>>,
+    visible_indices: Option<Arc<BTreeSet<ObjectIndex>>>,
+    search_active: bool,
 ) -> Element {
     let mut state = consume_context::<Signal<EditorState>>();
+    if visible_indices
+        .as_ref()
+        .is_some_and(|visible| !visible.contains(&index))
+    {
+        return rsx! {};
+    }
     let item = state
         .read()
         .active()
@@ -1287,7 +1500,7 @@ fn TreeNode(
     } else {
         vec![index]
     };
-    let is_collapsed = is_parent && collapsed.read().contains(&index);
+    let is_collapsed = !search_active && is_parent && collapsed.read().contains(&index);
     let t = state.read().t();
     let kind = match kind {
         "Group" => t.get("tree_group"),
@@ -1359,6 +1572,8 @@ fn TreeNode(
                         depth: depth + 1,
                         context_menu,
                         collapsed,
+                        visible_indices: visible_indices.clone(),
+                        search_active,
                     }
                 }
             }
@@ -2085,6 +2300,7 @@ fn ModalLayer() -> Element {
     let is_settings = modal == Modal::Settings;
     let is_shortcuts = modal == Modal::Shortcuts;
     let is_logs = modal == Modal::Logs;
+    let close_target = if is_logs { Some(Modal::Settings) } else { None };
     let theme = state.read().theme;
     let t = state.read().t();
     let warnings = state.read().current_level_warnings();
@@ -2125,7 +2341,7 @@ fn ModalLayer() -> Element {
         })
         .unwrap_or_default();
     rsx! {
-        div { class: "modal-backdrop", onclick: move |_| state.write().modal = None,
+        div { class: "modal-backdrop", onclick: move |_| state.write().modal = close_target,
             section {
                 class: if is_settings {
                     "modal rton-settings-dialog"
@@ -2138,7 +2354,7 @@ fn ModalLayer() -> Element {
                 },
                 onclick: move |event| event.stop_propagation(),
                 if !is_settings && !is_shortcuts {
-                    button { class: "modal-close", title: t.get("common_close"), onclick: move |_| state.write().modal = None, {icon(LdX)} }
+                    button { class: "modal-close", title: t.get("common_close"), onclick: move |_| state.write().modal = close_target, {icon(LdX)} }
                 }
                 match modal {
                     Modal::Shortcuts => rsx! {

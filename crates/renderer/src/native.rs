@@ -216,9 +216,11 @@ impl NativeRendererHandle {
         ctrl: bool,
         shift: bool,
         command: bool,
+        source: &str,
     ) {
-        self.input
-            .pointer_event(kind, x, y, button, detail, alt, ctrl, shift, command);
+        self.input.pointer_event(
+            kind, x, y, button, detail, alt, ctrl, shift, command, source,
+        );
         self.context.request_repaint();
     }
 

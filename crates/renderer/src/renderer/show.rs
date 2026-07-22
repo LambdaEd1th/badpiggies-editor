@@ -225,7 +225,17 @@ impl LevelRenderer {
             let context_world =
                 pointer.map(|position| self.camera.screen_to_world(position, canvas_center));
             let context_object = context_world
-                .and_then(|world| self.hit_test(world, selected))
+                .and_then(|world| {
+                    self.hit_test_with_screen_slop(
+                        world,
+                        selected,
+                        if response.pointer_source() == crate::gpu2d::PointerSource::Touch {
+                            super::TOUCH_OBJECT_HIT_SLOP_PX
+                        } else {
+                            0.0
+                        },
+                    )
+                })
                 .or_else(|| hovered_node.map(|(object_index, _)| object_index));
             self.context_menu_world_pos = context_world;
             self.context_menu_indices = context_object

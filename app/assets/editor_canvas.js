@@ -1,5 +1,5 @@
 return (async function () {
-    const RENDERER_VERSION = "20260723-touch-navigation-1";
+    const RENDERER_VERSION = "20260723-mobile-object-gestures-1";
     const DIOXUS_ASSET_ROOT = __BP_ASSET_ROOT__;
     const REPORT_FRAME_STATS = new URLSearchParams(window.location.search).has("renderStats");
     window.bpEditorCanvas?.destroy();
@@ -127,6 +127,7 @@ return (async function () {
                     message.ctrl,
                     message.shift,
                     message.command,
+                    message.source || "mouse",
                 );
                 break;
             case "wheel":
@@ -255,6 +256,7 @@ return (async function () {
                 y,
                 button: event.button,
                 detail: event.detail || 0,
+                source: event.pointerType || "mouse",
                 ...modifiers(event),
             };
             if (coalesce) {

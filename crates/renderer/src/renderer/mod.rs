@@ -45,6 +45,7 @@ pub use types::*;
 
 /// Goal flag texture (needs repeat wrap for UV scroll).
 pub(super) const GOAL_FLAG_TEXTURE: &str = "Props_Goal_Area_01.png";
+pub(super) const TOUCH_OBJECT_HIT_SLOP_PX: f32 = 10.0;
 
 /// Glow/starburst atlas.
 pub(super) const GLOW_ATLAS: &str = "Particles_Sheet_01.png";
@@ -97,6 +98,8 @@ struct NodeDragState {
     start_mouse: Vec2,
     /// Original node position (world coords).
     original_pos: Vec2,
+    /// Original cached curve position restored when the gesture is cancelled.
+    original_curve_pos: (f32, f32),
 }
 
 /// State for an active level-bounds drag operation.
@@ -148,6 +151,8 @@ pub struct LevelRenderer {
     pub clicked_with_cmd: bool,
     /// Current mouse position in world coordinates (if hovering canvas).
     pub mouse_world: Option<Vec2>,
+    /// Whether the most recent direct pointer interaction came from touch input.
+    touch_input_active: bool,
     /// Elapsed time for animations (seconds).
     pub time: f64,
     /// Runtime preview state for play/build/pause-sensitive effects.

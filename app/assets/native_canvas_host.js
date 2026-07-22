@@ -50,6 +50,7 @@ return (async function () {
             y,
             button: event.button,
             detail: event.detail || 0,
+            source: event.pointerType || "mouse",
             ...modifiers(event),
         };
         if (coalesce) {

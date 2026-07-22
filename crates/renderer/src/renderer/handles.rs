@@ -10,6 +10,9 @@ pub(super) const ROTATION_HANDLE_OFFSET_PX: f32 = 26.0;
 pub(super) const ROTATION_HANDLE_RADIUS_PX: f32 = 7.0;
 pub(super) const SCALE_HANDLE_OFFSET_PX: f32 = 10.0;
 pub(super) const SCALE_HANDLE_RADIUS_PX: f32 = 7.0;
+const TOUCH_ROTATION_HANDLE_RADIUS_PX: f32 = 10.0;
+const TOUCH_SCALE_HANDLE_RADIUS_PX: f32 = 10.0;
+const TOUCH_HANDLE_HIT_RADIUS_PX: f32 = 22.0;
 pub(crate) const MIN_OBJECT_SCALE: f32 = 0.05;
 
 impl LevelRenderer {
@@ -58,7 +61,12 @@ impl LevelRenderer {
         let (_, handle_center) = self.rotation_handle_positions(sprite, canvas_center);
         let dx = pointer.x - handle_center.x;
         let dy = pointer.y - handle_center.y;
-        ((dx * dx + dy * dy).sqrt() <= ROTATION_HANDLE_RADIUS_PX + 4.0).then_some(sprite.index)
+        let hit_radius = if self.touch_input_active {
+            TOUCH_HANDLE_HIT_RADIUS_PX
+        } else {
+            ROTATION_HANDLE_RADIUS_PX + 4.0
+        };
+        ((dx * dx + dy * dy).sqrt() <= hit_radius).then_some(sprite.index)
     }
 
     fn scale_handle_positions(
@@ -112,18 +120,27 @@ impl LevelRenderer {
         selected: &BTreeSet<ObjectIndex>,
     ) -> Option<ScaleHandleTarget> {
         let sprite = self.selected_transform_sprite(selected)?;
+        let hit_radius = if self.touch_input_active {
+            TOUCH_HANDLE_HIT_RADIUS_PX
+        } else {
+            SCALE_HANDLE_RADIUS_PX + 4.0
+        };
         self.scale_handle_positions(sprite, canvas_center)
             .into_iter()
-            .find_map(|(kind, _, handle_center)| {
+            .filter_map(|(kind, _, handle_center)| {
                 let dx = pointer.x - handle_center.x;
                 let dy = pointer.y - handle_center.y;
-                ((dx * dx + dy * dy).sqrt() <= SCALE_HANDLE_RADIUS_PX + 4.0).then_some(
+                let distance = (dx * dx + dy * dy).sqrt();
+                (distance <= hit_radius).then_some((
+                    distance,
                     ScaleHandleTarget {
                         index: sprite.index,
                         kind,
                     },
-                )
+                ))
             })
+            .min_by(|(left, _), (right, _)| left.total_cmp(right))
+            .map(|(_, target)| target)
     }
 
     pub(super) fn scale_handle_cursor(handle: ScaleHandleKind) -> crate::gpu2d::CursorIcon {
@@ -178,14 +195,19 @@ impl LevelRenderer {
         } else {
             crate::gpu2d::Color32::WHITE
         };
+        let radius = if self.touch_input_active {
+            TOUCH_ROTATION_HANDLE_RADIUS_PX
+        } else {
+            ROTATION_HANDLE_RADIUS_PX
+        };
         painter.line_segment(
             [stem_start, handle_center],
             crate::gpu2d::Stroke::new(2.0, crate::gpu2d::Color32::YELLOW),
         );
-        painter.circle_filled(handle_center, ROTATION_HANDLE_RADIUS_PX, fill);
+        painter.circle_filled(handle_center, radius, fill);
         painter.circle_stroke(
             handle_center,
-            ROTATION_HANDLE_RADIUS_PX,
+            radius,
             crate::gpu2d::Stroke::new(2.0, crate::gpu2d::Color32::BLACK),
         );
     }
@@ -203,7 +225,15 @@ impl LevelRenderer {
         let hovered_handle = self
             .hovered_scale_handle
             .and_then(|target| (target.index == sprite.index).then_some(target.kind));
-        for (kind, anchor, handle_center) in self.scale_handle_positions(sprite, canvas_center) {
+        let radius = if self.touch_input_active {
+            TOUCH_SCALE_HANDLE_RADIUS_PX
+        } else {
+            SCALE_HANDLE_RADIUS_PX
+        };
+        for (kind, anchor, handle_center) in self
+            .scale_handle_positions(sprite, canvas_center)
+            .into_iter()
+        {
             let fill = if active_handle == Some(kind) || hovered_handle == Some(kind) {
                 crate::gpu2d::Color32::from_rgb(140, 230, 255)
             } else {
@@ -214,15 +244,9 @@ impl LevelRenderer {
                 crate::gpu2d::Stroke::new(2.0, crate::gpu2d::Color32::from_rgb(120, 220, 255)),
             );
             let size = match kind {
-                ScaleHandleKind::Horizontal => {
-                    crate::gpu2d::vec2(SCALE_HANDLE_RADIUS_PX * 2.8, SCALE_HANDLE_RADIUS_PX * 1.5)
-                }
-                ScaleHandleKind::Vertical => {
-                    crate::gpu2d::vec2(SCALE_HANDLE_RADIUS_PX * 1.5, SCALE_HANDLE_RADIUS_PX * 2.8)
-                }
-                ScaleHandleKind::Corner => {
-                    crate::gpu2d::vec2(SCALE_HANDLE_RADIUS_PX * 2.0, SCALE_HANDLE_RADIUS_PX * 2.0)
-                }
+                ScaleHandleKind::Horizontal => crate::gpu2d::vec2(radius * 2.8, radius * 1.5),
+                ScaleHandleKind::Vertical => crate::gpu2d::vec2(radius * 1.5, radius * 2.8),
+                ScaleHandleKind::Corner => crate::gpu2d::vec2(radius * 2.0, radius * 2.0),
             };
             let handle_rect = crate::gpu2d::Rect::from_center_size(handle_center, size);
             painter.rect_filled(handle_rect, 2.0, fill);

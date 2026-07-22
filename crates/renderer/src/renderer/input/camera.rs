@@ -21,6 +21,28 @@ fn apply_touch_transform(
 }
 
 impl LevelRenderer {
+    pub(super) fn cancel_bounds_interactions(&mut self) {
+        if let Some(drag) = self.bounds_dragging.take() {
+            self.set_bounds_for_target(drag.target, drag.original_limits);
+        }
+        if let Some(drag) = self.route_node_dragging.take() {
+            match drag.target {
+                RouteNodeTarget::InitialView
+                | RouteNodeTarget::CameraLimits
+                | RouteNodeTarget::ConstructionView => {
+                    if let Some(target) = Self::route_node_bounds_target(drag.target)
+                        && let Some(bounds) = drag.original_bounds
+                    {
+                        self.set_bounds_for_target(target, bounds);
+                    }
+                }
+                RouteNodeTarget::CustomPreview(index) => {
+                    self.set_custom_route_point(index, drag.original_pos);
+                }
+            }
+        }
+    }
+
     pub(super) fn handle_pan_mode(
         &mut self,
         response: &crate::gpu2d::Response,
@@ -28,6 +50,7 @@ impl LevelRenderer {
         _is_alt: bool,
     ) {
         if response.dragged_by(crate::gpu2d::PointerButton::Primary)
+            || response.drag_completed_by(crate::gpu2d::PointerButton::Primary)
             || response.dragged_by(crate::gpu2d::PointerButton::Middle)
         {
             let delta = response.drag_delta();

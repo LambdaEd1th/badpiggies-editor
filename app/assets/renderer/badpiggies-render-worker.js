@@ -1,7 +1,7 @@
 const backend = "worker";
 const runtimeThreadCount = 1;
 const fallbackReason = "";
-const rendererVersion = "20260723-touch-navigation-1";
+const rendererVersion = "20260723-mobile-object-gestures-1";
 
 const wasmReady = (async () => {
     const runtime = await import(
@@ -143,6 +143,7 @@ self.onmessage = async (event) => {
                     message.ctrl,
                     message.shift,
                     message.command,
+                    message.source || "mouse",
                 );
                 scheduleFrame();
                 break;

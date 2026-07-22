@@ -330,11 +330,12 @@ impl RendererHandle {
         ctrl: bool,
         shift: bool,
         command: bool,
+        source: &str,
     ) {
         if let Some(runtime) = self.runtime.borrow_mut().as_mut() {
-            runtime
-                .input
-                .pointer_event(kind, x, y, button, detail, alt, ctrl, shift, command);
+            runtime.input.pointer_event(
+                kind, x, y, button, detail, alt, ctrl, shift, command, source,
+            );
             runtime.context.request_repaint();
         }
     }

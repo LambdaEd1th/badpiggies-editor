@@ -13,6 +13,16 @@ impl LevelRenderer {
         pos: Vec2,
         selected: &BTreeSet<ObjectIndex>,
     ) -> Option<ObjectIndex> {
+        self.hit_test_with_screen_slop(pos, selected, 0.0)
+    }
+
+    pub(in crate::renderer) fn hit_test_with_screen_slop(
+        &self,
+        pos: Vec2,
+        selected: &BTreeSet<ObjectIndex>,
+        screen_slop: f32,
+    ) -> Option<ObjectIndex> {
+        let world_slop = screen_slop.max(0.0) / self.camera.zoom.max(0.001);
         let mut best: Option<(ObjectIndex, f32)> = None;
         for sprite in self.sprite_data.iter().rev() {
             // Allow terrain through only if it's the currently selected object
@@ -29,7 +39,7 @@ impl LevelRenderer {
             }
             let dx = (pos.x - sprite.world_pos.x).abs();
             let dy = (pos.y - sprite.world_pos.y).abs();
-            if dx <= sprite.half_size.0 && dy <= sprite.half_size.1 {
+            if dx <= sprite.half_size.0 + world_slop && dy <= sprite.half_size.1 + world_slop {
                 // For terrain, refine hit test using fill mesh triangles
                 if sprite.is_terrain && !self.point_in_terrain(sprite.index, pos) {
                     continue;

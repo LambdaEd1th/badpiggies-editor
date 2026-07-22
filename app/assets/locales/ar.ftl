@@ -141,6 +141,9 @@ add_data_type_prefab_overrides = PrefabOverrides
 
 # Panels
 panel_object_list = قائمة الكائنات
+tree_search_placeholder = البحث في الكائنات
+tree_clear_search = مسح البحث
+tree_search_no_matches = لا توجد كائنات مطابقة
 panel_properties = الخصائص
 panel_select_hint = حدد كائناً لعرض الخصائص
 panel_drop_hint = أسقط ملف .bytes هنا

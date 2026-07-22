@@ -1025,6 +1025,14 @@ pub enum PointerButton {
     Middle,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PointerSource {
+    #[default]
+    Mouse,
+    Pen,
+    Touch,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
     Enter,
@@ -1101,7 +1109,10 @@ pub struct Response {
     pub buttons_down: HashSet<PointerButton>,
     pub buttons_pressed: HashSet<PointerButton>,
     pub buttons_released: HashSet<PointerButton>,
+    pub buttons_cancelled: HashSet<PointerButton>,
     pub buttons_clicked: HashSet<PointerButton>,
+    pub press_origins: HashMap<PointerButton, Pos2>,
+    pub pointer_source: PointerSource,
     pub double_clicked: bool,
 }
 
@@ -1132,6 +1143,20 @@ impl Response {
     }
     pub fn drag_stopped_by(&self, button: PointerButton) -> bool {
         self.buttons_released.contains(&button)
+    }
+    pub fn drag_cancelled_by(&self, button: PointerButton) -> bool {
+        self.buttons_cancelled.contains(&button)
+    }
+    pub fn drag_completed_by(&self, button: PointerButton) -> bool {
+        self.buttons_pressed.contains(&button)
+            && self.buttons_released.contains(&button)
+            && self.drag_delta.length_sq() > 36.0
+    }
+    pub fn press_origin(&self, button: PointerButton) -> Option<Pos2> {
+        self.press_origins.get(&button).copied()
+    }
+    pub const fn pointer_source(&self) -> PointerSource {
+        self.pointer_source
     }
     pub const fn drag_delta(&self) -> Vec2 {
         self.drag_delta

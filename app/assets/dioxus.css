@@ -249,6 +249,59 @@ button:disabled {
     pointer-events: none;
 }
 
+/* Desktop-style controls should drag or activate without creating a text selection. */
+:where(
+    button,
+    select,
+    summary,
+    [role="button"],
+    [role="menuitem"],
+    [role="option"],
+    [role="tab"],
+    [role="switch"],
+    [draggable="true"],
+    .rton-settings-github-link,
+    input:is(
+        [type="button"],
+        [type="submit"],
+        [type="reset"],
+        [type="checkbox"],
+        [type="radio"],
+        [type="range"],
+        [type="color"],
+        [type="file"]
+    )
+) {
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+}
+
+label {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+:where(
+    input:not([type]),
+    input:is(
+        [type="text"],
+        [type="search"],
+        [type="number"],
+        [type="email"],
+        [type="url"],
+        [type="password"],
+        [type="tel"]
+    ),
+    textarea,
+    [contenteditable=""],
+    [contenteditable="true"]
+) {
+    user-select: text;
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+}
+
 .app-shell {
     --wb-canvas: #101318;
     --wb-canvas-soft: #182027;
@@ -769,8 +822,8 @@ button:disabled {
 /* Workbench island */
 
 .rton-workspace-shell {
-    --rton-left-panel-width: 300px;
-    --rton-right-panel-width: 380px;
+    --rton-left-panel-width: min(260px, 24vw);
+    --rton-right-panel-width: min(330px, 30vw);
     --rton-panel-handle-width: 12px;
     --rton-file-drawer-track: 0px;
     --rton-file-drawer-handle-track: 0px;
@@ -955,20 +1008,30 @@ button:disabled {
     cursor: col-resize;
     touch-action: none;
     outline: none;
-    transition: background-color 120ms ease;
 }
 
 .rton-resize-handle::after {
-    display: none;
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: 50%;
+    width: 2px;
+    border-radius: 1px;
+    background: color-mix(in srgb, var(--color-text-muted) 28%, transparent);
+    content: "";
+    opacity: 0;
+    transform: translateX(-50%);
+    transition: background-color 140ms ease, opacity 140ms ease;
 }
 
-.rton-resize-handle:hover,
-.rton-resize-handle:focus-visible,
-.rton-resize-handle.dragging {
-    background: color-mix(in srgb, var(--color-accent) 22%, var(--color-bg));
+.rton-resize-handle:hover::after,
+.rton-resize-handle:focus-visible::after,
+.rton-workspace-shell.panel-resizing .rton-resize-handle::after {
+    background: color-mix(in srgb, var(--color-accent) 72%, transparent);
+    opacity: 1;
 }
 
-.rton-workspace-shell.resizing-panel .rton-main-content {
+.rton-workspace-shell.panel-resizing .rton-main-content {
     transition: none;
 }
 
@@ -1191,6 +1254,94 @@ html.rton-panel-resizing * {
     border-color: color-mix(in srgb, var(--color-accent) 45%, var(--wb-border));
     background: var(--wb-accent-soft);
     color: var(--color-accent-text);
+}
+
+.file-search-box {
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--wb-border);
+    background: color-mix(in srgb, var(--wb-panel) 82%, transparent);
+    padding: 8px;
+}
+
+.file-search-inner {
+    position: relative;
+    min-width: 0;
+}
+
+.search-icon {
+    display: grid;
+    position: absolute;
+    z-index: 1;
+    top: 6px;
+    left: 8px;
+    width: 16px;
+    height: 16px;
+    place-items: center;
+    color: var(--color-text-subtle);
+    pointer-events: none;
+}
+
+.search-icon svg {
+    width: 15px;
+    height: 15px;
+}
+
+.file-search-box input {
+    width: 100%;
+    min-width: 0;
+    min-height: 28px;
+    border: 1px solid var(--wb-border);
+    border-radius: var(--wb-radius-control);
+    appearance: none;
+    background: color-mix(in srgb, var(--wb-panel-soft) 82%, transparent);
+    padding: 0 30px;
+    color: var(--color-text-strong);
+    box-shadow: inset 0 1px 0 var(--wb-highlight);
+    font-size: 13px;
+}
+
+.file-search-box input::-webkit-search-cancel-button {
+    display: none;
+}
+
+.file-search-box input::placeholder {
+    color: var(--color-placeholder);
+}
+
+.file-search-box input:hover:not(:disabled) {
+    border-color: var(--wb-border-bright);
+}
+
+.file-search-clear {
+    display: grid;
+    position: absolute;
+    z-index: 2;
+    top: 4px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.file-search-clear svg {
+    width: 13px;
+    height: 13px;
+}
+
+.file-search-clear:hover {
+    background: var(--color-border);
+    color: var(--color-text-strong);
+}
+
+.tree-search-empty {
+    padding: 28px 12px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    text-align: center;
 }
 
 .tree-scroll,
@@ -3379,7 +3530,8 @@ kbd.rton-shortcut-key {
 
 @media (max-width: 1179px) and (min-width: 901px) {
     .rton-workspace-shell {
-        --rton-right-panel-width: min(360px, 38vw);
+        --rton-left-panel-width: min(230px, 26vw);
+        --rton-right-panel-width: min(300px, 34vw);
     }
 
     .rton-commandbar-document {
@@ -3637,6 +3789,25 @@ kbd.rton-shortcut-key {
     .tree-row {
         min-height: 40px;
         height: 40px;
+    }
+
+    .file-search-box {
+        padding: 10px;
+    }
+
+    .file-search-box input {
+        min-height: 42px;
+        font-size: 16px;
+    }
+
+    .file-search-box .search-icon {
+        top: 13px;
+    }
+
+    .file-search-clear {
+        top: 8px;
+        width: 28px;
+        height: 28px;
     }
 
     .property-field input,

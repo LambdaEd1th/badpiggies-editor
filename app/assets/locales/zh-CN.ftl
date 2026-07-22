@@ -141,6 +141,9 @@ add_data_type_prefab_overrides = PrefabOverrides
 
 # 面板
 panel_object_list = 对象列表
+tree_search_placeholder = 搜索对象
+tree_clear_search = 清除搜索
+tree_search_no_matches = 没有匹配的对象
 panel_properties = 属性
 panel_select_hint = 选择一个对象查看属性
 panel_drop_hint = 拖放 .bytes 文件到此窗口

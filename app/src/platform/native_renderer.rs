@@ -132,9 +132,12 @@ impl NativeRendererContext {
         ctrl: bool,
         shift: bool,
         command: bool,
+        source: &str,
     ) {
         self.with_renderer(|renderer| {
-            renderer.pointer_event(kind, x, y, button, detail, alt, ctrl, shift, command);
+            renderer.pointer_event(
+                kind, x, y, button, detail, alt, ctrl, shift, command, source,
+            );
         });
     }
 

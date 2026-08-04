@@ -3,6 +3,9 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::i18n::locale::Language;
+use badpiggies_editor_core::domain::level::refs::{
+    get_prefab_override, level_key_from_filename, prefab_catalog, prefab_index_for_name,
+};
 use badpiggies_editor_core::domain::level_warning::{LevelWarning, collect_level_warnings};
 use badpiggies_editor_core::domain::prefab_override::{
     OverrideNode, find_first_node_mut, parse_override_text, serialize_override_tree,
@@ -350,7 +353,7 @@ impl TerrainPresetState {
 #[derive(Clone)]
 pub struct AddObjectDraft {
     pub name: String,
-    pub prefab_index: i16,
+    pub prefab_index: Option<i16>,
     pub data_type: DataType,
     pub position: Vec3,
     pub rotation: Vec3,
@@ -361,8 +364,8 @@ pub struct AddObjectDraft {
 impl Default for AddObjectDraft {
     fn default() -> Self {
         Self {
-            name: "NewObject".to_string(),
-            prefab_index: 0,
+            name: String::new(),
+            prefab_index: None,
             data_type: DataType::None,
             position: Vec3::default(),
             rotation: Vec3::default(),
@@ -1176,13 +1179,59 @@ impl EditorState {
         )
     }
 
+    pub fn open_add_object(&mut self, position: Option<Vec2>) {
+        let mut draft = AddObjectDraft::default();
+        if let Some(position) = position {
+            draft.position.x = position.x;
+            draft.position.y = position.y;
+        }
+        self.add_object = draft;
+        self.modal = Some(Modal::AddObject);
+    }
+
+    pub fn add_object_prefab_options(&self) -> Vec<(i16, String)> {
+        let level_key = level_key_from_filename(&self.active().file_name);
+        prefab_catalog(&level_key)
+            .into_iter()
+            .map(|(index, name)| (index, name.to_string()))
+            .collect()
+    }
+
+    pub fn select_add_object_prefab(&mut self, prefab_index: i16) {
+        let level_key = level_key_from_filename(&self.active().file_name);
+        let Some(name) = get_prefab_override(&level_key, prefab_index) else {
+            return;
+        };
+        self.add_object.prefab_index = Some(prefab_index);
+        self.add_object.name = name.to_string();
+    }
+
+    pub fn set_add_object_name(&mut self, name: String) {
+        let level_key = level_key_from_filename(&self.active().file_name);
+        if let Some(prefab_index) = prefab_index_for_name(&level_key, name.trim()) {
+            self.add_object.prefab_index = Some(prefab_index);
+        }
+        self.add_object.name = name;
+    }
+
+    pub fn can_add_prefab(&self) -> bool {
+        if self.add_object.data_type == DataType::Terrain {
+            return true;
+        }
+        let Some(prefab_index) = self.add_object.prefab_index else {
+            return false;
+        };
+        let level_key = level_key_from_filename(&self.active().file_name);
+        get_prefab_override(&level_key, prefab_index).is_some()
+    }
+
     pub fn set_add_object_data_type(&mut self, data_type: DataType) {
         let previous_default = match self.add_object.data_type {
             DataType::Terrain => {
                 self.preferred_terrain_prefab_identity(self.add_object.terrain_has_collider)
                     .0
             }
-            _ => "NewObject".to_string(),
+            _ => String::new(),
         };
         let use_default_name =
             self.add_object.name.trim().is_empty() || self.add_object.name == previous_default;
@@ -1190,9 +1239,11 @@ impl EditorState {
         if use_default_name {
             let (name, prefab_index) = match data_type {
                 DataType::Terrain => {
-                    self.preferred_terrain_prefab_identity(self.add_object.terrain_has_collider)
+                    let (name, prefab_index) = self
+                        .preferred_terrain_prefab_identity(self.add_object.terrain_has_collider);
+                    (name, Some(prefab_index))
                 }
-                _ => ("NewObject".to_string(), 0),
+                _ => (String::new(), None),
             };
             self.add_object.name = name;
             self.add_object.prefab_index = prefab_index;
@@ -1204,12 +1255,12 @@ impl EditorState {
             self.preferred_terrain_prefab_identity(self.add_object.terrain_has_collider);
         let use_default_identity = self.add_object.name.trim().is_empty()
             || (self.add_object.name == previous_identity.0
-                && self.add_object.prefab_index == previous_identity.1);
+                && self.add_object.prefab_index == Some(previous_identity.1));
         self.add_object.terrain_has_collider = has_collider;
         if use_default_identity {
             let (name, prefab_index) = self.preferred_terrain_prefab_identity(has_collider);
             self.add_object.name = name;
-            self.add_object.prefab_index = prefab_index;
+            self.add_object.prefab_index = Some(prefab_index);
         }
     }
 
@@ -1217,14 +1268,33 @@ impl EditorState {
         let (name, prefab_index) =
             self.preferred_terrain_prefab_identity(self.add_object.terrain_has_collider);
         self.add_object.name = name;
-        self.add_object.prefab_index = prefab_index;
+        self.add_object.prefab_index = Some(prefab_index);
         self.add_object.data_type = DataType::Terrain;
         self.add_prefab();
     }
 
     pub fn add_prefab(&mut self) {
-        let draft = self.add_object.clone();
+        let mut draft = self.add_object.clone();
         let file_name = self.active().file_name.clone();
+        if draft.data_type != DataType::Terrain {
+            let level_key = level_key_from_filename(&file_name);
+            let Some(prefab_index) = draft.prefab_index else {
+                let status = self.t().get("status_add_prefab_invalid");
+                self.active_mut().status = status;
+                return;
+            };
+            let Some(prefab_name) = get_prefab_override(&level_key, prefab_index) else {
+                let status = self.t().get("status_add_prefab_invalid");
+                self.active_mut().status = status;
+                return;
+            };
+            if draft.name.trim().is_empty() {
+                draft.name = prefab_name.to_string();
+            } else {
+                draft.name = draft.name.trim().to_string();
+            }
+        }
+        let prefab_index = draft.prefab_index.unwrap_or_default();
         let mut new_index = None;
         self.mutate_level(|level| {
             let index = level.objects.len();
@@ -1266,21 +1336,21 @@ impl EditorState {
                 DataType::PrefabOverrides => LevelObject::Prefab(PrefabInstance {
                     name: draft.name.clone(),
                     position: draft.position,
-                    prefab_index: draft.prefab_index,
+                    prefab_index,
                     rotation: draft.rotation,
                     scale: draft.scale,
                     data_type: draft.data_type,
                     terrain_data: None,
                     override_data: Some(PrefabOverrideData {
-                        raw_text: format!("GameObject {}\n", draft.name),
-                        raw_bytes: format!("GameObject {}\n", draft.name).into_bytes(),
+                        raw_text: String::new(),
+                        raw_bytes: Vec::new(),
                     }),
                     parent: None,
                 }),
                 DataType::None => LevelObject::Prefab(PrefabInstance {
                     name: draft.name.clone(),
                     position: draft.position,
-                    prefab_index: draft.prefab_index,
+                    prefab_index,
                     rotation: draft.rotation,
                     scale: draft.scale,
                     data_type: draft.data_type,
@@ -1869,9 +1939,11 @@ fn set_float_child(parent: &mut OverrideNode, name: &str, value: f32) {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::{
-        CursorModeState, EditorState, PreviewState, SaveData, SaveFileType, TerrainDrawModeState,
-        TerrainPresetState, ThemePreference, default_terrain_data,
+        CursorModeState, EditorState, Modal, PreviewState, SaveData, SaveFileType,
+        TerrainDrawModeState, TerrainPresetState, ThemePreference, default_terrain_data,
     };
+    use badpiggies_editor_core::domain::level::refs::prefab_index_for_name;
+    use badpiggies_editor_core::domain::parser::{parse_level, serialize_level};
     use badpiggies_editor_core::domain::types::{
         DataType, LevelData, LevelObject, PrefabInstance, Vec2, Vec3,
     };
@@ -1919,6 +1991,69 @@ mod tests {
         editor.add_parent();
 
         assert!(!editor.active().is_empty_untitled());
+    }
+
+    #[test]
+    fn added_prefab_roundtrips_with_its_loader_identity() {
+        let mut editor = editor();
+        editor.load_level("scenario_55_data.bytes".to_string(), LevelData::default());
+        editor.open_add_object(Some(Vec2 { x: 12.0, y: -4.0 }));
+
+        let bird_index =
+            prefab_index_for_name("scenario_55_data", "Bird_Red").expect("scenario 55 bird prefab");
+        editor.select_add_object_prefab(bird_index);
+        assert_eq!(editor.add_object.name, "Bird_Red");
+        assert_eq!(editor.add_object.prefab_index, Some(bird_index));
+        assert!(editor.can_add_prefab());
+
+        editor.add_prefab();
+        let level = editor.active().level.as_ref().expect("level");
+        let LevelObject::Prefab(prefab) = &level.objects[0] else {
+            panic!("added object should be a prefab");
+        };
+        assert_eq!(prefab.name, "Bird_Red");
+        assert_eq!(prefab.prefab_index, bird_index);
+        assert_eq!(
+            prefab.position,
+            Vec3 {
+                x: 12.0,
+                y: -4.0,
+                z: 0.0
+            }
+        );
+
+        let parsed = parse_level(serialize_level(level)).expect("roundtrip level");
+        let LevelObject::Prefab(prefab) = &parsed.objects[0] else {
+            panic!("roundtripped object should be a prefab");
+        };
+        assert_eq!(prefab.name, "Bird_Red");
+        assert_eq!(prefab.prefab_index, bird_index);
+    }
+
+    #[test]
+    fn invalid_prefab_index_is_rejected_before_mutating_the_level() {
+        let mut editor = editor();
+        editor.load_level("unknown_level.bytes".to_string(), LevelData::default());
+        editor.open_add_object(None);
+        editor.add_object.name = "Bird_Red".to_string();
+        editor.add_object.prefab_index = Some(0);
+
+        editor.add_prefab();
+
+        assert!(
+            editor
+                .active()
+                .level
+                .as_ref()
+                .expect("level")
+                .objects
+                .is_empty()
+        );
+        assert!(matches!(editor.modal, Some(Modal::AddObject)));
+        assert_eq!(
+            editor.active().status,
+            editor.t().get("status_add_prefab_invalid")
+        );
     }
 
     #[test]

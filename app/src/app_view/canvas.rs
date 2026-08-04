@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use serde::Deserialize;
 
 use crate::components::context_menu_transition::ContextMenuTransition;
-use crate::editor_state::{CameraState, CanvasPointerState, CursorModeState, EditorState, Modal};
+use crate::editor_state::{CameraState, CanvasPointerState, CursorModeState, EditorState};
 use badpiggies_editor_core::domain::types::Vec2;
 
 #[cfg(target_arch = "wasm32")]
@@ -295,11 +295,7 @@ fn apply_native_renderer_event(
                 "flip_horizontal" => editor.flip_objects(&indices, true),
                 "flip_vertical" => editor.flip_objects(&indices, false),
                 "add" => {
-                    editor.modal = Some(Modal::AddObject);
-                    if let Some((x, y)) = x.zip(y) {
-                        editor.add_object.position.x = x;
-                        editor.add_object.position.y = y;
-                    }
+                    editor.open_add_object(x.zip(y).map(|(x, y)| Vec2 { x, y }));
                 }
                 _ => {}
             }
@@ -425,11 +421,7 @@ pub fn EditorCanvas() -> Element {
                             "flip_horizontal" => editor.flip_objects(&indices, true),
                             "flip_vertical" => editor.flip_objects(&indices, false),
                             "add" => {
-                                editor.modal = Some(Modal::AddObject);
-                                if let Some((x, y)) = x.zip(y) {
-                                    editor.add_object.position.x = x;
-                                    editor.add_object.position.y = y;
-                                }
+                                editor.open_add_object(x.zip(y).map(|(x, y)| Vec2 { x, y }));
                             }
                             _ => {}
                         }

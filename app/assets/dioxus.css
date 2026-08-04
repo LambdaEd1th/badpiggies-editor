@@ -1534,6 +1534,11 @@ html.rton-panel-resizing * {
     background: var(--wb-accent-soft);
 }
 
+.rton-custom-select-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .rton-custom-select-value {
     min-width: 0;
     overflow: hidden;
@@ -1632,6 +1637,55 @@ html.rton-panel-resizing * {
     border-color: color-mix(in srgb, var(--color-accent) 36%, var(--wb-border));
     background: var(--wb-accent-soft);
     color: var(--color-accent-text);
+}
+
+.rton-custom-select-search {
+    display: flex;
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    min-width: 0;
+    min-height: 38px;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--wb-border);
+    border-radius: 9px;
+    background: var(--wb-glass-strong);
+    padding: 0 9px;
+}
+
+.rton-custom-select-search > span {
+    display: inline-flex;
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    color: var(--color-text-muted);
+}
+
+.rton-custom-select-search svg {
+    width: 15px;
+    height: 15px;
+}
+
+.rton-custom-select-search input {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--color-text-strong);
+    font: inherit;
+    font-size: 13px;
+}
+
+.rton-custom-select-empty {
+    margin: 0;
+    padding: 9px 10px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    text-align: center;
 }
 
 .rton-settings-select .rton-custom-select-control {
@@ -3033,6 +3087,17 @@ html.rton-panel-resizing * {
 .add-object-form {
     display: grid;
     gap: 2px;
+}
+
+.add-prefab-message {
+    margin: -3px 0 10px 95px;
+    color: var(--color-text-muted);
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.add-prefab-message.error {
+    color: var(--color-danger);
 }
 
 .log-viewer {

@@ -1131,6 +1131,19 @@ pub fn get_prefab_override(level_key: &str, prefab_index: i16) -> Option<&'stati
         .map(|s| s.as_str())
 }
 
+/// Get every resolved prefab in a level loader, sorted by loader index.
+pub fn prefab_catalog(level_key: &str) -> Vec<(i16, &'static str)> {
+    let mut entries = data()
+        .prefabs
+        .get(level_key)
+        .into_iter()
+        .flat_map(|prefabs| prefabs.iter())
+        .map(|(&index, name)| (index, name.as_str()))
+        .collect::<Vec<_>>();
+    entries.sort_unstable_by_key(|(index, _)| *index);
+    entries
+}
+
 /// Find the lowest loader prefab index whose resolved name exactly matches `name`.
 pub fn prefab_index_for_name(level_key: &str, name: &str) -> Option<i16> {
     data()
@@ -1171,7 +1184,8 @@ mod tests {
         material_cutoff_for_guid_prefix, material_main_tex_st_for_guid,
         material_main_tex_st_for_guid_prefix, material_shader_kind_for_guid,
         material_shader_kind_for_guid_prefix, material_texture_name_for_guid,
-        material_texture_name_for_guid_prefix, prefab_index_for_name, texture_name_for_guid,
+        material_texture_name_for_guid_prefix, prefab_catalog, prefab_index_for_name,
+        texture_name_for_guid,
     };
     use crate::data::assets;
     use crate::domain::parser::parse_level;
@@ -1462,6 +1476,20 @@ mod tests {
         assert!(
             get_prefab_override("Level_51_data", grass_index)
                 .is_some_and(|name| name.starts_with("Grass_"))
+        );
+
+        let catalog = prefab_catalog("Level_51_data");
+        assert!(catalog.windows(2).all(|pair| pair[0].0 < pair[1].0));
+        assert!(catalog.contains(&(17, "Grass_09_0")));
+        assert!(prefab_catalog("unknown_level").is_empty());
+
+        assert_eq!(
+            prefab_index_for_name("scenario_55_data", "Bird_Red"),
+            Some(131)
+        );
+        assert_eq!(
+            prefab_index_for_name("scenario_55_data", "Slingshot"),
+            Some(151)
         );
     }
 

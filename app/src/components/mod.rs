@@ -374,7 +374,7 @@ fn CommandBar() -> Element {
                     }
                     div { class: "rton-toolbar-group-shell",
                         div { class: "rton-toolbar-group",
-                            IconButton { label: t.get("menu_add_object"), disabled: is_save, icon: icon(LdPlus), onclick: move |_| state.write().modal = Some(Modal::AddObject) }
+                            IconButton { label: t.get("menu_add_object"), disabled: is_save, icon: icon(LdPlus), onclick: move |_| state.write().open_add_object(None) }
                             IconButton { label: t.get("menu_undo"), disabled: !can_undo, icon: icon(LdUndo2), onclick: move |_| state.write().undo() }
                             IconButton { label: t.get("menu_redo"), disabled: !can_redo, icon: icon(LdRedo2), onclick: move |_| state.write().redo() }
                             IconButton { label: t.get("menu_delete"), disabled: !selected, icon: icon(LdTrash2), onclick: move |_| state.write().request_delete_selected() }
@@ -575,7 +575,7 @@ fn MobileCommandMenu(menu_anchor: Signal<Option<MenuAnchor>>) -> Element {
                     div { class: "mobile-command-grid actions",
                         MobileAction { label: t.get("menu_undo"), disabled: !can_undo, icon: icon(LdUndo2), onclick: move |_| { state.write().undo(); state.write().menu_open = None; } }
                         MobileAction { label: t.get("menu_redo"), disabled: !can_redo, icon: icon(LdRedo2), onclick: move |_| { state.write().redo(); state.write().menu_open = None; } }
-                        MobileAction { label: t.get("menu_add_object"), disabled: is_save, icon: icon(LdPlus), onclick: move |_| state.write().modal = Some(Modal::AddObject) }
+                        MobileAction { label: t.get("menu_add_object"), disabled: is_save, icon: icon(LdPlus), onclick: move |_| state.write().open_add_object(None) }
                         MobileAction { label: t.get("menu_delete"), disabled: !selected, icon: icon(LdTrash2), onclick: move |_| { state.write().request_delete_selected(); state.write().menu_open = None; } }
                         MobileAction { label: t.get("menu_fit_view"), disabled: is_save, icon: icon(LdScan), onclick: move |_| { state.write().fit_view(); state.write().menu_open = None; } }
                     }
@@ -664,7 +664,7 @@ fn MenuPopup(menu: &'static str, anchor: Option<MenuAnchor>) -> Element {
                         MenuItem { label: t.get("menu_flip_vertical"), disabled: has_save || !state.read().has_selection(), onclick: move |_| state.write().flip_selected(false) }
                         MenuItem { label: t.get("menu_delete"), shortcut: "Delete", disabled: !state.read().has_selection(), onclick: move |_| state.write().request_delete_selected() }
                         div { class: "menu-rule" }
-                        MenuItem { label: t.get("menu_add_object"), disabled: has_save, onclick: move |_| state.write().modal = Some(Modal::AddObject) }
+                        MenuItem { label: t.get("menu_add_object"), disabled: has_save, onclick: move |_| state.write().open_add_object(None) }
                     },
                     "view" => rsx! {
                         CheckItem { label: t.get("menu_object_list"), checked: state.read().show_tree, onchange: move |value| state.write().show_tree = value }
@@ -796,6 +796,126 @@ fn CustomSelect(
                                 aria_selected: selected,
                                 onclick: move |_| {
                                     open.set(false);
+                                    onchange.call(option_value.clone());
+                                },
+                                span { "{option.label}" }
+                                if selected {
+                                    span { class: "rton-custom-select-check", aria_hidden: "true", {icon(LdCheck)} }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn SearchableSelect(
+    aria_label: String,
+    value: String,
+    options: Vec<SelectOption>,
+    placeholder: String,
+    search_placeholder: String,
+    empty_label: String,
+    onchange: EventHandler<String>,
+    #[props(default)] disabled: bool,
+) -> Element {
+    let mut open = use_signal(|| false);
+    let mut query = use_signal(String::new);
+    let is_open = *open.read();
+    let selected_label = options
+        .iter()
+        .find(|option| option.value == value)
+        .map(|option| option.label.clone())
+        .unwrap_or(placeholder);
+    let normalized_query = query.read().trim().to_ascii_lowercase();
+    let filtered_options = options
+        .iter()
+        .filter(|option| {
+            normalized_query.is_empty()
+                || option
+                    .label
+                    .to_ascii_lowercase()
+                    .contains(&normalized_query)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+
+    rsx! {
+        div {
+            class: if is_open { "rton-custom-select rton-searchable-select open" } else { "rton-custom-select rton-searchable-select" },
+            onkeydown: move |event| {
+                let key = event.key().to_string();
+                if matches!(key.as_str(), "Enter" | " " | "ArrowDown") && !*open.read() && !disabled {
+                    event.prevent_default();
+                    open.set(true);
+                } else if key == "Escape" && *open.read() {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    open.set(false);
+                    query.set(String::new());
+                }
+            },
+            if is_open {
+                div {
+                    class: "rton-custom-select-backdrop",
+                    aria_hidden: "true",
+                    onclick: move |_| {
+                        open.set(false);
+                        query.set(String::new());
+                    },
+                }
+            }
+            button {
+                r#type: "button",
+                class: "rton-custom-select-control",
+                aria_label: "{aria_label}",
+                aria_haspopup: "listbox",
+                aria_expanded: is_open,
+                disabled,
+                onclick: move |_| {
+                    if !disabled {
+                        open.set(!is_open);
+                    }
+                },
+                span { class: "rton-custom-select-value", "{selected_label}" }
+                span { class: "rton-custom-select-caret", aria_hidden: "true", {icon(LdChevronDown)} }
+            }
+            div {
+                class: "rton-custom-select-menu",
+                role: "listbox",
+                aria_label: "{aria_label}",
+                aria_hidden: !is_open,
+                div { class: "rton-custom-select-search",
+                    span { aria_hidden: "true", {icon(LdSearch)} }
+                    input {
+                        r#type: "search",
+                        aria_label: "{search_placeholder}",
+                        placeholder: "{search_placeholder}",
+                        value: "{query}",
+                        oninput: move |event| query.set(event.value()),
+                    }
+                }
+                if filtered_options.is_empty() {
+                    p { class: "rton-custom-select-empty", "{empty_label}" }
+                }
+                for option in filtered_options {
+                    {
+                        let selected = option.value == value;
+                        let option_value = option.value.clone();
+                        rsx! {
+                            button {
+                                key: "{option.value}",
+                                r#type: "button",
+                                class: if selected { "active" } else { "" },
+                                role: "option",
+                                tabindex: if is_open { "0" } else { "-1" },
+                                aria_selected: selected,
+                                onclick: move |_| {
+                                    open.set(false);
+                                    query.set(String::new());
                                     onchange.call(option_value.clone());
                                 },
                                 span { "{option.label}" }
@@ -1272,7 +1392,7 @@ fn ObjectTree() -> Element {
                 }
             }
             div { class: "tree-actions",
-                button { title: t.get("win_add_object"), onclick: move |_| state.write().modal = Some(Modal::AddObject), {icon(LdPlus)} }
+                button { title: t.get("win_add_object"), onclick: move |_| state.write().open_add_object(None), {icon(LdPlus)} }
                 button { title: t.get("menu_delete"), onclick: move |_| state.write().request_delete_selected(), {icon(LdTrash2)} }
             }
             div { class: "file-search-box",
@@ -1445,7 +1565,7 @@ fn ObjectTree() -> Element {
                         role: "menuitem",
                         onclick: move |_| {
                             context_menu.dismiss();
-                            state.write().modal = Some(Modal::AddObject);
+                            state.write().open_add_object(None);
                         },
                         {state.read().t().get("menu_add_object")}
                     }
@@ -2340,6 +2460,26 @@ fn ModalLayer() -> Element {
                 .map(|tab| tab.file_name.clone())
         })
         .unwrap_or_default();
+    let add_object = state.read().add_object.clone();
+    let add_prefab_options = state
+        .read()
+        .add_object_prefab_options()
+        .into_iter()
+        .map(|(index, name)| SelectOption::new(index.to_string(), format!("#{index}  {name}")))
+        .collect::<Vec<_>>();
+    let add_prefab_catalog_empty = add_prefab_options.is_empty();
+    let add_prefab_value = add_object
+        .prefab_index
+        .map(|index| index.to_string())
+        .unwrap_or_default();
+    let add_prefab_index = add_object
+        .prefab_index
+        .map(|index| index.to_string())
+        .unwrap_or_else(|| "-".to_string());
+    let add_prefab_selection_missing = add_object.data_type != DataType::Terrain
+        && add_object.prefab_index.is_none()
+        && !add_prefab_catalog_empty;
+    let can_add_prefab = state.read().can_add_prefab();
     rsx! {
         div { class: "modal-backdrop", onclick: move |_| state.write().modal = close_target,
             section {
@@ -2391,11 +2531,33 @@ fn ModalLayer() -> Element {
                         div { class: "add-object-form",
                             label { class: "property-field",
                                 span { {t.get("add_name")} }
-                                input { value: state.read().add_object.name.clone(), oninput: move |event| state.write().add_object.name = event.value() }
+                                input { value: state.read().add_object.name.clone(), oninput: move |event| state.write().set_add_object_name(event.value()) }
+                            }
+                            div { class: "property-field",
+                                span { {t.get("add_search")} }
+                                SearchableSelect {
+                                    aria_label: t.get("add_search"),
+                                    value: add_prefab_value,
+                                    options: add_prefab_options,
+                                    placeholder: t.get("add_prefab_select_placeholder"),
+                                    search_placeholder: t.get("add_search_hint"),
+                                    empty_label: t.get("add_search_no_matches"),
+                                    disabled: add_prefab_catalog_empty,
+                                    onchange: move |value: String| {
+                                        if let Ok(prefab_index) = value.parse() {
+                                            state.write().select_add_object_prefab(prefab_index);
+                                        }
+                                    },
+                                }
                             }
                             label { class: "property-field",
                                 span { {t.get("add_prefab_index")} }
-                                input { r#type: "number", value: "{state.read().add_object.prefab_index}", oninput: move |event| if let Ok(value) = event.value().parse() { state.write().add_object.prefab_index = value; } }
+                                input { readonly: true, value: "{add_prefab_index}" }
+                            }
+                            if add_prefab_catalog_empty {
+                                p { class: "add-prefab-message error", {t.get("add_prefab_catalog_missing")} }
+                            } else if add_prefab_selection_missing {
+                                p { class: "add-prefab-message", {t.get("add_prefab_required")} }
                             }
                             div { class: "property-field",
                                 span { {t.get("add_data_type")} }
@@ -2431,7 +2593,7 @@ fn ModalLayer() -> Element {
                         div { class: "modal-actions add-object-actions",
                             button { onclick: move |_| state.write().add_parent(), {t.get("btn_add_group")} }
                             button { onclick: move |_| state.write().add_terrain(), {t.get("btn_add_terrain")} }
-                            button { class: "primary", onclick: move |_| state.write().add_prefab(), {t.get("btn_add_prefab")} }
+                            button { class: "primary", disabled: !can_add_prefab, onclick: move |_| state.write().add_prefab(), {t.get("btn_add_prefab")} }
                         }
                     },
                     Modal::DeleteConfirm => rsx! {
